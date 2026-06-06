@@ -46,7 +46,10 @@ test.describe("Branch Switch", () => {
       page.locator(".is-user").filter({ hasText: "show me kinase genes" }),
     ).toBeVisible({ timeout: 15_000 });
     await expect(
-      page.locator(".is-assistant").filter({ hasText: /\[mock\]/ }).first(),
+      page
+        .locator(".is-assistant")
+        .filter({ hasText: /\[mock\]/ })
+        .first(),
     ).toBeVisible({ timeout: 15_000 });
   });
 });

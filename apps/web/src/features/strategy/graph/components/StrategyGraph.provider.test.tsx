@@ -7,7 +7,8 @@ import { StrategyGraph } from "./StrategyGraph";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
-  usePathname: () => "/conversation/strategy-1/strategy",
+  usePathname: () => "/veupathdb/conversation/strategy-1/strategy",
+  useParams: () => ({ siteId: "veupathdb", conversationId: "strategy-1" }),
 }));
 
 vi.mock("@xyflow/react", async () => {

@@ -58,7 +58,11 @@ from pathfinder.ai.graph.stream_events import (
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.memory.schemas import MemoryValue
-from pathfinder.ai.models.mock import get_mock_model
+from pathfinder.ai.models.mock import (
+    current_site_id,
+    current_user_text,
+    get_mock_model,
+)
 from pathfinder.ai.models.settings import (
     build_model_settings,
     to_pydantic_ai_model_name,
@@ -322,6 +326,10 @@ async def _stream_sub_agent[OutputT: BaseModel](
     inner_calls: dict[str, str] = {}
     output: OutputT | None = None
     usage = RunUsage()
+    # Let the deterministic mock target a site-valid search/organism and
+    # branch the canned plan on what the user asked for.
+    current_site_id.set(deps.runtime.site_id)
+    current_user_text.set(deps.state.user_prompt)
     override_kwargs = _phase_override_kwargs(deps.runtime, role)
     override_ctx = (
         agent.override(**override_kwargs)

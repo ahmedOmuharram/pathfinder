@@ -12,6 +12,7 @@ export function PThresholdFilter({ value, onChange }: PThresholdFilterProps) {
       <select
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
+        aria-label="Filter results by p-value threshold"
         className="rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground outline-none transition-colors duration-150"
       >
         <option value={0.001}>0.001</option>

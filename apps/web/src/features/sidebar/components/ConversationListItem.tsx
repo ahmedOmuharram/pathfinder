@@ -94,7 +94,15 @@ export function ConversationListItem({
             <div className="truncate pr-6 text-sm font-medium" title={item.title}>
               {item.title}
             </div>
-            <div className="mt-0.5 truncate text-xs text-muted-foreground">
+            <div
+              className={cn(
+                "mt-0.5 truncate text-xs",
+                // On the primary-tinted active row, muted/primary tones share
+                // the background hue and fail the contrast threshold — use a
+                // dark foreground tone there instead.
+                isActive ? "text-foreground/70" : "text-muted-foreground",
+              )}
+            >
               {metaParts.join(" · ")}
               {isActiveStreaming && (
                 <>

@@ -64,9 +64,9 @@ test.describe("Site Switching", () => {
     // UI: Switch to ToxoDB
     await page.goto("/");
     await expect(page.getByTestId("message-composer")).toBeVisible({ timeout: 10_000 });
-    await expect(
-      page.getByRole("button", { name: /switch database/i }),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("button", { name: /switch database/i })).toBeVisible({
+      timeout: 5_000,
+    });
     await sitePicker.selectSite("toxodb");
     await sitePicker.expectCurrentSite("toxodb");
 

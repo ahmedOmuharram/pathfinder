@@ -82,7 +82,12 @@ export function EnrichmentTable({ terms }: EnrichmentTableProps) {
   }
 
   return (
-    <div className="max-h-96 overflow-y-auto">
+    <div
+      className="max-h-96 overflow-y-auto"
+      tabIndex={0}
+      role="region"
+      aria-label="Enrichment results table"
+    >
       <table className="w-full text-left text-xs">
         <thead className="sticky top-0 bg-card">
           <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">

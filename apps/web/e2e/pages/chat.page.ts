@@ -34,9 +34,15 @@ export class ChatPage {
   lastStrategyId: string | null = null;
 
   /** Start a fresh conversation so the test is isolated from prior state. */
-  async newChat(siteId: string = "veupathdb") {
-    const baseUrl = new URL(this.page.url()).origin;
-    const selectedSite = siteId;
+  async newChat(siteId?: string) {
+    const url = new URL(this.page.url());
+    const baseUrl = url.origin;
+    // Default to the site the test already switched to (from the URL), so the
+    // new conversation lands on it rather than a hardcoded default.
+    const firstSegment = url.pathname.split("/")[1];
+    const selectedSite =
+      siteId ??
+      (firstSegment !== undefined && firstSegment !== "" ? firstSegment : "veupathdb");
 
     const strategyCreated = await this.page
       .context()

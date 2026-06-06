@@ -203,13 +203,15 @@ export class GraphPage {
   }
 
   primaryEdgeInto(targetStepId: string): Locator {
-    return this.page.locator(`[data-testid$='-${targetStepId}-primary']`);
+    return this.page.locator(
+      `[data-testid^='step-edge-hit-'][data-testid$='-${targetStepId}-primary']`,
+    );
   }
 
   async openEdgeMenu(targetStepId: string) {
     const edge = this.primaryEdgeInto(targetStepId);
-    await expect(edge.first()).toBeVisible({ timeout: 10_000 });
-    await edge.first().click({ force: true });
+    await expect(edge.first()).toBeAttached({ timeout: 10_000 });
+    await edge.first().click();
     await expect(this.edgeContextMenuOperatorGrid).toBeVisible({
       timeout: 5_000,
     });

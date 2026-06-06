@@ -97,8 +97,9 @@ test.describe("Cross-Species Orthologs Journey", () => {
     await sitePicker.selectSite("toxodb");
     await sitePicker.expectCurrentSite("toxodb");
 
-    // Chat on ToxoDB
-    await page.goto("/");
+    // Chat on ToxoDB (stay on the toxodb route — "/" would redirect to the
+    // default site and create the gene set on the wrong one).
+    await page.goto("/toxodb/conversation");
     await chatPage.send(
       "Now looking at T. gondii invasion proteins for cross-species comparison",
     );

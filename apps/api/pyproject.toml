@@ -33,7 +33,7 @@ dependencies = [
     "tokenizers>=0.21.0",
     "rapidfuzz>=3.14.0",
     "optuna>=4.8.0",
-    "pyjwt>=2.12.1",
+    "pyjwt>=2.13.0",  # PYSEC-2026-175/177/178/179
     "slowapi>=0.1.9",
     "pathfinder-shared",
     "cachetools>=7.0.5",
@@ -46,6 +46,7 @@ dependencies = [
 [tool.uv]
 constraint-dependencies = [
     "pyasn1>=0.6.3",  # CVE-2026-30922
+    "aiohttp>=3.14.0",  # CVE-2026-34993, CVE-2026-47265
 ]
 
 [tool.uv.sources]
@@ -142,28 +143,28 @@ max-branches = 10
     "FBT",      # boolean args in test helpers are fine
     "S311",     # deterministic seeds for shuffling is fine
 ]
-"src/pathfinder/ai/capabilities/piguard.py" = [
+"**/src/pathfinder/ai/capabilities/piguard.py" = [
     "S106",  # pad_token="[PAD]" is tokenizer config, not a password
 ]
-"src/pathfinder/ai/prompts/**" = [
+"**/src/pathfinder/ai/prompts/**" = [
     "E501",  # prompt strings are long by nature
 ]
-"scripts/**" = [
+"**/scripts/**" = [
     "T20",    # scripts use print() for CLI output
     "S101",   # assert in scripts is fine
 ]
-"src/pathfinder/ai/tools/standalone/**" = [
+"**/src/pathfinder/ai/tools/standalone/**" = [
     "PLR0913",  # tool functions need many params for LLM tool interface
     "FBT",      # boolean params required for LLM tool descriptions
 ]
-"src/pathfinder/ai/scratchpad/tools.py" = [
+"**/src/pathfinder/ai/scratchpad/tools.py" = [
     "FBT",      # boolean params required for LLM tool descriptions
 ]
-"src/pathfinder/jobs/impls/**" = [
+"**/src/pathfinder/jobs/impls/**" = [
     "PLR0913",  # worker impls mirror tool signatures + framework kwargs
     "FBT",      # booleans mirror tool interface
 ]
-"src/pathfinder/devtools/**" = [
+"**/src/pathfinder/devtools/**" = [
     "T20",      # devtools scripts use print() for CLI output
     "C901",     # stream analysis inspects many event types
     "PLR0912",  # branching inherent to multi-event-type parsing

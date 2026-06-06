@@ -92,6 +92,9 @@ export function EnsemblePanel() {
                 <button
                   key={gs.id}
                   type="button"
+                  data-testid="ensemble-set-chip"
+                  data-set-id={gs.id}
+                  aria-pressed={selected}
                   className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
                     selected
                       ? "border-primary bg-primary text-primary-foreground"
@@ -136,7 +139,10 @@ export function EnsemblePanel() {
 
         {/* Results table */}
         {results != null && results.length > 0 && (
-          <div className="overflow-x-auto rounded-md border">
+          <div
+            data-testid="ensemble-results"
+            className="overflow-x-auto rounded-md border"
+          >
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-muted-foreground">
@@ -148,7 +154,12 @@ export function EnsemblePanel() {
               </thead>
               <tbody>
                 {results.map((r) => (
-                  <tr key={r.geneId} className="border-b last:border-0">
+                  <tr
+                    key={r.geneId}
+                    data-testid="ensemble-row"
+                    data-gene-id={r.geneId}
+                    className="border-b last:border-0"
+                  >
                     <td className="px-3 py-1.5 font-mono">{r.geneId}</td>
                     <td className="px-3 py-1.5 text-right">
                       {(r.frequency * 100).toFixed(1)}%
@@ -158,7 +169,7 @@ export function EnsemblePanel() {
                     </td>
                     <td className="px-3 py-1.5 text-center">
                       {r.inPositives ? (
-                        <span className="text-green-600 dark:text-green-400">Yes</span>
+                        <span className="text-green-700 dark:text-green-400">Yes</span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}

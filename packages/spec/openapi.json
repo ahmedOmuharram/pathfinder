@@ -972,7 +972,7 @@
           "conversations"
         ],
         "summary": "Delete Strategy",
-        "description": "Delete a strategy.\n\nFor WDK-linked strategies with ``deleteFromWdk=false`` (default), the\nchat is soft-deleted (dismissed) to prevent WDK sync from re-importing it.\nPass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.\nNon-WDK strategies are always hard-deleted.\n\nWith ``cascade=true`` on hard-delete, the whole fork subtree goes; with\n``cascade=false`` (default), direct children climb up to this node's\nparent so the tree stays connected.",
+        "description": "Delete a strategy (soft-delete WDK-linked unless deleteFromWdk=true).",
         "operationId": "delete_strategy_api_v1_conversations__strategyId__delete",
         "security": [
           {
@@ -1142,7 +1142,7 @@
           "conversations"
         ],
         "summary": "Restore Strategy",
-        "description": "Restore a dismissed (soft-deleted) strategy.\n\nClears dismissed_at and resets plan to empty (triggers lazy WDK re-fetch).",
+        "description": "Restore a dismissed (soft-deleted) strategy.",
         "operationId": "restore_strategy_api_v1_conversations__strategyId__restore_post",
         "security": [
           {
@@ -1191,7 +1191,7 @@
           "conversations"
         ],
         "summary": "Begin Strategy",
-        "description": "Idempotent first-action setup for a conversation.\n\nInserts the row if missing (``ON CONFLICT (id) DO NOTHING``), schedules\ntitle generation when ``seedText`` is provided on a fresh row, and\nreturns the conversation. Every first-action client (chat send, slash\ncommand, launcher) calls this before its own request so downstream\nendpoints can assume the row exists.",
+        "description": "Idempotent first-action setup for a conversation.",
         "operationId": "begin_strategy_api_v1_conversations__conversation_id__begin_post",
         "security": [
           {
@@ -1760,15 +1760,6 @@
         ],
         "parameters": [
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Note Id"
-            }
-          },
-          {
             "name": "conversation_id",
             "in": "path",
             "required": true,
@@ -1776,6 +1767,15 @@
               "type": "string",
               "format": "uuid",
               "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
             }
           }
         ],
@@ -1815,15 +1815,6 @@
         ],
         "parameters": [
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Note Id"
-            }
-          },
-          {
             "name": "conversation_id",
             "in": "path",
             "required": true,
@@ -1831,6 +1822,15 @@
               "type": "string",
               "format": "uuid",
               "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
             }
           }
         ],
@@ -1880,15 +1880,6 @@
         ],
         "parameters": [
           {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Note Id"
-            }
-          },
-          {
             "name": "conversation_id",
             "in": "path",
             "required": true,
@@ -1896,6 +1887,15 @@
               "type": "string",
               "format": "uuid",
               "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
             }
           }
         ],
@@ -2025,7 +2025,7 @@
           "conversations"
         ],
         "summary": "Save Substrategy",
-        "description": "Save a subtree of the active strategy as a new WDK saved strategy.\n\nThe cloned subtree is pushed to WDK as fresh steps under a new strategy\nwith ``isSaved=true``. The source conversation is not modified \u2014 the\ncaller is expected to insert the saved strategy back via a combine step\non a follow-up turn (which will set ``imported_saved_strategy_ids`` on\nthe source conversation as the deletion guard).",
+        "description": "Save a subtree of the active strategy as a new WDK saved strategy.",
         "operationId": "save_substrategy_api_v1_conversations__conversation_id__save_substrategy_post",
         "security": [
           {
@@ -2093,7 +2093,7 @@
           "conversations"
         ],
         "summary": "Get Saved Strategy Consumer Counts",
-        "description": "Count how many conversations consume each saved strategy.\n\nReturned map only includes ids with consumers; absent ids have 0.",
+        "description": "Count how many conversations consume each saved strategy.",
         "operationId": "get_saved_strategy_consumer_counts_api_v1_conversations_saved_strategy_consumers_get",
         "security": [
           {
@@ -2208,8 +2208,8 @@
         "tags": [
           "conversations"
         ],
-        "summary": "Cancel Turn",
-        "operationId": "cancel_turn_api_v1_conversations__conversation_id__turns__turn_id__cancel_post",
+        "summary": "Cancel Turn Endpoint",
+        "operationId": "cancel_turn_endpoint_api_v1_conversations__conversation_id__turns__turn_id__cancel_post",
         "security": [
           {
             "APIKeyCookie": []
@@ -5125,9 +5125,9 @@
         "tags": [
           "eval"
         ],
-        "summary": "Get Strategy Gene Ids",
+        "summary": "Strategy Gene Ids Endpoint",
         "description": "Fetch all gene IDs from a PathFinder strategy's WDK root step.",
-        "operationId": "get_strategy_gene_ids_api_v1_eval_strategy_gene_ids_post",
+        "operationId": "strategy_gene_ids_endpoint_api_v1_eval_strategy_gene_ids_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5146,7 +5146,7 @@
                 "schema": {
                   "additionalProperties": true,
                   "type": "object",
-                  "title": "Response Get Strategy Gene Ids Api V1 Eval Strategy Gene Ids Post"
+                  "title": "Response Strategy Gene Ids Endpoint Api V1 Eval Strategy Gene Ids Post"
                 }
               }
             }
@@ -5440,7 +5440,7 @@
           "tasks"
         ],
         "summary": "List Tasks",
-        "description": "Return durable tasks for a conversation, newest first.\n\nUsed by the right-rail Tasks panel to surface in-flight enrichment /\noptimization / control-test runs alongside the latest progress\nsnapshot from ``task_progress``.",
+        "description": "Return durable tasks for a conversation, newest first.",
         "operationId": "list_tasks_api_v1_conversations__conversation_id__tasks_get",
         "security": [
           {
@@ -5629,7 +5629,7 @@
           "tasks"
         ],
         "summary": "Task Events",
-        "description": "Open an SSE stream for a durable task's progress + resumed graph output.",
+        "description": "Open an SSE stream for a durable task's progress.",
         "operationId": "task_events_api_v1_conversations__conversation_id__tasks__task_id__events_get",
         "security": [
           {
@@ -8356,6 +8356,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "approval-requested",
@@ -8364,6 +8375,17 @@
           },
           "input": {
             "title": "Input"
+          },
+          "providerExecuted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providerexecuted"
           },
           "callProviderMetadata": {
             "anyOf": [
@@ -8421,6 +8443,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "approval-responded",
@@ -8429,6 +8462,17 @@
           },
           "input": {
             "title": "Input"
+          },
+          "providerExecuted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providerexecuted"
           },
           "callProviderMetadata": {
             "anyOf": [
@@ -8486,6 +8530,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "input-available",
@@ -8494,6 +8549,17 @@
           },
           "input": {
             "title": "Input"
+          },
+          "providerExecuted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providerexecuted"
           },
           "callProviderMetadata": {
             "anyOf": [
@@ -8551,6 +8617,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "input-streaming",
@@ -8565,6 +8642,17 @@
               }
             ],
             "title": "Input"
+          },
+          "providerExecuted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providerexecuted"
           },
           "callProviderMetadata": {
             "anyOf": [
@@ -8621,6 +8709,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "output-available",
@@ -8632,6 +8731,17 @@
           },
           "output": {
             "title": "Output"
+          },
+          "providerExecuted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providerexecuted"
           },
           "callProviderMetadata": {
             "anyOf": [
@@ -8701,6 +8811,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "output-denied",
@@ -8709,6 +8830,17 @@
           },
           "input": {
             "title": "Input"
+          },
+          "providerExecuted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providerexecuted"
           },
           "callProviderMetadata": {
             "anyOf": [
@@ -8766,6 +8898,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "output-error",
@@ -8778,6 +8921,17 @@
           "errorText": {
             "type": "string",
             "title": "Errortext"
+          },
+          "providerExecuted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providerexecuted"
           },
           "callProviderMetadata": {
             "anyOf": [
@@ -17745,6 +17899,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "approval-requested",
@@ -17852,6 +18017,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "approval-responded",
@@ -17958,6 +18134,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "input-available",
@@ -18034,6 +18221,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "input-streaming",
@@ -18109,6 +18307,17 @@
           "toolCallId": {
             "type": "string",
             "title": "Toolcallid"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           },
           "state": {
             "type": "string",
@@ -18206,6 +18415,17 @@
             "type": "string",
             "title": "Toolcallid"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "state": {
             "type": "string",
             "const": "output-denied",
@@ -18281,6 +18501,17 @@
           "toolCallId": {
             "type": "string",
             "title": "Toolcallid"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           },
           "state": {
             "type": "string",

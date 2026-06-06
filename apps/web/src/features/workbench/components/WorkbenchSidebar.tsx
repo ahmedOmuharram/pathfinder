@@ -54,7 +54,11 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
 
   // Derived state
   const activeSet = geneSets.find((gs) => gs.id === activeSetId) ?? null;
-  const selectedSets = geneSets.filter((gs) => selectedSetIds.includes(gs.id));
+  // Order by selection, not the (newest-first) list, so set operations read
+  // first-selected then second-selected (A − B uses the order the user picked).
+  const selectedSets = selectedSetIds
+    .map((id) => geneSets.find((gs) => gs.id === id))
+    .filter((gs) => gs != null);
   const activeGeneIds = activeSet?.geneIds ?? [];
 
   const filterQuery = filter.trim().toLowerCase();

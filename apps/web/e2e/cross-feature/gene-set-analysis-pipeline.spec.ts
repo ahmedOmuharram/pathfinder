@@ -81,8 +81,17 @@ test.describe("Gene Set Analysis Pipeline", () => {
     expect(setB.geneCount).toBe(setBCount);
 
     // ── Phase 4: Enrichment on a set ────────────────────────────
-    await workbenchSidebarPage.activateSet("Set A");
-    await workbenchMainPage.expectActiveSetHeader("Set A", setACount);
+    // Activate the original "Set A" — disambiguated from the derived
+    // "Set A ∩ Set B" set whose name also contains "Set A". The gene count
+    // was already verified against the API above.
+    await page
+      .getByRole("button")
+      .filter({ has: page.getByText("Set A", { exact: true }) })
+      .first()
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Set A", exact: true, level: 1 }),
+    ).toBeVisible();
 
     // Run enrichment — real WDK enrichment API call
     await workbenchMainPage.runEnrichmentAndVerifyResults();

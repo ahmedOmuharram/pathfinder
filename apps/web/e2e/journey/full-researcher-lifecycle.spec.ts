@@ -76,6 +76,10 @@ test.describe("Full Researcher Lifecycle", () => {
     // Phase 2: Workbench — Gene Sets with Count Verification
     // ═══════════════════════════════════════════════════════════════
 
+    // Wait for the turn to fully settle so the auto-built strategy gene set
+    // (imported inline during execute_plan) exists before we clear — otherwise
+    // it lands after clearAllGeneSets and inflates the manual count below.
+    await chatPage.expectIdle();
     await clearAllGeneSets(page.context(), BASE_URL);
     await workbenchSidebarPage.goto();
 

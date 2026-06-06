@@ -80,10 +80,9 @@ test.describe("Conversations", () => {
 
     // Link a WDK strategy id so delete soft-dismisses (non-WDK chats are
     // hard-deleted and would not appear in the dismissed list).
-    const patchResp = await apiClient.patch(
-      `/api/v1/conversations/${conversationId}`,
-      { data: { wdkStrategyId: Math.floor(Date.now() / 1000) } },
-    );
+    const patchResp = await apiClient.patch(`/api/v1/conversations/${conversationId}`, {
+      data: { wdkStrategyId: Math.floor(Date.now() / 1000) },
+    });
     expect(patchResp.ok()).toBeTruthy();
 
     // Verify exists before delete

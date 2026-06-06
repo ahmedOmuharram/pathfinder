@@ -50,6 +50,7 @@ export function AnalysisPanelContainer({
       <button
         type="button"
         onClick={handleToggle}
+        disabled={disabled}
         aria-expanded={isExpanded}
         className={cn(
           "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150",

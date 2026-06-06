@@ -630,23 +630,7 @@ paths:
       tags:
       - conversations
       summary: Delete Strategy
-      description: 'Delete a strategy.
-
-
-        For WDK-linked strategies with ``deleteFromWdk=false`` (default), the
-
-        chat is soft-deleted (dismissed) to prevent WDK sync from re-importing it.
-
-        Pass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.
-
-        Non-WDK strategies are always hard-deleted.
-
-
-        With ``cascade=true`` on hard-delete, the whole fork subtree goes; with
-
-        ``cascade=false`` (default), direct children climb up to this node''s
-
-        parent so the tree stays connected.'
+      description: Delete a strategy (soft-delete WDK-linked unless deleteFromWdk=true).
       operationId: delete_strategy_api_v1_conversations__strategyId__delete
       security:
       - APIKeyCookie: []
@@ -752,10 +736,7 @@ paths:
       tags:
       - conversations
       summary: Restore Strategy
-      description: 'Restore a dismissed (soft-deleted) strategy.
-
-
-        Clears dismissed_at and resets plan to empty (triggers lazy WDK re-fetch).'
+      description: Restore a dismissed (soft-deleted) strategy.
       operationId: restore_strategy_api_v1_conversations__strategyId__restore_post
       security:
       - APIKeyCookie: []
@@ -785,18 +766,7 @@ paths:
       tags:
       - conversations
       summary: Begin Strategy
-      description: 'Idempotent first-action setup for a conversation.
-
-
-        Inserts the row if missing (``ON CONFLICT (id) DO NOTHING``), schedules
-
-        title generation when ``seedText`` is provided on a fresh row, and
-
-        returns the conversation. Every first-action client (chat send, slash
-
-        command, launcher) calls this before its own request so downstream
-
-        endpoints can assume the row exists.'
+      description: Idempotent first-action setup for a conversation.
       operationId: begin_strategy_api_v1_conversations__conversation_id__begin_post
       security:
       - APIKeyCookie: []
@@ -1151,12 +1121,6 @@ paths:
       security:
       - APIKeyCookie: []
       parameters:
-      - name: note_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Note Id
       - name: conversation_id
         in: path
         required: true
@@ -1164,6 +1128,12 @@ paths:
           type: string
           format: uuid
           title: Conversation Id
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
       responses:
         '200':
           description: Successful Response
@@ -1185,12 +1155,6 @@ paths:
       security:
       - APIKeyCookie: []
       parameters:
-      - name: note_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Note Id
       - name: conversation_id
         in: path
         required: true
@@ -1198,6 +1162,12 @@ paths:
           type: string
           format: uuid
           title: Conversation Id
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
       requestBody:
         required: true
         content:
@@ -1225,12 +1195,6 @@ paths:
       security:
       - APIKeyCookie: []
       parameters:
-      - name: note_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Note Id
       - name: conversation_id
         in: path
         required: true
@@ -1238,6 +1202,12 @@ paths:
           type: string
           format: uuid
           title: Conversation Id
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
       responses:
         '204':
           description: Successful Response
@@ -1315,18 +1285,7 @@ paths:
       tags:
       - conversations
       summary: Save Substrategy
-      description: 'Save a subtree of the active strategy as a new WDK saved strategy.
-
-
-        The cloned subtree is pushed to WDK as fresh steps under a new strategy
-
-        with ``isSaved=true``. The source conversation is not modified — the
-
-        caller is expected to insert the saved strategy back via a combine step
-
-        on a follow-up turn (which will set ``imported_saved_strategy_ids`` on
-
-        the source conversation as the deletion guard).'
+      description: Save a subtree of the active strategy as a new WDK saved strategy.
       operationId: save_substrategy_api_v1_conversations__conversation_id__save_substrategy_post
       security:
       - APIKeyCookie: []
@@ -1368,10 +1327,7 @@ paths:
       tags:
       - conversations
       summary: Get Saved Strategy Consumer Counts
-      description: 'Count how many conversations consume each saved strategy.
-
-
-        Returned map only includes ids with consumers; absent ids have 0.'
+      description: Count how many conversations consume each saved strategy.
       operationId: get_saved_strategy_consumer_counts_api_v1_conversations_saved_strategy_consumers_get
       security:
       - APIKeyCookie: []
@@ -1441,8 +1397,8 @@ paths:
     post:
       tags:
       - conversations
-      summary: Cancel Turn
-      operationId: cancel_turn_api_v1_conversations__conversation_id__turns__turn_id__cancel_post
+      summary: Cancel Turn Endpoint
+      operationId: cancel_turn_endpoint_api_v1_conversations__conversation_id__turns__turn_id__cancel_post
       security:
       - APIKeyCookie: []
       parameters:
@@ -3235,9 +3191,9 @@ paths:
     post:
       tags:
       - eval
-      summary: Get Strategy Gene Ids
+      summary: Strategy Gene Ids Endpoint
       description: Fetch all gene IDs from a PathFinder strategy's WDK root step.
-      operationId: get_strategy_gene_ids_api_v1_eval_strategy_gene_ids_post
+      operationId: strategy_gene_ids_endpoint_api_v1_eval_strategy_gene_ids_post
       requestBody:
         content:
           application/json:
@@ -3252,7 +3208,7 @@ paths:
               schema:
                 additionalProperties: true
                 type: object
-                title: Response Get Strategy Gene Ids Api V1 Eval Strategy Gene Ids Post
+                title: Response Strategy Gene Ids Endpoint Api V1 Eval Strategy Gene Ids Post
         '422':
           description: Validation Error
           content:
@@ -3433,14 +3389,7 @@ paths:
       tags:
       - tasks
       summary: List Tasks
-      description: 'Return durable tasks for a conversation, newest first.
-
-
-        Used by the right-rail Tasks panel to surface in-flight enrichment /
-
-        optimization / control-test runs alongside the latest progress
-
-        snapshot from ``task_progress``.'
+      description: Return durable tasks for a conversation, newest first.
       operationId: list_tasks_api_v1_conversations__conversation_id__tasks_get
       security:
       - APIKeyCookie: []
@@ -3557,7 +3506,7 @@ paths:
       tags:
       - tasks
       summary: Task Events
-      description: Open an SSE stream for a durable task's progress + resumed graph output.
+      description: Open an SSE stream for a durable task's progress.
       operationId: task_events_api_v1_conversations__conversation_id__tasks__task_id__events_get
       security:
       - APIKeyCookie: []
@@ -5402,6 +5351,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: approval-requested
@@ -5409,6 +5363,11 @@ components:
           default: approval-requested
         input:
           title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
         callProviderMetadata:
           anyOf:
           - additionalProperties:
@@ -5444,6 +5403,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: approval-responded
@@ -5451,6 +5415,11 @@ components:
           default: approval-responded
         input:
           title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
         callProviderMetadata:
           anyOf:
           - additionalProperties:
@@ -5486,6 +5455,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: input-available
@@ -5493,6 +5467,11 @@ components:
           default: input-available
         input:
           title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
         callProviderMetadata:
           anyOf:
           - additionalProperties:
@@ -5528,6 +5507,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: input-streaming
@@ -5538,6 +5522,11 @@ components:
           - {}
           - type: 'null'
           title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
         callProviderMetadata:
           anyOf:
           - additionalProperties:
@@ -5572,6 +5561,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: output-available
@@ -5581,6 +5575,11 @@ components:
           title: Input
         output:
           title: Output
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
         callProviderMetadata:
           anyOf:
           - additionalProperties:
@@ -5622,6 +5621,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: output-denied
@@ -5629,6 +5633,11 @@ components:
           default: output-denied
         input:
           title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
         callProviderMetadata:
           anyOf:
           - additionalProperties:
@@ -5664,6 +5673,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: output-error
@@ -5674,6 +5688,11 @@ components:
         errorText:
           type: string
           title: Errortext
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
         callProviderMetadata:
           anyOf:
           - additionalProperties:
@@ -11391,6 +11410,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: approval-requested
@@ -11456,6 +11480,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: approval-responded
@@ -11520,6 +11549,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: input-available
@@ -11565,6 +11599,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: input-streaming
@@ -11610,6 +11649,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: output-available
@@ -11665,6 +11709,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: output-denied
@@ -11710,6 +11759,11 @@ components:
         toolCallId:
           type: string
           title: Toolcallid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         state:
           type: string
           const: output-error

@@ -1,12 +1,17 @@
 import { expect } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { test as baseTest } from "./test";
+import { clearAllGeneSets } from "./api-client";
+
+const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
 interface SeriousViolation {
   id: string;
   nodes: number;
   impact: string;
   help: string;
+  targets: string[];
+  details: string[];
 }
 
 /**
@@ -20,6 +25,12 @@ interface SeriousViolation {
  */
 export const test = baseTest.extend({
   page: async ({ page }, use, testInfo) => {
+    // Run with reduced motion so entrance animations don't leave text at
+    // transient sub-contrast opacity when the post-test audit fires.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    // Journey/cross-feature specs are serial and gene-set heavy; start each
+    // from a clean slate so set-count assertions aren't polluted by leftovers.
+    await clearAllGeneSets(page.context(), BASE_URL);
     await use(page);
     if (testInfo.status === "skipped") return;
     if (page.isClosed()) return;
@@ -31,11 +42,21 @@ export const test = baseTest.extend({
         nodes: v.nodes.length,
         impact: v.impact ?? "",
         help: v.help,
+        targets: v.nodes.flatMap((n) => n.target.map((t) => String(t))),
+        details: v.nodes.map(
+          (n) =>
+            `${n.html}\n        ${n.any
+              .map((c) => `${c.message} ${JSON.stringify(c.data)}`)
+              .join("\n        ")}`,
+        ),
       }));
     expect(
       seriousAndCritical,
       `Accessibility violations (serious/critical) found:\n${seriousAndCritical
-        .map((v) => `  - [${v.impact}] ${v.id} (${v.nodes} nodes): ${v.help}`)
+        .map(
+          (v) =>
+            `  - [${v.impact}] ${v.id} (${v.nodes} nodes): ${v.help}\n      ${v.details.join("\n      ")}`,
+        )
         .join("\n")}`,
     ).toEqual([]);
   },

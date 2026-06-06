@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterator
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.agents.roles import PhaseRole
@@ -13,8 +15,19 @@ from pathfinder.ai.lead.sub_agent_tools import (
     _phase_override_kwargs,
 )
 from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.platform.config import get_settings
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
+
+
+@pytest.fixture(autouse=True)
+def _real_provider(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """These tests exercise the real model-translation path; the suite-wide
+    default provider is ``mock``, which short-circuits the override."""
+    monkeypatch.setenv("PATHFINDER_CHAT_PROVIDER", "default")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _never_factory() -> AsyncSession:

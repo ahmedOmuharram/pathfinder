@@ -89,7 +89,7 @@ export function EnrichmentPanel() {
                 onClick={() => toggleType(key)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
                   active
-                    ? "border-primary bg-primary/10 text-primary"
+                    ? "border-primary bg-primary/10 text-foreground"
                     : "border-border bg-card text-muted-foreground hover:border-primary/40"
                 }`}
               >

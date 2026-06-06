@@ -77,7 +77,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/api
-        run: uv sync
+        run: uv sync --group docs
 
       - name: Build Sphinx docs
         working-directory: apps/api

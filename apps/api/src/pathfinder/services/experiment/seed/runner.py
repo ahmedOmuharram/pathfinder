@@ -63,7 +63,7 @@ def _coerce_param_value(value: object) -> object:
         return value
     try:
         parsed = json.loads(value)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return {"type": "string", "value": value}
     if isinstance(parsed, list):
         return {"type": "multi-pick-vocabulary", "values": [str(x) for x in parsed]}

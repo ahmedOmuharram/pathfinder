@@ -92,10 +92,15 @@ export function GeneSetCard({
 
         {/* Row 2: overlap bar */}
         {overlapPct !== null && (
-          <div
-            className={cn("mt-1.5 flex items-center gap-2", isActive && "opacity-40")}
-          >
-            <div className="h-1 flex-1 overflow-hidden rounded-full bg-border">
+          <div className="mt-1.5 flex items-center gap-2">
+            <div
+              className={cn(
+                "h-1 flex-1 overflow-hidden rounded-full bg-border",
+                // De-emphasize only the decorative bar on the active row —
+                // fading the % text too would drop it below contrast.
+                isActive && "opacity-40",
+              )}
+            >
               <div
                 className="h-full rounded-full bg-primary/50 transition-all duration-300"
                 style={{ width: `${overlapPct}%` }}

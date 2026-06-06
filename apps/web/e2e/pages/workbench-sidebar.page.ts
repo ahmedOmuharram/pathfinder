@@ -7,8 +7,15 @@ export class WorkbenchSidebarPage {
     this.addButton = page.getByRole("button", { name: /add/i });
   }
 
+  /** Navigate to the workbench, preserving the currently-selected site so
+   *  gene sets are created on the site the test already switched to. */
   async goto() {
-    await this.page.goto("/workbench");
+    const currentSite = new URL(this.page.url()).pathname.split("/")[1];
+    const path =
+      currentSite != null && currentSite !== ""
+        ? `/${currentSite}/workbench`
+        : "/workbench";
+    await this.page.goto(path);
     await expect(this.page.getByRole("heading", { name: /gene sets/i })).toBeVisible();
   }
 

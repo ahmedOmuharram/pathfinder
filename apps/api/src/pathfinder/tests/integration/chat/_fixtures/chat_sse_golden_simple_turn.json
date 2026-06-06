@@ -32,21 +32,21 @@
     "type": "tool-input-start"
   },
   {
-    "inputTextDelta": "{\"prose\":\"[mock] Investigation paused \u2014 supply more context or rephrase.\",\"nextState\":\"await_user\"}",
+    "inputTextDelta": "{\"prose\":\"[mock] hi\",\"nextState\":\"await_user\"}",
     "toolCallId": "<REDACTED>",
     "type": "tool-input-delta"
   },
   {
     "data": {
       "costUsd": "0",
-      "totalTokens": 64
+      "totalTokens": 57
     },
     "type": "data-turn-usage"
   },
   {
     "input": {
       "nextState": "await_user",
-      "prose": "[mock] Investigation paused \u2014 supply more context or rephrase."
+      "prose": "[mock] hi"
     },
     "toolCallId": "<REDACTED>",
     "toolName": "final_result",
@@ -73,7 +73,7 @@
     "type": "text-start"
   },
   {
-    "delta": "[mock] Investigation paused \u2014 supply more context or rephrase.",
+    "delta": "[mock] hi",
     "id": "<REDACTED>",
     "type": "text-delta"
   },
@@ -84,7 +84,7 @@
   {
     "data": {
       "costUsd": "0",
-      "totalTokens": 64
+      "totalTokens": 57
     },
     "type": "data-turn-usage"
   },

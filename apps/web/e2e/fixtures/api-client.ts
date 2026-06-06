@@ -50,9 +50,7 @@ export async function fetchConversationMessages(
   conversationId: string | null,
 ): Promise<PersistedMessage[]> {
   if (conversationId == null) return [];
-  const resp = await api.get(
-    `/api/v1/conversations/${conversationId}/events/snapshot`,
-  );
+  const resp = await api.get(`/api/v1/conversations/${conversationId}/events/snapshot`);
   if (!resp.ok()) return [];
   const { chunks } = (await resp.json()) as { chunks: SnapshotChunk[] };
   const messages: PersistedMessage[] = [];
