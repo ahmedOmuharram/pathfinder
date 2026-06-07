@@ -61,6 +61,24 @@ def test_secret_must_be_long_enough() -> None:
         make_settings(api_secret_key="too-short")
 
 
+def test_placeholder_secret_allowed_in_test_env() -> None:
+    settings = make_settings(api_secret_key="placeholder-secret-key-1234567890ab")
+    assert settings.api_secret_key == "placeholder-secret-key-1234567890ab"
+
+
+def test_placeholder_secret_rejected_in_production() -> None:
+    with pytest.raises(
+        ValueError,
+        match="must be set to a real secret",
+    ):
+        make_settings(
+            api_env="production",
+            pathfinder_chat_provider="default",
+            anthropic_api_key="real-anthropic-key",
+            api_secret_key="placeholder-secret-key-1234567890ab",
+        )
+
+
 def test_empty_env_value_is_ignored_for_complex_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

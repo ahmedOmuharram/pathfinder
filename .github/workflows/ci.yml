@@ -112,6 +112,7 @@ jobs:
       - name: Run tests
         working-directory: apps/api
         env:
+          API_ENV: test
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
           API_SECRET_KEY: test-secret-key-xxxxx-xxxxx-xxxxx
           PATHFINDER_CHAT_PROVIDER: mock

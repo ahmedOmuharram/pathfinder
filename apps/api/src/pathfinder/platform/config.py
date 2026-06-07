@@ -195,7 +195,7 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
 
-        if self.api_env != "development" and any(
+        if self.api_env not in ("development", "test") and any(
             marker in self.api_secret_key.lower()
             for marker in _PLACEHOLDER_SECRET_MARKERS
         ):
