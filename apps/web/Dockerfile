@@ -19,14 +19,16 @@ COPY packages/shared-ts/package.json ./packages/shared-ts/
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
     yarn install --immutable
 
-# Rebuild the source code only when needed
-FROM base AS dev
+# Workspace source + generated shared-ts types (gitignored), shared by dev + builder.
+FROM base AS sources
 WORKDIR /app
-
 COPY --from=deps /app ./
 COPY apps/web ./apps/web
 COPY packages/shared-ts ./packages/shared-ts
+COPY packages/spec ./packages/spec
+RUN yarn --cwd packages/shared-ts generate
 
+FROM sources AS dev
 WORKDIR /app/apps/web
 
 ENV NODE_ENV=development
@@ -41,24 +43,13 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=3 \
 
 CMD ["yarn", "next", "dev", "-p", "3000", "-H", "0.0.0.0"]
 
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-
-# Copy entire deps stage (root + workspace node_modules, yarn config)
-COPY --from=deps /app ./
-COPY apps/web ./apps/web
-COPY packages/shared-ts ./packages/shared-ts
-
+FROM sources AS builder
 WORKDIR /app/apps/web
 
-# Set environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# The rewrite destinations in next.config.js are evaluated at build time.
-# Inside Docker the API lives at http://api:8000 (Docker DNS), so we inject
-# the correct URL as a build arg.  Local (non-Docker) builds keep the default.
+# next.config.js rewrites resolve at build time; inside Docker the API is http://api:8000.
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 

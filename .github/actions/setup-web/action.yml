@@ -1,5 +1,5 @@
 name: Setup Web
-description: Enable Corepack, set up Node with the Yarn cache, install deps.
+description: Enable Corepack, set up Node + Yarn cache, install deps, generate shared types.
 
 inputs:
   node-version:
@@ -25,3 +25,8 @@ runs:
     - name: Install dependencies
       shell: bash
       run: yarn install --immutable
+
+    # shared-ts generated types are gitignored; every web job resolves them from source.
+    - name: Generate shared types
+      shell: bash
+      run: yarn --cwd packages/shared-ts generate
