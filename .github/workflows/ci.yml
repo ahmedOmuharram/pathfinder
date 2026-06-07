@@ -129,15 +129,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
           cache: "yarn"
           cache-dependency-path: yarn.lock
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -164,15 +164,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
           cache: "yarn"
           cache-dependency-path: yarn.lock
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -187,15 +187,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
           cache: "yarn"
           cache-dependency-path: yarn.lock
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -240,15 +240,15 @@ jobs:
           done
           [ -n "$ok" ] || { echo "web not ready"; docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs web | tail -50; exit 1; }
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
           cache: "yarn"
           cache-dependency-path: yarn.lock
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Install web dependencies
         run: yarn install --immutable
