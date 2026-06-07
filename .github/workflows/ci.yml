@@ -67,8 +67,15 @@ jobs:
         working-directory: apps/api
         run: uv run pip-audit
 
+      # Spec is the canonical (production) surface: non-mock so dev-only routes are excluded.
       - name: Check OpenAPI spec is up to date
         working-directory: apps/api
+        env:
+          API_ENV: test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder
+          API_SECRET_KEY: spec-generation-secret-key-0000000000
+          PATHFINDER_CHAT_PROVIDER: default
+          ANTHROPIC_API_KEY: spec-generation-placeholder
         run: uv run python -m pathfinder.devtools.openapi check
 
   build-docs:
