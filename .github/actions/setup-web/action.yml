@@ -1,0 +1,27 @@
+name: Setup Web
+description: Enable Corepack, set up Node with the Yarn cache, install deps.
+
+inputs:
+  node-version:
+    description: Node.js version.
+    required: false
+    default: "24.13.0"
+
+runs:
+  using: composite
+  steps:
+    # Corepack before setup-node so the cache step uses Yarn 4, not global Yarn 1.x.
+    - name: Enable Corepack
+      shell: bash
+      run: corepack enable
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "yarn"
+        cache-dependency-path: yarn.lock
+
+    - name: Install dependencies
+      shell: bash
+      run: yarn install --immutable

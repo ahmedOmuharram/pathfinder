@@ -131,7 +131,7 @@ Direct app runs have matching examples too:
 
 - API strict/dev: [`apps/api/.env.example`](/Users/ahmedmuharram/repos/pathfinder/apps/api/.env.example), [`apps/api/.env.dev.example`](/Users/ahmedmuharram/repos/pathfinder/apps/api/.env.dev.example)
 - Web strict/dev: [`apps/web/.env.example`](/Users/ahmedmuharram/repos/pathfinder/apps/web/.env.example), [`apps/web/.env.dev.example`](/Users/ahmedmuharram/repos/pathfinder/apps/web/.env.dev.example)
-- Dedicated test profile: [`/.env.test.example`](/Users/ahmedmuharram/repos/pathfinder/.env.test.example)
+- Test profile: generated on demand (see [Option C](#option-c-test--e2e-profile))
 
 ### Local models (Ollama)
 
@@ -211,7 +211,15 @@ This is where local-only behavior lives: watch mode and local Postgres/Redis con
 From repo root:
 
 ```bash
-cp .env.test.example .env.test
+cat > .env.test <<'EOF'
+API_ENV=test
+PATHFINDER_CHAT_PROVIDER=mock
+NEXT_PUBLIC_API_URL=http://api:8000
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
+DEFAULT_PROVIDER=anthropic
+DEFAULT_TIER=balanced
+EOF
+printf 'API_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> .env.test
 docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.e2e.yml up --build
 ```
 

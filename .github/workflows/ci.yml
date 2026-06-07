@@ -11,23 +11,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'packages/shared-py/**'
+            web:
+              - 'apps/web/**'
+              - 'packages/shared-ts/**'
+
   lint-api:
     name: Lint API
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.api == 'true' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install dependencies
-        working-directory: apps/api
-        run: uv sync
+      - uses: ./.github/actions/setup-api
 
       - name: Run ruff
         working-directory: apps/api
@@ -64,20 +74,13 @@ jobs:
   build-docs:
     name: Build API docs
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.api == 'true' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: ./.github/actions/setup-api
         with:
-          python-version: "3.14"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install dependencies
-        working-directory: apps/api
-        run: uv sync --group docs
+          sync-args: --group docs
 
       - name: Build Sphinx docs
         working-directory: apps/api
@@ -86,6 +89,8 @@ jobs:
   test-api:
     name: Test API
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.api == 'true' }}
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -102,18 +107,7 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install dependencies
-        working-directory: apps/api
-        run: uv sync
+      - uses: ./.github/actions/setup-api
 
       - name: Run tests
         working-directory: apps/api
@@ -126,21 +120,11 @@ jobs:
   lint-web:
     name: Lint Web
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.13.0"
-          cache: "yarn"
-          cache-dependency-path: yarn.lock
-
-      - name: Install dependencies
-        run: yarn install --immutable
+      - uses: ./.github/actions/setup-web
 
       - name: Run ESLint
         working-directory: apps/web
@@ -161,21 +145,11 @@ jobs:
   check-shared-ts:
     name: Check shared TS types
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.13.0"
-          cache: "yarn"
-          cache-dependency-path: yarn.lock
-
-      - name: Install dependencies
-        run: yarn install --immutable
+      - uses: ./.github/actions/setup-web
 
       - name: Check generated types are up to date
         working-directory: packages/shared-ts
@@ -184,21 +158,11 @@ jobs:
   test-web:
     name: Test Web
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.13.0"
-          cache: "yarn"
-          cache-dependency-path: yarn.lock
-
-      - name: Install dependencies
-        run: yarn install --immutable
+      - uses: ./.github/actions/setup-web
 
       - name: Run unit tests (with coverage)
         working-directory: apps/web
@@ -207,17 +171,28 @@ jobs:
   test-e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    # Full-stack; runs on api or web changes, after web lint+test (skip-safe).
+    needs: [changes, lint-web, test-web]
+    if: >-
+      ${{ !cancelled()
+        && needs.lint-web.result != 'failure'
+        && needs.test-web.result != 'failure'
+        && (needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true') }}
     steps:
       - uses: actions/checkout@v4
 
-      # The e2e stack runs the production images: the API bakes the PIGuard
-      # model + serves real settings, and web runs the standalone server
-      # (`next start` cannot serve `output: "standalone"`). The e2e overlay
-      # forces API_ENV=test + mock provider and maps the DB to 5433.
+      # Self-contained test env; secret is generated per run, never committed.
       - name: Prepare e2e env
         run: |
-          cp .env.test.example .env.test
-          printf '\nAPI_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> .env.test
+          cat > .env.test <<'EOF'
+          API_ENV=test
+          PATHFINDER_CHAT_PROVIDER=mock
+          NEXT_PUBLIC_API_URL=http://api:8000
+          DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
+          DEFAULT_PROVIDER=anthropic
+          DEFAULT_TIER=balanced
+          EOF
+          printf 'API_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> .env.test
 
       - name: Build + start the stack (mock provider, test env)
         run: |
@@ -232,26 +207,15 @@ jobs:
             curl -fsS http://localhost:8000/health/ready >/dev/null 2>&1 && { ok=1; break; }
             sleep 5
           done
-          [ -n "$ok" ] || { echo "API not ready"; docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs api | tail -80; exit 1; }
+          [ -n "$ok" ] || { echo "API not ready"; docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.e2e.yml logs api | tail -80; exit 1; }
           ok=
           for _ in $(seq 1 30); do
             curl -fsS http://localhost:3000/ >/dev/null 2>&1 && { ok=1; break; }
             sleep 2
           done
-          [ -n "$ok" ] || { echo "web not ready"; docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs web | tail -50; exit 1; }
+          [ -n "$ok" ] || { echo "web not ready"; docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.e2e.yml logs web | tail -50; exit 1; }
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.13.0"
-          cache: "yarn"
-          cache-dependency-path: yarn.lock
-
-      - name: Install web dependencies
-        run: yarn install --immutable
+      - uses: ./.github/actions/setup-web
 
       - name: Install Playwright browsers
         working-directory: apps/web
@@ -265,10 +229,33 @@ jobs:
 
       - name: Stack logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --tail=120
+        run: docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.e2e.yml logs --tail=120
 
       - name: Tear down
         if: always()
         run: |
           docker compose --env-file .env.test \
             -f docker-compose.yml -f docker-compose.e2e.yml down -v
+
+  # Make this the single required status check (skipped jobs aren't failures).
+  ci-status:
+    name: CI status
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - changes
+      - lint-api
+      - build-docs
+      - test-api
+      - lint-web
+      - check-shared-ts
+      - test-web
+      - test-e2e
+    steps:
+      - name: Fail if any required job failed or was cancelled
+        run: |
+          if ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}; then
+            echo "One or more CI jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "All CI jobs succeeded or were skipped."
