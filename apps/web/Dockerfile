@@ -8,9 +8,8 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy workspace config + Yarn release
+# Workspace config; Corepack provides Yarn 4 via the packageManager field.
 COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn .yarn
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared-ts/package.json ./packages/shared-ts/
 
