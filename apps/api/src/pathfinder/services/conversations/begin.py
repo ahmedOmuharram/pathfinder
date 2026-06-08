@@ -23,12 +23,13 @@ from uuid import UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.models import Conversation, ExperimentRow
 from pathfinder.persistence.repositories.conversation import (
     ConversationRepository,
     ConversationUpdate,
 )
 from pathfinder.platform.db import async_session_factory
+from pathfinder.platform.errors import NotFoundError
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -54,6 +55,13 @@ async def begin_conversation(
     site_id: str,
     experiment_id: str | None = None,
 ) -> BeginResult:
+    if experiment_id is not None:
+        experiment = await session.get(ExperimentRow, experiment_id)
+        if experiment is None or experiment.user_id != user_id:
+            raise NotFoundError(
+                title="Experiment not found",
+                detail=f"No experiment {experiment_id!r} owned by the current user.",
+            )
     stmt = (
         insert(Conversation)
         .values(

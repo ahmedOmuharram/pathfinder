@@ -8,6 +8,7 @@ not affect PathFinder's own data).  Used by thesis/eval/scripts/ only.
 """
 
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter
 from pydantic import Field
@@ -71,7 +72,7 @@ async def build_gold_strategy_endpoint(
 class FetchGeneIdsRequest(CamelModel):
     """Fetch gene IDs from an existing PathFinder strategy."""
 
-    strategy_id: str
+    strategy_id: UUID
     site_id: str
 
 

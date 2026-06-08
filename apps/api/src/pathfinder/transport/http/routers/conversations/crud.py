@@ -13,7 +13,7 @@ from pathfinder.services.conversations.service import (
     ConversationService,
     ConversationUpdateInput,
 )
-from pathfinder.transport.http.deps import CurrentUser, DBSession
+from pathfinder.transport.http.deps import CurrentUser, DBSession, SiteIdQuery
 from pathfinder.transport.http.schemas import (
     BeginConversationRequest,
     BeginConversationResponse,
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 async def list_strategies(
     session: DBSession,
     user_id: CurrentUser,
-    site_id: Annotated[str | None, Query(alias="siteId")] = None,
+    site_id: SiteIdQuery = None,
 ) -> list[ConversationResponse]:
     """List the user's chats (active, non-dismissed)."""
     return await ConversationService(session).list_active(user_id, site_id)
@@ -39,7 +39,7 @@ async def list_strategies(
 async def list_dismissed_strategies(
     session: DBSession,
     user_id: CurrentUser,
-    site_id: Annotated[str | None, Query(alias="siteId")] = None,
+    site_id: SiteIdQuery = None,
 ) -> list[ConversationResponse]:
     """List the user's dismissed (soft-deleted) chats."""
     return await ConversationService(session).list_dismissed(user_id, site_id)

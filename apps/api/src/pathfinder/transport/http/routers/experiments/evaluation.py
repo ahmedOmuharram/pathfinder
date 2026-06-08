@@ -13,7 +13,10 @@ from pathfinder.services.experiment.sweep_service import (
 )
 from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
 from pathfinder.transport.http.schemas.experiments import ThresholdSweepRequest
-from pathfinder.transport.http.sse_utils import typed_event_stream_response
+from pathfinder.transport.http.sse_utils import (
+    SSE_RESPONSES,
+    typed_event_stream_response,
+)
 
 router = APIRouter()
 
@@ -26,7 +29,7 @@ async def re_evaluate_experiment(
     return await re_evaluate(exp)
 
 
-@router.post("/{experiment_id}/threshold-sweep")
+@router.post("/{experiment_id}/threshold-sweep", responses=SSE_RESPONSES)
 async def threshold_sweep(
     exp: ExperimentDep,
     request: ThresholdSweepRequest,
@@ -54,7 +57,15 @@ async def threshold_sweep(
     )
 
 
-@router.get("/{experiment_id}/export")
+@router.get(
+    "/{experiment_id}/export",
+    responses={
+        200: {
+            "description": "Self-contained HTML report.",
+            "content": {"text/html": {"schema": {"type": "string"}}},
+        }
+    },
+)
 async def get_experiment_report(
     exp: ExperimentDep, user_id: CurrentUser
 ) -> StreamingResponse:

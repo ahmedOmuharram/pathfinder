@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from pathfinder.platform.errors import WDKError
+from pathfinder.platform.errors import NotFoundError, ValidationError
 from pathfinder.services.strategies.plan_validation import validate_plan_or_raise
 from pathfinder.services.strategies.wdk_counts import compute_step_counts_for_plan
 from pathfinder.transport.http.deps import CurrentUser
@@ -23,8 +23,7 @@ async def compute_step_counts(
 
     try:
         counts = await compute_step_counts_for_plan(payload, request.site_id)
-    except Exception as e:
-        msg = f"WDK compile failed: {e}"
-        raise WDKError(msg) from e
+    except NotFoundError as e:
+        raise ValidationError(title="Invalid request", detail=str(e)) from e
 
     return StepCountsResponse(counts=counts)

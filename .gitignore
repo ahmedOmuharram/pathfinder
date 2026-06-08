@@ -50,6 +50,7 @@ CLAUDE.md
 *.swp
 *.swo
 *~
+*.bak
 .DS_Store
 
 # Environment

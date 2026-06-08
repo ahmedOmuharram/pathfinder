@@ -34,6 +34,7 @@ integration suite.
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -41,13 +42,14 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
+import httpx
 import procrastinate
 import pytest
 import schemathesis
 from fastapi import FastAPI
 from hypothesis import HealthCheck, settings
 from schemathesis import Case
-from schemathesis.checks import load_all_checks
+from schemathesis.checks import load_all_checks, not_a_server_error
 from schemathesis.config import (
     GenerationConfig,
     PhasesConfig,
@@ -59,14 +61,21 @@ from schemathesis.config import HealthCheck as STHealthCheck
 from schemathesis.core.transport import Response
 from schemathesis.openapi import from_asgi
 from schemathesis.schemas import BaseSchema
+from schemathesis.specs.openapi.checks import (
+    content_type_conformance,
+    response_headers_conformance,
+    response_schema_conformance,
+)
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.checkpointer import to_psycopg_url
+from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.main import create_app
 from pathfinder.persistence.models import User
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.readiness import _FIXED_SUBSYSTEMS, get_readiness
 from pathfinder.platform.security import create_user_token
 
 load_all_checks()
@@ -83,6 +92,45 @@ _STREAMING_PATHS: frozenset[str] = frozenset(
         "/internal/schema/stream-event",
     }
 )
+
+# langgraph's AsyncPostgresStore pool binds to the loop that opened it; the sync
+# TestClient portal uses a different loop per request. Covered by the memories
+# integration tests + test_memory_endpoints_have_store_in_conformance_app.
+_LOOP_BOUND_PATHS: frozenset[str] = frozenset(
+    {
+        "/api/v1/memories",
+        "/api/v1/memories/search",
+        "/api/v1/memories/{key}",
+    }
+)
+
+_EXCLUDED_PATHS: frozenset[str] = _STREAMING_PATHS | _LOOP_BOUND_PATHS
+
+_HTTP_METHODS = ("get", "post", "put", "patch", "delete", "options", "head", "trace")
+
+
+def _event_stream_labels() -> frozenset[str]:
+    # ``METHOD /path`` for every operation that responds with text/event-stream.
+    # Derived from the committed spec so new SSE endpoints exclude themselves.
+    for parent in Path(__file__).resolve().parents:
+        spec_path = parent / "packages" / "spec" / "openapi.json"
+        if spec_path.is_file():
+            break
+    else:
+        msg = "packages/spec/openapi.json not found"
+        raise FileNotFoundError(msg)
+    spec = json.loads(spec_path.read_text())
+    return frozenset(
+        f"{method.upper()} {path}"
+        for path, item in spec["paths"].items()
+        for method, operation in item.items()
+        if method in _HTTP_METHODS
+        for response in operation.get("responses", {}).values()
+        if "text/event-stream" in (response.get("content") or {})
+    )
+
+
+_STREAMING_LABELS: frozenset[str] = _event_stream_labels()
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,14 +179,9 @@ async def _noop_lifespan(_: FastAPI) -> AsyncGenerator[None]:
 async def patched_app(
     db_engine: AsyncEngine,
     session_maker: async_sessionmaker[Any],
-) -> tuple[FastAPI, UUID]:
-    """Build the app once for the whole session, with lifespan bypassed
-    and the global engine/connector pointed at the test DB. Seed one
-    user we'll authenticate as for every fuzzed request.
-
-    Session-scoped: 100+ Schemathesis-generated pytest items reuse a
-    single app instance, dropping per-item setup from seconds to
-    milliseconds.
+) -> AsyncGenerator[tuple[FastAPI, UUID]]:
+    """Build the app once per session against the test DB, seed one user,
+    and attach ``app.state.memory_store`` (the swapped-out lifespan would).
     """
     session_module._engine = db_engine
     session_module._session_factory_instance = session_maker
@@ -166,7 +209,13 @@ async def patched_app(
         session.add(User(id=user_id))
         await session.commit()
 
-    return app, user_id
+    readiness = get_readiness()
+    for subsystem in _FIXED_SUBSYSTEMS:
+        readiness.mark_ready(subsystem)
+
+    async with lifespan_memory_store(get_settings().database_url) as memory_store:
+        app.state.memory_store = memory_store
+        yield app, user_id
 
 
 @pytest.fixture(scope="session")
@@ -192,43 +241,21 @@ def api_schema_only(api_schema: _SchemaArtifacts) -> BaseSchema:
 # operations never become parametrized sub-cases. ``BaseSchema.exclude``
 # applied to the concrete schema (post-``from_fixture``) is collected
 # first then filtered at execution time, which still spawns the cases.
-schema = schemathesis.pytest.from_fixture("api_schema_only").exclude(
-    path=list(_STREAMING_PATHS),
+schema = (
+    schemathesis.pytest.from_fixture("api_schema_only")
+    .exclude(path=list(_EXCLUDED_PATHS))
+    .exclude(func=lambda ctx: ctx.operation.label in _STREAMING_LABELS)
 )
 
 # Built-in checks Schemathesis runs against every response. Listed
 # explicitly so a future Schemathesis upgrade that adds a noisy default
 # does not silently change the contract this test enforces.
 _CHECKS: list[Callable[..., Any]] = [
-    schemathesis.checks.not_a_server_error,
-    schemathesis.checks.content_type_conformance,
-    schemathesis.checks.response_headers_conformance,
-    schemathesis.checks.response_schema_conformance,
+    not_a_server_error,
+    content_type_conformance,
+    response_headers_conformance,
+    response_schema_conformance,
 ]
-
-
-_BASELINE_FILE = Path(__file__).with_name("openapi_schemathesis_baseline.txt")
-
-
-def _load_baseline() -> set[str]:
-    """Read the list of currently-failing operation labels.
-
-    Each line is a Schemathesis operation label such as
-    ``POST /api/v1/conversations``. Lines starting with ``#`` are
-    comments. Operations listed here are skipped at test time so they
-    don't fail the suite. Removing a line and re-running confirms a fix;
-    adding one captures a fresh known failure with a brief inline note.
-    """
-    if not _BASELINE_FILE.is_file():
-        return set()
-    return {
-        line.strip()
-        for line in _BASELINE_FILE.read_text().splitlines()
-        if line.strip() and not line.startswith("#")
-    }
-
-
-_BASELINE: frozenset[str] = frozenset(_load_baseline())
 
 
 @schema.parametrize()
@@ -250,24 +277,8 @@ def test_openapi_conformance(
 
     ``call_and_validate`` runs every check in ``_CHECKS``; any failure
     raises ``schemathesis.errors.CheckFailed`` with the offending
-    request/response pair. Operations listed in
-    ``openapi_schemathesis_baseline.txt`` are wrapped in ``pytest.xfail``
-    so known-failing endpoints don't regress the suite.
+    request/response pair.
     """
-    label = case.operation.label
-    if label in _BASELINE:
-        # Baselined operation: skip the check chain entirely. Skipping is
-        # cleaner than xfail under Hypothesis + pytest-subtests because
-        # ``FailureGroup`` is a ``BaseExceptionGroup`` and Hypothesis's
-        # shrinker re-runs xfail-marked failures across examples,
-        # producing noisy SUBFAILED reports instead of the expected
-        # SUBSKIPPED. Baseline maintenance: remove a line, re-run, and
-        # the operation runs through the full check set; if it passes,
-        # ship the baseline trim alongside the underlying fix.
-        pytest.skip(
-            f"Baselined OpenAPI conformance failure: {label}. "
-            f"See openapi_schemathesis_baseline.txt."
-        )
     response: Response = case.call_and_validate(
         checks=_CHECKS,
         cookies={"pathfinder-auth": api_schema.auth_token},
@@ -292,10 +303,9 @@ def test_schema_loads_and_covers_documented_surface(
     """
     raw = api_schema.schema.raw_schema
     documented_paths: set[str] = set(raw["paths"].keys())
-    missing_streaming = _STREAMING_PATHS - documented_paths
-    assert missing_streaming == set(), (
-        f"Streaming path(s) in exclude list no longer present in spec: "
-        f"{sorted(missing_streaming)}"
+    missing = _EXCLUDED_PATHS - documented_paths
+    assert missing == set(), (
+        f"Excluded path(s) no longer present in spec: {sorted(missing)}"
     )
     operation_count = sum(1 for _ in api_schema.schema.get_all_operations())
     assert operation_count >= 50
@@ -304,3 +314,37 @@ def test_schema_loads_and_covers_documented_surface(
     # case will 500 against a bogus connection. Failing fast here turns
     # a 1000-line cascade into a one-line message.
     assert session_module._engine is not None
+
+
+async def test_memory_endpoints_have_store_in_conformance_app(
+    patched_app: tuple[FastAPI, UUID],
+) -> None:
+    app, user_id = patched_app
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    ) as client:
+        client.cookies.set("pathfinder-auth", create_user_token(user_id))
+        listed = await client.get(
+            "/api/v1/memories", params={"limit": "1", "offset": "0"}
+        )
+        searched = await client.get("/api/v1/memories/search", params={"q": "x"})
+        missing = await client.delete(
+            "/api/v1/memories/nope", params={"kind": "knowledge"}
+        )
+    assert listed.status_code == 200, listed.text
+    assert searched.status_code == 200, searched.text
+    assert missing.status_code == 404, missing.text
+    assert missing.headers["content-type"].startswith("application/problem+json")
+
+
+async def test_health_ready_is_200_in_conformance_app(
+    patched_app: tuple[FastAPI, UUID],
+) -> None:
+    app, _ = patched_app
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/health/ready")
+    assert resp.status_code == 200, resp.text

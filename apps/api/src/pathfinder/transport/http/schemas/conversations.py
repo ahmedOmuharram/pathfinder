@@ -28,7 +28,7 @@ class OpenConversationResponse(CamelModel):
 
 
 class BeginConversationRequest(CamelModel):
-    site_id: str = Field(min_length=1, max_length=64)
+    site_id: str = Field(min_length=1, max_length=50)
     experiment_id: str | None = None
     seed_text: str | None = Field(default=None, max_length=4000)
 

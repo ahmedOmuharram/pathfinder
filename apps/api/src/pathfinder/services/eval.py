@@ -172,11 +172,11 @@ async def fetch_strategy_gene_ids(
 
 async def get_strategy_gene_ids(
     session: AsyncSession,
-    strategy_id: str,
+    strategy_id: UUID,
     site_id: str,
 ) -> dict[str, Any]:
     """Fetch gene IDs for a PathFinder strategy's linked WDK root step."""
-    conversation = await ConversationRepository(session).get_by_id(UUID(strategy_id))
+    conversation = await ConversationRepository(session).get_by_id(strategy_id)
     if not conversation or not conversation.wdk_strategy_id:
         return {"geneIds": [], "error": "No WDK strategy linked"}
     api = get_strategy_api(site_id)

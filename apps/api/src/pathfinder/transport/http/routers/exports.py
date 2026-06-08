@@ -1,6 +1,7 @@
 """Download endpoint for AI-generated export files."""
 
 import io
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
@@ -11,8 +12,25 @@ from pathfinder.transport.http.deps import CurrentUser
 
 router = APIRouter(prefix="/api/v1/exports", tags=["exports"])
 
+# Content types the export service emits (see services/export/service.py).
+_DOWNLOAD_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "Exported file.",
+        "content": {
+            media_type: {"schema": {"type": "string"}}
+            for media_type in (
+                "text/csv",
+                "text/tab-separated-values",
+                "application/json",
+                "text/plain",
+                "text/markdown",
+            )
+        },
+    }
+}
 
-@router.get("/{export_id}")
+
+@router.get("/{export_id}", responses=_DOWNLOAD_RESPONSES)
 async def download_export(export_id: UUID, user_id: CurrentUser) -> StreamingResponse:
     """Serve a previously generated export file.
 

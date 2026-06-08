@@ -5,12 +5,11 @@ from contextlib import asynccontextmanager
 from typing import cast
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.encoders import jsonable_encoder
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException
 
 from pathfinder import __version__
 from pathfinder.ai.capabilities.piguard import warm_up_piguard
@@ -40,11 +39,14 @@ from pathfinder.platform.db import (
 from pathfinder.platform.error_handlers import (
     app_error_handler,
     http_exception_handler,
+    rate_limit_handler,
+    request_validation_handler,
 )
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger, setup_logging
 from pathfinder.platform.readiness import get_readiness, reset_readiness
 from pathfinder.platform.security import csrf_middleware, limiter
+from pathfinder.transport.http.openapi import install_problem_responses
 from pathfinder.transport.http.routers import (
     _stream_parts_schemas,
     chat,
@@ -261,38 +263,6 @@ def create_app() -> FastAPI:
         response.headers["X-Request-ID"] = request_id
         return response
 
-    async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
-        del request
-        return Response(
-            content=str(exc.detail),
-            status_code=429,
-            headers={"Retry-After": "60"},
-        )
-
-    async def request_validation_handler(
-        request: Request,
-        exc: RequestValidationError,
-    ) -> JSONResponse:
-        body_preview: str
-        raw_body = exc.body
-        if isinstance(raw_body, (bytes, bytearray)):
-            body_preview = bytes(raw_body).decode("utf-8", errors="replace")[:1000]
-        elif raw_body is None:
-            body_preview = ""
-        else:
-            body_preview = str(raw_body)[:1000]
-        logger.warning(
-            "Request validation failed",
-            method=request.method,
-            path=request.url.path,
-            errors=exc.errors(),
-            body_preview=body_preview,
-        )
-        return JSONResponse(
-            status_code=422,
-            content={"detail": jsonable_encoder(exc.errors()), "body": exc.body},
-        )
-
     for exc_type, handler in (
         (AppError, app_error_handler),
         (HTTPException, http_exception_handler),
@@ -309,6 +279,8 @@ def create_app() -> FastAPI:
     # Dev-only routes (e2e / local dev with mock chat provider).
     if settings.pathfinder_chat_provider.strip().lower() == "mock":
         app.include_router(dev.router)
+
+    install_problem_responses(app)
 
     return app
 

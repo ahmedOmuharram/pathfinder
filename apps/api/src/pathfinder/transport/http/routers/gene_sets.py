@@ -44,7 +44,7 @@ from pathfinder.services.wdk.step_results_models import (
     AttributesResponse,
     RecordDetailResponse,
 )
-from pathfinder.transport.http.deps import CurrentUser
+from pathfinder.transport.http.deps import CurrentUser, SiteIdQuery
 from pathfinder.transport.http.schemas.gene_sets import (
     CreateGeneSetRequest,
     EnsembleScoringRequest,
@@ -160,7 +160,7 @@ async def create_gene_set(
 @router.get("")
 async def list_gene_sets(
     user_id: CurrentUser,
-    site_id: str | None = Query(None, alias="siteId"),
+    site_id: SiteIdQuery = None,
 ) -> list[GeneSetResponse]:
     """List all gene sets for the current user, optionally filtered by site."""
     sets = await _svc().list_for_user(user_id, site_id=site_id)

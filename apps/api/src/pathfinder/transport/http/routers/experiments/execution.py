@@ -31,7 +31,10 @@ from pathfinder.transport.http.schemas.experiments import (
     CreateBenchmarkRequest,
     CreateExperimentRequest,
 )
-from pathfinder.transport.http.sse_utils import typed_event_stream_response
+from pathfinder.transport.http.sse_utils import (
+    SSE_RESPONSES,
+    typed_event_stream_response,
+)
 
 from ._config import config_from_request
 
@@ -41,12 +44,7 @@ logger = get_logger(__name__)
 
 @router.post(
     "/",
-    responses={
-        200: {
-            "description": "SSE stream of experiment progress + completion",
-            "content": {"text/event-stream": {"schema": {"type": "string"}}},
-        }
-    },
+    responses=SSE_RESPONSES,
 )
 @limiter.limit("20/minute")
 async def create_experiment(
@@ -66,12 +64,7 @@ async def create_experiment(
 
 @router.post(
     "/batch",
-    responses={
-        200: {
-            "description": "SSE stream of batch experiment progress + completion",
-            "content": {"text/event-stream": {"schema": {"type": "string"}}},
-        }
-    },
+    responses=SSE_RESPONSES,
 )
 @limiter.limit("10/minute")
 async def create_batch_experiment(
@@ -103,12 +96,7 @@ async def create_batch_experiment(
 
 @router.post(
     "/benchmark",
-    responses={
-        200: {
-            "description": "SSE stream of benchmark suite progress + completion",
-            "content": {"text/event-stream": {"schema": {"type": "string"}}},
-        }
-    },
+    responses=SSE_RESPONSES,
 )
 @limiter.limit("10/minute")
 async def create_benchmark(
@@ -151,12 +139,7 @@ async def create_benchmark(
 
 @router.post(
     "/seed",
-    responses={
-        200: {
-            "description": "SSE stream of seed strategy/control-set progress",
-            "content": {"text/event-stream": {"schema": {"type": "string"}}},
-        }
-    },
+    responses=SSE_RESPONSES,
 )
 async def seed_strategies(
     user_id: CurrentUser,

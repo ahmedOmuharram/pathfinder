@@ -144,7 +144,7 @@ async def save_substrategy(
     params: SaveSubstrategyParams,
 ) -> SavedSubstrategyResult:
     conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if conversation.strategy_ast is None:
+    if not conversation.strategy_ast:
         raise ValidationError(
             title="conversation has no strategy",
             detail="cannot save substrategy from an empty conversation",
@@ -186,7 +186,7 @@ async def insert_saved(
     params: InsertSavedParams,
 ) -> InsertSavedResult:
     conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if conversation.strategy_ast is None:
+    if not conversation.strategy_ast:
         raise ValidationError(
             title="conversation has no strategy",
             detail="cannot insert into an empty conversation",

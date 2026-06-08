@@ -15,9 +15,19 @@ per event (``event_name=lambda e: e.type``) for heterogeneous streams.
 """
 
 from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+# OpenAPI ``responses=`` entry declaring a text/event-stream 200 so the spec
+# matches what SSE endpoints actually return.
+SSE_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "Server-sent event stream.",
+        "content": {"text/event-stream": {"schema": {"type": "string"}}},
+    }
+}
 
 
 def typed_event_stream_response[T: BaseModel](

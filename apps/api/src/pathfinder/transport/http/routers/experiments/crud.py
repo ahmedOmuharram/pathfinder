@@ -13,7 +13,7 @@ from pathfinder.services.experiment.types import (
     experiment_summary_to_json,
     experiment_to_json,
 )
-from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
+from pathfinder.transport.http.deps import CurrentUser, ExperimentDep, SiteIdQuery
 
 router = APIRouter()
 
@@ -33,7 +33,7 @@ class PatchExperimentRequest(CamelModel):
 @router.get("/")
 async def list_experiments(
     user_id: CurrentUser,
-    siteId: str | None = None,
+    siteId: SiteIdQuery = None,
 ) -> list[JSONObject]:
     """List experiments owned by the current user, optionally filtered by site."""
     store = get_experiment_store()

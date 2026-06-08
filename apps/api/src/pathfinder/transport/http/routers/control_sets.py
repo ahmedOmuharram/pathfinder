@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 from pydantic import Field
 
 from pathfinder.platform.errors import ValidationError as CoreValidationError
@@ -12,7 +12,7 @@ from pathfinder.services.control_sets import (
     ControlSetService,
     NewControlSet,
 )
-from pathfinder.transport.http.deps import CurrentUser, DBSession
+from pathfinder.transport.http.deps import CurrentUser, DBSession, SiteIdQuery
 
 router = APIRouter(prefix="/api/v1/control-sets", tags=["control-sets"])
 
@@ -35,7 +35,7 @@ class CreateControlSetRequest(CamelModel):
 async def list_control_sets(
     session: DBSession,
     user_id: CurrentUser,
-    site_id: str | None = Query(None, alias="siteId"),
+    site_id: SiteIdQuery = None,
     tags: str | None = None,
 ) -> list[ControlSetResponse]:
     """List control sets visible to the current user."""
@@ -54,12 +54,12 @@ async def list_control_sets(
 
 @router.get("/{control_set_id}", response_model=ControlSetResponse)
 async def get_control_set(
-    control_set_id: str,
+    control_set_id: UUID,
     session: DBSession,
     user_id: CurrentUser,
 ) -> ControlSetResponse:
     """Get a single control set by ID."""
-    return await ControlSetService(session).get(UUID(control_set_id), user_id)
+    return await ControlSetService(session).get(control_set_id, user_id)
 
 
 @router.post("", response_model=ControlSetResponse, status_code=201)
@@ -85,9 +85,9 @@ async def create_control_set(
 
 @router.delete("/{control_set_id}", status_code=204)
 async def delete_control_set(
-    control_set_id: str,
+    control_set_id: UUID,
     session: DBSession,
     user_id: CurrentUser,
 ) -> None:
     """Delete a control set owned by the current user."""
-    await ControlSetService(session).delete(UUID(control_set_id), user_id)
+    await ControlSetService(session).delete(control_set_id, user_id)
