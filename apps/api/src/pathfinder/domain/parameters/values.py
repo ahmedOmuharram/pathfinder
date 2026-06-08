@@ -289,6 +289,36 @@ def to_wire(value: ParamValue) -> str:
     return value.to_wire()
 
 
+_SCALAR_KINDS: frozenset[ParamKind] = frozenset(
+    {
+        "string",
+        "number",
+        "date",
+        "timestamp",
+        "single-pick-vocabulary",
+        "input-dataset",
+        "input-step",
+    },
+)
+
+
+def coerce_param_value(value: ParamValue, kind: ParamKind) -> ParamValue:
+    """Re-cast *value* to *kind* when both are scalar (single-value) kinds.
+
+    WDK is stringly-typed — numeric params are ``StringParam`` with
+    ``isNumber=True`` — so a ``number`` supplied for a ``string`` param (or
+    vice versa) is coerced through the wire form rather than rejected.
+    Structural kinds (ranges, multi-pick, filter) have no scalar coercion;
+    a mismatch raises ``ValueError``.
+    """
+    if value.type == kind:
+        return value
+    if value.type in _SCALAR_KINDS and kind in _SCALAR_KINDS:
+        return from_wire(kind, value.to_wire())
+    msg = f"a {value.type!r} value is not valid for a {kind!r} parameter"
+    raise ValueError(msg)
+
+
 def wire_map(values: dict[str, ParamValue]) -> dict[str, str]:
     return {name: to_wire(v) for name, v in values.items()}
 

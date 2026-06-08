@@ -26,6 +26,15 @@ class ReadinessResponse(CamelModel):
     not_ready: list[str] = Field(default_factory=list)
 
 
+class SystemReadyResponse(CamelModel):
+    """Aggregate readiness for the UI startup gate: API subsystems + worker."""
+
+    ready: bool
+    api_ready: bool
+    worker_alive: bool
+    not_ready: list[str] = Field(default_factory=list)
+
+
 class ProviderStatus(CamelModel):
     """Per-provider API-key availability."""
 

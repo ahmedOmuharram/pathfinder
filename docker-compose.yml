@@ -39,10 +39,10 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     command: .venv/bin/python -m pathfinder.jobs.worker
-    # Worker shares the API image (and its curl-based FastAPI healthcheck).
-    # The worker process does not serve HTTP, so override with a no-op probe —
-    # Procrastinate's own crash-on-error handling restarts the container via
-    # ``restart: always`` if the worker loop dies.
+    # Shares the API image but serves no HTTP — disable the curl healthcheck.
+    # restart covers the boot window before the API applies the DB schema, and
+    # any later crash of the worker loop.
+    restart: unless-stopped
     healthcheck:
       disable: true
     depends_on:

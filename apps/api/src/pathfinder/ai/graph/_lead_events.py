@@ -63,6 +63,17 @@ def is_suppressed_sub_agent_chunk(
     return tool_call_id in sub_agent_tool_calls
 
 
+def _truncate_summary(text: str, limit: int = 280) -> str:
+    """Cut to ``limit`` chars on a word boundary, appending ASCII ``...``."""
+    if len(text) <= limit:
+        return text
+    cut = text[: limit - 3].rstrip()
+    boundary = cut.rfind(" ")
+    if boundary > 0:
+        cut = cut[:boundary].rstrip()
+    return f"{cut}..."
+
+
 def _summarize_sub_agent_call_args(args: dict[str, Any]) -> str:
     """One-line input summary for the SubAgentCallCard 'started' state."""
     reason = args.get("reason")
@@ -75,7 +86,7 @@ def _summarize_sub_agent_call_args(args: dict[str, Any]) -> str:
         parts.append(f"intent: {intent_summary}")
     if isinstance(hints, str) and hints:
         parts.append(f"hints: {hints}")
-    return " · ".join(parts)[:280]
+    return _truncate_summary(" · ".join(parts))
 
 
 def _summarize_sub_agent_result(result: ToolReturnPart) -> str:
@@ -85,7 +96,7 @@ def _summarize_sub_agent_result(result: ToolReturnPart) -> str:
         return _summarize_delta(content)
     if isinstance(content, dict):
         return _summarize_delta_dict(content)
-    return str(content)[:280]
+    return _truncate_summary(str(content))
 
 
 def _summarize_delta(delta: BaseModel) -> str:
@@ -155,10 +166,14 @@ def handle_sub_agent_event(
         result_tool_name = sub_agent_tool_calls.get(event.tool_call_id)
         if result_tool_name is None:
             return
-        result = event.result
+        result = event.part
         if isinstance(result, RetryPromptPart):
             content = result.content
-            summary = content[:280] if isinstance(content, str) else "retry requested"
+            summary = (
+                _truncate_summary(content)
+                if isinstance(content, str)
+                else "retry requested"
+            )
             is_retry = True
         else:
             summary = _summarize_sub_agent_result(result)

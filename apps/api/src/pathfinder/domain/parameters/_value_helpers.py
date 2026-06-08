@@ -14,7 +14,10 @@ from typing import Literal
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.parameters.value_utils import decode_values
+from pathfinder.domain.parameters.value_utils import (
+    decode_single_value,
+    decode_values,
+)
 from pathfinder.domain.parameters.vocab_utils import match_vocab_value
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.types import JSONObject
@@ -224,7 +227,7 @@ def process_multi_pick(spec: ParamSpecNormalized, value: JsonValue) -> Processed
 
 
 def process_single_pick(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
-    decoded = decode_values(value, spec.name)
+    decoded = decode_single_value(value, spec.name)
     if len(decoded) > 1:
         raise ValidationError(
             title="Invalid parameter value",

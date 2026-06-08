@@ -50,6 +50,28 @@
         }
       }
     },
+    "/health/system": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "System Ready",
+        "description": "Aggregate readiness for the UI startup gate: API subsystems + worker.\n\nAlways returns 200 so the frontend can poll a single endpoint and read\n``ready`` to decide whether to show the startup loader. Unlike\n``/health/ready`` (the API container's own healthcheck), worker liveness\nis included here \u2014 the worker is a sibling process, so its death must not\nflip the API's container health.",
+        "operationId": "system_ready_health_system_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemReadyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/ready": {
       "get": {
         "tags": [
@@ -18425,6 +18447,37 @@
         ],
         "title": "SystemConfigResponse",
         "description": "System configuration status (unauthenticated)."
+      },
+      "SystemReadyResponse": {
+        "properties": {
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "apiReady": {
+            "type": "boolean",
+            "title": "Apiready"
+          },
+          "workerAlive": {
+            "type": "boolean",
+            "title": "Workeralive"
+          },
+          "notReady": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ready",
+          "apiReady",
+          "workerAlive"
+        ],
+        "title": "SystemReadyResponse",
+        "description": "Aggregate readiness for the UI startup gate: API subsystems + worker."
       },
       "TaskCompleted": {
         "properties": {

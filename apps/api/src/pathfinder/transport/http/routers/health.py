@@ -8,11 +8,15 @@ from fastapi.responses import JSONResponse
 from pathfinder import __version__
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.db import async_session_factory
-from pathfinder.platform.health import check_database
+from pathfinder.platform.health import check_database, worker_is_alive
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.readiness import get_readiness
 from pathfinder.transport.http.schemas import HealthResponse, SystemConfigResponse
-from pathfinder.transport.http.schemas.health import ProviderStatus, ReadinessResponse
+from pathfinder.transport.http.schemas.health import (
+    ProviderStatus,
+    ReadinessResponse,
+    SystemReadyResponse,
+)
 
 router = APIRouter(tags=["health"])
 logger = get_logger(__name__)
@@ -51,6 +55,40 @@ async def system_config() -> SystemConfigResponse:
         or providers.google
         or providers.ollama,
         providers=providers,
+    )
+
+
+@router.get("/health/system", response_model=SystemReadyResponse)
+async def system_ready() -> SystemReadyResponse:
+    """Aggregate readiness for the UI startup gate: API subsystems + worker.
+
+    Always returns 200 so the frontend can poll a single endpoint and read
+    ``ready`` to decide whether to show the startup loader. Unlike
+    ``/health/ready`` (the API container's own healthcheck), worker liveness
+    is included here — the worker is a sibling process, so its death must not
+    flip the API's container health.
+    """
+    state = get_readiness()
+    worker_alive = False
+
+    try:
+        async with async_session_factory() as session:
+            await check_database(session)
+            worker_alive = await worker_is_alive(session)
+    except Exception as e:
+        logger.exception("System readiness: database unreachable")
+        state.mark_failed("database", str(e))
+
+    api_ready = state.all_ready
+    not_ready = list(state.not_ready)
+    if not worker_alive:
+        not_ready.append("worker")
+
+    return SystemReadyResponse(
+        ready=api_ready and worker_alive,
+        api_ready=api_ready,
+        worker_alive=worker_alive,
+        not_ready=not_ready,
     )
 
 

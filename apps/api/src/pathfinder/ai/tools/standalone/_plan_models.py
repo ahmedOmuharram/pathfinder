@@ -15,7 +15,11 @@ from pydantic import (
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.parameters.values import ParamValue, as_param_kind
+from pathfinder.domain.parameters.values import (
+    ParamValue,
+    as_param_kind,
+    coerce_param_value,
+)
 from pathfinder.domain.parameters.wdk_vocab import WDKVocabulary, flatten_vocab
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME
 from pathfinder.domain.strategy.plan import (
@@ -283,12 +287,15 @@ def _build_param(
         )
         raise ValueError(msg)
     kind = as_param_kind(spec.param_type)
-    if value is not None and value.type != kind:
-        msg = (
-            f"PlannedParameter {name!r}: value.type {value.type!r} does not "
-            f"match spec.param_type {kind!r}"
-        )
-        raise ValueError(msg)
+    if value is not None:
+        try:
+            value = coerce_param_value(value, kind)
+        except ValueError as exc:
+            msg = (
+                f"PlannedParameter {name!r}: {exc}. Wrap it as "
+                f"{{'type': {kind!r}, ...}} — see the param's valueFormat."
+            )
+            raise ValueError(msg) from exc
     return PlannedParameter(
         name=name,
         display_name=name,
