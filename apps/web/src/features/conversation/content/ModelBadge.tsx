@@ -1,55 +1,41 @@
 "use client";
 
-import { useMessage, type ThreadMessage } from "@assistant-ui/react";
-import type { ModelProvider } from "@pathfinder/shared";
+import { useAuiState, type MessageState } from "@assistant-ui/react";
+import type { DataLeadUsagePayload } from "@pathfinder/shared";
 import type { ReactElement } from "react";
 
 import { ProviderIcon } from "@/lib/components/ProviderIcon";
-import { PROVIDER_LABELS } from "@/lib/models/providerMeta";
+import { PROVIDER_LABELS, parseModelString } from "@/lib/models/providerMeta";
+import { formatUsage } from "@/lib/utils/usageFormat";
 
-interface ParsedModel {
-  provider: ModelProvider | null;
-  model: string;
+function isLeadUsagePart(part: { type: string; name?: string }): boolean {
+  return (
+    part.type === "data-lead-usage" ||
+    (part.type === "data" && part.name === "lead-usage")
+  );
 }
 
-function parseModelString(raw: string): ParsedModel {
-  const [head, ...rest] = raw.split(":");
-  const tail = rest.join(":");
-  const slug = (head ?? "").toLowerCase();
-  // Pydantic-AI identifies Google models with the ``google`` provider key;
-  // ``gemini`` is the model family label. Treat both as Google for display.
-  if (
-    slug === "openai" ||
-    slug === "anthropic" ||
-    slug === "ollama" ||
-    slug === "mock"
-  ) {
-    return { provider: slug, model: tail };
-  }
-  if (slug === "google" || slug === "gemini") {
-    return { provider: "google", model: tail };
-  }
-  return { provider: null, model: raw };
-}
-
-function selectLastPhaseModel(m: ThreadMessage): string | null {
-  if (m.role !== "assistant") return null;
+// Returns a primitive ("modelId\ttokens\tcostUsd") so useAuiState's identity
+// check doesn't loop (React #185). A fresh object here re-renders forever.
+export function selectLeadUsage(m: MessageState | undefined): string | null {
+  if (m?.role !== "assistant") return null;
   for (let i = m.content.length - 1; i >= 0; i -= 1) {
     const part = m.content[i];
-    if (part?.type !== "data") continue;
-    if ("name" in part && part.name === "phase-start") {
-      const data = part.data as { model?: unknown } | undefined;
-      const model = data?.model;
-      if (typeof model === "string" && model.length > 0) return model;
-    }
+    if (part === undefined || !isLeadUsagePart(part)) continue;
+    const data = (part as { data?: DataLeadUsagePayload }).data;
+    if (data === undefined) continue;
+    return `${data.modelId ?? ""}\t${data.tokens ?? 0}\t${data.costUsd ?? "0"}`;
   }
   return null;
 }
 
 export function ModelBadge(): ReactElement | null {
-  const raw = useMessage({ optional: true, selector: selectLastPhaseModel });
-  if (typeof raw !== "string" || raw === "") return null;
-  const { provider, model } = parseModelString(raw);
+  const raw = useAuiState((s) => selectLeadUsage(s.message));
+  if (raw === null) return null;
+  const [modelId = "", tokensRaw = "0", costUsd = "0"] = raw.split("\t");
+  if (modelId === "") return null;
+  const tokens = Number(tokensRaw);
+  const { provider, model } = parseModelString(modelId);
   const label = provider !== null ? PROVIDER_LABELS[provider] : "Model";
   return (
     <div
@@ -64,6 +50,12 @@ export function ModelBadge(): ReactElement | null {
         <>
           <span aria-hidden>·</span>
           <span className="font-mono">{model}</span>
+        </>
+      )}
+      {tokens > 0 && (
+        <>
+          <span aria-hidden>·</span>
+          <span className="font-mono tabular-nums">{formatUsage(tokens, costUsd)}</span>
         </>
       )}
     </div>

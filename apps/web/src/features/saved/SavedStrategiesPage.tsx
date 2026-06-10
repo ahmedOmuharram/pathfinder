@@ -73,7 +73,7 @@ function SavedStrategiesPageInner({ siteId }: SavedStrategiesPageProps) {
           <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="Filter by name…"
+            placeholder="Filter by name..."
             className="h-8 w-64 shrink-0"
             data-testid="saved-strategies-filter"
           />

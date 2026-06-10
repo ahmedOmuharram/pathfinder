@@ -24,10 +24,10 @@ interface EditorFooterProps {
 function SyncDot({ state }: { state: SyncState }) {
   const className = cn(
     "inline-block size-2 rounded-full",
-    state === "idle" && "bg-emerald-500",
-    state === "saving" && "bg-blue-500",
+    state === "idle" && "bg-success",
+    state === "saving" && "bg-primary",
     state === "error" && "bg-destructive",
-    state === "paused" && "bg-amber-500",
+    state === "paused" && "bg-warning",
   );
   return <span className={className} aria-hidden />;
 }
@@ -58,7 +58,7 @@ export function EditorFooter({
           {isSaving ? (
             <>
               <Spinner className="size-3" />
-              <span>Saving…</span>
+              <span>Saving...</span>
             </>
           ) : syncState === "error" ? (
             <>
@@ -68,7 +68,7 @@ export function EditorFooter({
           ) : syncState === "paused" ? (
             <>
               <SyncDot state="paused" />
-              <span className="text-amber-700">Sync paused (validation issue)</span>
+              <span className="text-warning">Sync paused (validation issue)</span>
             </>
           ) : hasChanges ? (
             <>
@@ -122,7 +122,7 @@ export function EditorFooter({
             disabled={isSaving}
             data-testid="step-editor-save"
           >
-            {isSaving ? "Saving…" : "Save"}
+            {isSaving ? "Saving..." : "Save"}
           </Button>
         </div>
       )}

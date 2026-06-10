@@ -173,9 +173,9 @@ export function StrategyTab({ value, onChange }: StrategyTabProps) {
         options={options}
         value={value === "" ? null : value}
         onChange={(next) => onChange(next ?? "")}
-        placeholder={isPending ? "Loading…" : "Select a strategy…"}
+        placeholder={isPending ? "Loading..." : "Select a strategy..."}
         emptyMessage="No strategies available for this site."
-        searchPlaceholder="Search strategies…"
+        searchPlaceholder="Search strategies..."
       />
       <p className="text-[11px] text-muted-foreground">Source: strategy</p>
     </div>

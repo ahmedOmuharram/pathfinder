@@ -2,7 +2,10 @@
 
 import type { LedgerDiscoveryPayload, LedgerSearchFitReport } from "@pathfinder/shared";
 
-import { StatusPill, type Tone } from "./LedgerPanelPrimitives";
+import { MonoId } from "@/lib/components/MonoId";
+import { type Tone } from "@/lib/utils/statusTone";
+
+import { StatusPill } from "./LedgerPanelPrimitives";
 
 const STATUS_TONE: Record<LedgerSearchFitReport["selectionStatus"], Tone> = {
   selected: "good",
@@ -28,7 +31,7 @@ export function DiscoveryDetail({ discovery }: { discovery: LedgerDiscoveryPaylo
   return (
     <div className="space-y-4 px-4 py-3">
       {discovery.intentGap !== null && discovery.intentGap !== "" && (
-        <p className="rounded border border-amber-500/40 bg-amber-500/5 px-2 py-1.5 text-[11px] italic text-amber-700 dark:text-amber-300">
+        <p className="rounded border border-warning/30 bg-warning/10 px-2 py-1.5 text-[11px] italic text-warning">
           intent gap: {discovery.intentGap}
         </p>
       )}
@@ -64,7 +67,10 @@ function SearchDecisionCard({ report }: { report: LedgerSearchFitReport }) {
           <div className="truncate font-medium text-foreground">
             {report.displayName}
           </div>
-          <code className="text-[10px] text-muted-foreground">{report.searchName}</code>
+          <MonoId
+            id={report.searchName}
+            className="text-[10px] text-muted-foreground"
+          />
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <StatusPill

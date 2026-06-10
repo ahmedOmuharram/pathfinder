@@ -3,7 +3,7 @@ vocabulary back into ``agent_state.discovered_searches[name].param_vocab``
 so planning can copy values verbatim instead of guessing.
 
 The fa2deb2b failure: planner tried ``hard_floor='10'``, WDK rejected with
-``validOptions=[1693, 3386, 6772, …]``, planner silently picked 6772 from
+``validOptions=[1693, 3386, 6772, ...]``, planner silently picked 6772 from
 the rejection error. With Stage B, ``get_parameter_options`` would have
 populated ``param_vocab['hard_floor']`` while discovery was still running,
 and planning would have seen that ``'10'`` is not in the snapshot.

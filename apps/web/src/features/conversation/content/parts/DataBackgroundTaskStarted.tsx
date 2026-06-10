@@ -1,5 +1,7 @@
 import type { BackgroundTaskStarted } from "@pathfinder/shared";
 
+import { humanizeToolName } from "@/lib/utils/toolNames";
+
 export function DataBackgroundTaskStarted({ data }: { data: BackgroundTaskStarted }) {
   const minutes = Math.ceil(data.estimatedDurationSeconds / 60);
   return (
@@ -12,7 +14,9 @@ export function DataBackgroundTaskStarted({ data }: { data: BackgroundTaskStarte
         <span className="font-medium">Background task started</span>
       </div>
       <div className="mt-1 text-muted-foreground">
-        <span className="font-mono">{data.toolName}</span>
+        <span className="font-medium text-foreground">
+          {humanizeToolName(data.toolName)}
+        </span>
         <span className="mx-1">·</span>
         <span>~{minutes} min</span>
       </div>

@@ -7,7 +7,7 @@ export function DataGeneSet({ data }: { data: GeneSetPart }) {
       className="my-2 rounded-md border border-border bg-card px-3 py-2 text-xs"
     >
       <div className="flex items-center gap-2">
-        <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
+        <span className="inline-block size-1.5 rounded-full bg-success" />
         <span className="font-medium">Gene set created</span>
       </div>
       <div className="mt-1 text-muted-foreground">

@@ -85,7 +85,7 @@ export function OrthologSheet({
                 Transform tool
               </label>
               {isPending ? (
-                <div className="text-sm text-muted-foreground">Loading…</div>
+                <div className="text-sm text-muted-foreground">Loading...</div>
               ) : searches.length === 0 ? (
                 <div className="text-sm text-muted-foreground">
                   No ortholog transforms found for this record type.
@@ -96,7 +96,7 @@ export function OrthologSheet({
                   value={selectedName}
                   onChange={setSelectedName}
                   placeholder="Pick a transform"
-                  searchPlaceholder="Search transforms…"
+                  searchPlaceholder="Search transforms..."
                   emptyMessage="No matching transforms."
                 />
               )}

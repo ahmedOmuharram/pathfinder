@@ -41,7 +41,7 @@ export function CompactStrategyView({
   if (spine.length === 0 && orphans.length === 0) {
     return (
       <div className="px-3 py-3 text-xs text-muted-foreground">
-        Building strategy ({strategy.steps.length} steps)…
+        Building strategy ({strategy.steps.length} steps)...
       </div>
     );
   }

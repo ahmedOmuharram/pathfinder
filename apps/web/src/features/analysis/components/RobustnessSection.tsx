@@ -29,13 +29,10 @@ const METRIC_DISPLAY: Record<string, string> = {
 };
 
 function stabilityLabel(score: number): { text: string; className: string } {
-  if (score > 0.9)
-    return { text: "Very stable", className: "text-green-600 dark:text-green-400" };
-  if (score > 0.7)
-    return { text: "Stable", className: "text-blue-600 dark:text-blue-400" };
-  if (score > 0.5)
-    return { text: "Moderate", className: "text-amber-600 dark:text-amber-400" };
-  return { text: "Unstable", className: "text-red-600 dark:text-red-400" };
+  if (score > 0.9) return { text: "Very stable", className: "text-success" };
+  if (score > 0.7) return { text: "Stable", className: "text-primary" };
+  if (score > 0.5) return { text: "Moderate", className: "text-warning" };
+  return { text: "Unstable", className: "text-destructive" };
 }
 
 function CIRow({
@@ -61,7 +58,7 @@ function CIRow({
       <td className="px-4 py-2 text-right text-xs">
         <Badge
           variant="secondary"
-          className={`text-[10px] ${widthIsNarrow ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-400"}`}
+          className={`text-[10px] ${widthIsNarrow ? "text-success" : "text-warning"}`}
         >
           {widthIsNarrow ? "Tight" : "Wide"}
         </Badge>

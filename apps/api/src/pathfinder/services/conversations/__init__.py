@@ -1,1 +1,1 @@
-"""Conversation-level services (fork, duplicate, …)."""
+"""Conversation-level services (fork, duplicate, ...)."""

@@ -16,7 +16,7 @@ export function SearchPicker({
   searches,
   value,
   onChange,
-  placeholder = "Pick a search…",
+  placeholder = "Pick a search...",
   disabled,
 }: SearchPickerProps) {
   const options: ComboboxOption[] = searches.map((s) => ({

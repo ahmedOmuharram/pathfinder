@@ -18,7 +18,7 @@ describe("DataToolApprovalRequest", () => {
       />,
     );
     expect(screen.getByTestId("data-tool-approval-request")).toBeInTheDocument();
-    expect(screen.getByText("delete_step")).toBeInTheDocument();
+    expect(screen.getByText("Delete step")).toBeInTheDocument();
     expect(screen.getByText("Approval required")).toBeInTheDocument();
   });
 });

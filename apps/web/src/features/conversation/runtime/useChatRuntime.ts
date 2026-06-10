@@ -24,10 +24,8 @@ import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/u
 import { strategyQueryKey, strategyQueryOptions } from "@/lib/api/strategy";
 import { getMyQuotaQueryKey } from "@pathfinder/shared/generated/hooks/useGetMyQuota";
 import { listScratchpadNotesQueryOptions } from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
-import type { DataSubAgentStepPayload } from "@pathfinder/shared";
 import { usePlanStore } from "@/state/usePlanStore";
 import { useRightRailStore } from "@/state/useRightRailStore";
-import { useSubAgentStepsStore } from "@/state/useSubAgentStepsStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useSettingsStore } from "@/state/useSettingsStore";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -142,11 +140,6 @@ export function useChatRuntime({
           break;
         case "data-decision-presented":
           decisionPresentedSchema.parse(dataPart.data);
-          break;
-        case "data-sub-agent-step":
-          useSubAgentStepsStore
-            .getState()
-            .appendStep(dataPart.data as DataSubAgentStepPayload);
           break;
         case "data-turn-usage": {
           const usage = turnUsageSchema.parse(dataPart.data);

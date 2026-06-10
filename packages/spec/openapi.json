@@ -8368,6 +8368,20 @@
         ],
         "title": "ConversationResponse"
       },
+      "ConversationTitlePayload": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "ConversationTitlePayload",
+        "description": "Payload for the ``data-conversation-title`` chunk."
+      },
       "CreateBatchExperimentRequest": {
         "properties": {
           "base": {
@@ -12839,6 +12853,28 @@
         "type": "object"
       },
       "JsonValue": {},
+      "LeadUsagePayload": {
+        "properties": {
+          "modelId": {
+            "type": "string",
+            "title": "Modelid",
+            "default": ""
+          },
+          "tokens": {
+            "type": "integer",
+            "title": "Tokens",
+            "default": 0
+          },
+          "costUsd": {
+            "type": "string",
+            "title": "Costusd",
+            "default": "0"
+          }
+        },
+        "type": "object",
+        "title": "LeadUsagePayload",
+        "description": "Payload for the ``data-lead-usage`` chunk \u2014 the Lead agent's own\nmodel, tokens, and cost (excluding sub-agents). Drives the per-message\nlead badge and updates live as the Lead streams."
+      },
       "LoginPayload": {
         "properties": {
           "email": {
@@ -18377,6 +18413,66 @@
                 "type": "null"
               }
             ]
+          },
+          "subAgentCall": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubAgentCallPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subAgentStep": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubAgentStepPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turnStopped": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnStoppedPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turnStatus": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnStatusPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conversationTitle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationTitlePayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leadUsage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeadUsagePayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -18401,6 +18497,163 @@
           "value"
         ],
         "title": "StringValue"
+      },
+      "SubAgentCallPayload": {
+        "properties": {
+          "toolCallId": {
+            "type": "string",
+            "title": "Toolcallid"
+          },
+          "subAgent": {
+            "type": "string",
+            "title": "Subagent"
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "started",
+              "completed",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "modelId": {
+            "type": "string",
+            "title": "Modelid",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "succeeded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Succeeded"
+          },
+          "tokens": {
+            "type": "integer",
+            "title": "Tokens",
+            "default": 0
+          },
+          "costUsd": {
+            "type": "string",
+            "title": "Costusd",
+            "default": "0"
+          }
+        },
+        "type": "object",
+        "required": [
+          "toolCallId",
+          "subAgent",
+          "phase",
+          "state"
+        ],
+        "title": "SubAgentCallPayload",
+        "description": "Payload for the ``data-sub-agent-call`` chunk.\n\n``tool_call_id`` is the Lead's tool_call_id for this dispatch; the\nfrontend joins ``data-sub-agent-step`` chunks to it via\n``parentToolCallId``."
+      },
+      "SubAgentStepPayload": {
+        "properties": {
+          "parentToolCallId": {
+            "type": "string",
+            "title": "Parenttoolcallid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tool",
+              "reasoning",
+              "text"
+            ],
+            "title": "Kind"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "started",
+              "completed",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "toolCallId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolcallid"
+          },
+          "toolName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolname"
+          },
+          "args": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Args"
+          },
+          "resultSummary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resultsummary"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parentToolCallId",
+          "kind",
+          "state"
+        ],
+        "title": "SubAgentStepPayload",
+        "description": "Payload for the ``data-sub-agent-step`` chunk \u2014 one event inside\na sub-agent's run.\n\nLets the frontend render each sub-agent dispatch as its own mini\nchat \u2014 inner tool calls, reasoning, text \u2014 nested under the\n``data-sub-agent-call`` card with matching ``parentToolCallId``."
       },
       "SubsystemStatus": {
         "properties": {
@@ -19938,6 +20191,42 @@
         ],
         "title": "TrialProgressDataResponse",
         "description": "Progress data for a single optimization trial."
+      },
+      "TurnStatusPayload": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "waitingOnLlm": {
+            "type": "boolean",
+            "title": "Waitingonllm",
+            "default": false
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "TurnStatusPayload",
+        "description": "Payload for the ``data-turn-status`` chunk.\n\n``waiting_on_llm`` lets the UI distinguish real thinking from\npreparatory work. ``model`` carries the Lead's model id once (on the\nfirst status of the turn) so the UI can show the Lead's provider icon\nalongside the live status."
+      },
+      "TurnStoppedPayload": {
+        "properties": {},
+        "type": "object",
+        "title": "TurnStoppedPayload",
+        "description": "Payload for the ``data-turn-stopped`` chunk.\n\nEmitted when a turn is cancelled (user pressed Stop). Persisted as a\nmessage part so the \"stopped\" state survives a page refresh."
       },
       "TurnUsage": {
         "properties": {

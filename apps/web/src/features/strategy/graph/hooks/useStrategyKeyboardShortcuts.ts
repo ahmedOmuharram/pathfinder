@@ -139,7 +139,7 @@ export function useStrategyKeyboardShortcuts({
         return;
       }
       case "Escape": {
-        // If a sheet/dialog (editor, quick switcher, …) is open, let it
+        // If a sheet/dialog (editor, quick switcher, ...) is open, let it
         // handle Esc and close itself — never navigate out from under it.
         if (document.querySelector('[role="dialog"][data-state="open"]') != null) {
           return;

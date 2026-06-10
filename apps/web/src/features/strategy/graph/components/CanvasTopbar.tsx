@@ -226,7 +226,7 @@ function SyncStatusPill({ state, onRetry }: SyncStatusPillProps) {
         data-sync-state="saving"
       >
         <Loader2 className="size-3 animate-spin" aria-hidden />
-        Saving…
+        Saving...
       </span>
     );
   }

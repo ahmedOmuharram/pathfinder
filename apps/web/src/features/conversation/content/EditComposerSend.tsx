@@ -111,7 +111,7 @@ export function EditComposerBranchOrRevert() {
         disabled={pending || composerText.trim() === ""}
         data-testid="edit-composer-branch-or-revert"
       >
-        Save…
+        Save...
       </Button>
       <BranchOrRevertDialog
         open={dialogOpen}

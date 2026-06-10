@@ -141,7 +141,7 @@ function InsertSavedDialogBody({
         type="text"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        placeholder="Filter saved strategies…"
+        placeholder="Filter saved strategies..."
         className="h-8 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
       />
       <div className="max-h-72 overflow-auto rounded-md border border-border">
@@ -215,7 +215,7 @@ function InsertSavedDialogBody({
           disabled={pickedId == null || insert.isPending}
           data-testid="insert-saved-confirm"
         >
-          {insert.isPending ? "Sending…" : "Insert"}
+          {insert.isPending ? "Sending..." : "Insert"}
         </Button>
       </DialogFooter>
     </div>

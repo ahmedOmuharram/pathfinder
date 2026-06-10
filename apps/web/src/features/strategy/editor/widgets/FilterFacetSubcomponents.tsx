@@ -124,7 +124,7 @@ export function MultiPickFacet({ term, current, onChange }: FacetEditorProps) {
         }
         onChange({ field: term.term, type: "string", value: next });
       }}
-      placeholder={`Select ${term.display ?? term.term}…`}
+      placeholder={`Select ${term.display ?? term.term}...`}
       emptyMessage="No values"
     />
   );

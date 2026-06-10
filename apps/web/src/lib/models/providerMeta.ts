@@ -7,6 +7,35 @@
 
 import type { ModelProvider } from "@pathfinder/shared";
 
+export interface ParsedModel {
+  provider: ModelProvider | null;
+  model: string;
+}
+
+/** Split a ``provider:model`` id into a typed provider + model name. */
+export function parseModelString(raw: string): ParsedModel {
+  const [head, ...rest] = raw.split(":");
+  const tail = rest.join(":");
+  const slug = (head ?? "").toLowerCase();
+  if (
+    slug === "openai" ||
+    slug === "anthropic" ||
+    slug === "ollama" ||
+    slug === "mock"
+  ) {
+    return { provider: slug, model: tail };
+  }
+  if (slug === "google" || slug === "gemini") {
+    return { provider: "google", model: tail };
+  }
+  return { provider: null, model: raw };
+}
+
+/** Providers with no brand logo — rendered as a shimmer instead. */
+export function isLocalProvider(provider: ModelProvider | null): boolean {
+  return provider === null || provider === "ollama" || provider === "mock";
+}
+
 /** Human-readable labels for each provider. */
 export const PROVIDER_LABELS: Record<ModelProvider, string> = {
   openai: "OpenAI",

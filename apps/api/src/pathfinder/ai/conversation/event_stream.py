@@ -267,7 +267,7 @@ async def latest_turn_boundary(conversation_id: UUID) -> int:
     Used as the SSE replay baseline so a new client never tails into the
     middle of a tool-call sequence still being written by a prior turn —
     the failure mode that produces "Received tool-input-delta for missing
-    tool call with ID …" on retry. Task-tagged rows are excluded so the
+    tool call with ID ..." on retry. Task-tagged rows are excluded so the
     boundary tracks the chat stream alone.
     """
     async with async_session_factory() as session:

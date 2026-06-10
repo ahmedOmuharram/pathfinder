@@ -47,9 +47,9 @@ function CIBadge({
 
 function metricValueColor(value: number, raw?: boolean | null): string {
   const normalized = raw === true ? (value + 1) / 2 : value; // MCC is [-1,1]
-  if (normalized >= 0.7) return "text-green-600 dark:text-green-400";
-  if (normalized >= 0.4) return "text-amber-600 dark:text-amber-400";
-  return "text-red-600 dark:text-red-400";
+  if (normalized >= 0.7) return "text-success";
+  if (normalized >= 0.4) return "text-warning";
+  return "text-destructive";
 }
 
 export function MetricsOverview({
@@ -177,9 +177,9 @@ export function MetricsOverview({
                   <span
                     className={
                       e50 > 2
-                        ? "text-green-600 dark:text-green-400"
+                        ? "text-success"
                         : e50 > 1
-                          ? "text-blue-600 dark:text-blue-400"
+                          ? "text-primary"
                           : "text-foreground"
                     }
                   >

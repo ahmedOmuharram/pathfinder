@@ -45,6 +45,7 @@ from pathfinder.ai.graph._lead_capture import (
     _LeadRunCapture,
     _model_id,
     _persist_residual_quota,
+    emit_lead_usage,
     emit_turn_usage,
 )
 from pathfinder.ai.graph._lead_events import (
@@ -212,10 +213,11 @@ async def _drive_lead_stream(
         model_override=runtime.context.phase_models.get("lead"),
         reasoning_effort=runtime.context.phase_reasoning.get("lead"),
     )
+    capture.lead_model = agent_model
     sub_agent_tool_calls: dict[str, str] = {}
     _emit_chunk(
         writer,
-        turn_status_event(label="Thinking...", waiting_on_llm=True),
+        turn_status_event(label="Thinking...", waiting_on_llm=True, model=agent_model),
     )
 
     async def _agent_events() -> AsyncGenerator[
@@ -237,6 +239,7 @@ async def _drive_lead_stream(
                     writer,
                     event,
                     sub_agent_tool_calls,
+                    capture.sub_agent_usage_by_call,
                 )
             await _charge_token_delta(
                 runtime.context,
@@ -353,6 +356,10 @@ async def lead_node(
         )
         capture.sub_agent_tokens += usage_info.usage.total_tokens
         capture.sub_agent_cost += cost
+        capture.sub_agent_usage_by_call[usage_info.parent_tool_call_id] = (
+            usage_info.usage.total_tokens,
+            str(cost),
+        )
         total_tokens, cost_usd = capture.live_totals(state)
         emit_turn_usage(writer, total_tokens, cost_usd)
 
@@ -392,6 +399,7 @@ async def lead_node(
     capture.sub_agent_tokens = final_sub_agent_tokens
     capture.sub_agent_cost = final_sub_agent_cost
     emit_turn_usage(writer, residual_tokens, residual_cost)
+    emit_lead_usage(writer, capture.lead_model, capture.tokens, str(capture.cost_usd))
     final_ledger = derive_ledger(deps.state, deps.intent)
     _emit_chunk(writer, ledger_update_event(ledger=final_ledger))
     delta = _build_state_delta(

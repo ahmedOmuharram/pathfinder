@@ -62,6 +62,7 @@
     "elkjs": "^0.11.1",
     "embla-carousel-react": "^8.6.0",
     "eventsource-parser": "^3.0.6",
+    "geist": "^1.7.1",
     "immer": "^11.1.4",
     "lucide-react": "^1.8.0",
     "motion": "^12.38.0",

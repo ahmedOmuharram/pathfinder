@@ -1,5 +1,7 @@
 import type { DataToolApprovalRequestPayload } from "@pathfinder/shared";
 
+import { humanizeToolName } from "@/lib/utils/toolNames";
+
 export function DataToolApprovalRequest({
   data,
 }: {
@@ -8,14 +10,17 @@ export function DataToolApprovalRequest({
   return (
     <div
       data-testid="data-tool-approval-request"
-      className="my-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs dark:border-yellow-800 dark:bg-yellow-950"
+      className="my-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs"
     >
       <div className="flex items-center gap-2">
-        <span className="inline-block size-1.5 rounded-full bg-yellow-500" />
+        <span className="inline-block size-1.5 rounded-full bg-warning" />
         <span className="font-medium">Approval required</span>
       </div>
       <p className="mt-1 text-muted-foreground">
-        <span className="font-mono">{data.toolName}</span> wants to execute
+        <span className="font-medium text-foreground">
+          {humanizeToolName(data.toolName)}
+        </span>{" "}
+        wants to execute
       </p>
     </div>
   );

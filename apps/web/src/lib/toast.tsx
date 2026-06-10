@@ -20,8 +20,8 @@ const iconsByType: Record<ToastType, ReactNode> = {
 };
 
 const iconClassByType: Record<ToastType, string> = {
-  success: "text-green-600 dark:text-green-500",
-  error: "text-red-600 dark:text-red-500",
+  success: "text-success",
+  error: "text-destructive",
   info: "text-foreground",
 };
 

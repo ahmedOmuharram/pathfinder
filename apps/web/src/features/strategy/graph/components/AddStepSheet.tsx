@@ -87,14 +87,14 @@ export function AddStepSheet({
         </SheetHeader>
         <div className="flex-1 overflow-auto p-4">
           {isPending ? (
-            <div className="text-sm text-muted-foreground">Loading…</div>
+            <div className="text-sm text-muted-foreground">Loading...</div>
           ) : (
             <Combobox
               options={options}
               value={selectedName}
               onChange={setSelectedName}
               placeholder="Pick a search"
-              searchPlaceholder="Search…"
+              searchPlaceholder="Search..."
               emptyMessage="No matching searches."
               groupBy={(option) => recordTypeByName.get(option.value) ?? "other"}
             />

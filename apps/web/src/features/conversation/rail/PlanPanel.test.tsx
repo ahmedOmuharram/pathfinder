@@ -186,7 +186,7 @@ describe("PlanPanel — slot-filling form (Stage A)", () => {
         "asst-1",
       ),
     ]);
-    fireEvent.click(screen.getByText("Select an option…"));
+    fireEvent.click(screen.getByText("Select an option..."));
     fireEvent.click(screen.getByTestId("slot-option-1693 reads"));
     const approve = screen.getByTestId("plan-approve");
     expect(approve).not.toBeDisabled();

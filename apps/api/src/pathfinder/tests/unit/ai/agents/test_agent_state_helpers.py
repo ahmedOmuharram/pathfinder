@@ -1,5 +1,5 @@
 """Tests for the AgentToolState helpers that feed the dynamic toolset's
-``Literal[…]`` enums. These are the ground-truth source for every
+``Literal[...]`` enums. These are the ground-truth source for every
 ``parameter_id`` / ``search_name`` constraint that the model sees in
 its tool schemas, so wrong values here would break the entire
 hallucination-prevention story."""

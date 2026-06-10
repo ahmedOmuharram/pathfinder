@@ -27,6 +27,7 @@ from pathfinder.ai.conversation.title_generator import generate_conversation_tit
 from pathfinder.ai.graph.stream_events import (
     conversation_title_event,
     turn_status_event,
+    turn_stopped_event,
 )
 from pathfinder.persistence.repositories import (
     ChatTurnCancellationRepository,
@@ -171,6 +172,14 @@ async def run_turn(
         if result.saw_interrupt or result.cancelled
         else "stop"
     )
+    if result.cancelled:
+        await writer.write(
+            turn_stopped_event().model_dump(
+                by_alias=True,
+                mode="json",
+                exclude_none=True,
+            ),
+        )
     await writer.write(
         FinishChunk(finish_reason=finish_reason).model_dump(
             by_alias=True,

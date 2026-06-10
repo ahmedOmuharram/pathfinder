@@ -49,12 +49,12 @@ const getStatusBadge = (status: ToolUIPart["state"]) => {
 
   const icons: Record<ToolUIPart["state"], ReactNode> = {
     "input-streaming": <CircleIcon className="size-4" />,
-    "input-available": <ClockIcon className="size-4 animate-pulse" />,
-    "approval-requested": <ClockIcon className="size-4 text-yellow-600" />,
-    "approval-responded": <CheckCircleIcon className="size-4 text-blue-600" />,
-    "output-available": <CheckCircleIcon className="size-4 text-green-600" />,
-    "output-error": <XCircleIcon className="size-4 text-red-600" />,
-    "output-denied": <XCircleIcon className="size-4 text-orange-600" />,
+    "input-available": <ClockIcon className="size-4 animate-pulse text-primary" />,
+    "approval-requested": <ClockIcon className="size-4 text-warning" />,
+    "approval-responded": <CheckCircleIcon className="size-4 text-primary" />,
+    "output-available": <CheckCircleIcon className="size-4 text-success" />,
+    "output-error": <XCircleIcon className="size-4 text-destructive" />,
+    "output-denied": <XCircleIcon className="size-4 text-destructive" />,
   };
 
   return (
@@ -119,6 +119,30 @@ export type ToolOutputProps = ComponentProps<"div"> & {
   errorText: ToolUIPart["errorText"];
 };
 
+function renderOutputBody(output: ToolUIPart["output"]): ReactNode {
+  if (output == null) return null;
+  if (typeof output === "object" && !isValidElement(output)) {
+    return <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />;
+  }
+  if (typeof output === "string") {
+    const trimmed = output.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        return <CodeBlock code={JSON.stringify(parsed, null, 2)} language="json" />;
+      } catch {
+        // Not valid JSON — fall through to readable plain text.
+      }
+    }
+    return (
+      <pre className="whitespace-pre-wrap break-words px-3 py-2 font-sans text-foreground">
+        {output}
+      </pre>
+    );
+  }
+  return <div className="px-3 py-2">{output as ReactNode}</div>;
+}
+
 export const ToolOutput = ({
   className,
   output,
@@ -127,14 +151,6 @@ export const ToolOutput = ({
 }: ToolOutputProps) => {
   if (!(output || errorText)) {
     return null;
-  }
-
-  let Output = <div>{output as ReactNode}</div>;
-
-  if (typeof output === "object" && !isValidElement(output)) {
-    Output = <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />;
-  } else if (typeof output === "string") {
-    Output = <CodeBlock code={output} language="json" />;
   }
 
   return (
@@ -150,8 +166,11 @@ export const ToolOutput = ({
             : "bg-muted/50 text-foreground",
         )}
       >
-        {errorText && <div>{errorText}</div>}
-        {Output}
+        {errorText ? (
+          <div className="whitespace-pre-wrap break-words px-3 py-2">{errorText}</div>
+        ) : (
+          renderOutputBody(output)
+        )}
       </div>
     </div>
   );

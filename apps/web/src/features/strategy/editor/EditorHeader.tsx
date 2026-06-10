@@ -119,7 +119,7 @@ export function EditorHeader({
             data-testid="step-editor-save-substrategy"
           >
             <Bookmark className="size-4" />
-            Save as reusable…
+            Save as reusable...
           </DropdownMenuItem>
           {isDevEnv && (
             <DropdownMenuItem onSelect={() => setShowRaw((prev) => !prev)}>

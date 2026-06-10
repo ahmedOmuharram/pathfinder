@@ -106,7 +106,7 @@ export function SaveSubstrategyDialog({
             disabled={isSaving || name.trim() === ""}
             data-testid="save-substrategy-confirm"
           >
-            {isSaving ? "Saving…" : "Save"}
+            {isSaving ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -34,6 +34,14 @@ from shared_py.stream_parts.strategy import (
 )
 from shared_py.stream_parts.turn_usage import TurnUsage
 
+from pathfinder.ai.graph.stream_events import (
+    ConversationTitlePayload,
+    LeadUsagePayload,
+    SubAgentCallPayload,
+    SubAgentStepPayload,
+    TurnStatusPayload,
+    TurnStoppedPayload,
+)
 from pathfinder.platform.pydantic_base import CamelModel
 
 router = APIRouter(prefix="/api/v1/internal/stream-parts", tags=["internal"])
@@ -60,6 +68,12 @@ class StreamPartsSchemaIndex(CamelModel):
     task_progress: TaskProgress | None = None
     task_completed: TaskCompleted | None = None
     enrichment_results: EnrichmentResultsChunk | None = None
+    sub_agent_call: SubAgentCallPayload | None = None
+    sub_agent_step: SubAgentStepPayload | None = None
+    turn_stopped: TurnStoppedPayload | None = None
+    turn_status: TurnStatusPayload | None = None
+    conversation_title: ConversationTitlePayload | None = None
+    lead_usage: LeadUsagePayload | None = None
 
 
 @router.get(

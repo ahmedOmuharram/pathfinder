@@ -26,7 +26,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PendingApproval, PipelineState
-from pathfinder.ai.graph.stream_events import turn_usage_event
+from pathfinder.ai.graph.stream_events import lead_usage_event, turn_usage_event
 from pathfinder.ai.lead.lead_agent import LeadResponse
 from pathfinder.platform.logging import get_logger
 from pathfinder.services import quota as quota_service
@@ -50,6 +50,8 @@ class _LeadRunCapture:
     charged_cost: Decimal = field(default_factory=lambda: Decimal(0))
     sub_agent_tokens: int = 0
     sub_agent_cost: Decimal = field(default_factory=lambda: Decimal(0))
+    sub_agent_usage_by_call: dict[str, tuple[int, str]] = field(default_factory=dict)
+    lead_model: str = ""
     pending_approval: PendingApproval | None = None
     approval_consumed: bool = False
     prose_already_streamed: bool = False
@@ -95,6 +97,13 @@ def _emit_chunk(writer: Any, chunk: BaseChunk) -> None:
 
 def emit_turn_usage(writer: Any, total_tokens: int, cost_usd: str) -> None:
     _emit_chunk(writer, turn_usage_event(total_tokens=total_tokens, cost_usd=cost_usd))
+
+
+def emit_lead_usage(writer: Any, model_id: str, tokens: int, cost_usd: str) -> None:
+    _emit_chunk(
+        writer,
+        lead_usage_event(model_id=model_id, tokens=tokens, cost_usd=cost_usd),
+    )
 
 
 def _emit_residual_prose(
@@ -182,6 +191,12 @@ async def _charge_token_delta(
     capture.charged_cost += delta_cost
     total_tokens, cost_usd = capture.live_totals(state)
     emit_turn_usage(writer, total_tokens, cost_usd)
+    emit_lead_usage(
+        writer,
+        capture.lead_model,
+        capture.charged_tokens,
+        str(capture.charged_cost),
+    )
 
 
 async def _persist_residual_quota(

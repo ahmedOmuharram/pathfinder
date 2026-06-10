@@ -97,7 +97,7 @@ def truncate_text(text: str | None, max_chars: int) -> str | None:
     t = text.strip()
     if not t:
         return None
-    return t if len(t) <= max_chars else t[: max_chars - 1].rstrip() + "…"
+    return t if len(t) <= max_chars else t[: max_chars - 1].rstrip() + "..."
 
 
 def strip_tags(text: str) -> str:

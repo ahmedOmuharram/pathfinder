@@ -9,14 +9,12 @@ export function DataToolApprovalResult({
     <div
       data-testid="data-tool-approval-result"
       className={`my-1 flex items-center gap-2 text-xs ${
-        data.approved
-          ? "text-green-600 dark:text-green-400"
-          : "text-red-600 dark:text-red-400"
+        data.approved ? "text-success" : "text-destructive"
       }`}
     >
       <span
         className={`inline-block size-1.5 rounded-full ${
-          data.approved ? "bg-green-500" : "bg-red-500"
+          data.approved ? "bg-success" : "bg-destructive"
         }`}
       />
       <span>{data.approved ? "Approved" : "Rejected"}</span>

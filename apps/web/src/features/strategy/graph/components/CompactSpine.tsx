@@ -87,7 +87,7 @@ function StepRowButton({
         {step.displayName}
       </span>
       <span className="text-[10px] tabular-nums text-muted-foreground">
-        {typeof liveCount === "number" ? liveCount.toLocaleString() : "…"}
+        {typeof liveCount === "number" ? liveCount.toLocaleString() : "..."}
       </span>
     </button>
   );

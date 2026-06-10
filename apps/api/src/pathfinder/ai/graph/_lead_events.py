@@ -103,30 +103,42 @@ def _summarize_delta(delta: BaseModel) -> str:
     return _summarize_delta_dict(delta.model_dump())
 
 
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def _summarize_frame(frame: dict[str, Any]) -> str:
+    open_questions = len(frame.get("blocking_questions", []))
+    if open_questions > 0:
+        return _plural(open_questions, "open question")
+    if frame.get("ready_for_wdk_discovery", False):
+        return "Ready for discovery"
+    return "Problem framed"
+
+
+def _summarize_outcome(outcome: dict[str, Any]) -> str:
+    built = len(outcome.get("pushed_step_ids") or [])
+    failed = len(outcome.get("failed_steps") or [])
+    if failed > 0:
+        return f"Built {built}, {failed} failed"
+    return f"Built {_plural(built, 'step')}"
+
+
 def _summarize_delta_dict(data: dict[str, Any]) -> str:
-    """Compact one-liner from a sub-agent's typed delta payload."""
+    """Compact, human-readable one-liner from a sub-agent's typed delta."""
     if "frame" in data:
-        frame = data.get("frame") or {}
-        return (
-            f"frame ready={frame.get('ready_for_wdk_discovery', False)} "
-            f"questions={len(frame.get('blocking_questions', []))}"
-        )
+        return _summarize_frame(data.get("frame") or {})
     if "selections" in data or "fit_reports" in data:
-        sels = data.get("selections") or {}
-        return f"selected {len(sels)} searches"
+        n = len(data.get("selections") or {})
+        return f"Selected {n} {'search' if n == 1 else 'searches'}"
     if "plan" in data:
-        plan = data.get("plan") or {}
-        steps = plan.get("steps") or []
-        return f"plan with {len(steps)} step(s)"
+        steps = (data.get("plan") or {}).get("steps") or []
+        return f"Drafted a {_plural(len(steps), 'step')} plan"
     if "outcome" in data:
-        outcome = data.get("outcome") or {}
-        return (
-            f"pushed={len(outcome.get('pushed_step_ids') or [])} "
-            f"failed={len(outcome.get('failed_steps') or [])}"
-        )
+        return _summarize_outcome(data.get("outcome") or {})
     if "digest" in data:
-        digest = data.get("digest") or {}
-        return f"verification success={digest.get('success', False)}"
+        success = (data.get("digest") or {}).get("success", False)
+        return "Verified successfully" if success else "Issues found"
     return ""
 
 
@@ -135,6 +147,7 @@ def handle_sub_agent_event(
     writer: Any,
     event: AgentStreamEvent,
     sub_agent_tool_calls: dict[str, str],
+    sub_agent_usage: dict[str, tuple[int, str]],
 ) -> None:
     """Emit ``data-sub-agent-call`` (started/completed/failed) and refresh
     the Ledger when a sub-agent tool runs.
@@ -178,6 +191,7 @@ def handle_sub_agent_event(
         else:
             summary = _summarize_sub_agent_result(result)
             is_retry = False
+        tokens, cost_usd = sub_agent_usage.get(event.tool_call_id, (0, "0"))
         _emit_chunk(
             writer,
             sub_agent_call_event(
@@ -189,6 +203,8 @@ def handle_sub_agent_event(
                     model_id=sub_agent_model_id(result_tool_name),
                     summary=summary,
                     succeeded=not is_retry,
+                    tokens=tokens,
+                    cost_usd=cost_usd,
                 )
             ),
         )

@@ -8355,6 +8355,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"geist@npm:^1.7.1":
+  version: 1.7.1
+  resolution: "geist@npm:1.7.1"
+  peerDependencies:
+    next: ">=13.2.0"
+  checksum: 10/6e755132238a2fb7a2f503750db8032548931f967088347d8d590bd0126de5ef16b718c7c849812928d7efbc2f3b02d96afc83a621e4ec94559e25e9021038a7
+  languageName: node
+  linkType: hard
+
 "generator-function@npm:^2.0.0":
   version: 2.0.1
   resolution: "generator-function@npm:2.0.1"
@@ -11764,6 +11773,7 @@ __metadata:
     eslint-config-next: "npm:16.1.6"
     eventsource-parser: "npm:^3.0.6"
     fast-check: "npm:^4.7.0"
+    geist: "npm:^1.7.1"
     immer: "npm:^11.1.4"
     jsdom: "npm:^28.1.0"
     lucide-react: "npm:^1.8.0"

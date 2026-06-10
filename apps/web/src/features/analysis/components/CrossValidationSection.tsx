@@ -10,9 +10,9 @@ interface CrossValidationSectionProps {
 }
 
 const OVERFITTING_STYLES: Record<string, { label: string; className: string }> = {
-  low: { label: "Low", className: "text-green-600 dark:text-green-400" },
-  moderate: { label: "Moderate", className: "text-amber-600 dark:text-amber-400" },
-  high: { label: "High", className: "text-red-600 dark:text-red-400" },
+  low: { label: "Low", className: "text-success" },
+  moderate: { label: "Moderate", className: "text-warning" },
+  high: { label: "High", className: "text-destructive" },
 };
 
 const SUMMARY_METRICS: {
@@ -29,7 +29,7 @@ const SUMMARY_METRICS: {
 export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
   const overfitting = OVERFITTING_STYLES[cv.overfittingLevel ?? "low"] ?? {
     label: "Low",
-    className: "text-green-600 dark:text-green-400",
+    className: "text-success",
   };
 
   return (

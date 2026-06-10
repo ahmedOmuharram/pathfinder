@@ -14,20 +14,36 @@ export type RightRailPanel = (typeof RIGHT_RAIL_PANELS)[number];
 interface LastSeen {
   strategyStepCount: number;
   planId: string | null;
+  ledgerCount: number;
+  scratchpadCount: number;
+  taskCount: number;
+  memoryCount: number;
 }
 
 const DEFAULT_LAST_SEEN: LastSeen = {
   strategyStepCount: 0,
   planId: null,
+  ledgerCount: 0,
+  scratchpadCount: 0,
+  taskCount: 0,
+  memoryCount: 0,
 };
 
 interface RightRailState {
   openPanel: RightRailPanel | null;
   lastSeen: LastSeen;
+  autoOpenedConversation: string | null;
+  ledgerSeen: Record<string, Record<string, string>>;
 
   openPanelId: (panel: RightRailPanel, markers: Partial<LastSeen>) => void;
   togglePanel: (panel: RightRailPanel, markers: Partial<LastSeen>) => void;
   closePanel: () => void;
+  autoOpen: (conversationId: string, panel: RightRailPanel) => void;
+  markLedgerTabSeen: (
+    conversationId: string,
+    tab: string,
+    signature: string,
+  ) => void;
 }
 
 export const useRightRailStore = createPersistedStore<RightRailState>(
@@ -35,6 +51,8 @@ export const useRightRailStore = createPersistedStore<RightRailState>(
   (set, get) => ({
     openPanel: null,
     lastSeen: { ...DEFAULT_LAST_SEEN },
+    autoOpenedConversation: null,
+    ledgerSeen: {},
 
     openPanelId: (panel, markers) =>
       set((s) => ({
@@ -55,10 +73,31 @@ export const useRightRailStore = createPersistedStore<RightRailState>(
     },
 
     closePanel: () => set({ openPanel: null }),
+
+    autoOpen: (conversationId, panel) => {
+      if (get().autoOpenedConversation === conversationId) return;
+      set((s) => ({
+        autoOpenedConversation: conversationId,
+        openPanel: s.openPanel ?? panel,
+      }));
+    },
+
+    markLedgerTabSeen: (conversationId, tab, signature) =>
+      set((s) => ({
+        ledgerSeen: {
+          ...s.ledgerSeen,
+          [conversationId]: { ...s.ledgerSeen[conversationId], [tab]: signature },
+        },
+      })),
   }),
   {
     name: "pathfinder-right-rail",
-    partialize: (s) => ({ openPanel: s.openPanel, lastSeen: s.lastSeen }),
+    partialize: (s) => ({
+      openPanel: s.openPanel,
+      lastSeen: s.lastSeen,
+      autoOpenedConversation: s.autoOpenedConversation,
+      ledgerSeen: s.ledgerSeen,
+    }),
   },
 );
 

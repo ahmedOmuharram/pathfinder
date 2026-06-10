@@ -174,7 +174,7 @@ export function ApprovalBar({
         onOpenChange={setSuggestOpen}
         icon={<PencilLine className="size-3.5" aria-hidden />}
         label="Suggest changes"
-        placeholder="Describe what to change…"
+        placeholder="Describe what to change..."
         text={suggestText}
         onTextChange={setSuggestText}
         testIdPrefix="plan-suggest"

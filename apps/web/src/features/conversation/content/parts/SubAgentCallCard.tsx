@@ -2,14 +2,30 @@
 
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import type { ToolUIPart } from "ai";
 
 import type {
   DataSubAgentCallPayload,
   DataSubAgentStepPayload,
 } from "@pathfinder/shared";
-import { useSubAgentStepsStore } from "@/state/useSubAgentStepsStore";
+import { cn } from "@/lib/utils/cn";
+import { formatUsage } from "@/lib/utils/usageFormat";
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
+import {
+  type SubAgentItem,
+  collectSubAgentSteps,
+  formatStepResult,
+  mergeSubAgentSteps,
+} from "@/lib/utils/subAgentStep";
+import { humanizeToolName } from "@/lib/utils/toolNames";
 
-const EMPTY_STEPS: DataSubAgentStepPayload[] = [];
+import { useChatHelpersOptional } from "../../runtime/chatHelpersContext";
 
 const PHASE_LABELS: Record<string, string> = {
   scoping: "Scoping",
@@ -22,21 +38,20 @@ const PHASE_LABELS: Record<string, string> = {
 
 const STATE_STYLES: Record<DataSubAgentCallPayload["state"], string> = {
   started: "border-primary/30 bg-primary/10",
-  completed: "border-emerald-500/30 bg-emerald-500/10",
+  completed: "border-success/30 bg-success/10",
   failed: "border-destructive/30 bg-destructive/10",
 };
 
 const STATE_DOT: Record<DataSubAgentCallPayload["state"], string> = {
   started: "animate-pulse bg-primary",
-  completed: "bg-emerald-500",
+  completed: "bg-success",
   failed: "bg-destructive",
 };
 
 export function SubAgentCallCard({ data }: { data: DataSubAgentCallPayload }) {
   const label = PHASE_LABELS[data.phase] ?? data.phase;
-  const steps = useSubAgentStepsStore(
-    (s) => s.byParent[data.toolCallId] ?? EMPTY_STEPS,
-  );
+  const chat = useChatHelpersOptional();
+  const steps = collectSubAgentSteps(chat?.messages ?? [], data.toolCallId);
   const [expanded, setExpanded] = useState(false);
   const stepCount = steps.length;
   const showToggle = stepCount > 0 || data.modelId !== "";
@@ -66,74 +81,88 @@ export function SubAgentCallCard({ data }: { data: DataSubAgentCallPayload }) {
         />
         <span className="font-medium text-foreground">{label}</span>
         <span className="text-muted-foreground">· {data.state}</span>
-        {data.modelId !== "" && (
-          <span className="ml-auto rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-            {data.modelId}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          {(data.tokens ?? 0) > 0 && (
+            <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+              {formatUsage(data.tokens ?? 0, data.costUsd ?? "0")}
+            </span>
+          )}
+          {data.modelId !== "" && (
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              {data.modelId}
+            </span>
+          )}
+        </div>
       </button>
       {data.summary !== "" && (
         <div className="px-3 pb-2 text-muted-foreground">{data.summary}</div>
       )}
       {expanded && stepCount > 0 && (
-        <div className="border-t border-border/60 bg-background/50 px-3 py-2">
-          <ol className="space-y-1.5">
-            {steps.map((step, i) => (
-              <li key={`${step.parentToolCallId}-${i}`}>
-                <SubAgentStepRow step={step} />
-              </li>
-            ))}
-          </ol>
+        <div className="space-y-1.5 border-t border-border/60 bg-background/50 px-3 py-2">
+          {mergeSubAgentSteps(steps).map((item) => (
+            <SubAgentStepItem key={item.key} item={item} />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function SubAgentStepRow({ step }: { step: DataSubAgentStepPayload }) {
-  if (step.kind === "tool") {
-    const toolName = step.toolName ?? "unknown";
-    const dotClass =
-      step.state === "completed"
-        ? "bg-emerald-500"
-        : step.state === "failed"
-          ? "bg-destructive"
-          : "animate-pulse bg-primary";
+function subAgentToolState(
+  state: DataSubAgentStepPayload["state"],
+): ToolUIPart["state"] {
+  if (state === "completed") return "output-available";
+  if (state === "failed") return "output-error";
+  return "input-available";
+}
+
+function SubAgentStepItem({ item }: { item: SubAgentItem }) {
+  if (item.type !== "tool") {
+    const isReasoning = item.type === "reasoning";
     return (
       <div className="flex items-start gap-2 text-[11px]">
         <span
-          className={`mt-1 inline-block size-1.5 shrink-0 rounded-full ${dotClass}`}
+          className={cn(
+            "mt-1 inline-block size-1.5 shrink-0 rounded-full",
+            isReasoning ? "bg-warning" : "bg-foreground/40",
+          )}
         />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-1">
-            <span className="font-mono text-foreground">{toolName}</span>
-            <span className="text-muted-foreground">{step.state}</span>
-          </div>
-          {step.resultSummary !== undefined &&
-            step.resultSummary !== null &&
-            step.resultSummary !== "" && (
-              <div className="mt-0.5 line-clamp-2 font-mono text-[10px] text-muted-foreground">
-                {step.resultSummary}
-              </div>
-            )}
+        <div
+          className={cn(
+            "min-w-0 flex-1",
+            isReasoning ? "italic text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {item.text}
         </div>
       </div>
     );
   }
-  if (step.kind === "reasoning") {
-    return (
-      <div className="flex items-start gap-2 text-[11px]">
-        <span className="mt-1 inline-block size-1.5 shrink-0 rounded-full bg-amber-400" />
-        <div className="min-w-0 flex-1 italic text-muted-foreground">
-          {step.text ?? ""}
-        </div>
-      </div>
-    );
-  }
+  const isError = item.state === "failed";
+  const result = meaningfulResult(item.result);
+  const formatted = result !== null ? formatStepResult(result) : null;
   return (
-    <div className="flex items-start gap-2 text-[11px]">
-      <span className="mt-1 inline-block size-1.5 shrink-0 rounded-full bg-foreground/40" />
-      <div className="min-w-0 flex-1 text-foreground">{step.text ?? ""}</div>
-    </div>
+    <Tool className="mb-0 bg-card/40">
+      <ToolHeader
+        title={humanizeToolName(item.toolName)}
+        type={`tool-${item.toolName}`}
+        state={subAgentToolState(item.state)}
+      />
+      <ToolContent>
+        {item.args !== null && <ToolInput input={item.args} />}
+        <ToolOutput
+          output={isError ? null : result}
+          errorText={isError ? (formatted?.text ?? "Failed") : undefined}
+        />
+      </ToolContent>
+    </Tool>
   );
+}
+
+const EMPTY_RESULTS = new Set(["null", "none", "undefined", ""]);
+
+function meaningfulResult(raw: string | null): string | null {
+  if (raw === null) return null;
+  const trimmed = raw.trim();
+  return EMPTY_RESULTS.has(trimmed.toLowerCase()) ? null : trimmed;
 }

@@ -17,31 +17,7 @@ import { strategyQueryOptions } from "@/lib/api/strategy";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { QuotaExhaustedBanner, useQuotaExhausted } from "./QuotaExhaustedBanner";
-
-const tokensCompact = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-const costFmt = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const costSubCentFmt = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-
-function formatCost(cost: number): string {
-  if (cost <= 0) return costFmt.format(0);
-  if (cost < 0.01) return costSubCentFmt.format(cost);
-  return costFmt.format(cost);
-}
+import { formatTokens, formatCost } from "@/lib/utils/usageFormat";
 
 function ConversationUsageFooter({ conversationId }: { conversationId: string }) {
   const { data } = useQuery(strategyQueryOptions(conversationId));
@@ -51,7 +27,7 @@ function ConversationUsageFooter({ conversationId }: { conversationId: string })
   return (
     <div className="flex items-center gap-2 px-1 pt-1">
       <span className="text-[11px] text-muted-foreground">
-        {tokensCompact.format(tokens)} tokens · {formatCost(cost)}
+        {formatTokens(tokens)} tokens · {formatCost(cost)}
       </span>
     </div>
   );

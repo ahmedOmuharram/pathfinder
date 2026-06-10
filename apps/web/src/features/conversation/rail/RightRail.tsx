@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 
+import type { UIMessage } from "ai";
 import type { Strategy } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +25,7 @@ import { cn } from "@/lib/utils/cn";
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
 import { useRightRailStore, type RightRailPanel } from "@/state/useRightRailStore";
 
+import { computeRailActivity } from "./railActivity";
 import { LedgerPanel } from "./LedgerPanel";
 import { MemoriesPanel } from "./MemoriesPanel";
 import { PlanPanel } from "./PlanPanel";
@@ -55,13 +58,46 @@ const RAIL_ICONS: RailIconSpec[] = [
   { id: "ledger", icon: ScrollText, label: "Ledger" },
 ];
 
+export function pendingPlanApprovalId(messages: readonly UIMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role !== "assistant") continue;
+    for (const part of message.parts) {
+      if (
+        part.type === "tool-submit_plan_for_approval" &&
+        "state" in part &&
+        part.state === "approval-requested" &&
+        "approval" in part
+      ) {
+        return part.approval.id;
+      }
+    }
+  }
+  return null;
+}
+
 export function RightRail({ conversationId, strategy, siteId }: RightRailProps) {
   const openPanel = useRightRailStore((s) => s.openPanel);
   const lastSeen = useRightRailStore((s) => s.lastSeen);
   const togglePanel = useRightRailStore((s) => s.togglePanel);
+  const openPanelId = useRightRailStore((s) => s.openPanelId);
+  const autoOpenedConversation = useRightRailStore((s) => s.autoOpenedConversation);
+  const autoOpen = useRightRailStore((s) => s.autoOpen);
 
   const strategyStepCount = strategy?.steps.length ?? 0;
   const chat = useChatHelpersOptional();
+  const activity = computeRailActivity(chat?.messages ?? []);
+
+  const [autoOpenChecked, setAutoOpenChecked] = useState<string | null>(null);
+  if (
+    activity.hasUserMessage &&
+    autoOpenedConversation !== conversationId &&
+    autoOpenChecked !== conversationId
+  ) {
+    setAutoOpenChecked(conversationId);
+    queueMicrotask(() => autoOpen(conversationId, "ledger"));
+  }
+
   const activePlanId = (() => {
     if (chat == null) return null;
     for (let i = chat.messages.length - 1; i >= 0; i--) {
@@ -78,26 +114,36 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
     return null;
   })();
 
+  const pendingApprovalId = pendingPlanApprovalId(chat?.messages ?? []);
+  const [autoOpenedApproval, setAutoOpenedApproval] = useState<string | null>(null);
+  if (pendingApprovalId !== null && pendingApprovalId !== autoOpenedApproval) {
+    setAutoOpenedApproval(pendingApprovalId);
+    queueMicrotask(() => openPanelId("plan", { planId: activePlanId }));
+  }
+
   const hasUpdate: Record<RightRailPanel, boolean> = {
     strategy: strategyStepCount !== lastSeen.strategyStepCount,
     plan: activePlanId !== null && activePlanId !== lastSeen.planId,
-    tasks: false,
-    memories: false,
-    scratchpad: false,
-    ledger: false,
+    tasks: activity.taskCount !== lastSeen.taskCount,
+    memories: activity.memoryCount !== lastSeen.memoryCount,
+    scratchpad: activity.scratchpadCount !== lastSeen.scratchpadCount,
+    ledger: activity.ledgerCount !== lastSeen.ledgerCount,
   };
 
-  const markersFor = (panel: RightRailPanel) => {
+  const markersFor = (panel: RightRailPanel): Partial<typeof lastSeen> => {
     switch (panel) {
       case "strategy":
         return { strategyStepCount };
       case "plan":
         return { planId: activePlanId };
       case "tasks":
+        return { taskCount: activity.taskCount };
       case "memories":
+        return { memoryCount: activity.memoryCount };
       case "scratchpad":
+        return { scratchpadCount: activity.scratchpadCount };
       case "ledger":
-        return {};
+        return { ledgerCount: activity.ledgerCount };
     }
   };
 
@@ -134,7 +180,9 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
                   {openPanel === "scratchpad" && (
                     <ScratchpadPanel conversationId={conversationId} />
                   )}
-                  {openPanel === "ledger" && <LedgerPanel />}
+                  {openPanel === "ledger" && (
+                    <LedgerPanel conversationId={conversationId} />
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>

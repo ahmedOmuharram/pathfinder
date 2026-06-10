@@ -225,7 +225,7 @@ function ModelRow({
           <div>
             <div className="font-medium text-foreground">{model.name}</div>
             {supportsReasoning && (
-              <span className="text-[10px] text-amber-500/80">reasoning</span>
+              <span className="text-[10px] text-primary/80">reasoning</span>
             )}
           </div>
         </div>
@@ -233,10 +233,10 @@ function ModelRow({
       <td className="py-2.5 px-3 text-right text-muted-foreground">
         {formatCompactClean(model.contextSize ?? 0)}
       </td>
-      <td className="py-2.5 px-3 text-right text-emerald-500/80">
+      <td className="py-2.5 px-3 text-right text-success/90">
         {formatPrice(model.inputPrice ?? 0)}
       </td>
-      <td className="py-2.5 px-3 text-right text-amber-500/80">
+      <td className="py-2.5 px-3 text-right text-warning/90">
         {formatPrice(model.outputPrice ?? 0)}
       </td>
       <td className="py-2.5 px-3 text-right text-sky-500/80">

@@ -82,8 +82,14 @@ import type {
   StepCountsResponse,
   StepEvaluationResponse,
   StepResponse,
+  LeadUsagePayload,
   StrategyLink,
   StrategyMeta,
+  SubAgentCallPayload,
+  SubAgentStepPayload,
+  TurnStatusPayload,
+  TurnStoppedPayload,
+  ConversationTitlePayload,
   ConversationResponse,
   EnrichmentResultsChunk,
   TaskCompleted,
@@ -429,30 +435,11 @@ export type TaskProgressChunk = TaskProgressStreamPart;
 // Used by the frontend content-part dispatcher (ts-pattern exhaustive match).
 // Adding a backend kind here WITHOUT adding a renderer triggers a compile error.
 
-export interface DataConversationTitlePayload {
-  title: string;
-}
+export type DataConversationTitlePayload = ConversationTitlePayload;
 
-export interface DataSubAgentCallPayload {
-  toolCallId: string;
-  subAgent: string;
-  phase: string;
-  state: "started" | "completed" | "failed";
-  modelId: string;
-  summary: string;
-  succeeded: boolean | null;
-}
-
-export interface DataSubAgentStepPayload {
-  parentToolCallId: string;
-  kind: "tool" | "reasoning" | "text";
-  state: "started" | "completed" | "failed";
-  toolCallId?: string | null;
-  toolName?: string | null;
-  args?: Record<string, unknown> | null;
-  resultSummary?: string | null;
-  text?: string | null;
-}
+export type DataSubAgentCallPayload = SubAgentCallPayload;
+export type DataSubAgentStepPayload = SubAgentStepPayload;
+export type DataLeadUsagePayload = LeadUsagePayload;
 
 export interface LedgerIntentPayload {
   classification: string;
@@ -585,7 +572,9 @@ export type DataPartKind =
   | "data-conversation-title"
   | "data-scratchpad-updated"
   | "data-turn-usage"
-  | "data-turn-status";
+  | "data-turn-status"
+  | "data-turn-stopped"
+  | "data-lead-usage";
 
 export interface DataPartPayloadMap {
   "data-sub-agent-call": DataSubAgentCallPayload;
@@ -611,11 +600,8 @@ export interface DataPartPayloadMap {
   "data-scratchpad-updated": Record<string, never>;
   "data-turn-usage": TurnUsage;
   "data-turn-status": TurnStatusPayload;
-}
-
-export interface TurnStatusPayload {
-  label: string;
-  waitingOnLlm: boolean;
+  "data-turn-stopped": TurnStoppedPayload;
+  "data-lead-usage": DataLeadUsagePayload;
 }
 
 export type TypedDataPart<K extends DataPartKind = DataPartKind> = {

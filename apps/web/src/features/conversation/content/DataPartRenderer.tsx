@@ -43,5 +43,7 @@ export function DataPartRenderer({
     .with("data-scratchpad-updated", (k) => renderKind(k, data))
     .with("data-turn-usage", (k) => renderKind(k, data))
     .with("data-turn-status", (k) => renderKind(k, data))
+    .with("data-turn-stopped", (k) => renderKind(k, data))
+    .with("data-lead-usage", (k) => renderKind(k, data))
     .exhaustive();
 }

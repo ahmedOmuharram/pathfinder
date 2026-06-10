@@ -2,7 +2,7 @@
 
 After a tool result the planning / discovery agent can fall into a tight
 loop reading the same read-only tool (``get_strategy`` → ``get_plan`` →
-``get_strategy`` → …). ``request_limit`` eventually catches this, but by
+``get_strategy`` → ...). ``request_limit`` eventually catches this, but by
 then hundreds of tokens are burned. The guard blocks the 3rd consecutive
 identical read-only call with a warning string that nudges the model to
 take a different action.

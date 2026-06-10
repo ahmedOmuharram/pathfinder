@@ -17,6 +17,7 @@ import { DataTaskCompleted } from "./parts/DataTaskCompleted";
 import { DataTaskProgress } from "./parts/DataTaskProgress";
 import { DataToolApprovalRequest } from "./parts/DataToolApprovalRequest";
 import { DataToolApprovalResult } from "./parts/DataToolApprovalResult";
+import { DataTurnStopped } from "./parts/DataTurnStopped";
 import { DataVerificationSummary } from "./parts/DataVerificationSummary";
 import { SubAgentCallCard } from "./parts/SubAgentCallCard";
 
@@ -49,4 +50,6 @@ export const dataPartComponents: {
   "data-scratchpad-updated": () => null,
   "data-turn-usage": () => null,
   "data-turn-status": () => null,
+  "data-turn-stopped": DataTurnStopped,
+  "data-lead-usage": () => null,
 };

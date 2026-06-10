@@ -18,7 +18,7 @@ describe("DataBackgroundTaskStarted", () => {
       />,
     );
     expect(screen.getByTestId("data-background-task-started")).toBeInTheDocument();
-    expect(screen.getByText("run_control_tests_on_step")).toBeInTheDocument();
+    expect(screen.getByText("Run control tests")).toBeInTheDocument();
     expect(screen.getByText("~2 min")).toBeInTheDocument();
   });
 });

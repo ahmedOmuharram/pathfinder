@@ -124,7 +124,7 @@ chosen queries. Skip entirely if the prompt is unambiguous.
 for locating PlasmoDB / VEuPathDB / WDK searches, datasets, parameters, \
 or search names. Discovery owns the WDK catalog — do NOT search the web \
 for "VEuPathDB RNA-Seq differential expression search name", "PlasmoDB \
-gametocyte search", "WDK parameter for…", or any variant. If you find \
+gametocyte search", "WDK parameter for...", or any variant. If you find \
 yourself reaching for the catalog, stop scoping and hand off to discovery.
 3. **After any research call → `set_problem_frame` unlocks.** One shot, \
 non-amendable this turn.

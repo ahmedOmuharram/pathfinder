@@ -136,7 +136,7 @@ export function VennPicker({
           size="sm"
         >
           <ToggleGroupItem value="COLOCATE" aria-label="Colocate">
-            Colocate…
+            Colocate...
           </ToggleGroupItem>
         </ToggleGroup>
       </div>

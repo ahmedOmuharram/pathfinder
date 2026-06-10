@@ -83,9 +83,9 @@ export function RankMetricsSection({ rankMetrics }: RankMetricsSectionProps) {
                       <span
                         className={
                           r.enrichment > 2
-                            ? "text-green-600 dark:text-green-400"
+                            ? "text-success"
                             : r.enrichment > 1
-                              ? "text-blue-600 dark:text-blue-400"
+                              ? "text-primary"
                               : "text-muted-foreground"
                         }
                       >

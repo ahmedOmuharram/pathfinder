@@ -9,13 +9,14 @@ import type {
   LedgerVerificationPayload,
 } from "@pathfinder/shared";
 
+import { type Tone } from "@/lib/utils/statusTone";
+
 import {
   BoolBadge,
   CountChip,
   LedgerRow,
   LedgerSection,
   StatusPill,
-  type Tone,
 } from "./LedgerPanelPrimitives";
 
 export function IntentSection({ intent }: { intent: LedgerIntentPayload | null }) {
@@ -105,7 +106,7 @@ export function DiscoverySection({ discovery }: { discovery: LedgerDiscoveryPayl
         value={<BoolBadge value={discovery.needsMoreDiscovery} />}
       />
       {discovery.intentGap !== null && discovery.intentGap !== "" && (
-        <p className="ml-1 border-l border-amber-500/40 pl-2 text-[11px] italic text-amber-700 dark:text-amber-300">
+        <p className="ml-1 border-l border-warning/40 pl-2 text-[11px] italic text-warning">
           gap: {discovery.intentGap}
         </p>
       )}

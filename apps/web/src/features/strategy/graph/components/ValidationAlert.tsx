@@ -47,7 +47,7 @@ export function ValidationAlert({
     <Alert
       variant="destructive"
       data-testid="validation-alert"
-      className="pointer-events-auto w-auto max-w-2xl border-amber-300 bg-amber-50 text-amber-900 *:data-[slot=alert-description]:text-amber-800/80 [&>svg]:text-amber-700"
+      className="pointer-events-auto w-auto max-w-2xl border-warning/40 bg-warning/10 text-warning *:data-[slot=alert-description]:text-warning/80 [&>svg]:text-warning"
     >
       <TriangleAlert className="size-4" aria-hidden />
       <AlertTitle className="flex items-center justify-between gap-3">
@@ -60,7 +60,7 @@ export function ValidationAlert({
             variant="ghost"
             size="sm"
             onClick={() => onView(firstId)}
-            className="h-7 px-2 text-amber-900 hover:bg-amber-100 hover:text-amber-900"
+            className="h-7 px-2 text-warning hover:bg-warning/15 hover:text-warning"
           >
             View →
           </Button>

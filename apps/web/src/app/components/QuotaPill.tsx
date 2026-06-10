@@ -51,13 +51,13 @@ export function QuotaPill() {
 
   const tone =
     pct >= 1
-      ? "bg-red-500/25 text-red-50 ring-1 ring-red-300/60"
+      ? "bg-destructive/30 text-white ring-1 ring-destructive/50"
       : pct >= 0.8
-        ? "bg-amber-400/25 text-amber-50 ring-1 ring-amber-200/60"
+        ? "bg-warning/30 text-white ring-1 ring-warning/50"
         : "bg-white/15 text-white ring-1 ring-white/30";
 
   const barColor =
-    pct >= 1 ? "bg-red-300" : pct >= 0.8 ? "bg-amber-200" : "bg-white/80";
+    pct >= 1 ? "bg-destructive" : pct >= 0.8 ? "bg-warning" : "bg-white/80";
 
   return (
     <TooltipProvider delayDuration={150}>

@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Loader2, Timer } from "lucide-react";
 import type { TaskListItem } from "@pathfinder/shared";
 
 import { tasksListOptions } from "@/lib/api/tasks";
+import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { RailEmptyState, RailPanelShell } from "./RailPanelShell";
 
@@ -55,9 +56,11 @@ function TaskRow({ task }: { task: TaskListItem }) {
           ) : isFailed ? (
             <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
           ) : (
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
           )}
-          <span className="truncate font-mono text-xs">{task.toolName}</span>
+          <span className="truncate text-xs font-medium">
+            {humanizeToolName(task.toolName)}
+          </span>
         </div>
         <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">
           {task.status}

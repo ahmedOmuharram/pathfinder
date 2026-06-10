@@ -10,8 +10,8 @@ export function DataVerificationSummary({
       data-testid="data-verification-summary"
       className={`my-2 rounded-md border px-3 py-2 text-xs ${
         data.passed
-          ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950"
-          : "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950"
+          ? "border-success/30 bg-success/10"
+          : "border-destructive/30 bg-destructive/10"
       }`}
     >
       <p className="font-medium text-sm">
@@ -24,7 +24,7 @@ export function DataVerificationSummary({
             <li key={check.name} className="flex items-center gap-1.5">
               <span
                 className={`inline-block size-1.5 rounded-full ${
-                  check.passed ? "bg-green-500" : "bg-red-500"
+                  check.passed ? "bg-success" : "bg-destructive"
                 }`}
               />
               <span>{check.name}</span>

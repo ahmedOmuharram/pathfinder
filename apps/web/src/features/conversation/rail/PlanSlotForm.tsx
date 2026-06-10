@@ -35,9 +35,9 @@ export function PlanSlotForms({
   return (
     <div
       data-testid="plan-slot-forms"
-      className="space-y-3 rounded-md border border-amber-300/40 bg-amber-50/40 p-3 text-xs dark:bg-amber-950/30"
+      className="space-y-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs"
     >
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-warning">
         Answer the questions below before approving
       </div>
       {slots.map((slot) => (
@@ -81,7 +81,7 @@ function SlotField({
         <span className="font-mono text-[11px] text-foreground">
           {slot.paramName}
           {slot.required === true && (
-            <span className="ml-1 text-red-500" aria-hidden>
+            <span className="ml-1 text-destructive" aria-hidden>
               *
             </span>
           )}
@@ -138,7 +138,7 @@ function SlotOptionPicker({
         className="w-full justify-between font-mono text-[11px]"
         onClick={() => setPickerOpen((p) => !p)}
       >
-        <span>{selected ? selected.label : "Select an option…"}</span>
+        <span>{selected ? selected.label : "Select an option..."}</span>
         <span className="text-muted-foreground">▾</span>
       </Button>
       {pickerOpen && (
@@ -160,7 +160,7 @@ function SlotOptionPicker({
                 <span className="flex items-center gap-1 font-mono text-[11px]">
                   {opt.label}
                   {opt.recommended === true && (
-                    <span className="rounded bg-emerald-100 px-1 text-[9px] uppercase tracking-wide text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">
+                    <span className="rounded bg-success/15 px-1 text-[9px] uppercase tracking-wide text-success">
                       recommended
                     </span>
                   )}

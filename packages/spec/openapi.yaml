@@ -5309,6 +5309,16 @@ components:
       - createdAt
       - updatedAt
       title: ConversationResponse
+    ConversationTitlePayload:
+      properties:
+        title:
+          type: string
+          title: Title
+      type: object
+      required:
+      - title
+      title: ConversationTitlePayload
+      description: Payload for the ``data-conversation-title`` chunk.
     CreateBatchExperimentRequest:
       properties:
         base:
@@ -8131,6 +8141,27 @@ components:
         $ref: '#/components/schemas/JsonValue'
       type: object
     JsonValue: {}
+    LeadUsagePayload:
+      properties:
+        modelId:
+          type: string
+          title: Modelid
+          default: ''
+        tokens:
+          type: integer
+          title: Tokens
+          default: 0
+        costUsd:
+          type: string
+          title: Costusd
+          default: '0'
+      type: object
+      title: LeadUsagePayload
+      description: 'Payload for the ``data-lead-usage`` chunk — the Lead agent''s own
+
+        model, tokens, and cost (excluding sub-agents). Drives the per-message
+
+        lead badge and updates live as the Lead streams.'
     LoginPayload:
       properties:
         email:
@@ -11674,6 +11705,30 @@ components:
           anyOf:
           - $ref: '#/components/schemas/EnrichmentResultsChunk'
           - type: 'null'
+        subAgentCall:
+          anyOf:
+          - $ref: '#/components/schemas/SubAgentCallPayload'
+          - type: 'null'
+        subAgentStep:
+          anyOf:
+          - $ref: '#/components/schemas/SubAgentStepPayload'
+          - type: 'null'
+        turnStopped:
+          anyOf:
+          - $ref: '#/components/schemas/TurnStoppedPayload'
+          - type: 'null'
+        turnStatus:
+          anyOf:
+          - $ref: '#/components/schemas/TurnStatusPayload'
+          - type: 'null'
+        conversationTitle:
+          anyOf:
+          - $ref: '#/components/schemas/ConversationTitlePayload'
+          - type: 'null'
+        leadUsage:
+          anyOf:
+          - $ref: '#/components/schemas/LeadUsagePayload'
+          - type: 'null'
       type: object
       title: StreamPartsSchemaIndex
       description: Index of stream-part payload schemas. Never called — exists for OpenAPI generation.
@@ -11691,6 +11746,122 @@ components:
       required:
       - value
       title: StringValue
+    SubAgentCallPayload:
+      properties:
+        toolCallId:
+          type: string
+          title: Toolcallid
+        subAgent:
+          type: string
+          title: Subagent
+        phase:
+          type: string
+          title: Phase
+        state:
+          type: string
+          enum:
+          - started
+          - completed
+          - failed
+          title: State
+        modelId:
+          type: string
+          title: Modelid
+          default: ''
+        summary:
+          type: string
+          title: Summary
+          default: ''
+        succeeded:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Succeeded
+        tokens:
+          type: integer
+          title: Tokens
+          default: 0
+        costUsd:
+          type: string
+          title: Costusd
+          default: '0'
+      type: object
+      required:
+      - toolCallId
+      - subAgent
+      - phase
+      - state
+      title: SubAgentCallPayload
+      description: 'Payload for the ``data-sub-agent-call`` chunk.
+
+
+        ``tool_call_id`` is the Lead''s tool_call_id for this dispatch; the
+
+        frontend joins ``data-sub-agent-step`` chunks to it via
+
+        ``parentToolCallId``.'
+    SubAgentStepPayload:
+      properties:
+        parentToolCallId:
+          type: string
+          title: Parenttoolcallid
+        kind:
+          type: string
+          enum:
+          - tool
+          - reasoning
+          - text
+          title: Kind
+        state:
+          type: string
+          enum:
+          - started
+          - completed
+          - failed
+          title: State
+        toolCallId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Toolcallid
+        toolName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Toolname
+        args:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/JsonValue'
+            type: object
+          - type: 'null'
+          title: Args
+        resultSummary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resultsummary
+        text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Text
+      type: object
+      required:
+      - parentToolCallId
+      - kind
+      - state
+      title: SubAgentStepPayload
+      description: 'Payload for the ``data-sub-agent-step`` chunk — one event inside
+
+        a sub-agent''s run.
+
+
+        Lets the frontend render each sub-agent dispatch as its own mini
+
+        chat — inner tool calls, reasoning, text — nested under the
+
+        ``data-sub-agent-call`` card with matching ``parentToolCallId``.'
     SubsystemStatus:
       properties:
         ready:
@@ -12632,6 +12803,44 @@ components:
       - status
       title: TrialProgressDataResponse
       description: Progress data for a single optimization trial.
+    TurnStatusPayload:
+      properties:
+        label:
+          type: string
+          title: Label
+        waitingOnLlm:
+          type: boolean
+          title: Waitingonllm
+          default: false
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+      type: object
+      required:
+      - label
+      title: TurnStatusPayload
+      description: 'Payload for the ``data-turn-status`` chunk.
+
+
+        ``waiting_on_llm`` lets the UI distinguish real thinking from
+
+        preparatory work. ``model`` carries the Lead''s model id once (on the
+
+        first status of the turn) so the UI can show the Lead''s provider icon
+
+        alongside the live status.'
+    TurnStoppedPayload:
+      properties: {}
+      type: object
+      title: TurnStoppedPayload
+      description: 'Payload for the ``data-turn-stopped`` chunk.
+
+
+        Emitted when a turn is cancelled (user pressed Stop). Persisted as a
+
+        message part so the "stopped" state survives a page refresh.'
     TurnUsage:
       properties:
         totalTokens:

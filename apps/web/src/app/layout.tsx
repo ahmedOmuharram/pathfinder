@@ -1,21 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "@/styles/globals.css";
 import "streamdown/styles.css";
 import { TelemetryErrorBoundary } from "@/lib/telemetry/ErrorBoundary";
 import { Providers } from "./components/Providers";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 // Every page requires auth + API data — nothing should be statically prerendered.
 export const dynamic = "force-dynamic";
@@ -33,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
     >
       <body className="h-full overflow-hidden bg-background text-foreground font-sans antialiased">
         <TelemetryErrorBoundary>

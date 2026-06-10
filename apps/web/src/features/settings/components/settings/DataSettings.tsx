@@ -157,7 +157,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
                   clearing === "all-wdk" ||
                   wdkConfirmText.trim().toLowerCase() !== "delete my data"
                 }
-                className="inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+                className="inline-flex items-center gap-1 rounded-md bg-destructive px-2 py-1 text-xs font-medium text-destructive-foreground transition hover:bg-destructive/90 disabled:opacity-60"
               >
                 {clearing === "all-wdk" && <Loader2 className="h-3 w-3 animate-spin" />}
                 Confirm
@@ -247,7 +247,7 @@ function DangerAction({
             type="button"
             onClick={onExecute}
             disabled={loading}
-            className="inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+            className="inline-flex items-center gap-1 rounded-md bg-destructive px-2 py-1 text-xs font-medium text-destructive-foreground transition hover:bg-destructive/90 disabled:opacity-60"
           >
             {loading && <Loader2 className="h-3 w-3 animate-spin" />}
             Confirm

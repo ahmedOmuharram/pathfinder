@@ -16,14 +16,14 @@ interface GeneChipProps {
 
 const statusIcon: Record<ChipStatus, React.ReactNode> = {
   pending: null,
-  verified: <Check className="h-2.5 w-2.5 text-green-500" />,
-  invalid: <AlertCircle className="h-2.5 w-2.5 text-red-400" />,
+  verified: <Check className="h-2.5 w-2.5 text-success" />,
+  invalid: <AlertCircle className="h-2.5 w-2.5 text-destructive" />,
 };
 
 const statusClasses: Record<ChipStatus, string> = {
   pending: "bg-muted text-muted-foreground border-border",
-  verified: "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30",
-  invalid: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30",
+  verified: "bg-success/10 text-success border-success/30",
+  invalid: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
 function GeneHoverCard({

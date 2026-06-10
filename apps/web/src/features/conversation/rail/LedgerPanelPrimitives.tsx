@@ -3,7 +3,7 @@
 import { Check, X } from "lucide-react";
 import type { ReactNode } from "react";
 
-export type Tone = "neutral" | "warn" | "bad" | "good";
+import { type Tone, toneBadge } from "@/lib/utils/statusTone";
 
 export function LedgerSection({
   title,
@@ -33,7 +33,7 @@ export function LedgerRow({ label, value }: { label: string; value: ReactNode })
 
 export function BoolBadge({ value }: { value: boolean }) {
   return value ? (
-    <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+    <span className="inline-flex items-center gap-1 rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">
       <Check className="h-3 w-3" /> yes
     </span>
   ) : (
@@ -44,17 +44,9 @@ export function BoolBadge({ value }: { value: boolean }) {
 }
 
 export function CountChip({ value, tone = "neutral" }: { value: number; tone?: Tone }) {
-  const cls =
-    tone === "bad"
-      ? "bg-destructive/15 text-destructive"
-      : tone === "warn"
-        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-        : tone === "good"
-          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-          : "bg-muted text-foreground";
   return (
     <span
-      className={`inline-flex min-w-[1.5rem] justify-center rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${cls}`}
+      className={`inline-flex min-w-[1.5rem] justify-center rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${toneBadge(tone)}`}
     >
       {value}
     </span>
@@ -62,16 +54,10 @@ export function CountChip({ value, tone = "neutral" }: { value: number; tone?: T
 }
 
 export function StatusPill({ text, tone = "neutral" }: { text: string; tone?: Tone }) {
-  const cls =
-    tone === "bad"
-      ? "bg-destructive/15 text-destructive"
-      : tone === "warn"
-        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-        : tone === "good"
-          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-          : "bg-muted text-muted-foreground";
   return (
-    <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${cls}`}>
+    <span
+      className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${toneBadge(tone)}`}
+    >
       {text}
     </span>
   );

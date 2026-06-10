@@ -51,10 +51,12 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
+import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
 import { DataPartRenderer } from "./DataPartRenderer";
 import { ModelBadge } from "./ModelBadge";
+import { StoppedNotice } from "./StoppedNotice";
 import { dataPartComponents } from "./contentComponents";
 import { ToolThink } from "./parts/ToolThink";
 
@@ -100,7 +102,11 @@ const ToolCall: ToolCallMessagePartComponent<unknown, unknown> = ({
       : undefined;
   return (
     <Tool data-testid="tool-call-part">
-      <ToolHeader title={toolName} type={`tool-${toolName}`} state={state} />
+      <ToolHeader
+        title={humanizeToolName(toolName)}
+        type={`tool-${toolName}`}
+        state={state}
+      />
       <ToolContent>
         <ToolInput input={args as ToolUIPart["input"]} />
         <ToolOutput output={result} errorText={errorText} />
@@ -252,15 +258,29 @@ function AssistantErrorCard() {
   );
 }
 
+function selectAssistantStopped(m: ThreadMessage): boolean {
+  return m.status?.type === "incomplete" && m.status.reason === "cancelled";
+}
+
+function AssistantStoppedNotice() {
+  const stopped = useMessage({
+    optional: true,
+    selector: selectAssistantStopped,
+  });
+  if (stopped !== true) return null;
+  return <StoppedNotice />;
+}
+
 export function AssistantMessage() {
   return (
     <motion.div {...MESSAGE_FADE_IN}>
       <Message from="assistant">
         <MessageContent>
           <ModelBadge />
-          <AssistantThinkingPlaceholder />
           <MessagePrimitive.Content components={contentComponents} />
+          <AssistantThinkingPlaceholder />
           <AssistantErrorCard />
+          <AssistantStoppedNotice />
         </MessageContent>
         <ActionBarPrimitive.Root asChild hideWhenRunning>
           <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">

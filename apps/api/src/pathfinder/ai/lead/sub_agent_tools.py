@@ -16,6 +16,7 @@ they just emit typed deltas instead of PhaseOutcome.
 from __future__ import annotations
 
 import contextlib
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -129,6 +130,7 @@ class SubAgentRunUsage:
     model_name: str | None
     provider_name: str | None
     provider_url: str | None
+    parent_tool_call_id: str
 
 
 @dataclass
@@ -170,15 +172,18 @@ def _emit_step(writer: Any, payload: SubAgentStepPayload) -> None:
 
 
 def _short(s: str, *, limit: int = 280) -> str:
-    return s if len(s) <= limit else s[:limit] + "…"
+    return s if len(s) <= limit else s[:limit] + "..."
 
 
 def _summarize_tool_result(content: object) -> str:
     if isinstance(content, BaseModel):
-        return _short(repr(content.model_dump(mode="json")))
+        return _short(json.dumps(content.model_dump(mode="json")), limit=2000)
     if isinstance(content, str):
-        return _short(content)
-    return _short(repr(content))
+        return _short(content, limit=2000)
+    try:
+        return _short(json.dumps(content), limit=2000)
+    except (TypeError, ValueError):
+        return _short(str(content), limit=2000)
 
 
 _STREAMABLE_METADATA = (DataChunk, SourceUrlChunk, SourceDocumentChunk, FileChunk)
@@ -362,6 +367,7 @@ async def _stream_sub_agent[OutputT: BaseModel](
                         model_name=response.model_name,
                         provider_name=response.provider_name,
                         provider_url=response.provider_url,
+                        parent_tool_call_id=parent_tool_call_id,
                     ),
                 )
                 continue

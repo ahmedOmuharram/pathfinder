@@ -39,13 +39,13 @@ export function CompactRowKebab({
         {onSaveStep != null && (
           <DropdownMenuItem onSelect={() => onSaveStep(stepId)}>
             <Bookmark className="size-4" />
-            Save as reusable…
+            Save as reusable...
           </DropdownMenuItem>
         )}
         {onInsertSavedAt != null && (
           <DropdownMenuItem onSelect={() => onInsertSavedAt(stepId)}>
             <Plus className="size-4" />
-            Insert saved here…
+            Insert saved here...
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
