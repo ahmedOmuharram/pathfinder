@@ -88,6 +88,10 @@ async def search_for_searches(
     seen = {str(r["name"]) for r in results}
     results.extend(u for u in _UNIVERSAL_SEARCHES if str(u["name"]) not in seen)
 
+    ctx.deps.agent_state.record_catalog_searches(
+        [str(r["name"]) for r in results if "name" in r]
+    )
+
     if hidden:
         note: JSONObject = {
             "note": (
@@ -134,7 +138,11 @@ async def list_searches(
     """
     rows = await catalog.list_searches(ctx.deps.site_id, record_type)
     decided = ctx.deps.agent_state.decided_search_names()
-    return [r for r in rows if r.get("name") not in decided]
+    visible = [r for r in rows if r.get("name") not in decided]
+    ctx.deps.agent_state.record_catalog_searches(
+        [str(r["name"]) for r in visible if r.get("name")]
+    )
+    return visible
 
 
 async def list_transforms(

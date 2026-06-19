@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
+from pathfinder.domain.parameters.values import (
+    ParamValue,
+    as_param_kind,
+    from_decoded,
+)
 from pathfinder.domain.parameters.wdk_vocab import WDKVocabulary, vocab_keys
 from pathfinder.platform.types import JSONObject
 
@@ -114,6 +120,33 @@ def _value_as_list(value: object) -> list[object]:
     if isinstance(value, list):
         return value
     return [value]
+
+
+def fill_hidden_required_defaults(
+    param_specs: dict[str, ParamSpecNormalized],
+    parameters: Mapping[str, ParamValue],
+) -> dict[str, ParamValue]:
+    """Fill hidden required params from their fixed ``initial_display_value``.
+
+    A hidden (``is_visible=False``), required (``not allow_empty_value``) param
+    with a fixed ``initial_display_value`` — e.g. GenesByText's
+    ``document_type='gene'`` — is plumbing the model never sees and cannot set,
+    yet WDK rejects the search without it. Inject it so it reaches WDK and is
+    not reported missing. Visible required params are the model's job and are
+    never auto-filled (filling them would mask genuinely-missing input).
+    """
+    filled: dict[str, ParamValue] = dict(parameters)
+    for name, spec in param_specs.items():
+        if (
+            not spec.is_visible
+            and not spec.allow_empty_value
+            and name not in filled
+            and spec.initial_display_value is not None
+        ):
+            filled[name] = from_decoded(
+                as_param_kind(spec.param_type), spec.initial_display_value
+            )
+    return filled
 
 
 def find_missing_required_params(

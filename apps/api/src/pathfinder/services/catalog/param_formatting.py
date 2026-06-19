@@ -183,9 +183,9 @@ def _format_vocabulary_raw(
             suffix = "\n(Pass a parent node to auto-select all its children)"
             if truncated:
                 suffix += (
-                    f"\nNote: tree truncated — use get_dependent_vocab("
-                    f"param_name='{param_name}', query='<keyword>') "
-                    f"to see values for a specific category."
+                    f"\nNote: tree truncated — use get_parameter_options("
+                    f"search_name='<search>', parameter_id='{param_name}', "
+                    f"query='<keyword>') to see values for a specific category."
                 )
             return _VocabFields(allowed_values_tree=tree_text + suffix)
     elif vocabulary is not None:
@@ -225,7 +225,7 @@ def format_typed_param(
         note = (
             f"The allowed values for this param change based on the value of "
             f"{', '.join(parents)}. The values shown here are for the default "
-            f"context only. Use get_dependent_vocab(search_name, param_name='{name}', "
+            f"context only. Use get_parameter_options(search_name, parameter_id='{name}', "
             f"context_values={{'{parents[0]}': '<your chosen value>'}}) to see "
             f"the full vocabulary after setting {parents[0]}."
         )

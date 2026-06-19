@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from pathfinder.domain.parameters.specs import find_missing_required_params
+from pathfinder.domain.parameters.values import MultiPickValue, StringValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.factory import get_wdk_client
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
@@ -62,3 +63,39 @@ async def test_layer4_validate_parameters_raises_on_empty(
             parameters={},
             callbacks=make_validation_callbacks("plasmodb"),
         )
+
+
+async def test_document_type_is_hidden_required_with_fixed_default(
+    require_wdk_creds: None,
+    wdk_session: None,
+) -> None:
+    del require_wdk_creds, wdk_session
+    response = await _fetch_response()
+    specs = adapt_param_specs_from_search(response.search_data)
+    doc = specs["document_type"]
+    assert doc.is_visible is False
+    assert doc.allow_empty_value is False
+    assert doc.initial_display_value == "gene"
+
+
+async def test_validate_parameters_autofills_hidden_document_type(
+    require_wdk_creds: None,
+    wdk_session: None,
+) -> None:
+    # The model supplies only the VISIBLE required params (it can't see the
+    # hidden document_type). validate_parameters must auto-fill document_type
+    # rather than reject — the contradiction that spiralled create_plan.
+    del require_wdk_creds, wdk_session
+    result = await validate_parameters(
+        SearchContext("plasmodb", "transcript", "GenesByText"),
+        parameters={
+            "text_expression": StringValue(value="kinase"),
+            "text_fields": MultiPickValue(values=["product"]),
+            "text_search_organism": MultiPickValue(
+                values=["Plasmodium falciparum 3D7"]
+            ),
+        },
+        callbacks=make_validation_callbacks("plasmodb"),
+    )
+    assert "document_type" in result
+    assert result["document_type"].to_decoded() == "gene"

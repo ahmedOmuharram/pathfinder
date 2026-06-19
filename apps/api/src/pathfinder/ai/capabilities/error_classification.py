@@ -161,3 +161,14 @@ def build_error_directive(
         f"NEXT_ACTIONS:\n{numbered_actions}\n"
         f"DO NOT: {do_not}"
     )
+
+
+def is_error_directive(content: object) -> bool:
+    """True when a tool result is a structured error directive from
+    ``build_error_directive`` (returned, not raised — so it rides a normal
+    ``ToolReturnPart``). Used to render the step as failed rather than done."""
+    return (
+        isinstance(content, str)
+        and content.startswith("ERROR: ")
+        and "\nNEXT_ACTIONS:\n" in content
+    )

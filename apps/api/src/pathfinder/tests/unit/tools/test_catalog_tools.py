@@ -100,6 +100,11 @@ async def test_search_for_searches_returns_matches_with_universal(
     assert taxon_result["relevance"] == 0.85
     assert taxon_result["recordType"] == "transcript"
 
+    # Result names are recorded so get_search_overview can be enum-constrained
+    # to them (and never to an invented name).
+    assert "GenesByTaxon" in deps.agent_state.catalog_search_names
+    assert "GenesByText" in deps.agent_state.catalog_search_names
+
 
 @pytest.mark.asyncio
 @patch(

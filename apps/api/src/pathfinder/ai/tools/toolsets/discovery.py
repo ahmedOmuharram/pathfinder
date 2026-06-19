@@ -38,7 +38,11 @@ def _discovery_enum_overrides(
 
     The model's freedom narrows as the run progresses:
 
-    * Cold start (nothing inspected): no enums; the model must browse.
+    * Cold start (nothing seen): no enums; the model must browse / search.
+    * After ``search_for_searches`` / ``list_searches`` return names:
+      ``get_search_overview.search_name`` constrains to those catalog
+      candidates (plus any already inspected) — invented names can't be
+      inspected, killing the 404 hallucination-retry loop.
     * After ``get_search_overview`` for any search: ``update_search_decision``
       and ``get_parameter_options`` constrain ``search_name`` to the
       inspected set.
@@ -49,8 +53,11 @@ def _discovery_enum_overrides(
     """
     state = ctx.deps.agent_state
     inspected = sorted(state.discovered_search_names())
+    candidates = sorted(state.candidate_search_names())
     all_params = sorted(state.all_param_keys())
     overrides: EnumOverrides = {}
+    if candidates:
+        overrides[("get_search_overview", "search_name")] = candidates
     if inspected:
         overrides[("update_search_decision", "search_name")] = inspected
         overrides[("get_parameter_options", "search_name")] = inspected

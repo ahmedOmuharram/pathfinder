@@ -98,6 +98,39 @@ def test_overrides_constrain_search_name_after_first_inspection() -> None:
     ]
 
 
+def test_get_search_overview_unconstrained_on_cold_start() -> None:
+    """Before any catalog listing, the model must be free to inspect any
+    search name returned by search_for_searches it hasn't recorded yet."""
+    overrides = _discovery_enum_overrides(_ctx(AgentToolState()))
+    assert ("get_search_overview", "search_name") not in overrides
+
+
+def test_get_search_overview_constrained_to_catalog_candidates() -> None:
+    """Once search_for_searches / list_searches have returned names, the
+    model may only inspect one of THOSE names — invented names (the 404
+    hallucination loop) are masked at sampling time."""
+    state = AgentToolState()
+    state.record_catalog_searches(["GenesByGoTerm", "GenesByText"])
+    overrides = _discovery_enum_overrides(_ctx(state))
+    assert overrides[("get_search_overview", "search_name")] == [
+        "GenesByGoTerm",
+        "GenesByText",
+    ]
+
+
+def test_get_search_overview_candidates_include_already_inspected() -> None:
+    """An inspected search stays inspectable even if it isn't in the latest
+    catalog listing (re-inspection must not be masked)."""
+    state = AgentToolState()
+    state.record_catalog_searches(["GenesByText"])
+    state.register_search("GenesByGoTerm", _ov("GenesByGoTerm", ["go_term"]))
+    overrides = _discovery_enum_overrides(_ctx(state))
+    assert overrides[("get_search_overview", "search_name")] == [
+        "GenesByGoTerm",
+        "GenesByText",
+    ]
+
+
 def test_overrides_constrain_parameter_id_after_inspection() -> None:
     """parameter_id constrains to the flat union of params across all
     inspected searches (the body still verifies per-search membership)."""

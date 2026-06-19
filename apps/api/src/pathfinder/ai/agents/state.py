@@ -48,6 +48,7 @@ class SearchOverview(BaseModel):
 @dataclass
 class AgentToolState:
     discovered_searches: dict[str, SearchOverview] = field(default_factory=dict)
+    catalog_search_names: set[str] = field(default_factory=set)
     active_plan: StrategyPlan | None = None
     plan_history: list[StrategyPlan] = field(default_factory=list)
     read_param_options: set[str] = field(default_factory=set)
@@ -91,6 +92,17 @@ class AgentToolState:
     def discovered_search_names(self) -> set[str]:
         return set(self.discovered_searches)
 
+    def record_catalog_searches(self, names: list[str]) -> None:
+        """Record search names returned by the catalog (search_for_searches /
+        list_searches) so ``get_search_overview`` can be constrained to names
+        the model has actually seen — never invented ones."""
+        self.catalog_search_names.update(n for n in names if n)
+
+    def candidate_search_names(self) -> set[str]:
+        """Inspectable searches: catalog results plus already-inspected ones
+        (re-inspection must not be masked)."""
+        return self.catalog_search_names | set(self.discovered_searches)
+
     def selected_search_names(self) -> set[str]:
         return {
             name
@@ -117,5 +129,6 @@ class AgentToolState:
 
     def clear(self) -> None:
         self.discovered_searches.clear()
+        self.catalog_search_names.clear()
         self.active_plan = None
         self.plan_history.clear()

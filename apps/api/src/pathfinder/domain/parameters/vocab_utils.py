@@ -82,9 +82,10 @@ def match_vocab_value(
     else:
         detail += (
             f" Do NOT guess or invent parameter values."
-            f" Call get_dependent_vocab(param_name='{param_name}', query='<keyword>')"
-            f" to see valid values, then copy an EXACT value from the allowedValues_tree"
-            f" in the response. Example: if the tree shows"
+            f" Call get_parameter_options(search_name='<search>',"
+            f" parameter_id='{param_name}', query='<keyword>')"
+            f" to see valid values, then copy an EXACT value from the response."
+            f" Example: if the options show"
             f" '    amastigote esmeraldo-like_Trypanosoma cruzi CL Brener Esmeraldo-like'"
             f" then pass exactly that full string as the value."
         )

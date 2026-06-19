@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import (
     ParamSpecNormalized,
+    fill_hidden_required_defaults,
     find_dependent_value_violations,
     find_missing_required_params,
     topological_fill_order,
@@ -327,6 +328,7 @@ async def validate_parameters(
     )
     canonicalizer = ParameterCanonicalizer(param_spec_map)
     canonical = canonicalizer.canonicalize(parameters)
+    canonical = fill_hidden_required_defaults(param_spec_map, canonical)
     param_names = _extract_param_names_from_response(response)
     extra_params = [key for key in canonical if key not in param_names]
     if extra_params:

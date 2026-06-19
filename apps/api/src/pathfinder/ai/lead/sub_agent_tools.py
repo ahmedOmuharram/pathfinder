@@ -48,6 +48,7 @@ from pathfinder.ai.agents.planning import planning_agent
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.scoping import scoping_agent
 from pathfinder.ai.agents.verification import verification_agent
+from pathfinder.ai.capabilities.error_classification import is_error_directive
 from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
@@ -245,21 +246,22 @@ def _forward_inner_event(
         if tool_name is None:
             return
         result = event.part
-        is_retry = isinstance(result, RetryPromptPart)
         if isinstance(result, RetryPromptPart):
             content = result.content
             summary = _short(
                 content if isinstance(content, str) else result.model_response(),
                 limit=_RESULT_LIMIT,
             )
+            failed = True
         else:
             summary = _summarize_tool_result(result.content)
+            failed = is_error_directive(result.content)
         _emit_step(
             writer,
             SubAgentStepPayload(
                 parent_tool_call_id=parent_tool_call_id,
                 kind="tool",
-                state="failed" if is_retry else "completed",
+                state="failed" if failed else "completed",
                 tool_call_id=event.tool_call_id,
                 tool_name=tool_name,
                 result_summary=summary,
