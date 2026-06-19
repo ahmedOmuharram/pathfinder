@@ -161,7 +161,7 @@ class TestRootArity:
                 [],
             )
         msg = _topology_message(exc.value)
-        assert "multiple roots" in msg
+        assert "disconnected" in msg
 
 
 class TestCycles:

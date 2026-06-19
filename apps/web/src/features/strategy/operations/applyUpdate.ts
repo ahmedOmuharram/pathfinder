@@ -16,13 +16,15 @@ export function applyUpdateStepParams(
   strategy: Strategy,
   op: UpdateParamsOp,
 ): ApplyResult {
-  if (!strategy.steps.some((s) => s.id === op.stepId))
+  const target = strategy.steps.find((s) => s.id === op.stepId);
+  if (target === undefined)
     return { kind: "rejected", reason: `Step ${op.stepId} not found` };
+  const merged = { ...(target.parameters ?? {}), ...op.parameters };
   return {
     kind: "applied",
     next: {
       ...strategy,
-      steps: patchSteps(strategy.steps, op.stepId, { parameters: op.parameters }),
+      steps: patchSteps(strategy.steps, op.stepId, { parameters: merged }),
     },
     description: `Updated parameters of ${op.stepId}`,
   };

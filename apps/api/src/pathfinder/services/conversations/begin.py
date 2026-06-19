@@ -9,8 +9,8 @@ calls ``begin_conversation`` first. The endpoint:
    off async title generation in the background and persists when ready.
 3. Returns the (possibly newly-created) conversation.
 
-Downstream endpoints (``/chat``, ``/specialists/{kind}/enter``,
-``/launchers/optimize``) assume the row exists — they do not lazy-create.
+Downstream endpoints (e.g. ``/chat``) assume the row exists — they do not
+lazy-create.
 """
 
 from __future__ import annotations

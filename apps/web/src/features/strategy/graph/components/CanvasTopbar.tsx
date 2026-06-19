@@ -89,10 +89,6 @@ export function CanvasTopbar({
     );
   };
 
-  const handleDuplicate = (): void => {
-    toast.info("Strategy duplication isn't implemented yet.");
-  };
-
   const handleEditDescription = (): void => {
     setDescSheetOpen(true);
   };
@@ -164,10 +160,6 @@ export function CanvasTopbar({
             <DropdownMenuItem onSelect={handleEditDescription}>
               <Pencil className="size-4" />
               Edit description
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleDuplicate}>
-              <Copy className="size-4" />
-              Duplicate strategy
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={handleCopyUrl}>
               <Copy className="size-4" />

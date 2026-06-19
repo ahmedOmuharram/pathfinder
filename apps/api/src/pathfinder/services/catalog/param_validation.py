@@ -15,8 +15,6 @@ from pathfinder.domain.parameters.specs import (
 )
 from pathfinder.domain.parameters.values import (
     ParamValue,
-    as_param_kind,
-    from_decoded,
     to_decoded_map,
 )
 from pathfinder.domain.search import SearchContext
@@ -108,26 +106,6 @@ class ValidationCallbacks:
     validation_error_payload: Callable[[ValidationError], ToolErrorPayload] | None = (
         None
     )
-
-
-def _fill_required_defaults(
-    param_spec_map: dict[str, ParamSpecNormalized],
-    canonical: dict[str, ParamValue],
-) -> dict[str, ParamValue]:
-    filled = dict(canonical)
-    for name, spec in param_spec_map.items():
-        if name in filled:
-            continue
-        default = spec.initial_display_value
-        if default is None or default == "":
-            continue
-        is_required = not spec.allow_empty_value or (
-            spec.min_selected_count is not None and spec.min_selected_count >= 1
-        )
-        if not is_required:
-            continue
-        filled[name] = from_decoded(as_param_kind(spec.param_type), default)
-    return filled
 
 
 async def validate_search_params(
@@ -418,7 +396,6 @@ async def validate_parameters(
             ],
         )
 
-    canonical = _fill_required_defaults(param_spec_map, canonical)
     missing = find_missing_required_params(param_spec_map, to_decoded_map(canonical))
 
     if missing:

@@ -57,6 +57,7 @@ from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PendingApproval, PipelineState
 from pathfinder.ai.graph.stream_events import (
     ledger_update_event,
+    memory_retrieved_event,
     turn_status_event,
 )
 from pathfinder.ai.lead.derive import derive_ledger
@@ -343,7 +344,13 @@ async def lead_node(
     runtime: Runtime[Context],
 ) -> Command[Literal["finalize_turn"]]:
     writer = get_stream_writer()
-    memories = await retrieve_memories(state, runtime)
+    if state.pending_approval is not None:
+        memories = list(state.retrieved_memories)
+    else:
+        stored = await retrieve_memories(state, runtime)
+        memories = [s.value for s in stored]
+        if stored:
+            writer(memory_retrieved_event(memories=stored))
     capture = _LeadRunCapture()
     message_id = uuid4()
 

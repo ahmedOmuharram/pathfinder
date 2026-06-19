@@ -54,10 +54,11 @@ async def purge_user_data(
 ) -> PurgeResult:
     """Purge user data from all local stores.
 
-    When ``delete_wdk=False``: non-WDK chats are hard-deleted, WDK-linked chats
-    are **dismissed** so WDK sync won't re-import them.
+    When ``delete_wdk=False`` (default): every chat is **dismissed** (soft
+    delete) so WDK sync won't re-import it; nothing is hard-deleted and no WDK
+    strategy is touched. Permanent removal of dismissed chats happens later.
 
-    When ``delete_wdk=True``: everything is hard-deleted locally AND all WDK
+    When ``delete_wdk=True``: every chat is hard-deleted locally AND all WDK
     strategies are deleted from VEuPathDB.
 
     Always deletes: gene sets, experiments, control sets.

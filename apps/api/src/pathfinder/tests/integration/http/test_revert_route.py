@@ -168,13 +168,15 @@ async def test_revert_rejects_wrong_user(
     assert res.status_code == 404
 
 
-async def test_revert_rejects_missing_message(
+async def test_revert_ghost_message_is_noop(
     api_client: httpx.AsyncClient,
     conv_with_messages: tuple[UUID, list[Message]],
 ) -> None:
+    # A never-persisted target (e.g. a rejected/failed send) is a no-op (204),
+    # not a 404 — otherwise edit/retry on a failed message breaks.
     conv_id, _msgs = conv_with_messages
     res = await api_client.post(
         f"/api/v1/conversations/{conv_id}/revert-to-message",
         json={"messageId": str(uuid4())},
     )
-    assert res.status_code == 404
+    assert res.status_code == 204

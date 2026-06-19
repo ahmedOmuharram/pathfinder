@@ -402,6 +402,9 @@ async def fork_conversation(
         target_conversation_id=new_conv_id,
     )
 
+    # Preserve each source message's created_at: the prefix inserts in one
+    # transaction, so server-default now() would collapse to one timestamp and
+    # break revert (which cuts at a message's created_at).
     for src_msg in prefix:
         session.add(
             Message(
@@ -409,6 +412,7 @@ async def fork_conversation(
                 conversation_id=new_conv_id,
                 role=src_msg.role,
                 metadata_=dict(src_msg.metadata_ or {}),
+                created_at=src_msg.created_at,
             ),
         )
 

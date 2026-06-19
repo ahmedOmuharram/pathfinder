@@ -64,15 +64,31 @@ def _refuse_if_unresolved_slots(plan: StrategyPlan) -> None:
 def _index_inputs_by_step(
     connections: list[PlannedConnection],
 ) -> dict[str, dict[str, PlannedConnection]]:
-    """Return ``{to_step: {input_type: PlannedConnection}}``."""
+    """Return ``{to_step: {input_type: PlannedConnection}}``.
+
+    ``verify_topology`` validates inbound *arity* but not slot uniqueness, so
+    two connections claiming the same slot (or an unknown ``input_type`` that
+    a lenient mapping would collapse onto one slot) would silently drop an
+    input here. Both are rejected as topology violations.
+    """
     out: dict[str, dict[str, PlannedConnection]] = {}
     for conn in connections:
-        slot = (
-            conn.input_type
-            if conn.input_type in ("primary", "secondary")
-            else "primary"
-        )
-        out.setdefault(conn.to_step, {})[slot] = conn
+        if conn.input_type not in ("primary", "secondary"):
+            msg = (
+                f"Connection {conn.from_step!r}->{conn.to_step!r} has unknown "
+                f"input_type {conn.input_type!r}; expected 'primary' or 'secondary'."
+            )
+            raise PlanTopologyError(msg)
+        slots = out.setdefault(conn.to_step, {})
+        if conn.input_type in slots:
+            existing = slots[conn.input_type]
+            msg = (
+                f"Step {conn.to_step!r} has two connections on its "
+                f"{conn.input_type!r} input ({existing.from_step!r} and "
+                f"{conn.from_step!r}); each input slot takes exactly one source."
+            )
+            raise PlanTopologyError(msg)
+        slots[conn.input_type] = conn
     return out
 
 

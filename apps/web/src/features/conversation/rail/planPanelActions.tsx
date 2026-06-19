@@ -64,7 +64,9 @@ export function handleApprove(
   }
   chat.addToolApprovalResponse({ id: pending.approvalId, approved: true });
   usePlanStore.getState().resolvePendingApproval();
-  fireProductAction("plan_approve", pending, { slotCount: slotAnswers.length });
+  fireProductAction("plan_approve", pending, {
+    slotCount: slotAnswers.length,
+  });
 }
 
 export const PLAN_SLOT_ANSWERS_PART_TYPE = "data-plan-slot-answers";
@@ -109,7 +111,16 @@ export function handleSuggestChanges(
   pending: PendingApprovalInfo,
   text: string,
 ): void {
-  chat.sendMessage({ text });
+  // Requesting changes rejects the plan with the change text as the denial
+  // reason; resolving the deferred approval (rather than only sending a
+  // message) is what lets the Lead re-plan instead of hanging on the
+  // unanswered approval.
+  chat.addToolApprovalResponse({
+    id: pending.approvalId,
+    approved: false,
+    reason: text,
+  });
+  usePlanStore.getState().resolvePendingApproval();
   fireProductAction("plan_suggest_changes", pending, { text });
 }
 

@@ -16,7 +16,6 @@ from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._plan_models import (
     DecisionOptionInput,
     PlanCreatedResponse,
-    PlannedConnectionInput,
     PlannedStepInput,
     StepPatch,
     UserQuestionInput,
@@ -92,7 +91,12 @@ def _leaf_step(
     )
 
 
-def _combine_step(step_id: str = "step_combine") -> PlannedStepInput:
+def _combine_step(
+    step_id: str = "step_combine",
+    *,
+    left_id: str = "step_a",
+    right_id: str = "step_b",
+) -> PlannedStepInput:
     return PlannedStepInput(
         id=step_id,
         search_name="__combine__",
@@ -100,14 +104,8 @@ def _combine_step(step_id: str = "step_combine") -> PlannedStepInput:
         record_type="transcript",
         step_type=StepType.COMBINE,
         operator="INTERSECT",
-    )
-
-
-def _connection(from_step: str, to_step: str) -> PlannedConnectionInput:
-    return PlannedConnectionInput(
-        from_step=from_step,
-        to_step=to_step,
-        input_type="primary",
+        left_id=left_id,
+        right_id=right_id,
     )
 
 
@@ -194,11 +192,7 @@ async def test_create_plan_stores_plan_in_agent_state() -> None:
 
     step_a = _leaf_step("step_a", "GenesByTaxon")
     step_b = _leaf_step("step_b", "GenesByLocation")
-    combine = _combine_step("step_c")
-    connections = [
-        _connection("step_a", "step_c"),
-        _connection("step_b", "step_c"),
-    ]
+    combine = _combine_step("step_c", left_id="step_a", right_id="step_b")
 
     result = await create_plan(
         ctx,
@@ -206,7 +200,6 @@ async def test_create_plan_stores_plan_in_agent_state() -> None:
         description="Find genes by location and taxon",
         rationale="Intersect two gene sets",
         steps=[step_a, step_b, combine],
-        connections=connections,
     )
 
     payload = _unwrap(result)
@@ -229,8 +222,7 @@ async def test_submit_plan_validates_topology() -> None:
     ctx = _make_ctx(deps)
 
     step_a = _leaf_step("step_a", "GenesByTaxon")
-    # Connection references a non-existent step "step_ghost"
-    bad_connection = _connection("step_a", "step_ghost")
+    combine = _combine_step("step_c", left_id="step_a", right_id="step_ghost")
 
     with pytest.raises(ModelRetry) as excinfo:
         await create_plan(
@@ -238,11 +230,9 @@ async def test_submit_plan_validates_topology() -> None:
             title="Bad Topology",
             description="This plan has a topology error",
             rationale="Testing",
-            steps=[step_a],
-            connections=[bad_connection],
+            steps=[step_a, combine],
         )
 
-    # create_plan itself catches topology errors
     msg = str(excinfo.value)
     assert "TOPOLOGY_ERROR" in msg
     assert "step_ghost" in msg
@@ -289,7 +279,6 @@ async def test_create_plan_rejects_invalid_param_value_with_structured_retry(
             description="Bad params",
             rationale="r",
             steps=[bad_step],
-            connections=[],
         )
 
     msg = str(excinfo.value)
@@ -310,7 +299,6 @@ async def test_create_plan_deduplicates_semantically_identical_questions() -> No
         description="Tests duplicate questions",
         rationale="Avoid duplicate prompts",
         steps=[_leaf_step("step_a", "GenesByTaxon")],
-        connections=[],
         questions=[
             UserQuestionInput(
                 question="Which organism should we use?",
@@ -347,7 +335,6 @@ async def test_update_plan_reuses_existing_question_and_preserves_answer() -> No
         description="Tests submit-time question dedupe",
         rationale="Avoid repeated approvals",
         steps=[_leaf_step("step_a", "GenesByTaxon")],
-        connections=[],
         questions=[
             UserQuestionInput(
                 question="Which organism should we use?",
@@ -404,7 +391,6 @@ async def test_update_plan_applies_step_patches() -> None:
         description="Original description",
         rationale="Original rationale",
         steps=[step_a],
-        connections=[],
     )
 
     plan_before = deps.agent_state.active_plan
@@ -445,7 +431,6 @@ async def test_get_plan_returns_active_plan() -> None:
         description="Test plan",
         rationale="Testing get_plan",
         steps=[step_a],
-        connections=[],
     )
     create_payload = _unwrap(create_result)
     assert isinstance(create_payload, PlanCreatedResponse)
@@ -496,7 +481,6 @@ async def test_create_plan_archives_previous_plan() -> None:
         description="First plan",
         rationale="Testing archival",
         steps=[step_a],
-        connections=[],
     )
 
     first_plan = deps.agent_state.active_plan
@@ -511,7 +495,6 @@ async def test_create_plan_archives_previous_plan() -> None:
         description="Second plan",
         rationale="Replaced first",
         steps=[step_b],
-        connections=[],
     )
 
     second_plan = deps.agent_state.active_plan

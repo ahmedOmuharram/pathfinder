@@ -145,10 +145,17 @@ class CountingStrategyAPI:
         )
 
 
+async def _noop_validate_plan_params(*_args: object, **_kwargs: object) -> None:
+    return None
+
+
 @pytest.fixture
 def counting_api(monkeypatch: pytest.MonkeyPatch) -> CountingStrategyAPI:
     api = CountingStrategyAPI()
     monkeypatch.setattr(step_wdk_push, "get_strategy_api", lambda _site_id: api)
+    monkeypatch.setattr(
+        step_wdk_push, "_validate_plan_params", _noop_validate_plan_params
+    )
     return api
 
 

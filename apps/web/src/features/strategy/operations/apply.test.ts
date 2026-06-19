@@ -183,6 +183,28 @@ describe("applyOperation: deleteStep", () => {
     expect(r.secondaryInputStepId).toBe("D");
   });
 
+  test("collapse-combine deleting the root combine's secondary leaf drops it + the root", () => {
+    const steps = [
+      step("text_kinases"),
+      step("go_kinase_genes"),
+      step("pf_taxon"),
+      step("text_or_go", "text_kinases", "go_kinase_genes", "combine"),
+      step("narrowed", "text_or_go", "pf_taxon", "combine"),
+    ];
+    const result = applyOperation(strategy(steps), {
+      kind: "deleteStep",
+      stepId: "pf_taxon",
+      resolution: "collapse-combine",
+    });
+    expect(result.kind).toBe("applied");
+    if (result.kind !== "applied") return;
+    expect(result.next.steps.map((x) => x.id).sort()).toEqual([
+      "go_kinase_genes",
+      "text_kinases",
+      "text_or_go",
+    ]);
+  });
+
   test("collapse-combine on root combine of two leaves: sibling becomes new root", () => {
     const s = strategy([step("a"), step("b"), step("c", "a", "b", "combine")]);
     const result = applyOperation(s, {

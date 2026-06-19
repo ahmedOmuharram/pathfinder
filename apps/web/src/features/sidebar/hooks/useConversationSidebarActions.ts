@@ -15,6 +15,7 @@ import {
 import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
 import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
 import { updateStrategy } from "@pathfinder/shared/generated/hooks/useUpdateStrategy";
+import { duplicateConversation } from "@/lib/api/conversations";
 import { toUserMessage } from "@/lib/api/errors";
 
 interface UseConversationSidebarActionsArgs {
@@ -26,6 +27,7 @@ interface ConversationSidebarActions extends RenameWorkflow, DeleteWorkflow {
   activeId: string | null;
   handleNewConversation: () => Promise<void>;
   handleToggleSaved: (item: ConversationItem) => Promise<void>;
+  handleDuplicate: (item: ConversationItem) => Promise<void>;
 }
 
 export function useConversationSidebarActions({
@@ -69,10 +71,21 @@ export function useConversationSidebarActions({
     }
   };
 
+  const handleDuplicate = async (item: ConversationItem): Promise<void> => {
+    try {
+      const copy = await duplicateConversation(item.id);
+      await queryClient.invalidateQueries({ queryKey: listKey });
+      router.push(`/${siteId}/conversation/${copy.id}`);
+    } catch (err) {
+      reportError(toUserMessage(err, "Failed to duplicate conversation."));
+    }
+  };
+
   return {
     activeId,
     handleNewConversation,
     handleToggleSaved,
+    handleDuplicate,
     ...rename,
     ...deleteWorkflow,
   };

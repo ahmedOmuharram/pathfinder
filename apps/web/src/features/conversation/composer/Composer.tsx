@@ -1,8 +1,13 @@
 "use client";
 
-import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
+import {
+  AttachmentPrimitive,
+  ComposerPrimitive,
+  useAui,
+  useAuiState,
+} from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { Send, Square } from "lucide-react";
+import { FileText, Paperclip, Send, Square, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -17,18 +22,68 @@ import { strategyQueryOptions } from "@/lib/api/strategy";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { QuotaExhaustedBanner, useQuotaExhausted } from "./QuotaExhaustedBanner";
-import { formatTokens, formatCost } from "@/lib/utils/usageFormat";
+import { formatTokens, formatCost, formatUsage } from "@/lib/utils/usageFormat";
+import { aggregateSessionUsage } from "@/lib/utils/sessionUsage";
+import { useChatHelpersOptional } from "@/features/conversation/runtime/chatHelpersContext";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-function ConversationUsageFooter({ conversationId }: { conversationId: string }) {
-  const { data } = useQuery(strategyQueryOptions(conversationId));
-  const tokens = data?.totalTokens ?? 0;
-  const cost = Number(data?.totalCostUsd ?? 0);
-  if (tokens === 0 && cost === 0) return null;
+function ConversationUsageFooter() {
+  const chat = useChatHelpersOptional();
+  const usage = aggregateSessionUsage(chat?.messages ?? []);
+  if (usage.totalTokens === 0 && usage.totalCost === 0) return null;
   return (
     <div className="flex items-center gap-2 px-1 pt-1">
-      <span className="text-[11px] text-muted-foreground">
-        {formatTokens(tokens)} tokens · {formatCost(cost)}
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2">
+              {formatTokens(usage.totalTokens)} tokens · {formatCost(usage.totalCost)}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="space-y-0.5 text-[11px]">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Lead</span>
+              <span className="font-mono tabular-nums">
+                {formatUsage(usage.leadTokens, usage.leadCost)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Sub-agents</span>
+              <span className="font-mono tabular-nums">
+                {formatUsage(usage.subTokens, usage.subCost)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-border/60 pt-0.5 font-medium">
+              <span>Total</span>
+              <span className="font-mono tabular-nums">
+                {formatUsage(usage.totalTokens, usage.totalCost)}
+              </span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+}
+
+function GeneIdAttachmentChip() {
+  return (
+    <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs">
+      <FileText className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="max-w-[12rem] truncate">
+        <AttachmentPrimitive.Name />
       </span>
+      <AttachmentPrimitive.Remove
+        aria-label="Remove attachment"
+        className="ml-0.5 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <X className="size-3" />
+      </AttachmentPrimitive.Remove>
     </div>
   );
 }
@@ -36,6 +91,7 @@ function ConversationUsageFooter({ conversationId }: { conversationId: string })
 export function Composer({ conversationId }: { conversationId: string }) {
   const aui = useAui();
   const text = useAuiState((s) => s.composer.text);
+  const attachmentCount = useAuiState((s) => s.composer.attachments.length);
   const siteId = useSessionStore((s) => s.selectedSite);
   const quotaExhausted = useQuotaExhausted();
   const isRunning = useAuiState((s) => s.thread.isRunning);
@@ -168,7 +224,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
               ? "Monthly quota reached — try again after the reset date."
               : "Ask about strategies, genes, or data... (try /help)"
           }
-          className="w-full resize-none bg-transparent p-3 text-sm outline-none disabled:cursor-not-allowed"
+          className="max-h-36 w-full resize-none overflow-y-auto bg-transparent p-3 text-sm outline-none disabled:cursor-not-allowed"
           autoFocus
           disabled={quotaExhausted}
           onKeyDown={(e) => {
@@ -178,7 +234,21 @@ export function Composer({ conversationId }: { conversationId: string }) {
             }
           }}
         />
-        <div className="flex justify-end p-2">
+        {attachmentCount > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-2 pt-2">
+            <ComposerPrimitive.Attachments>
+              {() => <GeneIdAttachmentChip />}
+            </ComposerPrimitive.Attachments>
+          </div>
+        )}
+        <div className="flex items-center justify-between p-2">
+          <ComposerPrimitive.AddAttachment
+            data-testid="add-attachment"
+            aria-label="Attach gene-ID file"
+            className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:opacity-50"
+          >
+            <Paperclip className="h-4 w-4" /> Attach
+          </ComposerPrimitive.AddAttachment>
           {isRunning ? (
             <ComposerPrimitive.Cancel
               data-testid="stop-button"
@@ -200,7 +270,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
           )}
         </div>
       </div>
-      <ConversationUsageFooter conversationId={conversationId} />
+      <ConversationUsageFooter />
     </ComposerPrimitive.Root>
   );
 }

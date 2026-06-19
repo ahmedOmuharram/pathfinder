@@ -182,6 +182,40 @@ class PlanSlotAnswer(CamelModel):
     value: JsonValue
 
 
+ConsultQuestionKind = Literal["single_choice", "multi_choice", "free_text"]
+
+
+class ConsultOption(CamelModel):
+    """One selectable option on a ``consult_user`` question."""
+
+    label: str
+    description: str = ""
+    recommended: bool = False
+
+
+class ConsultQuestion(CamelModel):
+    """A design question the Lead asks the user via ``consult_user`` to shape
+    the investigation BEFORE a plan is finalized. Rendered as a carousel slide
+    with options + an optional free-text note."""
+
+    id: str
+    prompt: str
+    kind: ConsultQuestionKind = "single_choice"
+    options: list[ConsultOption] = Field(default_factory=list)
+    context: str = ""
+    allow_notes: bool = True
+
+
+class UserQuestionAnswer(CamelModel):
+    """The user's answer to one ``ConsultQuestion`` — chosen option label(s)
+    and/or a free-text note. ``chosen_labels`` is empty for free_text."""
+
+    question_id: str
+    prompt: str
+    chosen_labels: list[str] = Field(default_factory=list)
+    note: str = ""
+
+
 class PipelineState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -213,6 +247,9 @@ class PipelineState(BaseModel):
         default_factory=dict,
     )
     plan_slot_answers: dict[str, list[PlanSlotAnswer]] = Field(
+        default_factory=dict,
+    )
+    user_question_answers: dict[str, list[UserQuestionAnswer]] = Field(
         default_factory=dict,
     )
     created_gene_set_ids: list[str] = Field(default_factory=list)

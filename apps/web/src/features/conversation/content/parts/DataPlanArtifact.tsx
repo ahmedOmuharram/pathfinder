@@ -1,8 +1,40 @@
 import type { PlanArtifact, PlannedStep } from "@pathfinder/shared";
 import { ClipboardList } from "lucide-react";
 
-export function DataPlanArtifact({ data }: { data: PlanArtifact }) {
+export function DataPlanArtifact({
+  data,
+  embedded = false,
+}: {
+  data: PlanArtifact;
+  embedded?: boolean;
+}) {
   const steps = data.steps;
+  // Embedded inside the PlanCarousel, the carousel already shows a
+  // "Proposed plan" header + container chrome, so we drop ours to avoid a
+  // duplicate header and nested boxes.
+  const body = (
+    <>
+      {data.rationale !== "" && (
+        <p
+          className={embedded ? "text-muted-foreground" : "mt-1 text-muted-foreground"}
+        >
+          {data.rationale}
+        </p>
+      )}
+      <ol className="mt-2 space-y-2">
+        {steps.map((step, idx) => (
+          <StepRow key={`${step.searchName}-${idx}`} step={step} index={idx} />
+        ))}
+      </ol>
+    </>
+  );
+  if (embedded) {
+    return (
+      <div data-testid="data-plan-artifact" className="text-xs">
+        {body}
+      </div>
+    );
+  }
   return (
     <div
       data-testid="data-plan-artifact"
@@ -15,14 +47,7 @@ export function DataPlanArtifact({ data }: { data: PlanArtifact }) {
           {steps.length} {steps.length === 1 ? "step" : "steps"}
         </span>
       </div>
-      {data.rationale !== "" && (
-        <p className="mt-1 text-muted-foreground">{data.rationale}</p>
-      )}
-      <ol className="mt-2 space-y-2">
-        {steps.map((step, idx) => (
-          <StepRow key={`${step.searchName}-${idx}`} step={step} index={idx} />
-        ))}
-      </ol>
+      {body}
     </div>
   );
 }

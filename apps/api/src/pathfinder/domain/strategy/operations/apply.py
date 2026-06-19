@@ -338,7 +338,7 @@ def _apply_update_params(graph: StrategyGraph, op: UpdateStepParamsOp) -> ApplyR
     if target is None:
         msg = f"step {op.step_id!r} not found"
         raise ApplyError(msg)
-    target.parameters = dict(op.parameters)
+    target.parameters = {**target.parameters, **op.parameters}
     return ApplyResult(description=f"Updated parameters of {op.step_id}")
 
 

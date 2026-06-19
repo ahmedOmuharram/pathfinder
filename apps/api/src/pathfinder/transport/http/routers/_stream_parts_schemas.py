@@ -22,7 +22,6 @@ from shared_py.stream_parts.graph import (
 from shared_py.stream_parts.optimization import OptimizationSnapshot
 from shared_py.stream_parts.phase import PhaseChange
 from shared_py.stream_parts.plan import (
-    DecisionPresented,
     PlanArtifact,
     PlanUpdate,
 )
@@ -34,6 +33,7 @@ from shared_py.stream_parts.strategy import (
 )
 from shared_py.stream_parts.turn_usage import TurnUsage
 
+from pathfinder.ai.graph.state import ConsultQuestion, UserQuestionAnswer
 from pathfinder.ai.graph.stream_events import (
     ConversationTitlePayload,
     LeadUsagePayload,
@@ -43,6 +43,8 @@ from pathfinder.ai.graph.stream_events import (
     TurnStoppedPayload,
 )
 from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.services.experiment.scored_comparison import ScoredComparison
+from pathfinder.services.experiment.variant_comparison import VariantComparison
 
 router = APIRouter(prefix="/api/v1/internal/stream-parts", tags=["internal"])
 
@@ -58,7 +60,10 @@ class StreamPartsSchemaIndex(CamelModel):
     strategy_link: StrategyLink | None = None
     plan_artifact: PlanArtifact | None = None
     plan_update: PlanUpdate | None = None
-    decision_presented: DecisionPresented | None = None
+    consult_question: ConsultQuestion | None = None
+    user_question_answer: UserQuestionAnswer | None = None
+    variant_comparison: VariantComparison | None = None
+    scored_comparison: ScoredComparison | None = None
     problem_frame: ProblemFrame | None = None
     gene_set: GeneSet | None = None
     optimization_snapshot: OptimizationSnapshot | None = None

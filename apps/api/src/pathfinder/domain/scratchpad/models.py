@@ -27,7 +27,7 @@ class Note(CamelModel):
     id: str
     conversation_id: UUID
     title: str = Field(min_length=1, max_length=120)
-    summary: str = Field(min_length=1, max_length=280)
+    summary: str = Field(min_length=1, max_length=500)
     body: str = Field(min_length=1, max_length=20000)
     tags: list[str] = Field(default_factory=list, max_length=16)
     pinned: bool = False
@@ -43,7 +43,7 @@ class Note(CamelModel):
 
 class NoteCreate(CamelModel):
     title: str = Field(min_length=1, max_length=120)
-    summary: str = Field(min_length=1, max_length=280)
+    summary: str = Field(min_length=1, max_length=500)
     body: str = Field(min_length=1, max_length=20000)
     tags: list[str] = Field(default_factory=list, max_length=16)
     pinned: bool = False
@@ -56,7 +56,7 @@ class NoteCreate(CamelModel):
 
 class NoteUpdate(CamelModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
-    summary: str | None = Field(default=None, min_length=1, max_length=280)
+    summary: str | None = Field(default=None, min_length=1, max_length=500)
     body: str | None = Field(default=None, min_length=1, max_length=20000)
     tags: list[str] | None = Field(default=None, max_length=16)
 

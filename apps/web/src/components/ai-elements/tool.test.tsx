@@ -17,10 +17,12 @@ describe("ToolOutput", () => {
     expect(screen.getByText("Result")).toBeInTheDocument();
   });
 
-  it("renders a Python-repr string verbatim instead of swallowing it", () => {
-    const repr = "{'id': 'plan_31f80c5485cd', 'title': 'My plan'}";
-    render(<ToolOutput output={repr} errorText={undefined} />);
-    expect(screen.getByText(repr)).toBeInTheDocument();
+  it("routes JSON-shaped output to a code block, not the plain-text fallback", () => {
+    // A large result clipped server-side is JSON-shaped but unparseable; it
+    // should still be colorized as JSON, not dumped into the readable <pre>.
+    const clipped = '{"name": "inspect_search", "allowed_values": [{"value": "a"';
+    const { container } = render(<ToolOutput output={clipped} errorText={undefined} />);
+    expect(container.querySelector("pre.font-sans")).toBeNull();
   });
 
   it("shows errorText under an Error heading", () => {

@@ -26,7 +26,11 @@ if "PIGUARD_MODEL_DIR" not in os.environ:
         )
     os.environ["PIGUARD_MODEL_DIR"] = str(_piguard_cache)
 
-# ---------------------------------------------------------------------------
+# Persistent fastembed cache; fastembed's default OS temp dir gets pruned mid-download.
+os.environ.setdefault(
+    "FASTEMBED_CACHE_DIR",
+    str(Path.home() / ".cache" / "pathfinder" / "fastembed"),
+)
 
 os.environ.setdefault("API_ENV", "test")
 os.environ.setdefault("API_SECRET_KEY", "test-secret-key-test-secret-key-test")

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { GeneSet } from "@pathfinder/shared";
@@ -136,12 +135,12 @@ describe("EnsemblePanel", () => {
     const button = screen.getByRole("button", { name: /compute/i });
     fireEvent.click(button);
 
-    // Wait for results to render
-    const g2Row = await screen.findByText("G2");
-    expect(g2Row).toBeTruthy();
-    expect(screen.getByText("100.0%")).toBeTruthy();
-    expect(screen.getByText("G1")).toBeTruthy();
-    expect(screen.getByText("G3")).toBeTruthy();
+    // Each gene's row shows its real ensemble frequency: G2 in both sets
+    // (2/2 = 100.0%), G1 and G3 each in one (1/2 = 50.0%).
+    const g2Row = (await screen.findByText("G2")).closest("tr");
+    expect(g2Row).toHaveTextContent("100.0%");
+    expect(screen.getByText("G1").closest("tr")).toHaveTextContent("50.0%");
+    expect(screen.getByText("G3").closest("tr")).toHaveTextContent("50.0%");
   });
 
   it("sends correct request body to the API", async () => {

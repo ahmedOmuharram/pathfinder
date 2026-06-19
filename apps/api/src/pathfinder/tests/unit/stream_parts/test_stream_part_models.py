@@ -7,7 +7,6 @@ from shared_py.stream_parts.graph import GraphEdge, GraphNode, GraphSnapshot
 from shared_py.stream_parts.optimization import OptimizationSnapshot
 from shared_py.stream_parts.phase import PhaseChange
 from shared_py.stream_parts.plan import (
-    DecisionPresented,
     PlanArtifact,
     PlannedStep,
     PlanUpdate,
@@ -94,18 +93,6 @@ def test_plan_artifact_validates():
 def test_plan_update_validates():
     upd = PlanUpdate(plan_id="p_x", status="revised", reason="swapped step 2")
     assert upd.status == "revised"
-
-
-def test_decision_presented_validates():
-    dec = DecisionPresented(
-        decision_type="pick_strategy_variant",
-        options=[
-            {"id": "a", "label": "Variant A"},
-            {"id": "b", "label": "Variant B"},
-        ],
-        rationale="two plausible paths",
-    )
-    assert len(dec.options) == 2
 
 
 def test_problem_frame_validates():

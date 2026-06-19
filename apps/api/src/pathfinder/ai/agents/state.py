@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.domain.strategy.plan import StrategyPlan
 
@@ -21,6 +22,7 @@ class ParamVocabSnapshot(BaseModel):
 
     param_type: str
     required: bool
+    help: str = ""
     default_value: str | None = None
     allowed_values: list[VocabOption] | None = None
     allowed_values_tree: str | None = None
@@ -40,6 +42,7 @@ class SearchOverview(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     param_hints: dict[str, str | list[str]] = Field(default_factory=dict)
     param_vocab: dict[str, ParamVocabSnapshot] = Field(default_factory=dict)
+    decided: bool = False
 
 
 @dataclass
@@ -47,6 +50,34 @@ class AgentToolState:
     discovered_searches: dict[str, SearchOverview] = field(default_factory=dict)
     active_plan: StrategyPlan | None = None
     plan_history: list[StrategyPlan] = field(default_factory=list)
+    read_param_options: set[str] = field(default_factory=set)
+
+    @staticmethod
+    def param_read_key(
+        search_name: str,
+        parameter_id: str,
+        *,
+        context_values: dict[str, ParamValue] | None = None,
+        query: str | None = None,
+    ) -> str:
+        """Stable key for one parameter-options read. Context-sensitive so a
+        dependent param re-read under a different parent value is a new read,
+        not a dedup hit."""
+        ctx = ""
+        if context_values:
+            ctx = ";".join(
+                f"{k}={v.model_dump_json()}" for k, v in sorted(context_values.items())
+            )
+        return f"{search_name}|{parameter_id}|{ctx}|{query or ''}"
+
+    def mark_param_read(self, key: str) -> None:
+        self.read_param_options.add(key)
+
+    def was_param_read(self, key: str) -> bool:
+        return key in self.read_param_options
+
+    def decided_search_names(self) -> set[str]:
+        return {n for n, ov in self.discovered_searches.items() if ov.decided}
 
     def register_search(self, name: str, overview: SearchOverview) -> None:
         self.discovered_searches[name] = overview

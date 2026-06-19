@@ -5,7 +5,7 @@ import { FileUp, Search } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
 import { Label } from "@/lib/components/ui/Label";
-import { parseGeneIds } from "@/lib/utils/parseGeneIds";
+import { parseGeneCsv } from "@/lib/utils/parseGeneCsv";
 import { cn } from "@/lib/utils/cn";
 import { useGeneSetCreation } from "../hooks/useGeneSetCreation";
 import { VerificationResults } from "./VerificationResults";
@@ -50,7 +50,7 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const parsedIds = parseGeneIds(fileText);
+  const parsedIds = parseGeneCsv(fileText);
   const detectedCount = parsedIds.length;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

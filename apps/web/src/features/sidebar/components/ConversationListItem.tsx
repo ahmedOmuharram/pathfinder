@@ -29,6 +29,7 @@ interface ConversationListItemProps {
   onStartRename: (item: ConversationItem) => void;
   onStartDelete: (item: ConversationItem) => void;
   onToggleSaved: (item: ConversationItem) => void;
+  onDuplicate?: (item: ConversationItem) => void;
 }
 
 export function ConversationListItem({
@@ -43,6 +44,7 @@ export function ConversationListItem({
   onStartRename,
   onStartDelete,
   onToggleSaved,
+  onDuplicate,
 }: ConversationListItemProps) {
   const { navigate } = useFlushBeforeNav();
   const metaParts: string[] = [];
@@ -132,6 +134,11 @@ export function ConversationListItem({
               <DropdownMenuItem onSelect={() => onToggleSaved(item)}>
                 {item.isSaved ? "Unmark saved" : "Mark as saved"}
               </DropdownMenuItem>
+              {onDuplicate != null && (
+                <DropdownMenuItem onSelect={() => onDuplicate(item)}>
+                  Duplicate
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"

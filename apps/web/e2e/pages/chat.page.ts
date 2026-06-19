@@ -8,9 +8,9 @@ export class ChatPage {
   readonly newChatButton: Locator;
   readonly refreshConversationsButton: Locator;
   readonly planArtifact: Locator;
-  readonly decisionPresented: Locator;
-  readonly approvePlanButton: Locator;
-  readonly denyPlanButton: Locator;
+  readonly planCarousel: Locator;
+  readonly variantComparison: Locator;
+  readonly scoredComparison: Locator;
 
   constructor(private page: Page) {
     this.composer = page.getByTestId("message-composer");
@@ -20,9 +20,9 @@ export class ChatPage {
     this.newChatButton = page.getByRole("button", { name: "New chat" });
     this.refreshConversationsButton = page.getByTestId("conversations-refresh-button");
     this.planArtifact = page.getByTestId("data-plan-artifact");
-    this.decisionPresented = page.getByTestId("data-decision-presented");
-    this.approvePlanButton = page.getByTestId("plan-approve");
-    this.denyPlanButton = page.getByTestId("plan-deny");
+    this.planCarousel = page.getByTestId("plan-carousel");
+    this.variantComparison = page.getByTestId("data-variant-comparison");
+    this.scoredComparison = page.getByTestId("data-scored-comparison");
   }
 
   async goto() {
@@ -93,27 +93,41 @@ export class ChatPage {
     await this.stopButton.click();
   }
 
-  async openPlanRail() {
-    const trigger = this.page
-      .locator('[aria-label="Right rail"]')
-      .getByRole("button", { name: /^(Open|Close) Plan$/ });
-    await expect(trigger).toBeVisible({ timeout: 30_000 });
-    if ((await trigger.getAttribute("aria-pressed")) !== "true") {
-      await trigger.click();
-      await expect(trigger).toHaveAttribute("aria-pressed", "true", { timeout: 5_000 });
-    }
-  }
-
+  /** Approve the inline plan carousel. A plan with no fillable slots shows an
+   *  "Approve & run" row; one with slots paginates to a Submit button. */
   async approvePlan() {
-    await this.openPlanRail();
-    await expect(this.approvePlanButton).toBeVisible({ timeout: 60_000 });
-    await this.approvePlanButton.click();
+    const carousel = this.planCarousel.last();
+    await expect(carousel).toBeVisible({ timeout: 60_000 });
+    const approveRun = carousel.getByTestId("carousel-approve-run");
+    const submitBtn = carousel.getByTestId("carousel-submit");
+    const nextBtn = carousel.getByTestId("carousel-next");
+    // Wait for the carousel to finish "building" and present a control.
+    await expect(approveRun.or(submitBtn).or(nextBtn).first()).toBeVisible({
+      timeout: 60_000,
+    });
+    if (await approveRun.isVisible().catch(() => false)) {
+      await approveRun.click();
+      return;
+    }
+    // Slot-filling path: advance to the last slide and submit.
+    for (let guard = 0; guard < 10; guard++) {
+      const submit = carousel.getByTestId("carousel-submit");
+      if (await submit.isVisible().catch(() => false)) {
+        await expect(submit).toBeEnabled();
+        await submit.click();
+        return;
+      }
+      await carousel.getByTestId("carousel-next").click();
+    }
+    throw new Error("plan carousel never reached an approve/submit control");
   }
 
-  async denyPlan() {
-    await this.openPlanRail();
-    await expect(this.denyPlanButton).toBeVisible({ timeout: 60_000 });
-    await this.denyPlanButton.click();
+  async denyPlan(reason = "please broaden the search") {
+    const carousel = this.planCarousel.last();
+    await expect(carousel).toBeVisible({ timeout: 60_000 });
+    await carousel.getByTestId("carousel-request-changes-toggle").click();
+    await carousel.getByTestId("carousel-request-changes-input").fill(reason);
+    await carousel.getByTestId("carousel-request-changes-send").click();
   }
 
   /** Last (most recent) plan artifact rendered inline in any assistant message. */
@@ -180,16 +194,57 @@ export class ChatPage {
     });
   }
 
-  async expectDelegationDraft() {
-    await expect(this.page.getByTestId("delegation-draft-details")).toBeVisible({
-      timeout: 30_000,
+  async expectVariantComparison() {
+    await expect(this.variantComparison.first()).toBeVisible({ timeout: 60_000 });
+  }
+
+  /** Answer every consult-carousel slide by picking the first option, advancing
+   *  with Next, and submitting on the last slide. */
+  async answerConsultCarousel() {
+    const carousel = this.page.getByTestId("consult-carousel");
+    await expect(carousel).toBeVisible({ timeout: 60_000 });
+    // Loop until Submit appears (last slide), picking the first option each time.
+    for (let guard = 0; guard < 10; guard++) {
+      const firstOption = carousel.locator('[data-testid^="consult-option-"]').first();
+      await expect(firstOption).toBeVisible({ timeout: 10_000 });
+      await firstOption.click();
+      const submit = carousel.getByTestId("consult-submit");
+      if (await submit.isVisible()) {
+        await expect(submit).toBeEnabled();
+        await submit.click();
+        return;
+      }
+      await carousel.getByTestId("consult-next").click();
+    }
+    throw new Error("consult carousel did not reach a submit slide");
+  }
+
+  /** Attach a gene-ID file via the composer's native attachment button. The
+   *  AddAttachment button opens a transient file chooser, so intercept it. */
+  async attachGeneIdFile(name: string, contents: string) {
+    const chooserPromise = this.page.waitForEvent("filechooser");
+    await this.page.getByTestId("add-attachment").click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles({
+      name,
+      mimeType: "text/csv",
+      buffer: Buffer.from(contents),
     });
+    await expect(this.composer.getByText(name)).toBeVisible({ timeout: 10_000 });
+  }
+
+  async expectScoredComparison() {
+    await expect(this.scoredComparison.first()).toBeVisible({ timeout: 60_000 });
+  }
+
+  /** The winner row inside the scored-comparison card. */
+  scoredWinnerBadge(): Locator {
+    return this.scoredComparison.getByText("winner", { exact: true });
   }
 
   async expectPlanningArtifact() {
     await expect(this.planArtifact.first()).toBeVisible({ timeout: 60_000 });
-    await this.openPlanRail();
-    await expect(this.approvePlanButton).toBeVisible({ timeout: 60_000 });
+    await expect(this.planCarousel.first()).toBeVisible({ timeout: 60_000 });
   }
 
   /** Assert at least one user-blocking question (from a scoping AWAITING_USER outcome). */

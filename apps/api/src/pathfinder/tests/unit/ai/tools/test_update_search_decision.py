@@ -203,3 +203,84 @@ async def test_decision_can_be_revised() -> None:
     assert "best anchor" in stored.selection_reason
     # The earlier rationale is fully replaced — no stale fragments leak.
     assert "initial pass" not in stored.rationale
+
+
+@pytest.mark.asyncio
+async def test_deciding_marks_search_decided_and_hides_from_catalog() -> None:
+    """A recorded decision flips ``decided`` so the search is filtered out
+    of the search catalog and won't resurface — this is what stops the
+    discovery loop of re-evaluating the same search repeatedly."""
+    ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
+    state = ctx.deps.agent_state
+    assert state.decided_search_names() == set()
+
+    await update_search_decision(
+        ctx,
+        search_name="GenesByGoTerm",
+        selection_status="selected",
+        rationale="anchor",
+        confidence=0.9,
+    )
+    stored = state.get_overview("GenesByGoTerm")
+    assert stored is not None
+    assert stored.decided is True
+    assert state.decided_search_names() == {"GenesByGoTerm"}
+
+
+@pytest.mark.asyncio
+async def test_redeciding_same_status_is_a_no_op() -> None:
+    """Calling the decision tool again with the SAME status on an
+    already-decided search returns an 'already decided' notice and does
+    NOT overwrite the stored decision — the model is told to move on."""
+    ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
+    await update_search_decision(
+        ctx,
+        search_name="GenesByGoTerm",
+        selection_status="selected",
+        rationale="first verdict",
+        selection_reason="primary anchor",
+        confidence=0.9,
+    )
+    result = await update_search_decision(
+        ctx,
+        search_name="GenesByGoTerm",
+        selection_status="selected",
+        rationale="second time around",
+        selection_reason="changed my mind text",
+        confidence=0.3,
+    )
+    assert isinstance(result, str)
+    assert "already decided" in result.lower()
+
+    stored = ctx.deps.agent_state.get_overview("GenesByGoTerm")
+    assert stored is not None
+    # No overwrite: the first verdict's fields are intact.
+    assert stored.rationale == "first verdict"
+    assert stored.selection_reason == "primary anchor"
+    assert stored.confidence == 0.9
+
+
+@pytest.mark.asyncio
+async def test_redeciding_different_status_still_updates() -> None:
+    """Changing the verdict (e.g. selected → rejected) on a decided search
+    is a legitimate revision and must still apply."""
+    ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
+    await update_search_decision(
+        ctx,
+        search_name="GenesByGoTerm",
+        selection_status="selected",
+        rationale="anchor",
+        confidence=0.9,
+    )
+    result = await update_search_decision(
+        ctx,
+        search_name="GenesByGoTerm",
+        selection_status="rejected",
+        rationale="actually a dead end",
+        confidence=0.2,
+    )
+    assert "already decided" not in result.lower()
+    stored = ctx.deps.agent_state.get_overview("GenesByGoTerm")
+    assert stored is not None
+    assert stored.selection_status == "rejected"
+    assert stored.confidence == 0.2

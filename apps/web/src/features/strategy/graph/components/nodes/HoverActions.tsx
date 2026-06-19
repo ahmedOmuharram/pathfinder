@@ -39,7 +39,10 @@ export function HoverActions({
   }
 
   return (
-    <div className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md border border-border bg-card/95 px-0.5 py-0.5 opacity-0 shadow-sm backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 aria-expanded:opacity-100 group-data-[selected=true]:opacity-100">
+    <div
+      data-node-toolbar
+      className="nodrag nopan absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md border border-border bg-card/95 px-0.5 py-0.5 opacity-0 shadow-sm backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 aria-expanded:opacity-100 group-data-[selected=true]:opacity-100"
+    >
       {onOpenDetails != null && (
         <Button
           type="button"

@@ -13,7 +13,12 @@ afterEach(() => {
 describe("startupStatus", () => {
   it("stays booting inside the grace window", () => {
     expect(
-      startupStatus({ data: undefined, isError: false, elapsedMs: 1000, graceMs: 20000 }),
+      startupStatus({
+        data: undefined,
+        isError: false,
+        elapsedMs: 1000,
+        graceMs: 20000,
+      }),
     ).toEqual({ kind: "booting", notReady: [] });
   });
 
@@ -30,7 +35,12 @@ describe("startupStatus", () => {
 
   it("reports unreachable when stalled and the query errored", () => {
     expect(
-      startupStatus({ data: undefined, isError: true, elapsedMs: 25000, graceMs: 20000 }),
+      startupStatus({
+        data: undefined,
+        isError: true,
+        elapsedMs: 25000,
+        graceMs: 20000,
+      }),
     ).toEqual({ kind: "unreachable" });
   });
 

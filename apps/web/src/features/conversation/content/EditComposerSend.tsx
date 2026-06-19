@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditComposer, useMessage } from "@assistant-ui/react";
+import { useAuiState, useEditComposer } from "@assistant-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -20,9 +20,9 @@ import { BranchOrRevertDialog } from "./BranchOrRevertDialog";
 const ROUTE_RE = /^\/([^/]+)\/conversation\/([^/?#]+)/;
 
 export function EditComposerBranchOrRevert() {
-  const messageId = useMessage((s) => s.id);
-  const parentId = useMessage((s) => s.parentId);
-  const fullMessage = useMessage((s) => s);
+  const messageId = useAuiState((s) => s.message.id);
+  const parentId = useAuiState((s) => s.message.parentId);
+  const fullMessage = useAuiState((s) => s.message);
   const composerText = useEditComposer((s) => s.text);
   const pathname = usePathname();
   const router = useRouter();

@@ -178,6 +178,26 @@ class TestApplyDeleteStep:
         assert g.steps["R"].primary_input.id == "B"
         assert sorted(result.dropped_step_ids) == ["A", "C"]
 
+    def test_collapse_combine_root_secondary_leaf(self) -> None:
+        a = _leaf("text_kinases")
+        b = _leaf("go_kinase_genes")
+        pf = _leaf("pf_taxon")
+        inner = _combine("text_or_go", a, b)
+        root = _combine("narrowed", inner, pf)
+        g = _graph_with([root])
+        result = apply_operation(
+            g,
+            DeleteStepOp(
+                step_id="pf_taxon", resolution=DeleteResolution.COLLAPSE_COMBINE
+            ),
+        )
+        assert sorted(g.steps.keys()) == [
+            "go_kinase_genes",
+            "text_kinases",
+            "text_or_go",
+        ]
+        assert sorted(result.dropped_step_ids) == ["narrowed", "pf_taxon"]
+
     def test_collapse_combine_root(self) -> None:
         a = _leaf("a")
         b = _leaf("b")
@@ -260,6 +280,28 @@ class TestApplyUpdateOps:
             ),
         )
         assert g.steps["a"].parameters == {"foo": StringValue(value="bar")}
+
+    def test_update_step_params_merges_into_existing(self) -> None:
+        leaf = StrategyStepNode(
+            id="a",
+            search_name="geneById",
+            parameters={
+                "foo": StringValue(value="old"),
+                "keep": StringValue(value="untouched"),
+            },
+        )
+        g = _graph_with([leaf])
+        apply_operation(
+            g,
+            UpdateStepParamsOp(
+                step_id="a",
+                parameters={"foo": StringValue(value="new")},
+            ),
+        )
+        assert g.steps["a"].parameters == {
+            "foo": StringValue(value="new"),
+            "keep": StringValue(value="untouched"),
+        }
 
     def test_update_combine_operator(self) -> None:
         a = _leaf("a")

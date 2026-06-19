@@ -2,19 +2,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, JsonValue, computed_field
+from pydantic import Field, JsonValue
 
-from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.graph.state import (
     ClarificationQuestion,
     ProblemFrame,
     VerificationDigest,
 )
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
-from pathfinder.domain.strategy.plan import (
-    ParamStatus,
-    StrategyPlan,
-)
 from pathfinder.platform.pydantic_base import CamelModel
 
 
@@ -41,30 +36,30 @@ class FrameDelta(CamelModel):
 
 
 class DiscoveryDelta(CamelModel):
-    """Discovery sub-agent output."""
+    """Discovery sub-agent output.
 
-    new_selections: list[SearchOverview] = Field(default_factory=list)
-    new_rejections: list[SearchOverview] = Field(default_factory=list)
+    Selections and rejections are NOT carried here — discovery commits them
+    via ``update_search_decision`` into ``agent_state.discovered_searches``,
+    which the Ledger reads directly. This delta is a lightweight summary so
+    the model never re-types heavy ``SearchOverview`` objects in its final
+    output (the old shape caused validation-retry spirals).
+    """
+
     findings_summary: str = ""
     open_questions: list[str] = Field(default_factory=list)
 
 
 class PlanDelta(CamelModel):
-    """Planning sub-agent output."""
+    """Planning sub-agent output.
 
-    plan: StrategyPlan
-    new_open_slots: list[OpenSlot] = Field(default_factory=list)
+    The plan itself is NOT carried here — the planner builds it via
+    ``create_plan`` (→ ``agent_state.active_plan``), which the Ledger reads
+    directly. Re-emitting the full ``StrategyPlan`` as output caused
+    validation-retry failures (displayName required, parameters as object
+    not array). This delta is a lightweight summary only.
+    """
 
-    @computed_field
-    def has_unresolved_slots(self) -> bool:
-        for step in self.plan.steps:
-            for p in step.parameters:
-                if p.status in (
-                    ParamStatus.NEEDS_USER_INPUT,
-                    ParamStatus.NEEDS_DISCOVERY,
-                ):
-                    return True
-        return False
+    summary: str = ""
 
 
 class ExecuteDelta(CamelModel):

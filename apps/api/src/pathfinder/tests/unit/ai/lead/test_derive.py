@@ -68,6 +68,7 @@ def _gametocyte_only_search() -> SearchOverview:
             "sample": ParamVocabSnapshot(
                 param_type="single-pick-vocabulary",
                 required=True,
+                help="Which RNA-seq sample to compare",
                 allowed_values=[
                     VocabOption(value="male gametocyte", display="male gametocyte"),
                     VocabOption(value="female gametocyte", display="female gametocyte"),
@@ -196,6 +197,20 @@ def test_intent_non_differential_satisfied_when_any_selected() -> None:
     )
     ledger = derive_ledger(state, intent)
     assert ledger.discovery.intent_satisfied is True
+
+
+def test_discovery_section_render_surfaces_param_help_and_vocab() -> None:
+    """read_ledger_section('discovery') exposes each search's params with
+    help text ('what it does') and enumerated vocab — the observability the
+    Lead needs to catch param mistakes before planning."""
+    state = _state(
+        discovered_searches={"GenesByRNASeq_Bartfai": _gametocyte_only_search()},
+    )
+    ledger = derive_ledger(state, _intent_diff(("gametocyte", "asexual blood stage")))
+    rendered = ledger.render_section("discovery")
+    assert "sample" in rendered
+    assert "Which RNA-seq sample to compare" in rendered
+    assert "male gametocyte" in rendered
 
 
 def _plan_with_user_slot() -> StrategyPlan:

@@ -25,7 +25,7 @@ export function ScratchpadPanel({ conversationId }: ScratchpadPanelProps) {
 
   const pinMutation = useMutation({
     mutationFn: (args: { noteId: string; pinned: boolean }) =>
-      patchScratchpadNote(args.noteId, conversationId, {
+      patchScratchpadNote(conversationId, args.noteId, {
         pinned: args.pinned,
       }),
     onSuccess: () => {
@@ -36,7 +36,7 @@ export function ScratchpadPanel({ conversationId }: ScratchpadPanelProps) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (noteId: string) => deleteScratchpadNote(noteId, conversationId),
+    mutationFn: (noteId: string) => deleteScratchpadNote(conversationId, noteId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: listScratchpadNotesQueryOptions(conversationId).queryKey,

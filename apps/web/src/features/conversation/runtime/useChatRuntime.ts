@@ -9,7 +9,6 @@ import { useAISDKRuntime } from "@assistant-ui/react-ai-sdk";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { Strategy } from "@pathfinder/shared";
-import { decisionPresentedSchema } from "@pathfinder/shared/generated/zod/decisionPresentedSchema";
 import { geneSetSchema } from "@pathfinder/shared/generated/zod/geneSetSchema";
 import { graphClearedSchema } from "@pathfinder/shared/generated/zod/graphClearedSchema";
 import { graphSnapshotSchema } from "@pathfinder/shared/generated/zod/graphSnapshotSchema";
@@ -34,6 +33,7 @@ import { buildChatRequestBody } from "./buildRequestBody";
 import type { ChatHelpers } from "./chatHelpersContext";
 import { DurableChatTransport } from "./DurableChatTransport";
 import { createFeedbackAdapter } from "./feedbackAdapter";
+import { GeneIdAttachmentAdapter } from "./geneIdAttachmentAdapter";
 
 interface UseChatRuntimeArgs {
   conversationId: string;
@@ -138,9 +138,6 @@ export function useChatRuntime({
             queryKey: strategyQueryOptions(conversationId).queryKey,
           });
           break;
-        case "data-decision-presented":
-          decisionPresentedSchema.parse(dataPart.data);
-          break;
         case "data-turn-usage": {
           const usage = turnUsageSchema.parse(dataPart.data);
           const detailKey = strategyQueryOptions(conversationId).queryKey;
@@ -168,7 +165,10 @@ export function useChatRuntime({
   });
 
   const runtime = useAISDKRuntime(chat, {
-    adapters: { feedback: createFeedbackAdapter() },
+    adapters: {
+      feedback: createFeedbackAdapter(),
+      attachments: new GeneIdAttachmentAdapter(),
+    },
   });
 
   return { runtime, chat };

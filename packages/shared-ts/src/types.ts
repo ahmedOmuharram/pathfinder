@@ -20,7 +20,6 @@ import type {
   CreateConversationRequest,
   CrossValidationResultResponse,
   CustomEvent,
-  DecisionPresented,
   DoneEvent,
   EnrichmentResultResponse,
   EnrichmentTermResponse,
@@ -66,6 +65,8 @@ import type {
   ParameterSensitivityResponse,
   ParameterSweepPointResponse,
   PlanArtifact,
+  VariantComparison,
+  ScoredComparison,
   PlannedStep,
   PlanSlotForm,
   PlanSlotOption,
@@ -416,11 +417,12 @@ export type {
   StrategyMeta,
   StrategyLink,
   PlanArtifact,
+  VariantComparison,
+  ScoredComparison,
   PlannedStep,
   PlanSlotForm,
   PlanSlotOption,
   PlanUpdate,
-  DecisionPresented,
   OptimizationSnapshot,
   BackgroundTaskStarted,
   TaskCompleted,
@@ -563,7 +565,8 @@ export type DataPartKind =
   | "data-graph-cleared"
   | "data-problem-frame"
   | "data-plan-artifact"
-  | "data-decision-presented"
+  | "data-variant-comparison"
+  | "data-scored-comparison"
   | "data-tool-approval-request"
   | "data-tool-approval-result"
   | "data-memory-retrieved"
@@ -590,7 +593,8 @@ export interface DataPartPayloadMap {
   "data-graph-cleared": GraphCleared;
   "data-problem-frame": ProblemFrame;
   "data-plan-artifact": PlanArtifact;
-  "data-decision-presented": DecisionPresented;
+  "data-variant-comparison": VariantComparison;
+  "data-scored-comparison": ScoredComparison;
   "data-tool-approval-request": DataToolApprovalRequestPayload;
   "data-tool-approval-result": DataToolApprovalResultPayload;
   "data-memory-retrieved": DataMemoryRetrievedPayload;

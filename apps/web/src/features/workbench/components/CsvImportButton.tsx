@@ -3,19 +3,10 @@
 import { useRef } from "react";
 import { FileUp } from "lucide-react";
 
+import { parseGeneCsv } from "@/lib/utils/parseGeneCsv";
+
 interface CsvImportButtonProps {
   onImport: (geneIds: string[]) => void;
-}
-
-export function parseGeneIds(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((line) => {
-      // Split on comma or tab, take first column
-      const first = line.split(/[,\t]/)[0] ?? "";
-      return first.trim();
-    })
-    .filter((id) => id.length > 0 && !id.match(/^gene.?id$/i)); // skip headers
 }
 
 export function CsvImportButton({ onImport }: CsvImportButtonProps) {
@@ -28,7 +19,7 @@ export function CsvImportButton({ onImport }: CsvImportButtonProps) {
     const reader = new FileReader();
     reader.onload = () => {
       const text = reader.result as string;
-      const ids = parseGeneIds(text);
+      const ids = parseGeneCsv(text);
       if (ids.length > 0) onImport(ids);
     };
     reader.readAsText(file);

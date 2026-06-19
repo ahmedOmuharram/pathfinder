@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
@@ -17,8 +17,10 @@ from pathfinder.persistence.models import (
     Message,
     User,
 )
+from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.config import get_settings
+from pathfinder.services.conversations.fork import fork_conversation
 from pathfinder.services.conversations.revert import (
     RevertError,
     revert_conversation_to_message,
@@ -82,6 +84,31 @@ async def _seed_message(conv_id: UUID, role: str, text_body: str) -> Message:
         await session.commit()
         await session.refresh(msg)
         return msg
+
+
+async def _seed_messages_distinct_ts(conv_id: UUID, roles: list[str]) -> list[Message]:
+    """Seed messages with strictly increasing ``created_at`` (one txn each).
+
+    Mirrors production, where every turn's message is committed in its own
+    transaction, so each ``now()`` differs.
+    """
+    base = datetime.now(UTC)
+    msgs: list[Message] = []
+    async with session_module.async_session_factory() as session:
+        for i, role in enumerate(roles):
+            msg = Message(
+                id=uuid4(),
+                conversation_id=conv_id,
+                role=role,
+                metadata_={},
+                created_at=base + timedelta(seconds=i),
+            )
+            session.add(msg)
+            msgs.append(msg)
+        await session.commit()
+        for msg in msgs:
+            await session.refresh(msg)
+    return msgs
 
 
 async def _seed_checkpoint(thread_id: UUID, ts: datetime, cid: str) -> None:
@@ -279,6 +306,181 @@ class TestRevertConversation:
             ).all()
         assert [r[0] for r in rows] == [f"{0:032d}"]
 
+    async def test_same_timestamp_siblings_cut_by_id_order(self) -> None:
+        # Characterization: when messages genuinely share created_at, revert
+        # cuts on the stable (created_at, id) ordering — rows with an id below
+        # the target survive, the target and larger-id rows are deleted. The id
+        # tiebreak is uuid4, NOT insertion order, so this is the deterministic
+        # behaviour, not a recovery of true conversation order (which cannot be
+        # recovered from a tie set with random PKs). Production avoids ties:
+        # every turn commits in its own transaction and forks copy the source's
+        # per-turn timestamps (see test_revert_forked_conversation_keeps_prefix).
+        user = await _seed_user()
+        conv = await _seed_conversation(user.id)
+        ids = sorted(uuid4() for _ in range(4))
+        async with session_module.async_session_factory() as session:
+            session.add_all(
+                Message(id=mid, conversation_id=conv.id, role="user", metadata_={})
+                for mid in ids
+            )
+            await session.commit()
+        target = ids[1]
+
+        async with session_module.async_session_factory() as session:
+            await revert_conversation_to_message(
+                session,
+                conversation_id=conv.id,
+                target_message_id=target,
+                user_id=user.id,
+            )
+            await session.commit()
+
+        async with session_module.async_session_factory() as session:
+            remaining = (
+                await session.scalars(
+                    select(Message).where(Message.conversation_id == conv.id),
+                )
+            ).all()
+        assert {m.id for m in remaining} == {ids[0]}
+
+    async def test_revert_forked_conversation_keeps_prefix(self) -> None:
+        # Production trigger: fork copies the whole prefix in one transaction.
+        # The copied messages must preserve the source's per-turn created_at
+        # so the fork has a well-defined order; reverting the fork to its
+        # second user turn then keeps the earlier copied turns.
+        user = await _seed_user()
+        source = await _seed_conversation(user.id)
+        src_msgs = await _seed_messages_distinct_ts(
+            source.id, ["user", "assistant", "user", "assistant"]
+        )
+
+        async with session_module.async_session_factory() as session:
+            fork = await fork_conversation(
+                session,
+                source_conversation_id=source.id,
+                from_message_id=src_msgs[-1].id,
+                user_id=user.id,
+            )
+            await session.commit()
+            fork_id = fork.id
+
+        async with session_module.async_session_factory() as session:
+            fork_rows = await MessagesRepository(
+                session
+            ).list_messages_for_conversation(fork_id)
+        assert [r.role for r in fork_rows] == [
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+        ]
+        second_user = fork_rows[2]
+
+        async with session_module.async_session_factory() as session:
+            await revert_conversation_to_message(
+                session,
+                conversation_id=fork_id,
+                target_message_id=second_user.id,
+                user_id=user.id,
+            )
+            await session.commit()
+
+        async with session_module.async_session_factory() as session:
+            remaining = await MessagesRepository(
+                session
+            ).list_messages_for_conversation(fork_id)
+        assert [r.id for r in remaining] == [r.id for r in fork_rows[:2]]
+
+    async def test_revert_into_branch_point_nulls_child_parent_message(
+        self,
+    ) -> None:
+        # Characterization: a child conversation branched at message X keeps a
+        # parent_message_id FK to X. Reverting the source past X deletes X; the
+        # FK is ondelete=SET NULL, so the child's parent_message_id becomes
+        # NULL (no IntegrityError, no dangling pointer) while
+        # parent_conversation_id survives — the branch is still attached to the
+        # source in the sidebar tree, it just loses its precise anchor row.
+        user = await _seed_user()
+        source = await _seed_conversation(user.id)
+        msgs = await _seed_messages_distinct_ts(
+            source.id, ["user", "assistant", "user", "assistant"]
+        )
+        branch_point = msgs[2]
+
+        async with session_module.async_session_factory() as session:
+            fork = await fork_conversation(
+                session,
+                source_conversation_id=source.id,
+                from_message_id=branch_point.id,
+                user_id=user.id,
+            )
+            await session.commit()
+            fork_id = fork.id
+
+        async with session_module.async_session_factory() as session:
+            await revert_conversation_to_message(
+                session,
+                conversation_id=source.id,
+                target_message_id=branch_point.id,
+                user_id=user.id,
+            )
+            await session.commit()
+
+        async with session_module.async_session_factory() as session:
+            child = await session.scalar(
+                select(Conversation).where(Conversation.id == fork_id),
+            )
+            assert child is not None
+            assert child.parent_message_id is None
+            assert child.parent_conversation_id == source.id
+            src_remaining = await MessagesRepository(
+                session
+            ).list_messages_for_conversation(source.id)
+        assert {m.id for m in src_remaining} == {msgs[0].id, msgs[1].id}
+
+    async def test_checkpoint_just_before_target_message_survives(self) -> None:
+        # Two clocks: checkpoint ts is app-side (LangGraph), message created_at
+        # is DB now(). Revert deletes checkpoints with ts >= the target's
+        # created_at. A checkpoint stamped a hair BEFORE the target message
+        # (clock skew, or a mid-turn checkpoint that preceded the message
+        # write) survives the revert even though it belongs to the deleted
+        # turn — leaving a checkpoint with no surviving message. Documented gap.
+        user = await _seed_user()
+        conv = await _seed_conversation(user.id)
+        keep = await _seed_message(conv.id, "user", "one")
+        target = await _seed_message(conv.id, "user", "two")
+        # cp_before: 1ms before target -> survives. cp_after: at target -> gone.
+        await _seed_checkpoint(
+            conv.id, target.created_at - timedelta(milliseconds=1), f"{0:032d}"
+        )
+        await _seed_checkpoint(conv.id, target.created_at, f"{1:032d}")
+
+        async with session_module.async_session_factory() as session:
+            await revert_conversation_to_message(
+                session,
+                conversation_id=conv.id,
+                target_message_id=target.id,
+                user_id=user.id,
+            )
+            await session.commit()
+
+        async with session_module.async_session_factory() as session:
+            rows = (
+                await session.execute(
+                    text(
+                        "SELECT checkpoint_id FROM checkpoints "
+                        "WHERE thread_id = :tid ORDER BY checkpoint_id",
+                    ),
+                    {"tid": str(conv.id)},
+                )
+            ).all()
+            msgs_left = await MessagesRepository(
+                session
+            ).list_messages_for_conversation(conv.id)
+        # The skewed checkpoint outlives its turn; only `keep`'s message remains.
+        assert [r[0] for r in rows] == [f"{0:032d}"]
+        assert {m.id for m in msgs_left} == {keep.id}
+
     async def test_wrong_user_raises(self) -> None:
         user = await _seed_user()
         conv = await _seed_conversation(user.id)
@@ -293,15 +495,40 @@ class TestRevertConversation:
                     user_id=uuid4(),
                 )
 
-    async def test_target_not_found_raises(self) -> None:
+    async def test_ghost_target_is_noop(self) -> None:
+        # A target that was never persisted (e.g. a rejected/failed send) is a
+        # no-op, not a 404 — the server is already at the pre-message state.
         user = await _seed_user()
         conv = await _seed_conversation(user.id)
+        kept = await _seed_message(conv.id, "user", "one")
+        async with session_module.async_session_factory() as session:
+            await revert_conversation_to_message(
+                session,
+                conversation_id=conv.id,
+                target_message_id=uuid4(),
+                user_id=user.id,
+            )
+            remaining = await session.scalar(
+                select(func.count())
+                .select_from(Message)
+                .where(
+                    Message.conversation_id == conv.id,
+                ),
+            )
+        assert remaining == 1
+        assert kept is not None
+
+    async def test_target_in_other_conversation_raises(self) -> None:
+        user = await _seed_user()
+        conv_a = await _seed_conversation(user.id)
+        conv_b = await _seed_conversation(user.id)
+        other = await _seed_message(conv_b.id, "user", "elsewhere")
         async with session_module.async_session_factory() as session:
             with pytest.raises(RevertError):
                 await revert_conversation_to_message(
                     session,
-                    conversation_id=conv.id,
-                    target_message_id=uuid4(),
+                    conversation_id=conv_a.id,
+                    target_message_id=other.id,
                     user_id=user.id,
                 )
 

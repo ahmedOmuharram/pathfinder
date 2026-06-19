@@ -74,6 +74,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     handleAddToChat,
     handleOpenDetails: handlers.handleOpenDetails,
     setSelectedNodeIds,
+    requestDelete: handlers.requestDelete,
   });
 
   useStepCounts({

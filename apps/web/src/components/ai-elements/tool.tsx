@@ -131,7 +131,8 @@ function renderOutputBody(output: ToolUIPart["output"]): ReactNode {
         const parsed: unknown = JSON.parse(trimmed);
         return <CodeBlock code={JSON.stringify(parsed, null, 2)} language="json" />;
       } catch {
-        // Not valid JSON — fall through to readable plain text.
+        // JSON-shaped but unparseable (e.g. clipped server-side): colorize anyway.
+        return <CodeBlock code={trimmed} language="json" />;
       }
     }
     return (

@@ -6,6 +6,7 @@ import { useReactFlow } from "@xyflow/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEventListener } from "usehooks-ts";
 import type { Step, Strategy } from "@pathfinder/shared";
+import type { StepNodeData } from "@/features/strategy/graph/components/nodes/types";
 import { useStrategyHistory } from "@/state/useStrategySelectors";
 import { useStrategyCacheUtils } from "@/lib/api/strategy";
 import { useNodePositionHistory } from "@/features/strategy/graph/hooks/useNodePositionHistory";
@@ -14,7 +15,10 @@ import {
   layoutStrategyGraph,
   type StepPositions,
 } from "@/lib/strategyGraph";
-import { useUpdateStepMutation } from "@/features/strategy/mutations";
+import {
+  useDuplicateStepMutation,
+  useUpdateStepMutation,
+} from "@/features/strategy/mutations";
 import { useApplyOperation } from "@/features/strategy/mutations/useApplyOperation";
 import { serializeStrategyAst } from "@/lib/strategyGraph/serialize";
 
@@ -28,6 +32,8 @@ interface UseStrategyGraphLayoutOptions {
   handleAddToChat: (stepId: string) => void;
   handleOpenDetails: (stepId: string) => void;
   setSelectedNodeIds: (ids: string[]) => void;
+  /** Opens the delete-resolution flow; wired into each node's kebab. */
+  requestDelete: (stepId: string) => void;
 }
 
 function layoutTopologyKey(strategy: Strategy | null): string {
@@ -48,6 +54,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     handleAddToChat,
     handleOpenDetails,
     setSelectedNodeIds,
+    requestDelete,
   } = options;
 
   const [layoutSeed, setLayoutSeed] = useState(0);
@@ -61,6 +68,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   const conversationId = strategy?.id ?? "";
   const cache = useStrategyCacheUtils();
   const updateStepMutation = useUpdateStepMutation(conversationId);
+  const duplicateStepMutation = useDuplicateStepMutation(conversationId);
   const apply = useApplyOperation(conversationId);
   const { undo, redo, canUndo, canRedo } = useStrategyHistory(conversationId);
 
@@ -158,7 +166,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
       if (forceRelayout) {
         deserializeOpts.forceRelayout = true;
       }
-      const { nodes: newNodes, edges: newEdges } = deserializeStrategyToGraph(
+      const { nodes: rawNodes, edges: newEdges } = deserializeStrategyToGraph(
         strategy,
         (stepId, operator) => {
           const patch: Partial<Step> = { operator };
@@ -169,6 +177,20 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
         undefined,
         deserializeOpts,
       );
+      // deserialize only wires operator/add-to-chat/open-details callbacks;
+      // deserialize wires operator/add-to-chat/open-details; attach the
+      // node-level delete/duplicate/rename actions here so the kebab items +
+      // inline rename aren't dead affordances.
+      const newNodes = rawNodes.map((node) => ({
+        ...node,
+        data: {
+          ...(node.data as StepNodeData),
+          onDelete: requestDelete,
+          onDuplicate: (stepId: string) => duplicateStepMutation.mutate({ stepId }),
+          onRename: (stepId: string, nextName: string) =>
+            updateStepMutation.mutate({ stepId, patch: { displayName: nextName } }),
+        },
+      }));
       setNodes(newNodes);
       setEdges(newEdges);
       if (forceRelayout) {

@@ -92,6 +92,11 @@ def stub_api(monkeypatch: pytest.MonkeyPatch) -> _StubAPI:
     monkeypatch.setattr(step_wdk_push, "get_strategy_api", lambda _site_id: api)
     monkeypatch.setattr(sync_module, "get_strategy_api", lambda _site_id: api)
 
+    async def _noop_validate(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(step_wdk_push, "_validate_plan_params", _noop_validate)
+
     async def _noop_reconcile(*_args: Any, **_kwargs: Any) -> None:
         return None
 

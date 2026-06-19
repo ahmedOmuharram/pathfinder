@@ -75,13 +75,15 @@ async def retrieve_relevant_memories(
     query: str,
     site_id: str | None,
     top_k: int = 8,
-) -> list[MemoryValue]:
+) -> list[StoredMemory]:
     """Search every auto-retrieve-enabled namespace, rerank by hybrid score.
 
     Each namespace is queried for up to ``top_k // 2`` hits; candidates are
     filtered by ``auto_retrieve`` + site compatibility, then scored via
     :func:`hybrid_score` using the HNSW cosine similarity as the
-    ``semantic`` signal. The global top ``top_k`` is returned.
+    ``semantic`` signal. Returns the global top ``top_k`` as
+    :class:`StoredMemory` (carrying ``key`` + ``score`` for display) — call
+    ``.value`` for the bare :class:`MemoryValue`.
     """
     per_kind = max(1, top_k // 2)
     all_hits: list[StoredMemory] = []
@@ -103,4 +105,4 @@ async def retrieve_relevant_memories(
                 continue
             all_hits.append(stored)
     reranked = rerank_by_hybrid_score(all_hits)
-    return [stored.value for stored in reranked[:top_k]]
+    return reranked[:top_k]

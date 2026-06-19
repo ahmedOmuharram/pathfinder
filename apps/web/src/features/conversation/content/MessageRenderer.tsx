@@ -4,7 +4,7 @@ import {
   ActionBarPrimitive,
   ComposerPrimitive,
   MessagePrimitive,
-  useMessage,
+  useAuiState,
   type DataMessagePartComponent,
   type ReasoningMessagePartComponent,
   type TextMessagePartComponent,
@@ -56,6 +56,8 @@ import { humanizeToolName } from "@/lib/utils/toolNames";
 import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
 import { DataPartRenderer } from "./DataPartRenderer";
 import { ModelBadge } from "./ModelBadge";
+import { ConsultCarousel } from "./parts/ConsultCarousel";
+import { PlanCarousel } from "./parts/PlanCarousel";
 import { StoppedNotice } from "./StoppedNotice";
 import { dataPartComponents } from "./contentComponents";
 import { ToolThink } from "./parts/ToolThink";
@@ -126,6 +128,12 @@ for (const kind of Object.keys(dataPartComponents)) {
   )) as DataMessagePartComponent<unknown>;
 }
 
+// Control parts the carousel attaches to the message to transmit the user's
+// answers to the backend — they carry no UI of their own.
+const noRender = (() => null) as DataMessagePartComponent<unknown>;
+dataByName["plan-slot-answers"] = noRender;
+dataByName["decision-answers"] = noRender;
+
 const reportedUnknownDataKinds = new Set<string>();
 
 const UnknownDataPartError: DataMessagePartComponent<unknown> = ({ name }) => {
@@ -143,7 +151,10 @@ const UnknownDataPartError: DataMessagePartComponent<unknown> = ({ name }) => {
 const contentComponents = {
   Text,
   Reasoning: ReasoningPart,
-  tools: { by_name: { think: ToolThink }, Fallback: ToolCall },
+  tools: {
+    by_name: { think: ToolThink, submit_plan_for_approval: () => null },
+    Fallback: ToolCall,
+  },
   data: { by_name: dataByName, Fallback: UnknownDataPartError },
 } as const;
 
@@ -180,7 +191,7 @@ export function UserMessage() {
 }
 
 export function UserEditComposer() {
-  const isLast = useMessage((s) => s.isLast);
+  const isLast = useAuiState((s) => s.message.isLast);
   return (
     <motion.div {...MESSAGE_FADE_IN}>
       <Message from="user">
@@ -230,10 +241,7 @@ function selectAssistantErrorDetail(m: ThreadMessage): string | null {
 }
 
 function AssistantErrorCard() {
-  const detail = useMessage({
-    optional: true,
-    selector: selectAssistantErrorDetail,
-  });
+  const detail = useAuiState((s) => selectAssistantErrorDetail(s.message));
   if (typeof detail !== "string") return null;
   return (
     <div
@@ -263,10 +271,7 @@ function selectAssistantStopped(m: ThreadMessage): boolean {
 }
 
 function AssistantStoppedNotice() {
-  const stopped = useMessage({
-    optional: true,
-    selector: selectAssistantStopped,
-  });
+  const stopped = useAuiState((s) => selectAssistantStopped(s.message));
   if (stopped !== true) return null;
   return <StoppedNotice />;
 }
@@ -278,6 +283,8 @@ export function AssistantMessage() {
         <MessageContent>
           <ModelBadge />
           <MessagePrimitive.Content components={contentComponents} />
+          <ConsultCarousel />
+          <PlanCarousel />
           <AssistantThinkingPlaceholder />
           <AssistantErrorCard />
           <AssistantStoppedNotice />

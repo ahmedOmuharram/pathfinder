@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { Experiment } from "@pathfinder/shared";
@@ -155,8 +154,14 @@ describe("ConfidencePanel", () => {
       expect(screen.getByRole("table")).toBeTruthy();
     });
 
-    expect(screen.getByText("G1")).toBeTruthy();
-    expect(screen.getByText("G2")).toBeTruthy();
+    // Each row renders its real scores: composite .toFixed(3), classification
+    // .toFixed(1) — G1 a confident TP (+1 → 0.333), G2 an FP (-1 → -0.333).
+    const g1Row = screen.getByText("G1").closest("tr");
+    expect(g1Row).toHaveTextContent("0.333");
+    expect(g1Row).toHaveTextContent("1.0");
+    const g2Row = screen.getByText("G2").closest("tr");
+    expect(g2Row).toHaveTextContent("-0.333");
+    expect(g2Row).toHaveTextContent("-1.0");
   });
 
   it("sends correct request body with gene IDs", async () => {

@@ -25,9 +25,9 @@ async def purge_user_data_endpoint(
 ) -> JSONObject:
     """Purge user data from all local stores.
 
-    When ``deleteWdk=false`` (default): non-WDK chats are hard-deleted,
-    WDK-linked chats are **dismissed** so WDK sync won't re-import them.
-    The strategies remain on VEuPathDB but PathFinder ignores them.
+    When ``deleteWdk=false`` (default): every chat is **dismissed** (soft
+    delete) so WDK sync won't re-import them; the strategies remain on
+    VEuPathDB but PathFinder ignores them. Nothing is hard-deleted.
 
     When ``deleteWdk=true``: everything is hard-deleted locally AND all
     WDK strategies are deleted from VEuPathDB.

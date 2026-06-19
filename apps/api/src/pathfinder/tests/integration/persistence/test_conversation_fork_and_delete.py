@@ -23,6 +23,7 @@ from langgraph.checkpoint.base import (
     CheckpointTuple,
 )
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1646,6 +1647,314 @@ async def test_fork_copies_scratchpad_notes_with_fresh_ids(
     assert src_note_2.id in src_ids
     assert src_note_1.id not in fork_ids
     assert src_note_2.id not in fork_ids
+
+
+def _three_step_combine_ast() -> dict[str, object]:
+    """A realistic built strategy_ast: INTERSECT over two leaf searches.
+
+    Mirrors what the execution phase persists: a ``root`` combine node whose
+    primary input is a ``GenesByTaxon`` leaf and secondary input is a
+    ``GenesByText`` leaf, plus a ``wdkStepIds`` map from local ids to live
+    WDK step ids. Used to prove the fork copies the AST as an independent
+    deep structure (no aliasing back into the parent row).
+    """
+    return {
+        "recordType": "transcript",
+        "name": "Pf erythrocytic invasion",
+        "root": {
+            "id": "step_combine",
+            "searchName": "__combine__",
+            "operator": "INTERSECT",
+            "parameters": {},
+            "primaryInput": {
+                "id": "step_taxon",
+                "searchName": "GenesByTaxon",
+                "parameters": {"organism": "Plasmodium falciparum 3D7"},
+            },
+            "secondaryInput": {
+                "id": "step_text",
+                "searchName": "GenesByText",
+                "parameters": {"text_expression": "invasion"},
+            },
+        },
+        "wdkStepIds": {
+            "step_combine": 9000,
+            "step_taxon": 9001,
+            "step_text": 9002,
+        },
+    }
+
+
+class _AstLeaf(BaseModel):
+    """Typed view of a leaf step in the persisted fork AST (camelCase JSON)."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    id: str
+    search_name: str = Field(alias="searchName")
+    parameters: dict[str, str] = Field(default_factory=dict)
+
+
+class _AstRoot(BaseModel):
+    """Typed view of the persisted combine root for assertion (no dict chains)."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    id: str
+    operator: str
+    primary_input: _AstLeaf = Field(alias="primaryInput")
+    secondary_input: _AstLeaf = Field(alias="secondaryInput")
+
+
+class _AstView(BaseModel):
+    """Typed view of the persisted ``strategy_ast`` JSON blob."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    root: _AstRoot
+    wdk_step_ids: dict[str, int] | None = Field(default=None, alias="wdkStepIds")
+
+
+async def _seed_conversation_with_ast(
+    session: AsyncSession,
+    *,
+    conversation_id: UUID,
+    user_id: UUID,
+    ast: dict[str, object],
+    imported_saved_strategy_ids: list[int] | None = None,
+) -> None:
+    session.add(
+        Conversation(
+            id=conversation_id,
+            user_id=user_id,
+            site_id="plasmodb",
+            name="root",
+            record_type="transcript",
+            strategy_ast=ast,
+            step_count=3,
+            imported_saved_strategy_ids=imported_saved_strategy_ids or [],
+        ),
+    )
+    await session.flush()
+
+
+async def test_fork_copies_ast_as_independent_deep_structure(
+    patch_app_db_engine: None,
+    db_cleaner: None,
+) -> None:
+    """Forking a built strategy must deep-copy the AST.
+
+    ``fork_conversation`` shallow-copies ``strategy_ast`` with
+    ``dict(source.strategy_ast)``. Nested mutable structures (``root``
+    subtree, ``wdkStepIds``) must not remain aliased to the parent row —
+    otherwise mutating the fork's tree corrupts the parent's strategy.
+
+    Source has no WDK strategy id, so the WDK-duplication path is skipped
+    and ``wdkStepIds`` is stripped from the fork (documented no-WDK fork
+    fallback). The ``root`` topology, operator, and params must survive the
+    copy verbatim, and the parent must stay byte-identical.
+    """
+    del patch_app_db_engine, db_cleaner
+    user_id = uuid4()
+    source_id = uuid4()
+    ast = _three_step_combine_ast()
+
+    async with session_module.async_session_factory() as session:
+        await _seed_user(session, user_id)
+        await _seed_conversation_with_ast(
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
+            ast=ast,
+        )
+        anchor_id = await _insert_message(
+            MessagesRepository(session),
+            conv_id=source_id,
+            role="assistant",
+            text="built",
+        )
+        await session.commit()
+
+    async with session_module.async_session_factory() as session:
+        fork = await fork_conversation(
+            session,
+            source_conversation_id=source_id,
+            from_message_id=anchor_id,
+            user_id=user_id,
+        )
+        await session.commit()
+        fork_id = fork.id
+
+    async with session_module.async_session_factory() as session:
+        forked = await session.scalar(
+            select(Conversation).where(Conversation.id == fork_id),
+        )
+        assert forked is not None
+        fork_view = _AstView.model_validate(forked.strategy_ast)
+        # Topology + operator + params preserved verbatim.
+        assert fork_view.root.id == "step_combine"
+        assert fork_view.root.operator == "INTERSECT"
+        assert fork_view.root.primary_input.search_name == "GenesByTaxon"
+        assert fork_view.root.primary_input.parameters["organism"] == (
+            "Plasmodium falciparum 3D7"
+        )
+        assert fork_view.root.secondary_input.search_name == "GenesByText"
+        assert fork_view.root.secondary_input.parameters["text_expression"] == (
+            "invasion"
+        )
+        # No WDK strategy → wdkStepIds stripped (no-WDK fork fallback).
+        assert fork_view.wdk_step_ids is None
+        assert forked.wdk_strategy_id is None
+        assert forked.record_type == "transcript"
+
+        # Mutate the fork's persisted AST and write it back. Reassigning
+        # ``strategy_ast`` (rather than mutating in place) is required for
+        # SQLAlchemy to flag the JSON column dirty.
+        mutated_root = fork_view.root.model_copy(update={"operator": "UNION"})
+        forked.strategy_ast = {
+            "recordType": "transcript",
+            "root": mutated_root.model_dump(by_alias=True),
+        }
+        await session.commit()
+
+    # The parent strategy must be completely untouched by mutating the fork.
+    async with session_module.async_session_factory() as session:
+        parent = await session.scalar(
+            select(Conversation).where(Conversation.id == source_id),
+        )
+        assert parent is not None
+        parent_view = _AstView.model_validate(parent.strategy_ast)
+        assert parent_view.root.operator == "INTERSECT", (
+            "fork mutation leaked into the parent strategy AST — shallow "
+            "copy aliased the nested root subtree"
+        )
+        assert parent_view.root.primary_input.parameters["organism"] == (
+            "Plasmodium falciparum 3D7"
+        )
+        # Parent keeps its own wdkStepIds map untouched.
+        assert parent_view.wdk_step_ids == {
+            "step_combine": 9000,
+            "step_taxon": 9001,
+            "step_text": 9002,
+        }
+
+
+async def test_fork_imported_saved_strategy_ids_is_independent_list(
+    patch_app_db_engine: None,
+    db_cleaner: None,
+) -> None:
+    """The fork's ``imported_saved_strategy_ids`` is a fresh list copy.
+
+    Appending to the fork's list must not extend the parent's (lead #4:
+    shared-by-reference artifact corruption).
+    """
+    del patch_app_db_engine, db_cleaner
+    user_id = uuid4()
+    source_id = uuid4()
+
+    async with session_module.async_session_factory() as session:
+        await _seed_user(session, user_id)
+        await _seed_conversation_with_ast(
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
+            ast=_three_step_combine_ast(),
+            imported_saved_strategy_ids=[5001, 5002],
+        )
+        anchor_id = await _insert_message(
+            MessagesRepository(session),
+            conv_id=source_id,
+            role="assistant",
+            text="built",
+        )
+        await session.commit()
+
+    async with session_module.async_session_factory() as session:
+        fork = await fork_conversation(
+            session,
+            source_conversation_id=source_id,
+            from_message_id=anchor_id,
+            user_id=user_id,
+        )
+        await session.commit()
+        fork_id = fork.id
+
+    async with session_module.async_session_factory() as session:
+        forked = await session.scalar(
+            select(Conversation).where(Conversation.id == fork_id),
+        )
+        assert forked is not None
+        assert forked.imported_saved_strategy_ids == [5001, 5002]
+        forked.imported_saved_strategy_ids = [*forked.imported_saved_strategy_ids, 5003]
+        await session.commit()
+
+    async with session_module.async_session_factory() as session:
+        parent = await session.scalar(
+            select(Conversation).where(Conversation.id == source_id),
+        )
+        assert parent is not None
+        assert parent.imported_saved_strategy_ids == [5001, 5002], (
+            "fork's consumer-id append leaked into the parent conversation"
+        )
+
+
+async def test_fork_at_middle_message_excludes_later_messages(
+    patch_app_db_engine: None,
+    db_cleaner: None,
+) -> None:
+    """Branch-at-message boundary is inclusive of the anchor, exclusive after.
+
+    Four messages u1/a1(anchor)/u2/a2: forking at a1 must copy exactly
+    {u1, a1} and drop {u2, a2} (lead #3: off-by-one on the branch boundary).
+    """
+    del patch_app_db_engine, db_cleaner
+    user_id = uuid4()
+    source_id = uuid4()
+
+    async with session_module.async_session_factory() as session:
+        await _seed_user(session, user_id)
+        await _seed_conversation(session, conversation_id=source_id, user_id=user_id)
+        await session.commit()
+
+    msg_ids: list[UUID] = []
+    for role in ("user", "assistant", "user", "assistant"):
+        async with session_module.async_session_factory() as session:
+            mid = await _insert_message(
+                MessagesRepository(session),
+                conv_id=source_id,
+                role=role,
+                text=role,
+            )
+            msg_ids.append(mid)
+            await session.commit()
+
+    anchor_id = msg_ids[1]  # the first assistant message
+
+    async with session_module.async_session_factory() as session:
+        fork = await fork_conversation(
+            session,
+            source_conversation_id=source_id,
+            from_message_id=anchor_id,
+            user_id=user_id,
+        )
+        await session.commit()
+        fork_id = fork.id
+
+    async with session_module.async_session_factory() as session:
+        rows = await MessagesRepository(session).list_messages_for_conversation(fork_id)
+        assert [r.role for r in rows] == ["user", "assistant"], (
+            "fork must copy exactly the anchor prefix, not later messages"
+        )
+        # Parent retains all four messages, untouched.
+        src_rows = await MessagesRepository(session).list_messages_for_conversation(
+            source_id,
+        )
+        assert [r.role for r in src_rows] == [
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+        ]
 
 
 async def test_fork_rewrites_scratchpad_ids_in_copied_chunks(

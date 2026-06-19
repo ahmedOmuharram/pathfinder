@@ -81,8 +81,21 @@ async def search_for_searches(
     )
     results: list[JSONObject] = cast("list[JSONObject]", [m.to_dict() for m in matches])
 
+    decided = ctx.deps.agent_state.decided_search_names()
+    hidden = sorted({str(r["name"]) for r in results if str(r["name"]) in decided})
+    results = [r for r in results if str(r["name"]) not in decided]
+
     seen = {str(r["name"]) for r in results}
     results.extend(u for u in _UNIVERSAL_SEARCHES if str(u["name"]) not in seen)
+
+    if hidden:
+        note: JSONObject = {
+            "note": (
+                f"{len(hidden)} already-decided search(es) hidden: {hidden}. "
+                "You've already recorded a decision on these — don't re-evaluate."
+            ),
+        }
+        results.append(note)
 
     return results
 
@@ -119,7 +132,9 @@ async def list_searches(
         ctx: Agent run context.
         record_type: Record type. Defaults to 'transcript' (gene searches).
     """
-    return await catalog.list_searches(ctx.deps.site_id, record_type)
+    rows = await catalog.list_searches(ctx.deps.site_id, record_type)
+    decided = ctx.deps.agent_state.decided_search_names()
+    return [r for r in rows if r.get("name") not in decided]
 
 
 async def list_transforms(

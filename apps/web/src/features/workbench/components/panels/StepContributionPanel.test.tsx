@@ -222,7 +222,10 @@ describe("StepContributionPanel", () => {
 
     render(<StepContributionPanel />);
     expect(screen.getByText("Step Contributions")).toBeTruthy();
-    expect(screen.getByText("GenesByTaxon")).toBeTruthy();
+    // The row shows the real recall delta (-0.3 → "-0.300") + verdict badge.
+    const row = screen.getByText("GenesByTaxon").closest("tr");
+    expect(row).toHaveTextContent("-0.300");
+    expect(row).toHaveTextContent("essential");
   });
 
   it("color-codes verdict badges correctly", () => {
@@ -261,8 +264,11 @@ describe("StepContributionPanel", () => {
 
     render(<StepContributionPanel />);
     expect(screen.getByText("Operator Comparisons")).toBeTruthy();
-    expect(screen.getByText("intersect")).toBeTruthy();
-    expect(screen.getByText("union")).toBeTruthy();
+    // Each operator row shows its real .toFixed(2) metrics.
+    expect(screen.getByText("intersect").closest("tr")).toHaveTextContent("0.85");
+    const unionRow = screen.getByText("union").closest("tr");
+    expect(unionRow).toHaveTextContent("0.96");
+    expect(unionRow).toHaveTextContent("0.70");
   });
 
   it("does not render operator comparison section when empty", () => {

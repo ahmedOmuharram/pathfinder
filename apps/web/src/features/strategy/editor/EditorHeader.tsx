@@ -68,7 +68,7 @@ export function EditorHeader({
   };
 
   return (
-    <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+    <div className="flex items-center gap-2 border-b border-border py-3 pl-4 pr-12">
       <Badge
         variant="secondary"
         className={cn("uppercase tracking-wide", KIND_BG[kind])}

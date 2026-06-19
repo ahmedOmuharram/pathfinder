@@ -146,6 +146,70 @@ def test_unresolved_slot_blocks_conversion() -> None:
         build_step_tree_from_plan(plan)
 
 
+def test_two_connections_same_slot_rejected() -> None:
+    """Two connections claiming the same input slot must not silently drop one.
+
+    ``verify_topology`` only counts inbound edges (2 == combine arity) so it
+    cannot catch a slot collision. Without slot validation, the second
+    connection overwrites the first in ``_index_inputs_by_step`` and the
+    combine is built with a single input — a malformed tree that WDK rejects.
+    """
+    plan = _plan(
+        steps=[
+            _leaf("step_a", search_name="GenesByText", params={"q": "kinase"}),
+            _leaf("step_b", search_name="GenesByGoTerm", params={"go": "GO:0001"}),
+            _combine("step_c", operator="INTERSECT"),
+        ],
+        conns=[
+            PlannedConnection(
+                from_step="step_a",
+                to_step="step_c",
+                input_type="primary",
+                operator="INTERSECT",
+            ),
+            PlannedConnection(
+                from_step="step_b",
+                to_step="step_c",
+                input_type="primary",
+                operator="INTERSECT",
+            ),
+        ],
+    )
+    with pytest.raises(PlanTopologyError, match="primary"):
+        build_step_tree_from_plan(plan)
+
+
+def test_unknown_input_type_rejected() -> None:
+    """A connection with a non-canonical ``input_type`` must be rejected.
+
+    Silently coercing ``"left"``/``"right"`` to ``"primary"`` collides both
+    connections into one slot and drops a step.
+    """
+    plan = _plan(
+        steps=[
+            _leaf("step_a", search_name="GenesByText", params={"q": "kinase"}),
+            _leaf("step_b", search_name="GenesByGoTerm", params={"go": "GO:0001"}),
+            _combine("step_c", operator="UNION"),
+        ],
+        conns=[
+            PlannedConnection(
+                from_step="step_a",
+                to_step="step_c",
+                input_type="left",
+                operator="UNION",
+            ),
+            PlannedConnection(
+                from_step="step_b",
+                to_step="step_c",
+                input_type="right",
+                operator="UNION",
+            ),
+        ],
+    )
+    with pytest.raises(PlanTopologyError, match="input_type"):
+        build_step_tree_from_plan(plan)
+
+
 def test_default_and_user_set_values_pass_through() -> None:
     step = PlannedStep(
         id="step_a",

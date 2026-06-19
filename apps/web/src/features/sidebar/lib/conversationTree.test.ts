@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
 
-import { countDescendants, toTreeRoots } from "./conversationTree";
+import { toTreeRoots } from "./conversationTree";
 
 function makeItem(
   partial: Pick<ConversationItem, "id" | "updatedAt"> &
@@ -120,41 +120,5 @@ describe("toTreeRoots", () => {
     expect(roots[0]?.item.id).toBe("a");
     expect(roots[0]?.children[0]?.item.id).toBe("b");
     expect(roots[0]?.children[0]?.children[0]?.item.id).toBe("c");
-  });
-});
-
-describe("countDescendants", () => {
-  it("returns 0 for a leaf", () => {
-    const a = makeItem({ id: "a", updatedAt: "2026-04-10T00:00:00Z" });
-    expect(countDescendants("a", [a])).toBe(0);
-  });
-
-  it("counts direct children", () => {
-    const items = [
-      makeItem({ id: "a", updatedAt: "t" }),
-      makeItem({ id: "b", updatedAt: "t", parentConversationId: "a" }),
-      makeItem({ id: "c", updatedAt: "t", parentConversationId: "a" }),
-    ];
-    expect(countDescendants("a", items)).toBe(2);
-  });
-
-  it("counts transitive descendants", () => {
-    const items = [
-      makeItem({ id: "a", updatedAt: "t" }),
-      makeItem({ id: "b", updatedAt: "t", parentConversationId: "a" }),
-      makeItem({ id: "c", updatedAt: "t", parentConversationId: "b" }),
-      makeItem({ id: "d", updatedAt: "t", parentConversationId: "c" }),
-    ];
-    expect(countDescendants("a", items)).toBe(3);
-  });
-
-  it("ignores unrelated conversations", () => {
-    const items = [
-      makeItem({ id: "a", updatedAt: "t" }),
-      makeItem({ id: "b", updatedAt: "t", parentConversationId: "a" }),
-      makeItem({ id: "other", updatedAt: "t" }),
-    ];
-    expect(countDescendants("a", items)).toBe(1);
-    expect(countDescendants("other", items)).toBe(0);
   });
 });

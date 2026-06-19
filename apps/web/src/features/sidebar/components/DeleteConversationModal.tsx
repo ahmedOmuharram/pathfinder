@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { siteDisplayName } from "@pathfinder/shared";
 
 import {
   Dialog,
@@ -16,30 +17,28 @@ import type { ConversationItem } from "@/features/sidebar/components/conversatio
 interface DeleteConversationModalProps {
   target: ConversationItem | null;
   isDeleting: boolean;
-  /** Count of descendant conversations in this branch's subtree. */
-  descendantCount: number;
   onClose: () => void;
-  onConfirmDelete: (options: { cascade: boolean }) => void;
+  onConfirmDelete: (options: { deleteLinkedStrategy: boolean }) => void;
 }
 
 export function DeleteConversationModal({
   target,
   isDeleting,
-  descendantCount,
   onClose,
   onConfirmDelete,
 }: DeleteConversationModalProps) {
-  const [cascade, setCascade] = useState(false);
+  const [deleteLinkedStrategy, setDeleteLinkedStrategy] = useState(false);
   const [lastTargetId, setLastTargetId] = useState<string | null>(null);
 
-  // Reset cascade whenever the target changes (render-time, no effect).
+  // Reset the opt-in whenever the target changes (render-time, no effect).
   const currentId = target?.id ?? null;
   if (currentId !== lastTargetId) {
     setLastTargetId(currentId);
-    if (cascade) setCascade(false);
+    if (deleteLinkedStrategy) setDeleteLinkedStrategy(false);
   }
 
-  const hasChildren = descendantCount > 0;
+  const hasStrategy = target?.chat.wdkStrategyId != null;
+  const dbName = target != null ? siteDisplayName(target.siteId) : "";
 
   return (
     <Dialog
@@ -56,26 +55,23 @@ export function DeleteConversationModal({
             <span className="font-semibold text-foreground">
               &ldquo;{target?.title}&rdquo;
             </span>
-            ? This cannot be undone.
+            ? It moves to Recently deleted and can be restored later.
           </DialogDescription>
         </DialogHeader>
-        {hasChildren && (
+        {hasStrategy && (
           <label className="mt-2 flex cursor-pointer items-start gap-2 rounded-md border border-border p-3 text-sm">
             <input
               type="checkbox"
-              checked={cascade}
-              onChange={(e) => setCascade(e.target.checked)}
+              checked={deleteLinkedStrategy}
+              onChange={(e) => setDeleteLinkedStrategy(e.target.checked)}
               disabled={isDeleting}
               className="mt-0.5 h-4 w-4 rounded border-input"
             />
             <div className="space-y-0.5">
-              <div className="font-medium">
-                Also delete {descendantCount} sub-
-                {descendantCount === 1 ? "branch" : "branches"}
-              </div>
+              <div className="font-medium">Also delete strategy from {dbName}</div>
               <p className="text-xs text-muted-foreground">
-                Unchecked: sub-branches move up one level and keep their fork point.
-                Checked: the whole subtree is removed.
+                Permanently removes the linked strategy from {dbName}. This cannot be
+                undone, and the conversation will not be recoverable.
               </p>
             </div>
           </label>
@@ -92,7 +88,7 @@ export function DeleteConversationModal({
           <Button
             type="button"
             variant="destructive"
-            onClick={() => onConfirmDelete({ cascade })}
+            onClick={() => onConfirmDelete({ deleteLinkedStrategy })}
             disabled={isDeleting}
           >
             {isDeleting ? "Deleting..." : "Delete"}

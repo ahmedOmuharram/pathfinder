@@ -2,7 +2,6 @@ import { createPersistedStore } from "./middleware";
 
 export const RIGHT_RAIL_PANELS = [
   "strategy",
-  "plan",
   "tasks",
   "memories",
   "scratchpad",
@@ -13,7 +12,6 @@ export type RightRailPanel = (typeof RIGHT_RAIL_PANELS)[number];
 
 interface LastSeen {
   strategyStepCount: number;
-  planId: string | null;
   ledgerCount: number;
   scratchpadCount: number;
   taskCount: number;
@@ -22,7 +20,6 @@ interface LastSeen {
 
 const DEFAULT_LAST_SEEN: LastSeen = {
   strategyStepCount: 0,
-  planId: null,
   ledgerCount: 0,
   scratchpadCount: 0,
   taskCount: 0,
@@ -39,11 +36,7 @@ interface RightRailState {
   togglePanel: (panel: RightRailPanel, markers: Partial<LastSeen>) => void;
   closePanel: () => void;
   autoOpen: (conversationId: string, panel: RightRailPanel) => void;
-  markLedgerTabSeen: (
-    conversationId: string,
-    tab: string,
-    signature: string,
-  ) => void;
+  markLedgerTabSeen: (conversationId: string, tab: string, signature: string) => void;
 }
 
 export const useRightRailStore = createPersistedStore<RightRailState>(

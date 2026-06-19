@@ -1,0 +1,137 @@
+"""Live WDK round-trip: organism multi-pick survives build → read → decode.
+
+Gated on WDK_TEST_EMAIL/WDK_TEST_PASSWORD (skipped when unset).
+"""
+
+from __future__ import annotations
+
+import os
+from collections.abc import AsyncGenerator
+from uuid import uuid4
+
+import httpx
+import pytest
+from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from pathfinder.domain.parameters.values import MultiPickValue
+from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
+from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph
+from pathfinder.integrations.veupathdb.factory import get_strategy_api
+from pathfinder.persistence.models import Conversation, User
+from pathfinder.platform.context import veupathdb_auth_token_ctx
+from pathfinder.platform.db import async_session_factory
+from pathfinder.services.strategies.context import StrategyMutationContext
+from pathfinder.services.strategies.session_factory import build_strategy_session
+from pathfinder.services.strategies.spec_build import build_strategy_from_spec
+from pathfinder.services.strategies.wdk_conversion import (
+    build_snapshot_from_wdk,
+    canonicalize_synced_parameters,
+)
+
+pytestmark = [pytest.mark.live_wdk, pytest.mark.asyncio]
+
+_ORGANISM = "Plasmodium falciparum 3D7"
+
+
+def _creds() -> tuple[str, str]:
+    email = os.environ.get("WDK_TEST_EMAIL", "")
+    password = os.environ.get("WDK_TEST_PASSWORD", "")
+    if not email or not password:
+        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
+    return email, password
+
+
+@pytest.fixture
+async def db_session(
+    session_maker: async_sessionmaker[AsyncSession],
+    db_cleaner: None,
+) -> AsyncGenerator[AsyncSession]:
+    del db_cleaner
+    async with session_maker() as session:
+        yield session
+
+
+async def _real_account_token(app: FastAPI, email: str, password: str) -> str:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    ) as client:
+        resp = await client.post(
+            "/api/v1/veupathdb/auth/login",
+            params={"siteId": "plasmodb"},
+            json={"email": email, "password": password},
+        )
+        assert resp.status_code == 200, resp.text
+        token = client.cookies.get("Authorization")
+    assert token, "login did not set an Authorization cookie"
+    return token
+
+
+async def test_organism_multipick_survives_wdk_roundtrip(
+    app: FastAPI,
+    patch_app_db_engine: None,
+    db_session: AsyncSession,
+) -> None:
+    del patch_app_db_engine
+    email, password = _creds()
+    token = await _real_account_token(app, email, password)
+
+    user_id = uuid4()
+    conv_id = uuid4()
+    db_session.add(User(id=user_id))
+    db_session.add(
+        Conversation(id=conv_id, user_id=user_id, site_id="plasmodb", name="rt")
+    )
+    await db_session.commit()
+
+    reset = veupathdb_auth_token_ctx.set(token)
+    wdk_strategy_id: int | None = None
+    try:
+        session = build_strategy_session(
+            site_id="plasmodb",
+            strategy_graph=PersistedStrategyGraph(
+                id=str(conv_id), name="rt", strategy_ast=None, wdk_strategy_id=None
+            ),
+        )
+        root = StrategyStepNode(
+            id="g1",
+            search_name="GenesByTaxon",
+            parameters={"organism": MultiPickValue(values=[_ORGANISM])},
+        )
+        outcome = await build_strategy_from_spec(
+            deps=StrategyMutationContext(
+                site_id="plasmodb",
+                strategy_session=session,
+                conversation_id=conv_id,
+                db_session_factory=async_session_factory,
+            ),
+            root=root,
+            name="rt",
+        )
+        assert outcome.failed_steps == [], outcome.failed_steps
+        wdk_strategy_id = outcome.wdk_strategy_id
+        assert wdk_strategy_id is not None
+
+        api = get_strategy_api("plasmodb")
+        saved = await api.get_strategy(wdk_strategy_id)
+        ast, wire_by_step_id = build_snapshot_from_wdk(saved)
+
+        leaf_wire = next(
+            params for params in wire_by_step_id.values() if "organism" in params
+        )
+        assert leaf_wire["organism"] != "", (
+            f"WDK returned an empty organism wire value: {leaf_wire!r}"
+        )
+
+        await canonicalize_synced_parameters(ast, api, wire_by_step_id)
+        leaf = next(
+            s for s in walk_step_tree(ast.root) if s.search_name == "GenesByTaxon"
+        )
+        assert leaf.parameters.get("organism") == MultiPickValue(values=[_ORGANISM])
+    finally:
+        if wdk_strategy_id is not None:
+            await get_strategy_api("plasmodb").delete_strategy(wdk_strategy_id)
+        veupathdb_auth_token_ctx.reset(reset)

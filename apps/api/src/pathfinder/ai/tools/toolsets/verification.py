@@ -15,6 +15,7 @@ from pathfinder.ai.tools.standalone.experiment import (
 )
 from pathfinder.ai.tools.standalone.export import export_gene_set
 from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
+from pathfinder.ai.tools.standalone.optimization import optimize_search_parameters
 from pathfinder.ai.tools.standalone.results import (
     get_download_url,
     get_sample_records,
@@ -83,9 +84,9 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
     whole batch guarantees paired ``tool_call_id`` / ``tool_return_id`` in
     every persisted message history.
 
-    ``optimize_search_parameters`` is intentionally NOT exposed here — the
-    canonical entry point is the ``POST /launchers/optimize`` endpoint
-    (see ``transport/http/routers/launchers.py``).
+    ``optimize_search_parameters`` carries ``requires_approval=True``: the SDK
+    emits a ``ToolApprovalRequestChunk`` so the user confirms before a
+    ~15-minute parameter sweep launches on the worker.
     """
     base: FunctionToolset[AgentDeps] = FunctionToolset(
         max_retries=3,
@@ -94,6 +95,12 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
             get_sample_records,
             get_download_url,
             Tool(run_control_tests_on_step, sequential=True, max_retries=3),
+            Tool(
+                optimize_search_parameters,
+                sequential=True,
+                requires_approval=True,
+                max_retries=3,
+            ),
             run_control_tests_on_search,
             create_workbench_gene_set,
             Tool(run_gene_set_enrichment, sequential=True, max_retries=3),

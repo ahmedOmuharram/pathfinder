@@ -10,7 +10,12 @@ from typing import assert_never
 from pydantic import BaseModel, ConfigDict
 
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
+from pathfinder.domain.search import SearchContext
+from pathfinder.domain.strategy.ast import (
+    COMBINE_SEARCH_NAME,
+    StrategyStepNode,
+    walk_step_tree,
+)
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.validation import StepValidation
@@ -24,6 +29,11 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.catalog.param_validation import (
+    ValidationCallbacks,
+    validate_parameters,
+)
+from pathfinder.services.catalog.validation_callbacks import make_validation_callbacks
 from pathfinder.services.strategies.step_push_planner import (
     CreateAction,
     PatchAction,
@@ -265,20 +275,12 @@ async def _update_existing_step(
         return
     str_params: dict[str, str] = encode_params(step.parameters)
 
-    try:
-        await api.update_step_search_config(
-            step_id=wdk_step_id,
-            search_config=WDKSearchConfig(parameters=str_params),
-            record_type=record_type,
-            search_name=step.search_name,
-        )
-    except (AppError, OSError) as exc:
-        logger.warning(
-            "WDK step update failed (non-fatal)",
-            step_id=step.id,
-            wdk_step_id=wdk_step_id,
-            error=str(exc),
-        )
+    await api.update_step_search_config(
+        step_id=wdk_step_id,
+        search_config=WDKSearchConfig(parameters=str_params),
+        record_type=record_type,
+        search_name=step.search_name,
+    )
 
 
 async def _patch_combine_metadata(
@@ -347,6 +349,29 @@ async def _execute_recreate(
     return await _execute_create(sync_state, site_id, step, record_type)
 
 
+async def _validate_plan_params(
+    plan: list[StepPushPlan],
+    steps_by_id: dict[str, StrategyStepNode],
+    site_id: str,
+    record_type: str,
+) -> None:
+    callbacks: ValidationCallbacks = make_validation_callbacks(site_id)
+    for entry in plan:
+        step = steps_by_id.get(entry.step_id)
+        if step is None or isinstance(entry.action, SkipAction):
+            continue
+        search_name = step.search_name or COMBINE_SEARCH_NAME
+        if search_name == COMBINE_SEARCH_NAME:
+            continue
+        step.parameters = await validate_parameters(
+            SearchContext(
+                site_id=site_id, record_type=record_type, search_name=search_name
+            ),
+            parameters=dict(step.parameters),
+            callbacks=callbacks,
+        )
+
+
 async def push_steps_with_plan(
     graph: StrategyGraph,
     sync_state: WDKSyncState,
@@ -370,6 +395,9 @@ async def push_steps_with_plan(
         s.id: s for s in walk_step_tree(root_step)
     }
     record_type = graph.record_type or "transcript"
+
+    await _validate_plan_params(plan, steps_by_id, site_id, record_type)
+
     succeeded: list[str] = []
     failed: list[str] = []
 

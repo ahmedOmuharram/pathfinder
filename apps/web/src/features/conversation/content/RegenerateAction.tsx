@@ -1,6 +1,6 @@
 "use client";
 
-import { useMessage } from "@assistant-ui/react";
+import { useAuiState } from "@assistant-ui/react";
 import { RefreshCw } from "lucide-react";
 
 import { submitProductAction } from "@pathfinder/shared/generated/hooks/useSubmitProductAction";
@@ -9,7 +9,7 @@ import { MessageAction } from "@/components/ai-elements/message";
 import { extractTraceId } from "../runtime/traceId";
 
 export function RegenerateAction(props: { onClick?: (e: React.MouseEvent) => void }) {
-  const message = useMessage((s) => s);
+  const message = useAuiState((s) => s.message);
   const handleClick = (e: React.MouseEvent) => {
     const traceId = extractTraceId(message);
     void submitProductAction({

@@ -106,6 +106,7 @@ describe("ScratchpadPanel", () => {
     render(wrap(<ScratchpadPanel conversationId="c1" />));
     const pinBtn = await screen.findByRole("button", { name: /^pin$/i });
     await userEvent.click(pinBtn);
-    expect(mockedPatch).toHaveBeenCalledWith("n-xyz", "c1", { pinned: true });
+    // (conversation_id, note_id, data) — matches the generated client signature.
+    expect(mockedPatch).toHaveBeenCalledWith("c1", "n-xyz", { pinned: true });
   });
 });

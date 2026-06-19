@@ -19,8 +19,12 @@ import {
   StatusPill,
 } from "./LedgerPanelPrimitives";
 
-export function IntentSection({ intent }: { intent: LedgerIntentPayload | null }) {
-  if (intent === null) {
+export function IntentSection({
+  intent,
+}: {
+  intent: LedgerIntentPayload | null | undefined;
+}) {
+  if (intent == null) {
     return (
       <LedgerSection title="Intent">
         <p className="text-xs text-muted-foreground">Not classified yet.</p>

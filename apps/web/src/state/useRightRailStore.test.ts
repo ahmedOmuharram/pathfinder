@@ -10,7 +10,6 @@ beforeEach(() => {
     ledgerSeen: {},
     lastSeen: {
       strategyStepCount: 0,
-      planId: null,
       ledgerCount: 0,
       scratchpadCount: 0,
       taskCount: 0,
@@ -26,17 +25,17 @@ describe("useRightRailStore", () => {
     const s = useRightRailStore.getState();
     expect(s.openPanel).toBe("strategy");
     expect(s.lastSeen.strategyStepCount).toBe(4);
-    expect(s.lastSeen.planId).toBeNull();
+    expect(s.lastSeen.ledgerCount).toBe(0);
   });
 
   it("togglePanel opens a different panel, closes the same one", () => {
     const s = useRightRailStore.getState();
-    s.togglePanel("plan", { planId: "p1" });
-    expect(useRightRailStore.getState().openPanel).toBe("plan");
-    expect(useRightRailStore.getState().lastSeen.planId).toBe("p1");
+    s.togglePanel("memories", { memoryCount: 1 });
+    expect(useRightRailStore.getState().openPanel).toBe("memories");
+    expect(useRightRailStore.getState().lastSeen.memoryCount).toBe(1);
 
     // toggling the already-open panel closes it
-    s.togglePanel("plan", { planId: "p2" });
+    s.togglePanel("memories", { memoryCount: 2 });
     expect(useRightRailStore.getState().openPanel).toBeNull();
 
     // toggling a different panel switches to it

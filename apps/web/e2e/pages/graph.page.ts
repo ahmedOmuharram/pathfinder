@@ -197,6 +197,41 @@ export class GraphPage {
     await this.node(stepId).click();
   }
 
+  async deleteStep(stepId: string) {
+    await this.node(stepId).hover();
+    await this.page.getByTestId(`rf-more-${stepId}`).click();
+    await this.page.getByRole("menuitem", { name: "Delete step" }).click();
+    const dialog = this.page.getByTestId("graph-action-confirm");
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    // The kebab delete must not open the editor sheet (its overlay would block
+    // the confirm dialog).
+    await expect(this.editorSheet).toBeHidden({ timeout: 5_000 });
+    await this.page.getByTestId("graph-action-confirm-apply").click();
+    await expect(dialog).toBeHidden({ timeout: 10_000 });
+  }
+
+  async expandEditorAdvanced() {
+    const trigger = this.editorSheet.getByRole("button", {
+      name: /Advanced Parameters/,
+    });
+    if (await trigger.isVisible().catch(() => false)) {
+      await trigger.click();
+    }
+  }
+
+  async toggleEditorCheckbox(label: string) {
+    await this.editorSheet.getByRole("checkbox", { name: label }).click();
+  }
+
+  async saveEditor() {
+    await this.editorSheet.getByTestId("step-editor-save").click();
+    await expect(this.editorSyncState).toHaveAttribute("data-sync-state", "idle", {
+      timeout: 30_000,
+    });
+    await this.editorSheet.getByRole("button", { name: "Close" }).click();
+    await expect(this.editorSheet).toBeHidden({ timeout: 10_000 });
+  }
+
   async askAboutNode(stepId: string) {
     await this.node(stepId).hover();
     await this.page.getByTestId(`rf-add-to-chat-${stepId}`).click();

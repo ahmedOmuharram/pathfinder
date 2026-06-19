@@ -106,6 +106,21 @@ class PlannedStepInput(BaseModel):
     )
     unfilled_slots: list[UnfilledSlotInput] = Field(default_factory=list)
     operator: str | None = None
+    left_id: str | None = Field(
+        default=None,
+        description="For step_type='combine' ONLY: the id of the FIRST input "
+        "step. The two inputs are wired automatically — do not author "
+        "connections by hand.",
+    )
+    right_id: str | None = Field(
+        default=None,
+        description="For step_type='combine' ONLY: the id of the SECOND input step.",
+    )
+    input_id: str | None = Field(
+        default=None,
+        description="For step_type='transform' ONLY: the id of the single "
+        "input step this transform consumes.",
+    )
 
     @model_validator(mode="after")
     def _normalize_combine_search_name(self) -> PlannedStepInput:
@@ -119,15 +134,6 @@ class PlannedStepInput(BaseModel):
         return self
 
 
-class PlannedConnectionInput(BaseModel):
-    """Input model for a planned connection from the LLM."""
-
-    from_step: str
-    to_step: str
-    input_type: str = "primary"
-    operator: str | None = None
-
-
 class UserQuestionInput(BaseModel):
     """Input model for a user question from the LLM."""
 
@@ -136,13 +142,6 @@ class UserQuestionInput(BaseModel):
     related_step: str | None = None
     related_param: str | None = None
     options: list[DecisionOptionInput] | None = None
-
-
-class ConnectionRef(BaseModel):
-    """Reference to a connection for removal."""
-
-    from_step: str
-    to_step: str
 
 
 class StepPatch(BaseModel):
@@ -161,6 +160,18 @@ class StepPatch(BaseModel):
     unfilled_slots: list[UnfilledSlotInput] | None = None
     rationale: str | None = None
     operator: str | None = None
+    left_id: str | None = Field(
+        default=None,
+        description="Re-wire a combine step's FIRST input to this step id.",
+    )
+    right_id: str | None = Field(
+        default=None,
+        description="Re-wire a combine step's SECOND input to this step id.",
+    )
+    input_id: str | None = Field(
+        default=None,
+        description="Re-wire a transform step's input to this step id.",
+    )
 
 
 class PlanCreatedResponse(CamelModel):
@@ -184,26 +195,6 @@ class DecisionOptionInput(BaseModel):
     pros: list[str] = Field(default_factory=list)
     cons: list[str] = Field(default_factory=list)
     recommended: bool = False
-
-
-class DecisionOption(CamelModel):
-    """A decision option."""
-
-    label: str
-    description: str = ""
-    pros: list[str] = Field(default_factory=list)
-    cons: list[str] = Field(default_factory=list)
-    recommended: bool = False
-
-
-class DecisionResponse(CamelModel):
-    """Response containing a decision for the user."""
-
-    decision_id: str
-    question: str
-    options: list[DecisionOption] = Field(default_factory=list)
-    context: str = ""
-    recommendation: str | None = None
 
 
 def _convert_step(
@@ -240,7 +231,46 @@ def _convert_step(
         status=StepStatus.READY,
         parameters=params,
         operator=s.operator,
+        left_id=s.left_id,
+        right_id=s.right_id,
+        input_id=s.input_id,
     )
+
+
+def derive_connections(steps: list[PlannedStep]) -> list[PlannedConnection]:
+    """Derive plan connections from each step's declared inputs (combine:
+    left_id/right_id; transform: input_id)."""
+    conns: list[PlannedConnection] = []
+    for step in steps:
+        if step.step_type == StepType.COMBINE:
+            if step.left_id:
+                conns.append(
+                    PlannedConnection(
+                        from_step=step.left_id,
+                        to_step=step.id,
+                        input_type="primary",
+                        operator=step.operator,
+                    )
+                )
+            if step.right_id:
+                conns.append(
+                    PlannedConnection(
+                        from_step=step.right_id,
+                        to_step=step.id,
+                        input_type="secondary",
+                        operator=step.operator,
+                    )
+                )
+        elif step.step_type == StepType.TRANSFORM and step.input_id:
+            conns.append(
+                PlannedConnection(
+                    from_step=step.input_id,
+                    to_step=step.id,
+                    input_type="primary",
+                    operator=step.operator,
+                )
+            )
+    return conns
 
 
 def _build_unfilled_param(
@@ -338,16 +368,6 @@ def _extract_vocab_values(
     """Extract vocabulary option values from a typed WDK vocabulary."""
     values = [option.value for option in flatten_vocab(vocabulary)]
     return values or None
-
-
-def _convert_connection(c: PlannedConnectionInput) -> PlannedConnection:
-    """Convert an input connection to a domain PlannedConnection."""
-    return PlannedConnection(
-        from_step=c.from_step,
-        to_step=c.to_step,
-        input_type=c.input_type,
-        operator=c.operator,
-    )
 
 
 def _convert_question(q: UserQuestionInput) -> UserQuestion:
@@ -462,6 +482,12 @@ def _apply_metadata_patch(step: PlannedStep, patch: StepPatch) -> None:
         step.rationale = patch.rationale
     if patch.operator is not None:
         step.operator = patch.operator
+    if patch.left_id is not None:
+        step.left_id = patch.left_id
+    if patch.right_id is not None:
+        step.right_id = patch.right_id
+    if patch.input_id is not None:
+        step.input_id = patch.input_id
 
 
 def _apply_parameters_patch(
@@ -475,7 +501,7 @@ def _apply_parameters_patch(
             None,
         )
         if existing is not None:
-            existing.value = value
+            existing.value = coerce_param_value(value, existing.param_type)
             existing.status = ParamStatus.SET
         else:
             spec = param_specs.get(name) if param_specs else None

@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { DataLedgerUpdatePayload } from "@pathfinder/shared";
+import type { DataLedgerUpdatePayload, PlanArtifact } from "@pathfinder/shared";
 
 import { cn } from "@/lib/utils/cn";
 import { useRightRailStore } from "@/state/useRightRailStore";
 
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
+import { DataPlanArtifact } from "../content/parts/DataPlanArtifact";
+import { latestPlanAcross } from "../content/parts/planCarouselData";
 import { DiscoveryDetail } from "./DiscoveryDetail";
 import {
   BuildSection,
@@ -64,6 +66,7 @@ function latestLedger(
 export function LedgerPanel({ conversationId }: { conversationId: string }) {
   const chat = useChatHelpersOptional();
   const ledger = chat !== null ? latestLedger(chat.messages) : null;
+  const planArtifact = chat !== null ? latestPlanAcross(chat.messages) : null;
   const [tab, setTab] = useState<Tab>("summary");
   const ledgerSeen = useRightRailStore((s) => s.ledgerSeen);
   const markLedgerTabSeen = useRightRailStore((s) => s.markLedgerTabSeen);
@@ -128,7 +131,7 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
             Waiting for the Lead to dispatch its first sub-agent...
           </p>
         ) : (
-          <LedgerTabContent tab={tab} ledger={ledger} />
+          <LedgerTabContent tab={tab} ledger={ledger} planArtifact={planArtifact} />
         )}
       </div>
     </div>
@@ -138,9 +141,11 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
 function LedgerTabContent({
   tab,
   ledger,
+  planArtifact,
 }: {
   tab: Tab;
   ledger: DataLedgerUpdatePayload;
+  planArtifact: PlanArtifact | null;
 }) {
   if (tab === "summary") {
     return (
@@ -178,6 +183,11 @@ function LedgerTabContent({
     return (
       <div className="divide-y divide-border">
         <PlanSection plan={ledger.plan} />
+        {planArtifact !== null && (
+          <div className="p-3">
+            <DataPlanArtifact data={planArtifact} />
+          </div>
+        )}
       </div>
     );
   }

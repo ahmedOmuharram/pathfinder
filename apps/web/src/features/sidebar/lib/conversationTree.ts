@@ -47,28 +47,3 @@ export function toTreeRoots(items: readonly ConversationItem[]): TreeNode[] {
   roots.sort((a, b) => b.subtreeLatest - a.subtreeLatest);
   return roots;
 }
-
-/** Count all descendants of a node (excluding the node itself). */
-export function countDescendants(
-  rootId: string,
-  items: readonly ConversationItem[],
-): number {
-  const children = new Map<string, string[]>();
-  for (const it of items) {
-    const parent = it.parentConversationId;
-    if (parent == null) continue;
-    const bucket = children.get(parent);
-    if (bucket) bucket.push(it.id);
-    else children.set(parent, [it.id]);
-  }
-  let count = 0;
-  const stack: string[] = [...(children.get(rootId) ?? [])];
-  while (stack.length > 0) {
-    const id = stack.pop();
-    if (id === undefined) continue;
-    count += 1;
-    const next = children.get(id);
-    if (next) stack.push(...next);
-  }
-  return count;
-}

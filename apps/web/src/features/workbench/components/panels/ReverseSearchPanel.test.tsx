@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   act,
@@ -123,7 +122,7 @@ describe("ReverseSearchPanel", () => {
     });
   });
 
-  it("shows ranked results table after search", async () => {
+  it("posts the positive genes and renders the full ranked row", async () => {
     mockRequestJson.mockResolvedValueOnce([
       {
         geneSetId: "gs-1",
@@ -139,24 +138,28 @@ describe("ReverseSearchPanel", () => {
 
     render(<ReverseSearchPanel />);
 
-    // Drive positive genes via the captured onChange callback
     const positiveOnChange = capturedOnChange["Positive Gene IDs"];
     expect(positiveOnChange).toBeDefined();
-
-    // Flush the state update so the panel sees the new gene IDs
     act(() => {
       positiveOnChange!(["G1", "G2", "G3", "G4", "G5"]);
     });
 
-    // Click Search after state has settled
     const buttons2 = screen.getAllByRole("button", { name: /search/i });
-    const runButton2 = buttons2[buttons2.length - 1]!;
-    fireEvent.click(runButton2);
+    fireEvent.click(buttons2[buttons2.length - 1]!);
 
-    await waitFor(() => {
-      expect(screen.getByText("Test Set")).toBeTruthy();
-    });
-    expect(screen.getByText("80.0%")).toBeTruthy();
+    const row = await screen.findByText("Test Set");
+    const tr = row.closest("tr") ?? row.parentElement!;
+    // recall 0.8 → 80.0%, precision 0.6 → 60.0%, overlap 4, size 100.
+    expect(tr).toHaveTextContent("80.0%");
+    expect(tr).toHaveTextContent("60.0%");
+    expect(tr).toHaveTextContent("4");
+
+    // The search POSTs exactly the entered positive gene IDs.
+    expect(mockRequestJson).toHaveBeenCalledTimes(1);
+    const body = mockRequestJson.mock.calls[0]![2] as {
+      body: { positiveGeneIds: string[] };
+    };
+    expect(body.body.positiveGeneIds).toEqual(["G1", "G2", "G3", "G4", "G5"]);
   });
 
   it("disabled when no site selected", () => {

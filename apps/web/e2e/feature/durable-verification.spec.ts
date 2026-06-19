@@ -123,10 +123,10 @@ test.describe("Durable verification TaskCard", () => {
     await expect(submit).toBeEnabled({ timeout: 15_000 });
     await composer.press("Enter");
 
-    // The started badge names the durable tool.
+    // The started badge names the durable tool (humanized label).
     const started = page.getByTestId("data-background-task-started");
     await expect(started).toBeVisible({ timeout: 20_000 });
-    await expect(started).toContainText("run_control_tests_on_step");
+    await expect(started).toContainText("Run control tests");
 
     // Progress + success completion render as their own parts.
     await expect(page.getByTestId("data-task-progress").first()).toBeVisible({

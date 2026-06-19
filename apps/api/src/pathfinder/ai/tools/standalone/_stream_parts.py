@@ -16,7 +16,6 @@ here.
 
 from __future__ import annotations
 
-from pydantic import JsonValue
 from pydantic_ai.ui.vercel_ai.response_types import (
     DataChunk,
     SourceUrlChunk,
@@ -30,7 +29,6 @@ from shared_py.stream_parts.graph import (
     GraphSnapshot,
 )
 from shared_py.stream_parts.plan import (
-    DecisionPresented,
     PlanArtifact,
     PlannedStep,
     PlanSlotForm,
@@ -42,7 +40,6 @@ from shared_py.stream_parts.strategy import (
 )
 
 from pathfinder.ai.graph.state import ProblemFrame
-from pathfinder.ai.tools.standalone._plan_models import DecisionOption
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.pydantic_base import CamelModel
@@ -237,7 +234,7 @@ def problem_frame_chunk(frame: ProblemFrame, *, site_id: str) -> DataChunk:
     )
 
 
-# ── Plan / decision ────────────────────────────────────────────────────────
+# ── Plan ───────────────────────────────────────────────────────────────────
 
 
 class _SimplePlanStep(CamelModel):
@@ -269,27 +266,6 @@ def plan_artifact_chunk(
     return DataChunk(
         id=plan_id,
         type="data-plan-artifact",
-        data=payload.model_dump(by_alias=True, mode="json"),
-    )
-
-
-def decision_presented_chunk(
-    *,
-    decision_type: str,
-    options: list[DecisionOption],
-    rationale: str | None = None,
-) -> DataChunk:
-    """Build the ``data-decision-presented`` DataChunk for a branching decision."""
-    options_dicts: list[dict[str, JsonValue]] = [
-        opt.model_dump(by_alias=True, mode="json") for opt in options
-    ]
-    payload = DecisionPresented(
-        decision_type=decision_type,
-        options=options_dicts,
-        rationale=rationale,
-    )
-    return DataChunk(
-        type="data-decision-presented",
         data=payload.model_dump(by_alias=True, mode="json"),
     )
 

@@ -10,16 +10,30 @@ const TOOL_LABELS: Record<string, string> = {
   request_search_inspection: "Request inspection",
   // Scoping / intent
   set_problem_frame: "Set frame",
+  scope_problem: "Scope problem",
   classify_user_intent: "Classify intent",
+  // Lead dispatch
+  discover_searches: "Discover searches",
+  consult_user: "Ask the user",
+  recover_failed_steps: "Recover steps",
   // Planning
   create_plan: "Build plan",
+  build_plan: "Build plan",
   update_plan: "Update plan",
   get_plan: "Get plan",
   submit_plan: "Submit plan",
   submit_plan_for_approval: "Submit plan",
-  present_decision: "Present decision",
+  // Experiments / controls
+  compare_search_variants: "Compare variants",
+  compare_variants_scored: "Score variants",
+  build_control_set: "Build control set",
+  list_control_sets: "List control sets",
+  import_control_ids_from_gene_set: "Controls from gene set",
+  import_control_ids_from_strategy: "Controls from strategy",
   // Execution / strategy
   build_strategy: "Build strategy",
+  execute_plan: "Execute plan",
+  verify_strategy: "Verify strategy",
   update_leaf_params: "Update parameters",
   replace_subtree: "Replace subtree",
   // Verification / durable

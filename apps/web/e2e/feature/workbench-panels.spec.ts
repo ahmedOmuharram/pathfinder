@@ -65,17 +65,11 @@ test.describe("Workbench Panel Functionality", () => {
         .filter({ hasText: /requires.*strategy/i }),
     ).toBeVisible();
 
-    // UI: Panel cannot be expanded (stays collapsed on click attempt)
+    // UI: Panel cannot be expanded — its toggle is disabled and stays collapsed.
     const panelBtn = page
       .getByRole("button", { expanded: false })
       .filter({ hasText: /results table/i });
-    await panelBtn.click();
-    // Should still be collapsed (disabled panels don't expand)
-    await expect(
-      page
-        .getByRole("button", { expanded: false })
-        .filter({ hasText: /results table/i }),
-    ).toBeVisible();
+    await expect(panelBtn).toBeDisabled();
   });
 
   // ── Enrichment Analysis ───────────────────────────────────────────

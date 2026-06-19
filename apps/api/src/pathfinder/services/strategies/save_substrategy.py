@@ -62,6 +62,7 @@ def deep_clone_with_fresh_ids(node: StrategyStepNode) -> StrategyStepNode:
         else None
     )
     return node.model_copy(
+        deep=True,
         update={
             "id": generate_step_id(),
             "primary_input": primary,

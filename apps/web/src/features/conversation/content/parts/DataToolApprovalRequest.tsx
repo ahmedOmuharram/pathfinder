@@ -7,6 +7,8 @@ export function DataToolApprovalRequest({
 }: {
   data: DataToolApprovalRequestPayload;
 }) {
+  // The plan-submit approval is owned by the inline PlanCarousel.
+  if (data.toolName === "submit_plan_for_approval") return null;
   return (
     <div
       data-testid="data-tool-approval-request"

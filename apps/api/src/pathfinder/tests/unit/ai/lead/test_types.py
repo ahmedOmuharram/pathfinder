@@ -142,14 +142,15 @@ def _plan_all_set() -> StrategyPlan:
     )
 
 
-def test_plan_delta_has_unresolved_slots_true() -> None:
-    delta = PlanDelta(plan=_plan_with_unresolved_slot())
-    assert delta.has_unresolved_slots is True
-
-
-def test_plan_delta_has_unresolved_slots_false() -> None:
-    delta = PlanDelta(plan=_plan_all_set())
-    assert delta.has_unresolved_slots is False
+def test_plan_delta_is_lightweight_summary() -> None:
+    # The plan lives in agent_state.active_plan (built via create_plan); the
+    # delta never re-carries it. Re-emitting StrategyPlan caused the planner's
+    # final_result to fail on displayName / array-vs-object errors.
+    delta = PlanDelta(summary="2-step plan: GO term anchor combined with taxon")
+    assert delta.summary == "2-step plan: GO term anchor combined with taxon"
+    assert not hasattr(delta, "plan")
+    assert not hasattr(delta, "new_open_slots")
+    assert not hasattr(delta, "has_unresolved_slots")
 
 
 def test_execute_delta_carries_outcome() -> None:
@@ -158,10 +159,17 @@ def test_execute_delta_carries_outcome() -> None:
     assert delta.outcome.root_count == 152
 
 
-def test_discovery_delta_defaults_empty() -> None:
-    delta = DiscoveryDelta(findings_summary="found nothing")
-    assert delta.new_selections == []
-    assert delta.new_rejections == []
+def test_discovery_delta_is_lightweight_summary() -> None:
+    # Selections/rejections live in agent_state (committed via
+    # update_search_decision); the delta is just a summary so the model
+    # never re-types heavy SearchOverview objects in its final output.
+    delta = DiscoveryDelta(
+        findings_summary="found nothing", open_questions=["which strain?"]
+    )
+    assert delta.findings_summary == "found nothing"
+    assert delta.open_questions == ["which strain?"]
+    assert not hasattr(delta, "new_selections")
+    assert not hasattr(delta, "new_rejections")
 
 
 def test_verification_delta_carries_digest() -> None:

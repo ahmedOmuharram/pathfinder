@@ -22,7 +22,10 @@ from __future__ import annotations
 from pydantic_ai import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.tools.standalone.catalog_discovery import get_search_overview
+from pathfinder.ai.tools.standalone.catalog_discovery import (
+    AlreadyReadNotice,
+    get_search_overview,
+)
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.uuid_utils import format_uuid
 from pathfinder.services.catalog.overview_formatting import SearchOverviewResult
@@ -35,7 +38,7 @@ async def request_search_inspection(
     search_name: str,
     why: str,
     record_type: str | None = None,
-) -> SearchOverviewResult:
+) -> SearchOverviewResult | AlreadyReadNotice:
     """Request inline inspection of a search outside discovery's commit set.
 
     Use sparingly — discovery is meant to surface every search the

@@ -158,20 +158,20 @@ the user-facing message.
 
 ## Output — the DiscoveryDelta contract
 
-Return exactly one ``DiscoveryDelta``:
+Your selections and rejections are ALREADY recorded the moment you call \
+``update_search_decision`` — they live in the shared investigation state \
+that the Lead and later phases read. Do NOT re-list them in your output; \
+that is the single biggest cause of wasted retries.
 
-- ``new_selections`` (optional): searches you committed to ``selected`` or \
-``candidate`` this run. Each is a complete ``SearchOverview`` (with \
-``param_vocab`` populated by your ``get_parameter_options`` calls).
-- ``new_rejections`` (optional): searches you ruled out. Record dead ends \
-so the Lead doesn't re-spawn discovery on them.
+Return exactly one ``DiscoveryDelta`` with just two fields:
+
 - ``findings_summary`` (required, short): factual summary for the Lead. \
 NOT user-facing prose; the Lead writes that.
 - ``open_questions`` (optional): questions you couldn't resolve from the \
 catalog alone — the Lead decides whether to ask the user.
 
-You do NOT decide routing. The Lead reads the Ledger (your selections + \
-the user's intent) and decides what's next.
+You do NOT decide routing. The Lead reads the Ledger (your recorded \
+decisions + the user's intent) and decides what's next.
 """
 
 _discovery_hooks: Hooks[AgentDeps] = Hooks(

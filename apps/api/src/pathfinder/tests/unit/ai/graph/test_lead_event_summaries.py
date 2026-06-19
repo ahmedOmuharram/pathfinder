@@ -71,7 +71,9 @@ def test_summarize_frame_not_ready_no_questions() -> None:
 
 
 def test_summarize_selections_pluralizes_searches() -> None:
-    assert _summarize_delta_dict({"selections": {"a": 1, "b": 2}}) == "Selected 2 searches"
+    assert (
+        _summarize_delta_dict({"selections": {"a": 1, "b": 2}}) == "Selected 2 searches"
+    )
     assert _summarize_delta_dict({"selections": {"a": 1}}) == "Selected 1 search"
 
 
@@ -96,5 +98,7 @@ def test_summarize_outcome_all_built() -> None:
 
 
 def test_summarize_verification_digest() -> None:
-    assert _summarize_delta_dict({"digest": {"success": True}}) == "Verified successfully"
+    assert (
+        _summarize_delta_dict({"digest": {"success": True}}) == "Verified successfully"
+    )
     assert _summarize_delta_dict({"digest": {"success": False}}) == "Issues found"

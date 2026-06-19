@@ -4,15 +4,12 @@ Provides:
 - ``create_plan`` -- build a new strategy plan
 - ``get_plan`` -- read the current active plan
 - ``update_plan`` -- mutate the active plan in-place
-- ``submit_plan`` -- present the plan for user review
-- ``present_decision`` -- present a decision with options
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from difflib import get_close_matches
-from uuid import uuid4
 
 import httpx
 from pydantic import ValidationError as PydanticValidationError
@@ -33,24 +30,18 @@ from shared_py.stream_parts.plan import (
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import PlanSlotAnswer
 from pathfinder.ai.tools.standalone._plan_models import (
-    ConnectionRef,
-    DecisionOption,
-    DecisionOptionInput,
-    DecisionResponse,
     PlanCreatedResponse,
-    PlannedConnectionInput,
     PlannedStepInput,
     StepPatch,
     UserQuestionInput,
     _apply_step_patches,
-    _convert_connection,
     _convert_question,
     _convert_step,
     _validate_domain_parameters,
     _validate_domain_topology,
+    derive_connections,
 )
 from pathfinder.ai.tools.standalone._stream_parts import (
-    decision_presented_chunk,
     plan_artifact_chunk,
 )
 from pathfinder.ai.tools.standalone._validation_helpers import (
@@ -504,7 +495,7 @@ async def _validate_plan_against_wdk(plan: StrategyPlan, site_id: str) -> None:
         params: dict[str, ParamValue] = {
             p.name: p.value for p in step.parameters if p.value is not None
         }
-        if not params:
+        if not params and step.parameters:
             continue
         try:
             await validate_parameters(
@@ -543,7 +534,6 @@ async def create_plan(
     description: str,
     rationale: str,
     steps: list[PlannedStepInput],
-    connections: list[PlannedConnectionInput],
     questions: list[UserQuestionInput] | None = None,
     uncertainties: list[str] | None = None,
 ) -> ToolReturn[PlanCreatedResponse] | ToolErrorPayload:
@@ -553,12 +543,16 @@ async def create_plan(
     plan until you call submit_plan(). You can review with get_plan and
     refine with update_plan before submitting.
 
+    Connections are derived automatically from each step's declared inputs:
+    a ``combine`` step names its two inputs via ``left_id``/``right_id``; a
+    ``transform`` step names its single input via ``input_id``; ``leaf``
+    steps have none. Never author an edge list by hand.
+
     Args:
         title: Plan title.
         description: What this strategy finds and why.
         rationale: Why this approach was chosen.
-        steps: Planned steps.
-        connections: Step connections.
+        steps: Planned steps (each combine/transform declares its inputs).
         questions: Questions for the user.
         uncertainties: Things we don't know yet.
     """
@@ -589,7 +583,7 @@ async def create_plan(
     except ValueError as exc:
         msg = f"DISCOVERY_ERROR: {exc}"
         raise ModelRetry(msg) from exc
-    domain_connections = [_convert_connection(c) for c in connections]
+    domain_connections = derive_connections(domain_steps)
     slot_questions = _slot_questions_from_inputs(steps)
     domain_questions = _merge_questions([], (questions or []) + slot_questions)
 
@@ -660,12 +654,10 @@ def _mutate_plan(
     step_updates: list[StepPatch] | None,
     add_steps: list[PlannedStepInput] | None,
     remove_steps: list[str] | None,
-    add_connections: list[PlannedConnectionInput] | None,
-    remove_connections: list[ConnectionRef] | None,
     questions: list[UserQuestionInput] | None,
     specs_by_search: dict[str, dict[str, ParamSpecNormalized]] | None = None,
 ) -> None:
-    """Apply all mutations to a plan in-place. Raises ModelRetry on bad patches."""
+    """Apply mutations in-place, then re-derive connections from the steps."""
     if title is not None:
         plan.title = title
     if description is not None:
@@ -674,11 +666,6 @@ def _mutate_plan(
     if remove_steps:
         remove_set = set(remove_steps)
         plan.steps = [s for s in plan.steps if s.id not in remove_set]
-        plan.connections = [
-            c
-            for c in plan.connections
-            if c.from_step not in remove_set and c.to_step not in remove_set
-        ]
 
     if step_updates:
         _apply_step_patches(
@@ -698,14 +685,7 @@ def _mutate_plan(
             for s in add_steps
         )
 
-    if remove_connections:
-        remove_pairs = {(r.from_step, r.to_step) for r in remove_connections}
-        plan.connections = [
-            c for c in plan.connections if (c.from_step, c.to_step) not in remove_pairs
-        ]
-
-    if add_connections:
-        plan.connections.extend(_convert_connection(c) for c in add_connections)
+    plan.connections = derive_connections(plan.steps)
 
     if questions is not None:
         plan.questions = _merge_questions(plan.questions, questions)
@@ -716,23 +696,24 @@ async def update_plan(
     step_updates: list[StepPatch] | None = None,
     add_steps: list[PlannedStepInput] | None = None,
     remove_steps: list[str] | None = None,
-    add_connections: list[PlannedConnectionInput] | None = None,
-    remove_connections: list[ConnectionRef] | None = None,
     title: str | None = None,
     description: str | None = None,
     questions: list[UserQuestionInput] | None = None,
 ) -> ToolReturn[StrategyPlan] | ToolErrorPayload:
-    """Mutate the active plan in-place. Apply step patches, add/remove steps and connections.
+    """Mutate the active plan in-place. Apply step patches, add/remove steps.
 
     The plan stays in the tool loop — chain multiple update_plan calls, then
     call submit_plan when ready to show the user.
+
+    Connections are re-derived from the steps' declared inputs after each
+    update — to change how a combine joins its inputs, patch that step's
+    ``left_id``/``right_id`` (or a transform's ``input_id``); never edit an
+    edge list.
 
     Args:
         step_updates: Patches to existing steps (by step id). Merges parameters.
         add_steps: New steps to add to the plan.
         remove_steps: Step IDs to remove from the plan.
-        add_connections: New connections to add.
-        remove_connections: Connections to remove (by from_step + to_step).
         title: New plan title.
         description: New plan description.
         questions: User-facing questions to merge into the plan before presentation.
@@ -787,8 +768,6 @@ async def update_plan(
             step_updates=step_updates,
             add_steps=add_steps,
             remove_steps=remove_steps,
-            add_connections=add_connections,
-            remove_connections=remove_connections,
             questions=aggregated_questions or None,
             specs_by_search=specs_by_search,
         )
@@ -919,54 +898,3 @@ def _refuse_if_unresolved_slots(plan: StrategyPlan) -> None:
         "rephrase the question or convert to NEEDS_DISCOVERY."
     )
     raise ModelRetry(msg)
-
-
-async def present_decision(
-    ctx: RunContext[AgentDeps],
-    question: str,
-    options: list[DecisionOptionInput],
-    context: str,
-    recommendation: str | None = None,
-) -> ToolReturn[DecisionResponse]:
-    """Present a decision with options for the user to choose from.
-
-    Unlike submit_plan, this does NOT pause the tool loop. The decision
-    is emitted to the UI for display but execution continues. Use when
-    you need to inform the user of a trade-off or ask a non-blocking
-    question while continuing other work.
-
-    Args:
-        question: The decision question.
-        options: Options with pros/cons.
-        context: Why this decision matters.
-        recommendation: Your recommended option.
-    """
-    decision_id = f"decision_{uuid4().hex[:12]}"
-
-    response = DecisionResponse(
-        decision_id=decision_id,
-        question=question,
-        options=[
-            DecisionOption(
-                label=opt.label,
-                description=opt.description,
-                pros=opt.pros,
-                cons=opt.cons,
-                recommended=opt.recommended,
-            )
-            for opt in options
-        ],
-        context=context,
-        recommendation=recommendation,
-    )
-
-    return ToolReturn(
-        return_value=response,
-        metadata=[
-            decision_presented_chunk(
-                decision_type=decision_id,
-                options=response.options,
-                rationale=response.context or recommendation,
-            ),
-        ],
-    )

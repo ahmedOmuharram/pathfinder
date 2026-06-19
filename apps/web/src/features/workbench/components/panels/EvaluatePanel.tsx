@@ -6,11 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useUnmount } from "usehooks-ts";
 import { Loader2, Play, Target } from "lucide-react";
 
-import type {
-  Experiment,
-  ExperimentConfig,
-  EnrichmentAnalysisType,
-} from "@pathfinder/shared";
+import type { Experiment, EnrichmentAnalysisType } from "@pathfinder/shared";
 import {
   ConfusionMatrixSection,
   CrossValidationSection,
@@ -21,6 +17,7 @@ import {
   RobustnessSection,
 } from "@/features/analysis";
 import { createExperimentStream } from "@/features/workbench/api";
+import type { ExperimentRunConfig } from "@/features/workbench/api/streaming";
 import { Button } from "@/lib/components/ui/Button";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { queryKeyPrefixes } from "@/lib/query/keys";
@@ -110,7 +107,7 @@ export function EvaluatePanel() {
       kFolds: enableCV ? kFolds : 0,
       enrichmentTypes,
       name: `${activeSet.name} (evaluation)`,
-    } as ExperimentConfig;
+    } satisfies ExperimentRunConfig;
 
     try {
       for await (const event of createExperimentStream(config, {

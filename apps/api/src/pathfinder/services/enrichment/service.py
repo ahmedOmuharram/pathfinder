@@ -36,6 +36,7 @@ from pathfinder.services.enrichment.params import (
 from pathfinder.services.enrichment.parser import (
     ANALYSIS_TYPE_MAP,
     GO_ONTOLOGY_MAP,
+    derive_total_analyzed,
     parse_enrichment_response,
     parse_enrichment_terms,
 )
@@ -278,6 +279,7 @@ class EnrichmentService:
         return EnrichmentResult(
             analysis_type=analysis_type,
             terms=terms,
+            total_genes_analyzed=derive_total_analyzed(envelope.result_data),
         )
 
     async def _run_analyses_on_step(

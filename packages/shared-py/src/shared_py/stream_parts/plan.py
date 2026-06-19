@@ -68,11 +68,3 @@ class PlanUpdate(CamelModel):
     plan_id: str
     status: Literal["proposed", "revised", "applied", "rejected"]
     reason: str | None = None
-
-
-class DecisionPresented(CamelModel):
-    """A branching decision for the user to resolve."""
-
-    decision_type: str
-    options: list[dict[str, JsonValue]]
-    rationale: str | None = None

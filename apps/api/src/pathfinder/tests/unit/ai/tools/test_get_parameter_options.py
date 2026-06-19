@@ -17,6 +17,7 @@ import pytest
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.tools.standalone import catalog_discovery
+from pathfinder.ai.tools.standalone.catalog_discovery import AlreadyReadNotice
 from pathfinder.services.catalog.param_formatting import ParameterNotOnSearch
 
 
@@ -144,3 +145,72 @@ async def test_no_close_match_still_lists_all_valid(
     assert "completely_unrelated_xyz" in result.message
     assert "taxon" in result.message
     assert "go_term" in result.message
+
+
+@pytest.mark.asyncio
+async def test_second_identical_read_returns_already_read_notice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reading the same parameter's options twice in a turn is wasteful:
+    the first call returns the full ParameterInfo, the second returns an
+    AlreadyReadNotice telling the model it's the same as before."""
+    _patch_resolve_and_client(
+        monkeypatch,
+        record_type="transcript",
+        param_names=["go_term", "taxon"],
+    )
+    fake_info = MagicMock()
+    monkeypatch.setattr(
+        catalog_discovery,
+        "format_typed_param",
+        lambda *args, **kw: fake_info,
+    )
+    ctx = _ctx()
+    first = await catalog_discovery.get_parameter_options(
+        ctx,
+        search_name="GenesByGoTerm",
+        parameter_id="go_term",
+    )
+    assert first is fake_info
+
+    second = await catalog_discovery.get_parameter_options(
+        ctx,
+        search_name="GenesByGoTerm",
+        parameter_id="go_term",
+    )
+    assert isinstance(second, AlreadyReadNotice)
+    assert second.search_name == "GenesByGoTerm"
+    assert second.parameter_id == "go_term"
+
+
+@pytest.mark.asyncio
+async def test_failed_read_is_not_marked_so_retry_works(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ParameterNotOnSearch (wrong param name) must NOT mark the read as
+    done — the model should be able to fix the name and read for real."""
+    _patch_resolve_and_client(
+        monkeypatch,
+        record_type="transcript",
+        param_names=["go_term", "taxon"],
+    )
+    fake_info = MagicMock()
+    monkeypatch.setattr(
+        catalog_discovery,
+        "format_typed_param",
+        lambda *args, **kw: fake_info,
+    )
+    ctx = _ctx()
+    wrong = await catalog_discovery.get_parameter_options(
+        ctx,
+        search_name="GenesByGoTerm",
+        parameter_id="goTerm",  # wrong casing
+    )
+    assert isinstance(wrong, ParameterNotOnSearch)
+
+    fixed = await catalog_discovery.get_parameter_options(
+        ctx,
+        search_name="GenesByGoTerm",
+        parameter_id="go_term",
+    )
+    assert fixed is fake_info

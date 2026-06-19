@@ -14,6 +14,7 @@ from pathfinder.domain.strategy.ast import (
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import StrategyAst, _HistoryEntry
 from pathfinder.domain.strategy.types import SyncStateProtocol
+from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -55,6 +56,7 @@ class StrategyGraph:
 
         step_counts: dict[str, int] | None = None
         wdk_step_ids: dict[str, int] | None = None
+        step_validations: dict[str, StepValidation] | None = None
         if sync_state is not None:
             if sync_state.step_counts:
                 step_counts = {
@@ -62,6 +64,8 @@ class StrategyGraph:
                 }
             if sync_state.wdk_step_ids:
                 wdk_step_ids = dict(sync_state.wdk_step_ids)
+            if sync_state.step_validations:
+                step_validations = dict(sync_state.step_validations)
 
         return StrategyAst(
             record_type=self.record_type or "",
@@ -70,6 +74,7 @@ class StrategyGraph:
             description=self.description or None,
             step_counts=step_counts,
             wdk_step_ids=wdk_step_ids,
+            step_validations=step_validations,
         )
 
     def add_step(self, step: StrategyStepNode) -> str:

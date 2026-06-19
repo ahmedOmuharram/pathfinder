@@ -1,8 +1,10 @@
 """Verification toolset registration assertions.
 
-The verification sub-agent no longer exposes ``optimize_search_parameters``
-directly. This test pins the contract so the tool can't sneak back in via
-auto-import or copy-paste.
+``optimize_search_parameters`` is a long-running durable tool exposed on the
+verification sub-agent. It must be registered ``sequential=True`` (durable
+tools suspend the graph via ``interrupt()`` and cannot share a tool batch)
+and ``requires_approval=True`` (the SDK halts for user confirmation before a
+~15-minute sweep runs). This test pins that contract.
 """
 
 from __future__ import annotations
@@ -20,18 +22,25 @@ def _unwrap_to_function_toolset(toolset: object) -> FunctionToolset:
     return toolset
 
 
-def test_optimize_search_parameters_not_in_verification_toolset() -> None:
+def test_optimize_search_parameters_registered_with_approval_and_sequential() -> None:
     toolset = _unwrap_to_function_toolset(build_toolset())
-    tool_names = {t.name for t in toolset.tools.values()}
-    assert "optimize_search_parameters" not in tool_names, (
-        "optimize_search_parameters must NOT be registered on the verification toolset."
+    by_name = {t.name: t for t in toolset.tools.values()}
+    assert "optimize_search_parameters" in by_name, (
+        "optimize_search_parameters must be registered on the verification toolset."
+    )
+    tool = by_name["optimize_search_parameters"]
+    assert tool.requires_approval is True, (
+        "optimize_search_parameters must require approval — it launches a "
+        "long-running, expensive sweep."
+    )
+    assert tool.sequential is True, (
+        "durable tools must run sequential=True so their interrupt() does not "
+        "orphan a sibling tool's return part."
     )
 
 
 def test_other_durable_verification_tools_still_registered() -> None:
     toolset = _unwrap_to_function_toolset(build_toolset())
     tool_names = {t.name for t in toolset.tools.values()}
-    # Removal was scoped to the optimization tool. The other long-running
-    # verification tools are still part of the in-graph toolset.
     assert "run_control_tests_on_step" in tool_names
     assert "run_gene_set_enrichment" in tool_names

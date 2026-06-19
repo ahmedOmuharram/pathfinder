@@ -353,8 +353,15 @@ class ConversationService:
         new_conv = await self._repo.create(
             user_id=user_id,
             site_id=source.site_id,
-            name=source.name or "Conversation",
+            name=f"Copy of {source.name}" if source.name else "Conversation (copy)",
         )
+        # Carry the strategy over (topology + params). WDK step ids are dropped
+        # so the copy re-syncs as its own fresh WDK strategy instead of sharing
+        # the source's steps; wdk_strategy_id stays None for the same reason.
+        copied_ast = dict(source.strategy_ast or {})
+        copied_ast.pop("wdkStepIds", None)
+        copied_ast.pop("wdk_step_ids", None)
+        new_conv.strategy_ast = copied_ast
         for row in await msg_repo.list_messages_for_conversation(conversation_id):
             await msg_repo.insert_message(
                 message_id=uuid4(),

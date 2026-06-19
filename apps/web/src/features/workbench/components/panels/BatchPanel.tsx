@@ -5,20 +5,21 @@ import { useShallow } from "zustand/react/shallow";
 import { useUnmount } from "usehooks-ts";
 import { Layers, Loader2, Play } from "lucide-react";
 
-import type { Experiment, ExperimentConfig } from "@pathfinder/shared";
+import type { Experiment } from "@pathfinder/shared";
 import {
   createBatchExperimentStream,
   type BatchOrganismTarget,
 } from "@/features/workbench/api";
+import type { ExperimentRunConfig } from "@/features/workbench/api/streaming";
 import { Button } from "@/lib/components/ui/Button";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useWorkbenchStore, type PanelId } from "@/state/useWorkbenchStore";
 
-/**
- * Run the same experiment across multiple organisms (one per `BatchOrganismTarget`)
- * and stream typed progress events. Scaffold UI — richer config editing added later.
- */
+import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
+
+const PANEL_ID: PanelId = "batch";
+
 export function BatchPanel() {
   const selectedSite = useSessionStore((s) => s.selectedSite);
   const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
@@ -71,7 +72,7 @@ export function BatchPanel() {
       positiveControls,
       negativeControls,
       name: `${activeSet.name} (batch)`,
-    } as ExperimentConfig;
+    } satisfies ExperimentRunConfig;
 
     try {
       for await (const event of createBatchExperimentStream(
@@ -103,12 +104,12 @@ export function BatchPanel() {
   if (!activeSet) return null;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <Layers className="h-5 w-5" />
-        <h3 className="text-sm font-semibold">Batch (multi-organism)</h3>
-      </div>
-
+    <AnalysisPanelContainer
+      panelId={PANEL_ID}
+      title="Batch (multi-organism)"
+      subtitle="Run the active experiment across multiple organisms"
+      icon={<Layers className="h-5 w-5" />}
+    >
       <div className="space-y-3 text-sm">
         <label className="block space-y-1">
           <span className="text-xs font-medium uppercase text-muted-foreground">
@@ -168,6 +169,6 @@ export function BatchPanel() {
           </details>
         )}
       </div>
-    </div>
+    </AnalysisPanelContainer>
   );
 }

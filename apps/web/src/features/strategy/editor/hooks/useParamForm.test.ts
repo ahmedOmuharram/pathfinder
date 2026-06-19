@@ -143,7 +143,12 @@ describe("useParamForm", () => {
       } as ParamSpec,
     ];
     const { result } = renderHook(() => useParamForm(specs));
-    expect(result.current.form.state.values["hidden_param"]).toBeUndefined();
+    const values = result.current.form.state.values;
+    // Only the two visible params seed defaults — the hidden one is dropped,
+    // so its "secret" initial value never reaches the form.
+    expect(Object.keys(values).sort()).toEqual(["min_weight", "organism"]);
+    expect(values["organism"]).toBe("P. falciparum 3D7");
+    expect(values["min_weight"]).toBe("0");
   });
 });
 
@@ -221,6 +226,103 @@ describe("extractDefaults override", () => {
     ] as ParamSpec[];
     const result = extractDefaults(specs, { organism: "Pf3D7" });
     expect(result["organism"]).toEqual(["Pf3D7"]);
+  });
+
+  // The persisted `step.parameters` map holds TYPED ParamValue objects whose
+  // shape varies by type (value / values / min+max / filters / datasetId).
+  // extractDefaults must convert each via the canonical paramValueToRaw, or
+  // the editor shows "[object Object]" in inputs and "0 selected" in trees.
+  function specWith(over: Partial<ParamSpec> & { name: string }): ParamSpec {
+    return {
+      type: "string",
+      displayName: over.name,
+      displayType: "",
+      allowEmptyValue: true,
+      isVisible: true,
+      isNumber: false,
+      countOnlyLeaves: false,
+      initialDisplayValue: "",
+      ...over,
+    } as ParamSpec;
+  }
+
+  it("unwraps a typed StringValue to its string", () => {
+    const result = extractDefaults([specWith({ name: "text_expression" })], {
+      text_expression: { type: "string", value: "kinase" },
+    });
+    expect(result["text_expression"]).toBe("kinase");
+  });
+
+  it("unwraps a typed single-pick value to its string", () => {
+    const result = extractDefaults([specWith({ name: "doc_type" })], {
+      doc_type: { type: "single-pick-vocabulary", value: "gene" },
+    });
+    expect(result["doc_type"]).toBe("gene");
+  });
+
+  it("stringifies a typed number value", () => {
+    const result = extractDefaults(
+      [specWith({ name: "min_weight", type: "number", isNumber: true })],
+      { min_weight: { type: "number", value: 1.3 } },
+    );
+    expect(result["min_weight"]).toBe("1.3");
+  });
+
+  it("uses `values` (not `value`) for a typed multi-pick value", () => {
+    const result = extractDefaults(
+      [
+        specWith({
+          name: "text_fields",
+          displayType: "checkbox",
+          allowMultipleValues: true,
+        }),
+      ],
+      { text_fields: { type: "multi-pick-vocabulary", values: ["product", "gene"] } },
+    );
+    expect(result["text_fields"]).toEqual(["product", "gene"]);
+  });
+
+  it("encodes a typed number-range as min-max", () => {
+    const result = extractDefaults(
+      [specWith({ name: "dnds", type: "number-range", displayType: "" })],
+      { dnds: { type: "number-range", min: 0, max: 1.3 } },
+    );
+    expect(result["dnds"]).toBe("0-1.3");
+  });
+
+  it("passes through a typed date value", () => {
+    const result = extractDefaults([specWith({ name: "due", type: "date" })], {
+      due: { type: "date", value: "2024-01-01" },
+    });
+    expect(result["due"]).toBe("2024-01-01");
+  });
+
+  it("serializes a typed filter value to JSON", () => {
+    const filters = [{ field: "x", type: "string", value: "y" }];
+    const result = extractDefaults([specWith({ name: "flt", type: "filter" })], {
+      flt: { type: "filter", filters },
+    });
+    expect(result["flt"]).toBe(JSON.stringify(filters));
+  });
+
+  it("uses datasetId for a typed input-dataset value", () => {
+    const result = extractDefaults([specWith({ name: "ds", type: "input-dataset" })], {
+      ds: { type: "input-dataset", datasetId: "d-123" },
+    });
+    expect(result["ds"]).toBe("d-123");
+  });
+
+  it("still coerces a RAW (non-typed) override string", () => {
+    const result = extractDefaults([specWith({ name: "name" })], { name: "Y" });
+    expect(result["name"]).toBe("Y");
+  });
+
+  it("still coerces a RAW (non-typed) override array for multi-pick", () => {
+    const result = extractDefaults(
+      [specWith({ name: "orgs", displayType: "checkbox", allowMultipleValues: true })],
+      { orgs: ["Pf3D7", "PvP01"] },
+    );
+    expect(result["orgs"]).toEqual(["Pf3D7", "PvP01"]);
   });
 });
 

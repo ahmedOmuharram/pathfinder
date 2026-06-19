@@ -23,6 +23,7 @@ interface ConversationListProps {
   onStartRename: (item: ConversationItem) => void;
   onStartDelete: (item: ConversationItem) => void;
   onToggleSaved: (item: ConversationItem) => void;
+  onDuplicate: (item: ConversationItem) => void;
 }
 
 export function ConversationList({
@@ -41,6 +42,7 @@ export function ConversationList({
   onStartRename,
   onStartDelete,
   onToggleSaved,
+  onDuplicate,
 }: ConversationListProps) {
   const roots = toTreeRoots(items);
 
@@ -78,6 +80,7 @@ export function ConversationList({
                 onStartRename={onStartRename}
                 onStartDelete={onStartDelete}
                 onToggleSaved={onToggleSaved}
+                onDuplicate={onDuplicate}
               />
               {root.children.length > 0 && (
                 <ConversationSubtree

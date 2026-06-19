@@ -84,11 +84,10 @@ def compute_rank_metrics(
 
     for kv in k_values:
         if kv not in precision_at_k:
-            effective_k = min(kv, total)
-            hits_at_k = sum(
-                1 for gid in result_ids[:effective_k] if gid in positive_ids
-            )
-            precision_at_k[kv] = hits_at_k / effective_k if effective_k > 0 else 0.0
+            # kv exceeds the result length: divide by requested kv (ranks past
+            # the end are non-relevant), so precision decays instead of plateauing.
+            hits_at_k = sum(1 for gid in result_ids if gid in positive_ids)
+            precision_at_k[kv] = hits_at_k / kv if kv > 0 else 0.0
             recall_at_k[kv] = hits_at_k / total_pos if total_pos > 0 else 0.0
             enrichment_at_k[kv] = (
                 (precision_at_k[kv] / random_precision) if random_precision > 0 else 0.0

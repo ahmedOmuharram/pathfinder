@@ -15,7 +15,6 @@ from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.plan import (
     create_plan,
     get_plan,
-    present_decision,
     update_plan,
 )
 from pathfinder.ai.tools.standalone.strategy_graph import get_strategy
@@ -68,7 +67,6 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
             create_plan,
             get_plan,
             update_plan,
-            present_decision,
             resolve_gene_ids_to_records,
             get_strategy,
             request_search_inspection,

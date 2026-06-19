@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
@@ -39,6 +39,16 @@ function makeItem(
 }
 
 describe("groupConversationsByTime", () => {
+  // Pin the clock to midday so relative offsets (e.g. "2 hours ago" = today)
+  // are deterministic and don't flake across the midnight boundary.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-12T12:00:00.000Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("returns empty list for empty input", () => {
     expect(groupConversationsByTime([])).toEqual([]);
   });

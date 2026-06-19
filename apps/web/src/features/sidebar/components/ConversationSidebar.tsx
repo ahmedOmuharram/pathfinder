@@ -28,7 +28,6 @@ import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversa
 import { useConversationSidebarActions } from "@/features/sidebar/hooks/useConversationSidebarActions";
 import { ConversationList } from "@/features/sidebar/components/ConversationList";
 import { DeleteConversationModal } from "@/features/sidebar/components/DeleteConversationModal";
-import { countDescendants } from "@/features/sidebar/lib/conversationTree";
 
 interface ConversationSidebarProps {
   siteId: string;
@@ -115,6 +114,7 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
         onStartRename={actions.startRename}
         onStartDelete={actions.setDeleteTarget}
         onToggleSaved={(item) => void actions.handleToggleSaved(item)}
+        onDuplicate={(item) => void actions.handleDuplicate(item)}
       />
 
       {data.dismissedConversations.length > 0 && (
@@ -178,11 +178,6 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
       <DeleteConversationModal
         target={actions.deleteTarget}
         isDeleting={actions.isDeleting}
-        descendantCount={
-          actions.deleteTarget
-            ? countDescendants(actions.deleteTarget.id, data.filtered)
-            : 0
-        }
         onClose={() => actions.setDeleteTarget(null)}
         onConfirmDelete={(opts) => void actions.confirmDelete(opts)}
       />

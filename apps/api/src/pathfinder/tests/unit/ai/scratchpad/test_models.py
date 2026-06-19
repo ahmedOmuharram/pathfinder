@@ -50,9 +50,17 @@ class TestNoteValidation:
         with pytest.raises(ValidationError):
             Note(**kwargs)
 
+    def test_summary_at_cap_accepted(self) -> None:
+        # Persistence accepts up to 500 chars even though the model is told
+        # to keep summaries ~280 — a slight overflow shouldn't trigger a retry.
+        kwargs = _base_note_kwargs()
+        kwargs["summary"] = "s" * 500
+        note = Note(**kwargs)
+        assert len(note.summary) == 500
+
     def test_summary_too_long_rejected(self) -> None:
         kwargs = _base_note_kwargs()
-        kwargs["summary"] = "s" * 281
+        kwargs["summary"] = "s" * 501
         with pytest.raises(ValidationError):
             Note(**kwargs)
 

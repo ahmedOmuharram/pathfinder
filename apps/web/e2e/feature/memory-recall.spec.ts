@@ -1,0 +1,108 @@
+import { test, expect } from "../fixtures/test";
+import type { BrowserContext } from "@playwright/test";
+
+const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
+
+function sseFrame(obj: unknown): string {
+  return `data: ${JSON.stringify(obj)}\n\n`;
+}
+
+function uiMessageStreamHeaders(): Record<string, string> {
+  return {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    "x-vercel-ai-ui-message-stream": "v1",
+  };
+}
+
+interface OpenStrategyResponse {
+  conversationId?: string;
+  strategyId?: string;
+  id?: string;
+}
+
+async function openStrategy(context: BrowserContext): Promise<string> {
+  const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
+    data: { siteId: "veupathdb" },
+    headers: { "X-Requested-With": "XMLHttpRequest" },
+  });
+  if (!resp.ok()) throw new Error(`openStrategy failed: ${resp.status()}`);
+  const body = (await resp.json()) as OpenStrategyResponse;
+  const id = body.conversationId ?? body.strategyId ?? body.id;
+  if (id === undefined || id === "") throw new Error("openStrategy returned no id");
+  return id;
+}
+
+test.describe("Recalled memories", () => {
+  test("renders the recalled-memory card from data-memory-retrieved", async ({
+    page,
+    context,
+  }) => {
+    const strategyId = await openStrategy(context);
+
+    const chatStream = [
+      sseFrame({
+        type: "start",
+        messageId: "44444444-4444-4444-4444-444444444444",
+        messageMetadata: {
+          phase: "scoping",
+          model: "mock:deterministic",
+          traceId: "mock-trace",
+          createdAt: new Date().toISOString(),
+        },
+      }),
+      sseFrame({
+        type: "data-memory-retrieved",
+        data: {
+          memories: [
+            {
+              key: "k1",
+              kind: "strategy",
+              name: "P. falciparum kinome sweep",
+              summary: "Prior malaria kinase strategy",
+              score: 0.83,
+            },
+            {
+              key: "k2",
+              kind: "gene_set",
+              name: "PF3D7 kinases",
+              summary: "142 kinase genes",
+              score: 0.61,
+            },
+          ],
+        },
+      }),
+      sseFrame({ type: "text-start", id: "t1" }),
+      sseFrame({ type: "text-delta", id: "t1", delta: "Using your prior work." }),
+      sseFrame({ type: "text-end", id: "t1" }),
+      sseFrame({ type: "finish", finishReason: "stop" }),
+      "data: [DONE]\n\n",
+    ].join("");
+
+    await page.route("**/api/v1/chat", async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: uiMessageStreamHeaders(),
+        body: chatStream,
+      });
+    });
+
+    await page.goto(`/conversation/${strategyId}`);
+    const composer = page.getByTestId("message-input");
+    await expect(composer).toBeVisible({ timeout: 30_000 });
+    await composer.click();
+    await composer.pressSequentially("continue my malaria work", { delay: 15 });
+    await expect(page.getByRole("button", { name: /Send/i })).toBeEnabled({
+      timeout: 15_000,
+    });
+    await composer.press("Enter");
+
+    const card = page.getByTestId("data-memory-retrieved");
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(card).toContainText("Recalled memories (2)");
+    await expect(card).toContainText("strategy");
+    await expect(card).toContainText("P. falciparum kinome sweep");
+    await expect(card).toContainText("gene_set");
+    await expect(card).toContainText("PF3D7 kinases");
+  });
+});

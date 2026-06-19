@@ -209,6 +209,13 @@ def stub_api(monkeypatch: pytest.MonkeyPatch) -> _StubAPI:
         return dict(kwargs.get("parameters") or {})
 
     monkeypatch.setattr(strategy_module, "validate_parameters", _noop_validate)
+
+    async def _noop_validate_plan_params(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(
+        step_wdk_push, "_validate_plan_params", _noop_validate_plan_params
+    )
     return api
 
 

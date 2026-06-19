@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Node, NodeProps } from "@xyflow/react";
 import { CombineOperator, type Step } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -74,30 +75,36 @@ function makeNodeProps(
 describe("StepNode dispatcher", () => {
   beforeEach(reset);
 
-  it("dispatches to SearchNode for kind=search", () => {
-    const step = makeStep({ kind: "search" });
+  it("dispatches to SearchNode for kind=search and renders the search step's name", () => {
+    const step = makeStep({ kind: "search", displayName: "Kinase genes" });
     const { container } = render(<StepNode {...makeNodeProps(step, false)} />);
     expect(container.querySelector('[data-kind="search"]')).not.toBeNull();
+    expect(screen.getByText("Kinase genes")).toBeInTheDocument();
   });
 
-  it("dispatches to CombineNode for kind=combine", () => {
+  it("dispatches to CombineNode for kind=combine and renders the operator badge", () => {
     const step = makeStep({
       kind: "combine",
+      displayName: "Kinases AND drug targets",
       operator: CombineOperator.INTERSECT,
       primaryInputStepId: "a",
       secondaryInputStepId: "b",
     });
     const { container } = render(<StepNode {...makeNodeProps(step, false)} />);
     expect(container.querySelector('[data-kind="combine"]')).not.toBeNull();
+    // The INTERSECT operator surfaces as its human badge label.
+    expect(screen.getByText("AND (INTERSECT)")).toBeInTheDocument();
   });
 
-  it("dispatches to TransformNode for kind=transform", () => {
+  it("dispatches to TransformNode for kind=transform and renders its name", () => {
     const step = makeStep({
       kind: "transform",
+      displayName: "Orthologs in P. berghei",
       primaryInputStepId: "a",
     });
     const { container } = render(<StepNode {...makeNodeProps(step, false)} />);
     expect(container.querySelector('[data-kind="transform"]')).not.toBeNull();
+    expect(screen.getByText("Orthologs in P. berghei")).toBeInTheDocument();
   });
 
   it("renders a selection ring on the shell when selected=true", () => {
@@ -106,19 +113,17 @@ describe("StepNode dispatcher", () => {
     expect(container.querySelector('[data-selected="true"]')).not.toBeNull();
   });
 
-  it("renders the hover-revealed action chips (edit, add to chat, more)", () => {
-    const step = makeStep();
+  it("fires onAddToChat with the step id when the add-to-chat chip is clicked", async () => {
+    const step = makeStep({ id: "step-kinases" });
+    const onAddToChat = vi.fn();
     render(
       <StepNode
-        {...makeNodeProps(step, false, {
-          onAddToChat: () => {},
-          onOpenDetails: () => {},
-        })}
+        {...makeNodeProps(step, false, { onAddToChat, onOpenDetails: vi.fn() })}
       />,
     );
     expect(screen.getByTestId(`rf-edit-${step.id}`)).toBeTruthy();
-    expect(screen.getByTestId(`rf-add-to-chat-${step.id}`)).toBeTruthy();
-    expect(screen.getByTestId(`rf-more-${step.id}`)).toBeTruthy();
+    await userEvent.click(screen.getByTestId(`rf-add-to-chat-${step.id}`));
+    expect(onAddToChat).toHaveBeenCalledWith("step-kinases");
   });
 
   it("tags the rendered node with data-orphan when isOrphan is true", () => {

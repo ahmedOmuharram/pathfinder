@@ -170,13 +170,12 @@ async def build_plan(
         deps=deps,
     )
     _apply_agent_state(deps, agent_deps)
-    if delta is not None:
-        return delta
-    plan = agent_deps.agent_state.active_plan
-    if plan is None:
+    if agent_deps.agent_state.active_plan is None:
         msg = "Planning sub-agent returned no plan."
         raise RuntimeError(msg)
-    return PlanDelta(plan=plan)
+    if delta is not None:
+        return delta
+    return PlanDelta()
 
 
 async def execute_plan(ctx: RunContext[LeadDeps]) -> ExecuteDelta:

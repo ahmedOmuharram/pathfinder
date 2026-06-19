@@ -18,6 +18,7 @@ import { SmartMiniMap } from "@/features/strategy/graph/components/SmartMiniMap"
 import { StepEdge } from "@/features/strategy/graph/components/edges/StepEdge";
 import { ValidationAlert } from "@/features/strategy/graph/components/ValidationAlert";
 import { useStrategyGraphCtx } from "@/features/strategy/graph/StrategyGraphContext";
+import { isNodeToolbarOrMenuTarget } from "@/features/strategy/graph/nodeClickTarget";
 import { usePrefersReducedMotion } from "@/lib/hooks/usePrefersReducedMotion";
 import { findOrphanSteps } from "@/lib/strategyGraph";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -98,7 +99,11 @@ export function StrategyGraphLayout() {
         onNodeClick={
           g.isCompact
             ? () => {}
-            : (_, node) => {
+            : (event, node) => {
+                // Toolbar buttons and the kebab menu (portaled, but React
+                // events still bubble here) drive their own actions; don't also
+                // open the editor — its overlay would block their dialogs.
+                if (isNodeToolbarOrMenuTarget(event.target)) return;
                 const data = node.data as { step?: Step } | undefined;
                 const step = data?.step;
                 if (step != null) g.setSelectedStep(step);

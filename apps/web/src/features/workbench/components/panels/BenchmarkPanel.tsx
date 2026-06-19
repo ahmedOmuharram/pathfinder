@@ -5,21 +5,21 @@ import { useShallow } from "zustand/react/shallow";
 import { useUnmount } from "usehooks-ts";
 import { BarChart3, Loader2, Play } from "lucide-react";
 
-import type { Experiment, ExperimentConfig } from "@pathfinder/shared";
+import type { Experiment } from "@pathfinder/shared";
 import {
   createBenchmarkStream,
   type BenchmarkControlSetInput,
 } from "@/features/workbench/api";
+import type { ExperimentRunConfig } from "@/features/workbench/api/streaming";
 import { Button } from "@/lib/components/ui/Button";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useWorkbenchStore, type PanelId } from "@/state/useWorkbenchStore";
 
-/**
- * Benchmark the active strategy against multiple control sets (defined
- * inline in a free-form JSON textarea). Scaffold — real control-set
- * picker UI added later.
- */
+import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
+
+const PANEL_ID: PanelId = "benchmark";
+
 export function BenchmarkPanel() {
   const selectedSite = useSessionStore((s) => s.selectedSite);
   const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
@@ -83,7 +83,7 @@ export function BenchmarkPanel() {
       positiveControls,
       negativeControls,
       name: `${activeSet.name} (benchmark)`,
-    } as ExperimentConfig;
+    } satisfies ExperimentRunConfig;
 
     try {
       for await (const event of createBenchmarkStream(base, parsedControlSets, {
@@ -112,12 +112,12 @@ export function BenchmarkPanel() {
   if (!activeSet) return null;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <BarChart3 className="h-5 w-5" />
-        <h3 className="text-sm font-semibold">Benchmark (multi-control-set)</h3>
-      </div>
-
+    <AnalysisPanelContainer
+      panelId={PANEL_ID}
+      title="Benchmark (multi-control-set)"
+      subtitle="Benchmark the active strategy against multiple control sets"
+      icon={<BarChart3 className="h-5 w-5" />}
+    >
       <div className="space-y-3 text-sm">
         <label className="block space-y-1">
           <span className="text-xs font-medium uppercase text-muted-foreground">
@@ -164,6 +164,6 @@ export function BenchmarkPanel() {
           </details>
         )}
       </div>
-    </div>
+    </AnalysisPanelContainer>
   );
 }

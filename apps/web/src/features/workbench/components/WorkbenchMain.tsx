@@ -17,6 +17,9 @@ import {
   EnsemblePanel,
   ConfidencePanel,
   ReverseSearchPanel,
+  EvaluatePanel,
+  BatchPanel,
+  BenchmarkPanel,
 } from "./panels";
 
 // ---------------------------------------------------------------------------
@@ -65,7 +68,10 @@ function ActiveSetHeader() {
 // Panel list with staggered animation
 // ---------------------------------------------------------------------------
 
-const PANELS = [
+export const WORKBENCH_PANELS = [
+  EvaluatePanel,
+  BatchPanel,
+  BenchmarkPanel,
   ResultsTablePanel,
   EnrichmentPanel,
   DistributionsPanel,
@@ -103,7 +109,7 @@ export function WorkbenchMain() {
         {lastExperiment?.id != null && lastExperiment.id !== "" && (
           <ChatView conversationId={lastExperiment.id} allowMissing />
         )}
-        {PANELS.map((Panel, i) => (
+        {WORKBENCH_PANELS.map((Panel, i) => (
           <div
             key={i}
             className="animate-fade-in"

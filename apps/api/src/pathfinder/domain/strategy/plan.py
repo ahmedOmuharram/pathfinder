@@ -11,7 +11,11 @@ from uuid import uuid4
 
 from pydantic import Field, JsonValue, model_validator
 
-from pathfinder.domain.parameters.values import ParamKind, ParamValue
+from pathfinder.domain.parameters.values import (
+    ParamKind,
+    ParamValue,
+    coerce_param_value,
+)
 from pathfinder.platform.pydantic_base import CamelModel
 
 # ── Enums ───────────────────────────────────────────────────────────
@@ -103,12 +107,21 @@ class PlannedParameter(CamelModel):
     @model_validator(mode="after")
     def _value_kind_matches_param_type(self) -> PlannedParameter:
         if self.value is not None and self.value.type != self.param_type:
-            msg = (
-                f"PlannedParameter {self.name!r}: value.type "
-                f"{self.value.type!r} does not match param_type "
-                f"{self.param_type!r}"
-            )
-            raise ValueError(msg)
+            # WDK is stringly-typed (numeric params are StringParam), so a
+            # scalar mismatch (e.g. a NumberValue for a string param) is
+            # coerced through the wire form rather than rejected. This keeps
+            # construction — including checkpoint reload via StrategyPlan(**dump)
+            # — from crashing on a benign, coercible mismatch left by an
+            # in-place mutation. Structural mismatches still raise.
+            try:
+                self.value = coerce_param_value(self.value, self.param_type)
+            except ValueError as exc:
+                msg = (
+                    f"PlannedParameter {self.name!r}: value.type "
+                    f"{self.value.type!r} is not compatible with param_type "
+                    f"{self.param_type!r}"
+                )
+                raise ValueError(msg) from exc
         return self
 
 
@@ -146,6 +159,9 @@ class PlannedStep(CamelModel):
     status: StepStatus
     parameters: list[PlannedParameter] = Field(default_factory=list)
     operator: str | None = None
+    left_id: str | None = None
+    right_id: str | None = None
+    input_id: str | None = None
     expected_count: int | None = None
     actual_count: int | None = None
     wdk_step_id: int | None = None
@@ -174,6 +190,19 @@ def _expected_input_arity(step_type: StepType) -> int:
             return 1
         case StepType.COMBINE:
             return 2
+
+
+def _arity_hint(step_type: StepType) -> str:
+    match step_type:
+        case StepType.COMBINE:
+            return (
+                " A combine step takes exactly two inputs — set its 'left_id' "
+                "and 'right_id' to the two step ids it joins."
+            )
+        case StepType.TRANSFORM:
+            return " A transform step takes one input — set its 'input_id'."
+        case StepType.LEAF:
+            return " A leaf step takes no inputs."
 
 
 class StrategyPlan(CamelModel):
@@ -227,15 +256,17 @@ class StrategyPlan(CamelModel):
                 msg = (
                     f"Step {step.id!r} (type {step.step_type.value}) has "
                     f"{actual} inbound connection(s); expected {expected}."
+                    f"{_arity_hint(step.step_type)}"
                 )
                 raise PlanTopologyError(msg)
 
         roots = [sid for sid, count in outbound.items() if count == 0]
         if len(roots) > 1:
             msg = (
-                f"Plan has multiple roots (steps with no outgoing "
-                f"connection): {sorted(roots)}. A plan must produce a "
-                "single final step."
+                f"Plan has multiple disconnected steps: {sorted(roots)} are "
+                "not consumed by anything. A plan must converge to ONE final "
+                "step — add a combine step whose 'left_id'/'right_id' are these "
+                "step ids (or remove the extras)."
             )
             raise PlanTopologyError(msg)
 

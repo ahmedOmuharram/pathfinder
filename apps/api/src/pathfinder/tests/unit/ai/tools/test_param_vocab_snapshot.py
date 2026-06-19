@@ -120,6 +120,7 @@ async def test_get_parameter_options_writes_param_vocab_snapshot(
     snap = overview.param_vocab["hard_floor"]
     assert snap.param_type == "number-enum"
     assert snap.required is True
+    assert snap.help == "Tier-quantile floor"
     assert snap.default_value == "6772.93"
     assert snap.allowed_values is not None
     values = [v.value for v in snap.allowed_values]
@@ -215,6 +216,7 @@ def test_pinned_discovered_searches_renders_param_vocab() -> None:
                 "hard_floor": ParamVocabSnapshot(
                     param_type="number-enum",
                     required=True,
+                    help="Tier-quantile floor for read counts",
                     default_value="6772.93",
                     allowed_values=[
                         VocabOption(value="1693.23", display="1693 reads"),
@@ -235,3 +237,6 @@ def test_pinned_discovered_searches_renders_param_vocab() -> None:
     assert "hard_floor" in rendered
     assert "1693.23" in rendered
     assert "6772.93" in rendered
+    # Param help ("what it does") is surfaced so downstream phases know the
+    # meaning of the param, not just its allowed values.
+    assert "Tier-quantile floor for read counts" in rendered

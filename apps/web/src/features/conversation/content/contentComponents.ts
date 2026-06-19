@@ -3,12 +3,10 @@ import type { DataPartKind, DataPartPayloadMap } from "@pathfinder/shared";
 
 import { DataBackgroundTaskStarted } from "./parts/DataBackgroundTaskStarted";
 import { DataConversationTitle } from "./parts/DataConversationTitle";
-import { DataDecisionPresented } from "./parts/DataDecisionPresented";
 import { DataGeneSet } from "./parts/DataGeneSet";
 import { DataGraphCleared } from "./parts/DataGraphCleared";
 import { DataGraphSnapshot } from "./parts/DataGraphSnapshot";
 import { DataMemoryRetrieved } from "./parts/DataMemoryRetrieved";
-import { DataPlanArtifact } from "./parts/DataPlanArtifact";
 import { DataProblemFrame } from "./parts/DataProblemFrame";
 import { DataStrategyLink } from "./parts/DataStrategyLink";
 import { DataStrategyMeta } from "./parts/DataStrategyMeta";
@@ -18,6 +16,8 @@ import { DataTaskProgress } from "./parts/DataTaskProgress";
 import { DataToolApprovalRequest } from "./parts/DataToolApprovalRequest";
 import { DataToolApprovalResult } from "./parts/DataToolApprovalResult";
 import { DataTurnStopped } from "./parts/DataTurnStopped";
+import { DataScoredComparison } from "./parts/DataScoredComparison";
+import { DataVariantComparison } from "./parts/DataVariantComparison";
 import { DataVerificationSummary } from "./parts/DataVerificationSummary";
 import { SubAgentCallCard } from "./parts/SubAgentCallCard";
 
@@ -39,8 +39,9 @@ export const dataPartComponents: {
   "data-graph-snapshot": DataGraphSnapshot,
   "data-graph-cleared": DataGraphCleared,
   "data-problem-frame": DataProblemFrame,
-  "data-plan-artifact": DataPlanArtifact,
-  "data-decision-presented": DataDecisionPresented,
+  "data-plan-artifact": () => null,
+  "data-variant-comparison": DataVariantComparison,
+  "data-scored-comparison": DataScoredComparison,
   "data-tool-approval-request": DataToolApprovalRequest,
   "data-tool-approval-result": DataToolApprovalResult,
   "data-memory-retrieved": DataMemoryRetrieved,

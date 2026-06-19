@@ -7,6 +7,7 @@ hallucination-prevention story."""
 from __future__ import annotations
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
+from pathfinder.domain.parameters.values import ParamValue, SinglePickValue
 
 
 def _ov(
@@ -91,3 +92,36 @@ def test_param_keys_for_returns_only_that_search() -> None:
     assert s.param_keys_for("GenesByText") == {"query", "max_pvalue"}
     assert s.param_keys_for("GenesByGoTerm") == {"go_term"}
     assert s.param_keys_for("NotInspected") == set()
+
+
+def test_decided_defaults_false_and_decided_search_names() -> None:
+    s = AgentToolState()
+    s.register_search("A", _ov("A"))
+    s.register_search("B", _ov("B"))
+    overview_a = s.get_overview("A")
+    assert overview_a is not None
+    assert overview_a.decided is False
+    assert s.decided_search_names() == set()
+    s.register_search("A", _ov("A").model_copy(update={"decided": True}))
+    assert s.decided_search_names() == {"A"}
+
+
+def test_param_read_key_is_stable_and_context_sensitive() -> None:
+    k1 = AgentToolState.param_read_key("S", "p")
+    k2 = AgentToolState.param_read_key("S", "p")
+    assert k1 == k2
+    ctx_a: dict[str, ParamValue] = {"parent": SinglePickValue(value="a")}
+    ctx_b: dict[str, ParamValue] = {"parent": SinglePickValue(value="b")}
+    assert AgentToolState.param_read_key("S", "p", context_values=ctx_a) != k1
+    assert AgentToolState.param_read_key(
+        "S", "p", context_values=ctx_a
+    ) != AgentToolState.param_read_key("S", "p", context_values=ctx_b)
+    assert AgentToolState.param_read_key("S", "p", query="x") != k1
+
+
+def test_mark_and_was_param_read() -> None:
+    s = AgentToolState()
+    key = AgentToolState.param_read_key("S", "p")
+    assert s.was_param_read(key) is False
+    s.mark_param_read(key)
+    assert s.was_param_read(key) is True

@@ -75,7 +75,8 @@ async def note(
     """Save a scratchpad note.
 
     Use liberally: before moving on from any promising search, save what you
-    learned. Over-noting is cheaper than re-discovering.
+    learned. Over-noting is cheaper than re-discovering. Keep ``summary`` to
+    roughly 280 characters (a one-line gist); put detail in ``body``.
     """
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
@@ -123,7 +124,10 @@ async def update_note(
     body: str | None = None,
     tags: list[str] | None = None,
 ) -> ToolReturn[dict[str, object]]:
-    """Update fields on an existing note. Omitted fields are unchanged."""
+    """Update fields on an existing note. Omitted fields are unchanged.
+
+    Keep ``summary`` to roughly 280 characters; put detail in ``body``.
+    """
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
         return ToolReturn(return_value={"error": _MSG_MISSING_CTX})

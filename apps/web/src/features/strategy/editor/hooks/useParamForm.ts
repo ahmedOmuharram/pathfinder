@@ -3,6 +3,10 @@ import { useForm } from "@tanstack/react-form";
 import type { ParamSpec } from "@pathfinder/shared";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 import { isMultiParam } from "@/features/strategy/parameters/spec";
+import {
+  type ParamValue,
+  paramValueToRaw,
+} from "@/features/strategy/parameters/paramValue";
 
 export type ParamFormValues = Record<string, string | string[]>;
 
@@ -30,6 +34,39 @@ function coerceToSingle(raw: unknown): string {
   return String(raw);
 }
 
+const PARAM_VALUE_TYPES: ReadonlySet<string> = new Set([
+  "string",
+  "date",
+  "timestamp",
+  "single-pick-vocabulary",
+  "number",
+  "multi-pick-vocabulary",
+  "number-range",
+  "date-range",
+  "input-dataset",
+  "input-step",
+  "filter",
+]);
+
+/**
+ * The persisted `step.parameters` map stores typed ``ParamValue`` objects
+ * whose shape varies by ``type`` (``value`` / ``values`` / ``min``+``max`` /
+ * ``filters`` / ``datasetId`` …), NOT a uniform ``{type, value}``. Detect a
+ * typed value so we can hand it to the canonical :func:`paramValueToRaw` —
+ * the same converter ``buildStepPatch`` (save) and ``useStepDraftChanges``
+ * (change detection) use, so the form loads identical raw values and reports
+ * zero phantom changes. Ad-hoc coercion here previously rendered every typed
+ * value as ``"[object Object]"`` (and trees as "0 selected").
+ */
+function asTypedParamValue(raw: unknown): ParamValue | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const type: unknown = (raw as { type?: unknown }).type;
+  if (typeof type === "string" && PARAM_VALUE_TYPES.has(type)) {
+    return raw as ParamValue;
+  }
+  return null;
+}
+
 function extractDefaults(
   specs: ParamSpec[],
   override?: StepParameters,
@@ -40,11 +77,16 @@ function extractDefaults(
     const overrideHas =
       override !== undefined &&
       Object.prototype.hasOwnProperty.call(override, spec.name);
-    const source: unknown = overrideHas
-      ? override[spec.name]
-      : spec.initialDisplayValue;
-    const result = isMultiParam(spec) ? coerceToMulti(source) : coerceToSingle(source);
-    defaults[spec.name] = result;
+    const raw: unknown = overrideHas ? override[spec.name] : spec.initialDisplayValue;
+    const typed = asTypedParamValue(raw);
+    if (typed !== null) {
+      // Typed persisted value (any param type) → canonical raw form value.
+      defaults[spec.name] = paramValueToRaw(typed);
+      continue;
+    }
+    // Raw source (a WDK ``initialDisplayValue`` string, or an already-raw
+    // override) → the existing string/array coercion.
+    defaults[spec.name] = isMultiParam(spec) ? coerceToMulti(raw) : coerceToSingle(raw);
   }
   return defaults;
 }

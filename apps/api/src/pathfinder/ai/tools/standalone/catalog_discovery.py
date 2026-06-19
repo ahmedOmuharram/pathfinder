@@ -14,6 +14,7 @@ next request — no wasted round-trip, no spammed retry loop.
 """
 
 from difflib import get_close_matches
+from typing import Literal
 
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
@@ -31,6 +32,7 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _resolve_record_type,
 )
 from pathfinder.domain.parameters.values import ParamValue
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
     format_search_overview,
@@ -47,6 +49,19 @@ from pathfinder.services.wdk import (
     encode_wdk_params,
     get_wdk_client,
 )
+
+
+class AlreadyReadNotice(CamelModel):
+    """Returned when the model re-reads something it already read this turn.
+
+    The full payload is suppressed — the model already has it in context —
+    so redundant read loops cost one short line instead of a full re-dump.
+    """
+
+    kind: Literal["already_read"] = "already_read"
+    message: str
+    search_name: str
+    parameter_id: str | None = None
 
 
 def _did_you_mean(
@@ -84,11 +99,12 @@ async def get_search_overview(
     ctx: RunContext[AgentDeps],
     search_name: str,
     record_type: str | None = None,
-) -> SearchOverviewResult:
+) -> SearchOverviewResult | AlreadyReadNotice:
     """Get a high-level overview of a search: description, parameters (required/optional), and dependencies.
 
     MUST be called before creating a step with this search -- it registers the
-    search in the discovery gate and caches the parameter schema.
+    search in the discovery gate and caches the parameter schema. Reading the
+    same search twice returns a short "already inspected" notice, not a re-dump.
 
     Args:
         ctx: Agent run context.
@@ -96,6 +112,15 @@ async def get_search_overview(
         record_type: Record type. Auto-resolved from search name if omitted (recommended).
     """
     deps = ctx.deps
+    if deps.agent_state.get_overview(search_name) is not None:
+        return AlreadyReadNotice(
+            message=(
+                f"You already inspected '{search_name}' this turn — same as "
+                "your earlier read. Move on (inspect a different search, read a "
+                "parameter, or record a decision)."
+            ),
+            search_name=search_name,
+        )
     rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
     client = get_wdk_client(deps.site_id)
     details = await client.get_search_details(rt, search_name, expand_params=True)
@@ -136,7 +161,7 @@ async def get_parameter_options(
     record_type: str | None = None,
     context_values: dict[str, ParamValue] | None = None,
     query: str | None = None,
-) -> GetParameterOptionsResult:
+) -> GetParameterOptionsResult | AlreadyReadNotice:
     """Get detailed parameter info including vocabulary/allowed values.
 
     For dependent parameters, pass context_values with the parent parameter's
@@ -166,6 +191,19 @@ async def get_parameter_options(
             (e.g. query='cruzi' for T. cruzi).
     """
     deps = ctx.deps
+    read_key = deps.agent_state.param_read_key(
+        search_name, parameter_id, context_values=context_values, query=query
+    )
+    if deps.agent_state.was_param_read(read_key):
+        return AlreadyReadNotice(
+            message=(
+                f"You already read options for '{parameter_id}' on "
+                f"'{search_name}' with these exact context/query — same as "
+                "before. Use the values you saw; don't re-read."
+            ),
+            search_name=search_name,
+            parameter_id=parameter_id,
+        )
     rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
     has_context = bool(context_values)
 
@@ -204,6 +242,7 @@ async def get_parameter_options(
                 filtered, depends_on=depends_on, controls=controls
             )
             _snapshot_param_vocab(deps, search_name, info)
+            deps.agent_state.mark_param_read(read_key)
             return info
 
     valid = [p.name for p in all_params]
@@ -233,6 +272,7 @@ def _snapshot_param_vocab(
     snapshot = ParamVocabSnapshot(
         param_type=info.type,
         required=info.required,
+        help=info.help,
         default_value=info.default_value,
         allowed_values=info.allowed_values,
         allowed_values_tree=info.allowed_values_tree,
@@ -295,6 +335,12 @@ async def update_search_decision(
         raise ModelRetry(
             _did_you_mean(search_name, discovered, kind="search_name"),
         )
+    if existing.decided and existing.selection_status == selection_status:
+        return (
+            f"Already decided '{search_name}' as {selection_status} — no change "
+            "recorded. It's hidden from the catalog now; move on to other "
+            "searches or finish discovery."
+        )
     updated = existing.model_copy(
         update={
             "selection_status": selection_status,
@@ -302,6 +348,7 @@ async def update_search_decision(
             "selection_reason": selection_reason,
             "confidence": confidence,
             "param_hints": dict(param_hints) if param_hints else {},
+            "decided": True,
         },
     )
     deps.agent_state.register_search(search_name, updated)

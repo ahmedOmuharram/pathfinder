@@ -17,8 +17,7 @@ from pathfinder.ai.conversation.ui_message_reducer import reduce_chunks
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
-from pathfinder.ai.memory.schemas import MemoryValue
-from pathfinder.ai.memory.store import MemoryStore
+from pathfinder.ai.memory.store import MemoryStore, StoredMemory
 from pathfinder.persistence.repositories import MessagesRepository
 from pathfinder.persistence.repositories._message_metadata import MessageMetadata
 
@@ -46,9 +45,16 @@ def _build_metadata(
 async def retrieve_memories(
     state: PipelineState,
     runtime: Runtime[Context],
-) -> list[MemoryValue]:
+) -> list[StoredMemory]:
+    """Fresh-turn cross-thread retrieval.
+
+    Returns ``[]`` on an approval-resume turn — the turn's memories are
+    already persisted on ``state.retrieved_memories``, so the lead node
+    preserves them rather than re-querying (and does not re-emit the
+    recalled-memories chunk).
+    """
     if state.pending_approval is not None:
-        return list(state.retrieved_memories)
+        return []
     if runtime.context is None or runtime.context.memory_store is None:
         return []
     if not state.user_prompt.strip():

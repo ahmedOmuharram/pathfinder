@@ -48,11 +48,14 @@ from pathfinder.ai.agents.planning import planning_agent
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.scoping import scoping_agent
 from pathfinder.ai.agents.verification import verification_agent
+from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.graph.stream_events import (
+    SubAgentCallPayload,
     SubAgentStepPayload,
     ledger_update_event,
+    sub_agent_call_event,
     sub_agent_step_event,
     turn_status_event,
 )
@@ -175,15 +178,18 @@ def _short(s: str, *, limit: int = 280) -> str:
     return s if len(s) <= limit else s[:limit] + "..."
 
 
+_RESULT_LIMIT = 8000
+
+
 def _summarize_tool_result(content: object) -> str:
     if isinstance(content, BaseModel):
-        return _short(json.dumps(content.model_dump(mode="json")), limit=2000)
+        return _short(json.dumps(content.model_dump(mode="json")), limit=_RESULT_LIMIT)
     if isinstance(content, str):
-        return _short(content, limit=2000)
+        return _short(content, limit=_RESULT_LIMIT)
     try:
-        return _short(json.dumps(content), limit=2000)
-    except (TypeError, ValueError):
-        return _short(str(content), limit=2000)
+        return _short(json.dumps(content), limit=_RESULT_LIMIT)
+    except TypeError, ValueError:
+        return _short(str(content), limit=_RESULT_LIMIT)
 
 
 _STREAMABLE_METADATA = (DataChunk, SourceUrlChunk, SourceDocumentChunk, FileChunk)
@@ -238,11 +244,14 @@ def _forward_inner_event(
         tool_name = inner_calls.get(event.tool_call_id)
         if tool_name is None:
             return
-        result = event.result
+        result = event.part
         is_retry = isinstance(result, RetryPromptPart)
-        if is_retry:
+        if isinstance(result, RetryPromptPart):
             content = result.content
-            summary = _short(content) if isinstance(content, str) else "retry requested"
+            summary = _short(
+                content if isinstance(content, str) else result.model_response(),
+                limit=_RESULT_LIMIT,
+            )
         else:
             summary = _summarize_tool_result(result.content)
         _emit_step(
@@ -379,7 +388,40 @@ async def _stream_sub_agent[OutputT: BaseModel](
             )
             if isinstance(event, FunctionToolResultEvent):
                 _emit_live_ledger(writer, deps, agent_deps)
+                _emit_running_sub_agent_usage(writer, role, parent_tool_call_id, usage)
     return output
+
+
+def _emit_running_sub_agent_usage(
+    writer: Any,
+    role: PhaseRole,
+    parent_tool_call_id: str,
+    usage: RunUsage,
+) -> None:
+    """Push the sub-agent's running tokens/cost after each inner tool call."""
+    model_id = _phase_default_model_id(role)
+    provider, _, model = model_id.partition(":")
+    cost = cost_for_run(
+        usage=usage,
+        model_name=model or None,
+        provider_name=provider or None,
+        provider_url=None,
+    )
+    writer(
+        {
+            "chunk": sub_agent_call_event(
+                SubAgentCallPayload(
+                    tool_call_id=parent_tool_call_id,
+                    sub_agent=role,
+                    phase=role,
+                    state="started",
+                    model_id=model_id,
+                    tokens=usage.total_tokens,
+                    cost_usd=str(cost),
+                )
+            ).model_dump(by_alias=True, mode="json", exclude_none=True),
+        },
+    )
 
 
 def _emit_live_ledger(

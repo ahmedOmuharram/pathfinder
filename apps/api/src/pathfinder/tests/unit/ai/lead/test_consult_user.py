@@ -1,0 +1,89 @@
+"""The consult_user deferred tool: a blocking gate that asks the user design
+questions BEFORE a plan is finalized, then hands the answers back to the Lead
+so it can re-run build_plan with them. Mirrors submit_plan_for_approval's
+resume path: pydantic-ai paused on the first call, the user answered in the
+carousel, the next POST carried the approval + a data-user-question-answers
+payload, the backend extracted it into state.user_question_answers, and the
+body now reads it.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+from unittest.mock import MagicMock
+from uuid import uuid4
+
+import pytest
+
+from pathfinder.ai.graph.state import (
+    ConsultQuestion,
+    PendingApproval,
+    PipelineState,
+    UserQuestionAnswer,
+)
+from pathfinder.ai.lead.lead_agent import consult_user
+
+
+def _ctx(state: PipelineState) -> Any:
+    ctx = MagicMock()
+    ctx.deps = MagicMock()
+    ctx.deps.state = state
+    return ctx
+
+
+def _state() -> PipelineState:
+    return PipelineState(
+        conversation_id=uuid4(),
+        user_id=uuid4(),
+        site_id="plasmodb",
+        mode="strategy",
+    )
+
+
+_QUESTIONS = [
+    ConsultQuestion(id="q1", prompt="Fold-change threshold?"),
+    ConsultQuestion(id="q2", prompt="Include microarray arm?"),
+]
+
+
+@pytest.mark.asyncio
+async def test_returns_user_answers_and_instructs_replan() -> None:
+    state = _state()
+    state.pending_approval = PendingApproval(
+        phase="lead", tool_call_id="call_1", tool_name="consult_user"
+    )
+    state.user_question_answers = {
+        "call_1": [
+            UserQuestionAnswer(
+                question_id="q1",
+                prompt="Fold-change threshold?",
+                chosen_labels=["2-fold"],
+            ),
+            UserQuestionAnswer(
+                question_id="q2",
+                prompt="Include microarray arm?",
+                chosen_labels=["No"],
+                note="RNA-seq is enough",
+            ),
+        ],
+    }
+    result = await consult_user(_ctx(state), questions=_QUESTIONS)
+
+    assert [a.question_id for a in result.return_value] == ["q1", "q2"]
+    assert "Fold-change threshold?" in result.content
+    assert "2-fold" in result.content
+    assert "RNA-seq is enough" in result.content
+    # The Lead is told to re-plan with the answers, not to execute.
+    assert "build_plan" in result.content
+
+
+@pytest.mark.asyncio
+async def test_no_answers_yet_reports_awaiting() -> None:
+    state = _state()
+    state.pending_approval = PendingApproval(
+        phase="lead", tool_call_id="call_1", tool_name="consult_user"
+    )
+    result = await consult_user(_ctx(state), questions=_QUESTIONS)
+    assert result.return_value == []
+    assert "2" in result.content  # presented 2 questions
+    assert "awaiting" in result.content.lower()

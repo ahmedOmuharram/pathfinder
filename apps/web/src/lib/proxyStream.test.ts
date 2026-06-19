@@ -11,10 +11,6 @@
 import type { NextRequest } from "next/server";
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 
-// We can't directly import the pipeStream function since it's not exported,
-// so we test through proxySSEGet. We mock fetch to control the upstream.
-
-// Since _proxy.ts uses next/server imports, we need to mock those.
 vi.mock("next/server", () => ({
   NextResponse: {
     json: vi.fn((body: unknown, init?: { status?: number }) => ({
@@ -23,10 +19,6 @@ vi.mock("next/server", () => ({
     })),
   },
 }));
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /** Build a ReadableStream that emits chunks with async delay between each. */
 function streamFromChunksAsync(
@@ -60,10 +52,6 @@ async function collectChunks(stream: ReadableStream<Uint8Array>): Promise<string
   return chunks;
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.test");
@@ -77,14 +65,12 @@ afterEach(() => {
 
 describe("SSE proxy streaming behavior", () => {
   it("pipes each upstream chunk individually (no batching)", async () => {
-    // Simulate 3 SSE events arriving one at a time from upstream
     const sseEvent1 = 'event: delta\ndata: {"token":"Hello"}\n\n';
     const sseEvent2 = 'event: delta\ndata: {"token":" world"}\n\n';
     const sseEvent3 = 'event: message_end\ndata: {"done":true}\n\n';
 
     const upstreamBody = streamFromChunksAsync([sseEvent1, sseEvent2, sseEvent3], 20);
 
-    // Mock fetch to return our streaming body
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -95,28 +81,23 @@ describe("SSE proxy streaming behavior", () => {
       })),
     );
 
-    // Dynamically import proxySSEGet
     const { proxySSEGet } = await import("@/app/api/v1/_proxy");
 
     const mockReq = {
       headers: new Headers({ authorization: "Bearer test" }),
-      url: "http://localhost:3000/api/v1/operations/op-1/subscribe",
+      url: "http://localhost:3000/api/v1/conversations/c-1/tasks/t-1/events",
     } as unknown as NextRequest;
 
-    const response = await proxySSEGet(mockReq, "/api/v1/operations/op-1/subscribe");
+    const response = await proxySSEGet(
+      mockReq,
+      "/api/v1/conversations/c-1/tasks/t-1/events",
+    );
 
     expect(response.status).toBe(200);
-    expect(response.body).toBeTruthy();
 
-    // Collect chunks from the piped stream
     const chunks = await collectChunks(response.body!);
 
-    // CRITICAL: Each upstream event should arrive as a separate chunk.
-    // If the proxy buffers, all events would arrive in one or two chunks.
-    expect(chunks.length).toBeGreaterThanOrEqual(3);
-    expect(chunks[0]).toContain("Hello");
-    expect(chunks[1]).toContain("world");
-    expect(chunks[2]).toContain("done");
+    expect(chunks).toEqual([sseEvent1, sseEvent2, sseEvent3]);
   });
 
   it("response headers disable caching and buffering", async () => {
@@ -139,7 +120,6 @@ describe("SSE proxy streaming behavior", () => {
 
     const response = await proxySSEGet(mockReq, "/test");
 
-    // Verify SSE-critical headers
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
     expect(response.headers.get("Cache-Control")).toContain("no-cache");
     expect(response.headers.get("Cache-Control")).toContain("no-transform");
@@ -165,7 +145,6 @@ describe("SSE proxy streaming behavior", () => {
 
     await proxySSEGet(mockReq, "/test");
 
-    // Verify fetch was called with cache: 'no-store'
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -206,9 +185,6 @@ describe("JSON proxy behavior", () => {
 
 describe("Next.js config for SSE", () => {
   it("has compression disabled to prevent SSE buffering", async () => {
-    // Read the next.config.ts and verify compress: false
-    // This is critical: Next.js default compress: true uses gzip which
-    // buffers the response, breaking token-by-token SSE delivery.
     const fs = await import("node:fs");
     const path = await import("node:path");
 
@@ -216,7 +192,6 @@ describe("Next.js config for SSE", () => {
     expect(fs.existsSync(configPath)).toBe(true);
     const configContent = fs.readFileSync(configPath, "utf-8");
 
-    // The config must explicitly set compress: false
     expect(configContent).toContain("compress");
     expect(configContent).toMatch(/compress\s*:\s*false/);
   });

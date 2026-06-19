@@ -118,7 +118,6 @@ async def test_create_plan_rejects_when_plan_locked(status: PlanStatus) -> None:
             description="d",
             rationale="r",
             steps=[_leaf()],
-            connections=[],
         )
     msg = str(excinfo.value)
     assert "PLAN_ALREADY_EXISTS" in msg
@@ -140,7 +139,6 @@ async def test_create_plan_allowed_when_plan_unlocked(status: PlanStatus) -> Non
         description="d",
         rationale="r",
         steps=[_leaf()],
-        connections=[],
     )
     assert not isinstance(result, ToolErrorPayload), (
         f"unexpected error on status={status}: {getattr(result, 'message', result)!r}"
@@ -158,7 +156,6 @@ async def test_create_plan_allowed_when_no_existing() -> None:
         description="d",
         rationale="r",
         steps=[_leaf()],
-        connections=[],
     )
     assert not isinstance(result, ToolErrorPayload)
     assert deps.agent_state.active_plan is not None

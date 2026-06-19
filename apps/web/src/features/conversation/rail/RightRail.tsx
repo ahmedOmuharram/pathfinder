@@ -1,18 +1,10 @@
 "use client";
 
-import {
-  Brain,
-  ClipboardList,
-  Notebook,
-  ScrollText,
-  Timer,
-  Workflow,
-} from "lucide-react";
+import { Brain, Notebook, ScrollText, Timer, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
-import type { UIMessage } from "ai";
 import type { Strategy } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +20,6 @@ import { useRightRailStore, type RightRailPanel } from "@/state/useRightRailStor
 import { computeRailActivity } from "./railActivity";
 import { LedgerPanel } from "./LedgerPanel";
 import { MemoriesPanel } from "./MemoriesPanel";
-import { PlanPanel } from "./PlanPanel";
 import { ScratchpadPanel } from "./ScratchpadPanel";
 import { StrategyPanel } from "./StrategyPanel";
 import { TasksPanel } from "./TasksPanel";
@@ -51,36 +42,16 @@ interface RailIconSpec {
 
 const RAIL_ICONS: RailIconSpec[] = [
   { id: "strategy", icon: Workflow, label: "Strategy" },
-  { id: "plan", icon: ClipboardList, label: "Plan" },
   { id: "tasks", icon: Timer, label: "Tasks" },
   { id: "memories", icon: Brain, label: "Memories" },
   { id: "scratchpad", icon: Notebook, label: "Scratchpad" },
   { id: "ledger", icon: ScrollText, label: "Ledger" },
 ];
 
-export function pendingPlanApprovalId(messages: readonly UIMessage[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message?.role !== "assistant") continue;
-    for (const part of message.parts) {
-      if (
-        part.type === "tool-submit_plan_for_approval" &&
-        "state" in part &&
-        part.state === "approval-requested" &&
-        "approval" in part
-      ) {
-        return part.approval.id;
-      }
-    }
-  }
-  return null;
-}
-
 export function RightRail({ conversationId, strategy, siteId }: RightRailProps) {
   const openPanel = useRightRailStore((s) => s.openPanel);
   const lastSeen = useRightRailStore((s) => s.lastSeen);
   const togglePanel = useRightRailStore((s) => s.togglePanel);
-  const openPanelId = useRightRailStore((s) => s.openPanelId);
   const autoOpenedConversation = useRightRailStore((s) => s.autoOpenedConversation);
   const autoOpen = useRightRailStore((s) => s.autoOpen);
 
@@ -98,32 +69,8 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
     queueMicrotask(() => autoOpen(conversationId, "ledger"));
   }
 
-  const activePlanId = (() => {
-    if (chat == null) return null;
-    for (let i = chat.messages.length - 1; i >= 0; i--) {
-      const message = chat.messages[i];
-      if (message?.role !== "assistant") continue;
-      for (let j = message.parts.length - 1; j >= 0; j--) {
-        const part = message.parts[j];
-        if (part?.type === "data-plan-artifact") {
-          const data = (part as { data?: { planId?: string } }).data;
-          return data?.planId ?? null;
-        }
-      }
-    }
-    return null;
-  })();
-
-  const pendingApprovalId = pendingPlanApprovalId(chat?.messages ?? []);
-  const [autoOpenedApproval, setAutoOpenedApproval] = useState<string | null>(null);
-  if (pendingApprovalId !== null && pendingApprovalId !== autoOpenedApproval) {
-    setAutoOpenedApproval(pendingApprovalId);
-    queueMicrotask(() => openPanelId("plan", { planId: activePlanId }));
-  }
-
   const hasUpdate: Record<RightRailPanel, boolean> = {
     strategy: strategyStepCount !== lastSeen.strategyStepCount,
-    plan: activePlanId !== null && activePlanId !== lastSeen.planId,
     tasks: activity.taskCount !== lastSeen.taskCount,
     memories: activity.memoryCount !== lastSeen.memoryCount,
     scratchpad: activity.scratchpadCount !== lastSeen.scratchpadCount,
@@ -134,8 +81,6 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
     switch (panel) {
       case "strategy":
         return { strategyStepCount };
-      case "plan":
-        return { planId: activePlanId };
       case "tasks":
         return { taskCount: activity.taskCount };
       case "memories":
@@ -172,7 +117,6 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
                   {openPanel === "strategy" && (
                     <StrategyPanel strategy={strategy} siteId={siteId} />
                   )}
-                  {openPanel === "plan" && <PlanPanel />}
                   {openPanel === "tasks" && (
                     <TasksPanel conversationId={conversationId} />
                   )}

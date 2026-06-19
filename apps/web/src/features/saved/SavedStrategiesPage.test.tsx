@@ -1,0 +1,128 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
+import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
+
+import { SavedStrategiesPage } from "./SavedStrategiesPage";
+import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
+
+vi.mock("@pathfinder/shared/generated/hooks/useDeleteStrategy", () => ({
+  deleteStrategy: vi.fn(() => Promise.resolve({})),
+}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+const mockDelete = vi.mocked(deleteStrategy);
+
+function conv(over: Partial<ConversationResponse>): ConversationResponse {
+  return {
+    id: "c1",
+    name: "Conv",
+    siteId: "plasmodb",
+    recordType: "transcript",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+    ...over,
+  };
+}
+
+function renderPage(
+  convs: ConversationResponse[],
+  counts: Record<number, number> = {},
+): void {
+  const qc = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
+    },
+  });
+  qc.setQueryData(listStrategiesQueryOptions({ siteId: "plasmodb" }).queryKey, convs);
+  qc.setQueryData(["saved-strategy-consumers", "plasmodb"], counts);
+  const ui: ReactElement = (
+    <QueryClientProvider client={qc}>
+      <SavedStrategiesPage siteId="plasmodb" />
+    </QueryClientProvider>
+  );
+  render(ui);
+}
+
+afterEach(cleanup);
+beforeEach(() => mockDelete.mockClear());
+
+const KINASES = conv({
+  id: "k1",
+  name: "Kinase sweep",
+  isSaved: true,
+  wdkStrategyId: 101,
+  stepCount: 3,
+  estimatedSize: 1234,
+  recordType: "transcript",
+});
+const PHOSPH = conv({
+  id: "p1",
+  name: "Phosphatase set",
+  isSaved: true,
+  wdkStrategyId: 202,
+  stepCount: 1,
+});
+const DRAFT = conv({ id: "d1", name: "Unsaved draft", isSaved: false });
+
+describe("SavedStrategiesPage", () => {
+  it("lists only saved strategies with their step count, size and record type", async () => {
+    renderPage([KINASES, DRAFT, PHOSPH], { 101: 0, 202: 0 });
+    const list = await screen.findByTestId("saved-strategies-list");
+
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+
+    const kinaseRow = screen.getByTestId("saved-strategy-k1");
+    expect(kinaseRow).toHaveTextContent("Kinase sweep");
+    expect(kinaseRow).toHaveTextContent("3 steps · 1,234 results · transcript");
+
+    const phosphRow = screen.getByTestId("saved-strategy-p1");
+    expect(phosphRow).toHaveTextContent("1 step");
+
+    expect(screen.queryByTestId("saved-strategy-d1")).toBeNull();
+  });
+
+  it("shows the consumer badge with the imported-by count", async () => {
+    renderPage([KINASES], { 101: 3 });
+    const row = await screen.findByTestId("saved-strategy-k1");
+    expect(within(row).getByText("3 consumers")).toBeTruthy();
+  });
+
+  it("filters the visible rows by name", async () => {
+    renderPage([KINASES, PHOSPH], { 101: 0, 202: 0 });
+    await screen.findByTestId("saved-strategies-list");
+
+    await userEvent.type(screen.getByTestId("saved-strategies-filter"), "phosph");
+
+    expect(screen.queryByTestId("saved-strategy-k1")).toBeNull();
+    expect(screen.getByTestId("saved-strategy-p1")).toHaveTextContent(
+      "Phosphatase set",
+    );
+  });
+
+  it("shows the empty state when there are no saved strategies", async () => {
+    renderPage([DRAFT]);
+    expect(await screen.findByText("No saved strategies yet.")).toBeTruthy();
+  });
+
+  it("deletes a saved strategy from WDK with cascade on click", async () => {
+    renderPage([KINASES], { 101: 0 });
+    await screen.findByTestId("saved-strategy-k1");
+
+    await userEvent.click(screen.getByTestId("saved-strategy-delete-k1"));
+
+    await waitFor(() =>
+      expect(mockDelete.mock.calls).toEqual([
+        ["k1", { deleteFromWdk: true, cascade: true }],
+      ]),
+    );
+  });
+});

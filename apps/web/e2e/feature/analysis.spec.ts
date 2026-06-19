@@ -102,6 +102,9 @@ test.describe("Analysis Panels", () => {
     );
 
     const panelTitles = [
+      "Evaluate",
+      "Batch (multi-organism)",
+      "Benchmark (multi-control-set)",
       "Results Table",
       "Enrichment Analysis",
       "Distribution Explorer",

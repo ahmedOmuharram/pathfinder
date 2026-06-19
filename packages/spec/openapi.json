@@ -6050,7 +6050,7 @@
           "user"
         ],
         "summary": "Purge User Data Endpoint",
-        "description": "Purge user data from all local stores.\n\nWhen ``deleteWdk=false`` (default): non-WDK chats are hard-deleted,\nWDK-linked chats are **dismissed** so WDK sync won't re-import them.\nThe strategies remain on VEuPathDB but PathFinder ignores them.\n\nWhen ``deleteWdk=true``: everything is hard-deleted locally AND all\nWDK strategies are deleted from VEuPathDB.\n\nAlways deletes: gene sets, experiments, control sets.\n\nPass ``?siteId=X`` to limit to one site, or omit for everything.",
+        "description": "Purge user data from all local stores.\n\nWhen ``deleteWdk=false`` (default): every chat is **dismissed** (soft\ndelete) so WDK sync won't re-import them; the strategies remain on\nVEuPathDB but PathFinder ignores them. Nothing is hard-deleted.\n\nWhen ``deleteWdk=true``: everything is hard-deleted locally AND all\nWDK strategies are deleted from VEuPathDB.\n\nAlways deletes: gene sets, experiments, control sets.\n\nPass ``?siteId=X`` to limit to one site, or omit for everything.",
         "operationId": "purge_user_data_endpoint_api_v1_user_data_delete",
         "security": [
           {
@@ -7998,6 +7998,76 @@
         "title": "ConfusionMatrixResponse",
         "description": "2x2 confusion matrix counts."
       },
+      "ConsultOption": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "recommended": {
+            "type": "boolean",
+            "title": "Recommended",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "ConsultOption",
+        "description": "One selectable option on a ``consult_user`` question."
+      },
+      "ConsultQuestion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "single_choice",
+              "multi_choice",
+              "free_text"
+            ],
+            "title": "Kind",
+            "default": "single_choice"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ConsultOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "context": {
+            "type": "string",
+            "title": "Context",
+            "default": ""
+          },
+          "allowNotes": {
+            "type": "boolean",
+            "title": "Allownotes",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "prompt"
+        ],
+        "title": "ConsultQuestion",
+        "description": "A design question the Lead asks the user via ``consult_user`` to shape\nthe investigation BEFORE a plan is finalized. Rendered as a carousel slide\nwith options + an optional free-text note."
+      },
       "ControlSetResponse": {
         "properties": {
           "id": {
@@ -9279,42 +9349,6 @@
           "value"
         ],
         "title": "DateValue"
-      },
-      "DecisionPresented": {
-        "properties": {
-          "decisionType": {
-            "type": "string",
-            "title": "Decisiontype"
-          },
-          "options": {
-            "items": {
-              "additionalProperties": {
-                "$ref": "#/components/schemas/JsonValue"
-              },
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Options"
-          },
-          "rationale": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rationale"
-          }
-        },
-        "type": "object",
-        "required": [
-          "decisionType",
-          "options"
-        ],
-        "title": "DecisionPresented",
-        "description": "A branching decision for the user to resolve."
       },
       "DeleteResolution": {
         "type": "string",
@@ -13446,7 +13480,7 @@
           },
           "summary": {
             "type": "string",
-            "maxLength": 280,
+            "maxLength": 500,
             "minLength": 1,
             "title": "Summary"
           },
@@ -14389,7 +14423,7 @@
           },
           "pairwise": {
             "items": {
-              "$ref": "#/components/schemas/PairwiseOverlap"
+              "$ref": "#/components/schemas/pathfinder__services__experiment__overlap__PairwiseOverlap"
             },
             "type": "array",
             "title": "Pairwise"
@@ -14432,84 +14466,6 @@
         ],
         "title": "OverlapResult",
         "description": "Return shape of :func:`compute_gene_set_overlap`."
-      },
-      "PairwiseOverlap": {
-        "properties": {
-          "experimentA": {
-            "type": "string",
-            "title": "Experimenta"
-          },
-          "experimentB": {
-            "type": "string",
-            "title": "Experimentb"
-          },
-          "labelA": {
-            "type": "string",
-            "title": "Labela"
-          },
-          "labelB": {
-            "type": "string",
-            "title": "Labelb"
-          },
-          "sizeA": {
-            "type": "integer",
-            "title": "Sizea"
-          },
-          "sizeB": {
-            "type": "integer",
-            "title": "Sizeb"
-          },
-          "intersection": {
-            "type": "integer",
-            "title": "Intersection"
-          },
-          "union": {
-            "type": "integer",
-            "title": "Union"
-          },
-          "jaccard": {
-            "type": "number",
-            "title": "Jaccard"
-          },
-          "sharedGenes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Sharedgenes"
-          },
-          "uniqueA": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Uniquea"
-          },
-          "uniqueB": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Uniqueb"
-          }
-        },
-        "type": "object",
-        "required": [
-          "experimentA",
-          "experimentB",
-          "labelA",
-          "labelB",
-          "sizeA",
-          "sizeB",
-          "intersection",
-          "union",
-          "jaccard",
-          "sharedGenes",
-          "uniqueA",
-          "uniqueB"
-        ],
-        "title": "PairwiseOverlap",
-        "description": "Shape of one pairwise comparison entry."
       },
       "ParamSpecResponse": {
         "properties": {
@@ -16458,6 +16414,134 @@
         "title": "SavedStrategyConsumerCounts",
         "description": "Map of WDK strategy id -> number of conversations that import it."
       },
+      "ScoredComparison": {
+        "properties": {
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/ScoredVariant"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "winnerLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winnerlabel"
+          },
+          "objective": {
+            "type": "string",
+            "title": "Objective"
+          }
+        },
+        "type": "object",
+        "required": [
+          "variants",
+          "winnerLabel",
+          "objective"
+        ],
+        "title": "ScoredComparison"
+      },
+      "ScoredVariant": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "searchName": {
+            "type": "string",
+            "title": "Searchname"
+          },
+          "experimentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experimentid"
+          },
+          "mcc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mcc"
+          },
+          "balancedAccuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balancedaccuracy"
+          },
+          "f1": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "F1"
+          },
+          "sensitivity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensitivity"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "searchName"
+        ],
+        "title": "ScoredVariant"
+      },
       "ScratchpadPatchRequest": {
         "properties": {
           "pinned": {
@@ -18314,10 +18398,40 @@
               }
             ]
           },
-          "decisionPresented": {
+          "consultQuestion": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/DecisionPresented"
+                "$ref": "#/components/schemas/ConsultQuestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "userQuestionAnswer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserQuestionAnswer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "variantComparison": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VariantComparison"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scoredComparison": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScoredComparison"
               },
               {
                 "type": "null"
@@ -20599,6 +20713,37 @@
         ],
         "title": "UpdatesEvent"
       },
+      "UserQuestionAnswer": {
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "title": "Questionid"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "chosenLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Chosenlabels"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "questionId",
+          "prompt"
+        ],
+        "title": "UserQuestionAnswer",
+        "description": "The user's answer to one ``ConsultQuestion`` \u2014 chosen option label(s)\nand/or a free-text note. ``chosen_labels`` is empty for free_text."
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -20695,6 +20840,82 @@
         ],
         "title": "ValidationResult",
         "description": "Single validation result with normalized values."
+      },
+      "VariantComparison": {
+        "properties": {
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/VariantResult"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "overlaps": {
+            "items": {
+              "$ref": "#/components/schemas/pathfinder__services__experiment__variant_comparison__PairwiseOverlap"
+            },
+            "type": "array",
+            "title": "Overlaps"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "variants",
+          "overlaps"
+        ],
+        "title": "VariantComparison"
+      },
+      "VariantResult": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "searchName": {
+            "type": "string",
+            "title": "Searchname"
+          },
+          "geneCount": {
+            "type": "integer",
+            "title": "Genecount"
+          },
+          "uniqueCount": {
+            "type": "integer",
+            "title": "Uniquecount"
+          },
+          "sampleUniqueGenes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sampleuniquegenes"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "searchName",
+          "geneCount",
+          "uniqueCount",
+          "sampleUniqueGenes"
+        ],
+        "title": "VariantResult"
       },
       "WDKDatasetParser": {
         "properties": {
@@ -20983,6 +21204,112 @@
           "sourceStepId"
         ],
         "title": "WireInputOp"
+      },
+      "pathfinder__services__experiment__overlap__PairwiseOverlap": {
+        "properties": {
+          "experimentA": {
+            "type": "string",
+            "title": "Experimenta"
+          },
+          "experimentB": {
+            "type": "string",
+            "title": "Experimentb"
+          },
+          "labelA": {
+            "type": "string",
+            "title": "Labela"
+          },
+          "labelB": {
+            "type": "string",
+            "title": "Labelb"
+          },
+          "sizeA": {
+            "type": "integer",
+            "title": "Sizea"
+          },
+          "sizeB": {
+            "type": "integer",
+            "title": "Sizeb"
+          },
+          "intersection": {
+            "type": "integer",
+            "title": "Intersection"
+          },
+          "union": {
+            "type": "integer",
+            "title": "Union"
+          },
+          "jaccard": {
+            "type": "number",
+            "title": "Jaccard"
+          },
+          "sharedGenes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sharedgenes"
+          },
+          "uniqueA": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Uniquea"
+          },
+          "uniqueB": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Uniqueb"
+          }
+        },
+        "type": "object",
+        "required": [
+          "experimentA",
+          "experimentB",
+          "labelA",
+          "labelB",
+          "sizeA",
+          "sizeB",
+          "intersection",
+          "union",
+          "jaccard",
+          "sharedGenes",
+          "uniqueA",
+          "uniqueB"
+        ],
+        "title": "PairwiseOverlap",
+        "description": "Shape of one pairwise comparison entry."
+      },
+      "pathfinder__services__experiment__variant_comparison__PairwiseOverlap": {
+        "properties": {
+          "a": {
+            "type": "string",
+            "title": "A"
+          },
+          "b": {
+            "type": "string",
+            "title": "B"
+          },
+          "shared": {
+            "type": "integer",
+            "title": "Shared"
+          },
+          "jaccard": {
+            "type": "number",
+            "title": "Jaccard"
+          }
+        },
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "shared",
+          "jaccard"
+        ],
+        "title": "PairwiseOverlap"
       },
       "ProblemDetail": {
         "description": "RFC 7807 Problem Details response.",

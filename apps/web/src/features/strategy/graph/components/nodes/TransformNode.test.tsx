@@ -70,4 +70,10 @@ describe("TransformNode", () => {
     expect(screen.getByTestId("flow-handle-target-left")).toBeTruthy();
     expect(screen.getByTestId("flow-handle-source-right")).toBeTruthy();
   });
+
+  it("renders the transform step's display name", () => {
+    const step = makeStep({ displayName: "Orthologs of kinases in P. berghei" });
+    render(<TransformNode {...defaultProps(step)} />);
+    expect(screen.getByText("Orthologs of kinases in P. berghei")).toBeInTheDocument();
+  });
 });

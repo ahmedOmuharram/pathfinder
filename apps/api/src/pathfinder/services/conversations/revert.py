@@ -3,7 +3,16 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, DateTime, bindparam, delete, select, text
+from sqlalchemy import (
+    CursorResult,
+    DateTime,
+    bindparam,
+    delete,
+    literal,
+    select,
+    text,
+    tuple_,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import (
@@ -60,16 +69,23 @@ async def revert_conversation_to_message(
                 Message.id == target_message_id,
             ),
         )
-        logger.warning(
-            "revert: target message not in conversation",
+        if wrong_conv_owner is not None:
+            logger.warning(
+                "revert: target message not in conversation",
+                conversation_id=str(conversation_id),
+                target_message_id=str(target_message_id),
+                message_belongs_to=str(wrong_conv_owner),
+            )
+            msg = "Target message not found"
+            raise RevertError(msg)
+        # Never persisted (turn errored, or send rejected before insert): the
+        # server is already at the pre-message state, so revert is a no-op.
+        logger.info(
+            "revert: target message never persisted; no-op",
             conversation_id=str(conversation_id),
             target_message_id=str(target_message_id),
-            message_belongs_to=(
-                str(wrong_conv_owner) if wrong_conv_owner is not None else None
-            ),
         )
-        msg = "Target message not found"
-        raise RevertError(msg)
+        return
     if target.role != "user":
         logger.warning(
             "revert: target is not user-authored",
@@ -83,11 +99,14 @@ async def revert_conversation_to_message(
     cutoff_ts = target.created_at
     thread_id = str(conversation_id)
 
+    # Cut on (created_at, id) so timestamp ties delete deterministically
+    # instead of over-deleting siblings that share the target's created_at.
     deleted_messages = _rows(
         await session.execute(
             delete(Message).where(
                 Message.conversation_id == conversation_id,
-                Message.created_at >= cutoff_ts,
+                tuple_(Message.created_at, Message.id)
+                >= tuple_(literal(cutoff_ts), literal(target_message_id)),
             ),
         )
     )

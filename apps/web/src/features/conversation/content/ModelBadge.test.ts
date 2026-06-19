@@ -10,9 +10,15 @@ function assistant(content: unknown[]): MessageState {
 describe("selectLeadUsage", () => {
   it("returns the latest lead-usage as a primitive string (no object — avoids React #185)", () => {
     const m = assistant([
-      { type: "data-lead-usage", data: { modelId: "openai:gpt-4.1", tokens: 10, costUsd: "0.001" } },
+      {
+        type: "data-lead-usage",
+        data: { modelId: "openai:gpt-4.1", tokens: 10, costUsd: "0.001" },
+      },
       { type: "text", text: "hi" },
-      { type: "data-lead-usage", data: { modelId: "openai:gpt-4.1", tokens: 120, costUsd: "0.004" } },
+      {
+        type: "data-lead-usage",
+        data: { modelId: "openai:gpt-4.1", tokens: 120, costUsd: "0.004" },
+      },
     ]);
     const result = selectLeadUsage(m);
     expect(typeof result).toBe("string");
@@ -21,7 +27,11 @@ describe("selectLeadUsage", () => {
 
   it("matches the assistant-ui data shape (type=data, name)", () => {
     const m = assistant([
-      { type: "data", name: "lead-usage", data: { modelId: "anthropic:claude", tokens: 5, costUsd: "0.01" } },
+      {
+        type: "data",
+        name: "lead-usage",
+        data: { modelId: "anthropic:claude", tokens: 5, costUsd: "0.01" },
+      },
     ]);
     expect(selectLeadUsage(m)).toBe("anthropic:claude\t5\t0.01");
   });

@@ -6,27 +6,22 @@
  * SSE (one long-running request), consumed via `streamTypedEvents`.
  */
 
-import type {
-  Experiment,
-  ExperimentConfig,
-  ExperimentProgressData,
-} from "@pathfinder/shared";
+import type { Experiment, ExperimentProgressData } from "@pathfinder/shared";
+import type { CreateExperimentRequestControlsValueFormatEnumKey } from "@pathfinder/shared/generated/types/CreateExperimentRequest";
 import { streamTypedEvents } from "@/lib/sse/typedEventStream";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
-// ── Config serialization (unchanged from the old client) ───────────────────
-
-type SerializedExperimentConfig = {
+export type ExperimentRunConfig = {
   siteId: string;
   recordType?: string | undefined;
-  mode: string;
+  mode?: "single" | "multi-step" | "import" | undefined;
   searchName?: string | undefined;
   parameters?: StepParameters | undefined;
   positiveControls?: string[] | undefined;
   negativeControls?: string[] | undefined;
   controlsSearchName?: string | undefined;
   controlsParamName?: string | undefined;
-  controlsValueFormat?: "pipe" | "comma" | "newline" | undefined;
+  controlsValueFormat?: CreateExperimentRequestControlsValueFormatEnumKey | undefined;
   enableCrossValidation?: boolean | undefined;
   kFolds?: number | undefined;
   enrichmentTypes?: string[] | undefined;
@@ -113,18 +108,18 @@ type RunOptions = {
   signal?: AbortSignal;
 };
 
-function serializeConfig(config: ExperimentConfig): SerializedExperimentConfig {
+function serializeConfig(config: ExperimentRunConfig): ExperimentRunConfig {
   return {
     siteId: config.siteId,
     recordType: config.recordType,
-    mode: (config as SerializedExperimentConfig).mode,
+    mode: config.mode ?? "single",
     searchName: config.searchName,
-    parameters: config.parameters as StepParameters | undefined,
+    parameters: config.parameters,
     positiveControls: config.positiveControls,
     negativeControls: config.negativeControls,
     controlsSearchName: config.controlsSearchName,
     controlsParamName: config.controlsParamName,
-    controlsValueFormat: (config as SerializedExperimentConfig).controlsValueFormat,
+    controlsValueFormat: config.controlsValueFormat,
     enableCrossValidation: config.enableCrossValidation,
     kFolds: config.kFolds,
     enrichmentTypes: config.enrichmentTypes,
@@ -146,7 +141,7 @@ function buildRunOptions(
 }
 
 export async function* createExperimentStream(
-  config: ExperimentConfig,
+  config: ExperimentRunConfig,
   options: RunOptions = {},
 ): AsyncGenerator<ExperimentStreamEvent> {
   yield* streamTypedEvents<ExperimentStreamEvent>(
@@ -156,7 +151,7 @@ export async function* createExperimentStream(
 }
 
 export async function* createBatchExperimentStream(
-  baseConfig: ExperimentConfig,
+  baseConfig: ExperimentRunConfig,
   organismParamName: string,
   targets: BatchOrganismTarget[],
   options: RunOptions = {},
@@ -176,7 +171,7 @@ export async function* createBatchExperimentStream(
 }
 
 export async function* createBenchmarkStream(
-  baseConfig: ExperimentConfig,
+  baseConfig: ExperimentRunConfig,
   controlSets: BenchmarkControlSetInput[],
   options: RunOptions = {},
 ): AsyncGenerator<BenchmarkStreamEvent> {

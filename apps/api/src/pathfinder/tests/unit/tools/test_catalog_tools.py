@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pathfinder.ai.agents.state import AgentToolState
+from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.catalog import (
     get_record_types,
@@ -102,6 +102,67 @@ async def test_search_for_searches_returns_matches_with_universal(
 
 
 @pytest.mark.asyncio
+@patch(
+    "pathfinder.ai.tools.standalone.catalog.catalog.search_for_searches",
+    new_callable=AsyncMock,
+)
+async def test_search_for_searches_hides_already_decided(
+    mock_search: AsyncMock,
+) -> None:
+    """A search the model has already recorded a decision on must be
+    filtered out of the catalog so it can't resurface and trigger another
+    round of evaluation — with a note flagging how many were hidden."""
+    mock_search.return_value = [
+        SearchMatch(
+            name="GenesByTaxon",
+            display_name="Genes by Taxon",
+            description="Find genes by organism taxonomy",
+            record_type="transcript",
+            category="general",
+            returns="transcript",
+            relevance=0.85,
+        ),
+        SearchMatch(
+            name="GenesByGoTerm",
+            display_name="Genes by GO Term",
+            description="Find genes by GO term",
+            record_type="transcript",
+            category="general",
+            returns="transcript",
+            relevance=0.8,
+        ),
+    ]
+    deps = _make_deps()
+    deps.agent_state.register_search(
+        "GenesByTaxon",
+        SearchOverview(
+            search_name="GenesByTaxon",
+            display_name="Genes by Taxon",
+            record_type="transcript",
+            description="decided already",
+            parameter_names=["taxon"],
+            required_params=["taxon"],
+            selection_status="selected",
+            decided=True,
+        ),
+    )
+    ctx = _make_ctx(deps)
+
+    result = await search_for_searches(
+        ctx,
+        query="find genes by organism taxonomy or go term plasmodium",
+    )
+
+    names = [str(r.get("name")) for r in result]
+    assert "GenesByTaxon" not in names  # decided → hidden
+    assert "GenesByGoTerm" in names  # undecided → still shown
+
+    notes = [str(r["note"]) for r in result if "note" in r]
+    assert len(notes) == 1
+    assert "GenesByTaxon" in notes[0]
+
+
+@pytest.mark.asyncio
 async def test_search_for_searches_rejects_vague_query() -> None:
     deps = _make_deps()
     ctx = _make_ctx(deps)
@@ -134,3 +195,39 @@ async def test_list_searches_for_record_type(
     assert result[0]["name"] == "GenesByTaxon"
     assert result[2]["name"] == "GenesByText"
     mock_list.assert_awaited_once_with("plasmodb", "transcript")
+
+
+@pytest.mark.asyncio
+@patch(
+    "pathfinder.ai.tools.standalone.catalog.catalog.list_searches",
+    new_callable=AsyncMock,
+)
+async def test_list_searches_hides_already_decided(
+    mock_list: AsyncMock,
+) -> None:
+    """Decided searches are also stripped from the names-only fallback so
+    they can't resurface through any catalog path."""
+    mock_list.return_value = [
+        {"name": "GenesByTaxon", "displayName": "Genes by Taxon"},
+        {"name": "GenesByText", "displayName": "Gene Text Search"},
+    ]
+    deps = _make_deps()
+    deps.agent_state.register_search(
+        "GenesByTaxon",
+        SearchOverview(
+            search_name="GenesByTaxon",
+            display_name="Genes by Taxon",
+            record_type="transcript",
+            description="decided already",
+            parameter_names=["taxon"],
+            required_params=["taxon"],
+            selection_status="rejected",
+            decided=True,
+        ),
+    )
+    ctx = _make_ctx(deps)
+
+    result = await list_searches(ctx, record_type="transcript")
+
+    names = [r["name"] for r in result]
+    assert names == ["GenesByText"]

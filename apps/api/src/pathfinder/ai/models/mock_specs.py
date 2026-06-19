@@ -84,6 +84,49 @@ TEXT_SPEC = PlanSpec(
 )
 
 
+GO_SPEC = PlanSpec(
+    title="Protein kinase GO genes (mock)",
+    description="P. falciparum 3D7 genes annotated with protein kinase activity.",
+    rationale="GenesByGoTerm on GO:0004672 with curated+computed evidence.",
+    steps=(
+        StepSpec(
+            step_id="go_kinases",
+            search="GenesByGoTerm",
+            display="Protein kinase GO genes",
+            params=(
+                (
+                    "organism",
+                    "multi-pick-vocabulary",
+                    {
+                        "type": "multi-pick-vocabulary",
+                        "values": ["Plasmodium falciparum 3D7"],
+                    },
+                ),
+                (
+                    "go_term_evidence",
+                    "multi-pick-vocabulary",
+                    {
+                        "type": "multi-pick-vocabulary",
+                        "values": ["Curated", "Computed"],
+                    },
+                ),
+                (
+                    "go_term_slim",
+                    "single-pick-vocabulary",
+                    {"type": "single-pick-vocabulary", "value": "No"},
+                ),
+                (
+                    "go_typeahead",
+                    "multi-pick-vocabulary",
+                    {"type": "multi-pick-vocabulary", "values": ["GO:0004672"]},
+                ),
+                ("go_term", "string", {"type": "string", "value": "GO:0004672"}),
+            ),
+        ),
+    ),
+)
+
+
 def _text_leaf(step_id: str, display: str, expression: str) -> StepSpec:
     return StepSpec(
         step_id=step_id,
@@ -151,32 +194,129 @@ INTERPRO_SPEC = PlanSpec(
 )
 
 
+def _go_leaf(step_id: str, display: str) -> StepSpec:
+    return StepSpec(
+        step_id=step_id,
+        search="GenesByGoTerm",
+        display=display,
+        params=(
+            (
+                "organism",
+                "multi-pick-vocabulary",
+                {
+                    "type": "multi-pick-vocabulary",
+                    "values": ["Plasmodium falciparum 3D7"],
+                },
+            ),
+            (
+                "go_term_evidence",
+                "multi-pick-vocabulary",
+                {"type": "multi-pick-vocabulary", "values": ["Curated", "Computed"]},
+            ),
+            (
+                "go_term_slim",
+                "single-pick-vocabulary",
+                {"type": "single-pick-vocabulary", "value": "No"},
+            ),
+            (
+                "go_typeahead",
+                "multi-pick-vocabulary",
+                {"type": "multi-pick-vocabulary", "values": ["GO:0004672"]},
+            ),
+            ("go_term", "string", {"type": "string", "value": "GO:0004672"}),
+        ),
+    )
+
+
+COMPREHENSIVE_SPEC = PlanSpec(
+    title="Comprehensive kinase candidate strategy (mock)",
+    description=(
+        "Text kinases UNION GO protein-kinase genes, INTERSECT P. falciparum "
+        "3D7 — exercises string, multi-pick, tree, single-pick and typeahead "
+        "params across a 5-step tree."
+    ),
+    rationale="Multi-search candidate set spanning every parameter widget.",
+    steps=(
+        _text_leaf("text_kinases", "Text kinases", "kinase"),
+        _go_leaf("go_kinase_genes", "GO protein-kinase genes"),
+        StepSpec(
+            step_id="pf_taxon",
+            search="GenesByTaxon",
+            display="P. falciparum 3D7 genes",
+            params=(
+                (
+                    "organism",
+                    "multi-pick-vocabulary",
+                    {
+                        "type": "multi-pick-vocabulary",
+                        "values": ["Plasmodium falciparum 3D7"],
+                    },
+                ),
+            ),
+        ),
+        StepSpec(
+            step_id="text_or_go",
+            search="__combine__",
+            display="Text OR GO kinases",
+            step_type="combine",
+        ),
+        StepSpec(
+            step_id="narrowed",
+            search="__combine__",
+            display="Narrowed to P. falciparum 3D7",
+            step_type="combine",
+        ),
+    ),
+    connections=(
+        ConnSpec(from_step="text_kinases", to_step="text_or_go"),
+        ConnSpec(
+            from_step="go_kinase_genes",
+            to_step="text_or_go",
+            input_type="secondary",
+            operator="UNION",
+        ),
+        ConnSpec(from_step="text_or_go", to_step="narrowed"),
+        ConnSpec(
+            from_step="pf_taxon",
+            to_step="narrowed",
+            input_type="secondary",
+            operator="INTERSECT",
+        ),
+    ),
+)
+
+
+def _step_arg(step: StepSpec, spec: PlanSpec) -> dict[str, Any]:
+    # create_plan derives connections from each combine step's left_id/right_id
+    # (there is no top-level connections list anymore). A combine step takes an
+    # empty search_name so the tool normalizes it to the combine search.
+    arg: dict[str, Any] = {
+        "id": step.step_id,
+        "search_name": "" if step.step_type == "combine" else step.search,
+        "display_name": step.display,
+        "record_type": "transcript",
+        "rationale": "",
+        "step_type": step.step_type,
+        "parameters": {name: value for name, _kind, value in step.params},
+    }
+    if step.step_type == "combine":
+        incoming = [c for c in spec.connections if c.to_step == step.step_id]
+        primary = next((c for c in incoming if c.input_type == "primary"), None)
+        secondary = next((c for c in incoming if c.input_type == "secondary"), None)
+        if primary is not None:
+            arg["left_id"] = primary.from_step
+        if secondary is not None:
+            arg["right_id"] = secondary.from_step
+            arg["operator"] = secondary.operator
+    return arg
+
+
 def create_plan_args(spec: PlanSpec) -> dict[str, Any]:
     return {
         "title": spec.title,
         "description": spec.description,
         "rationale": spec.rationale,
-        "steps": [
-            {
-                "id": step.step_id,
-                "search_name": step.search,
-                "display_name": step.display,
-                "record_type": "transcript",
-                "rationale": "",
-                "step_type": step.step_type,
-                "parameters": {name: value for name, _kind, value in step.params},
-            }
-            for step in spec.steps
-        ],
-        "connections": [
-            {
-                "from_step": conn.from_step,
-                "to_step": conn.to_step,
-                "input_type": conn.input_type,
-                "operator": conn.operator,
-            }
-            for conn in spec.connections
-        ],
+        "steps": [_step_arg(step, spec) for step in spec.steps],
     }
 
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic_ai.tools import RunContext
 
+from pathfinder.ai.agents.param_vocab_render import render_param_vocab
+from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.context.rendering import render_graph_state
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.prompts.loader import load_system_prompt
@@ -151,11 +153,7 @@ def pinned_discovered_searches(ctx: RunContext[AgentDeps]) -> str | None:
     return "\n".join(lines)
 
 
-def _render_search(name: str, ov: object) -> list[str]:
-    from pathfinder.ai.agents.state import SearchOverview  # noqa: PLC0415
-
-    if not isinstance(ov, SearchOverview):
-        return []
+def _render_search(name: str, ov: SearchOverview) -> list[str]:
     header_bits = [f"`{name}`", f"({ov.record_type})"]
     if ov.selection_status != "candidate":
         header_bits.append(f"[{ov.selection_status}]")
@@ -174,30 +172,5 @@ def _render_search(name: str, ov: object) -> list[str]:
     if ov.param_vocab:
         out.append("    param_vocab (copy values verbatim):")
         for pname in sorted(ov.param_vocab):
-            out.extend(_render_vocab_snapshot(pname, ov.param_vocab[pname]))
-    return out
-
-
-def _render_vocab_snapshot(name: str, snap: object) -> list[str]:
-    from pathfinder.ai.agents.state import ParamVocabSnapshot  # noqa: PLC0415
-
-    if not isinstance(snap, ParamVocabSnapshot):
-        return []
-    head = f"      - `{name}` ({snap.param_type})"
-    if snap.required:
-        head += " [required]"
-    if snap.default_value is not None:
-        head += f" default={snap.default_value!r}"
-    out = [head]
-    if snap.allowed_values:
-        out.extend(
-            f"          • {v.value!r} — {v.display}" for v in snap.allowed_values
-        )
-    if snap.allowed_values_tree:
-        out.extend(
-            f"          {tree_line}"
-            for tree_line in snap.allowed_values_tree.splitlines()
-        )
-    if not snap.allowed_values and not snap.allowed_values_tree:
-        out.append("          (no enumerated vocab — free-form value)")
+            out.extend(render_param_vocab(pname, ov.param_vocab[pname], indent=6))
     return out

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Step } from "@pathfinder/shared";
 import type { StepSnapshot } from "@/state/strategy/useStepSnapshot";
 import { STAGGER_DELAY_MS } from "@/lib/motion/presets";
@@ -186,5 +187,29 @@ describe("NodeShell motion stagger", () => {
     const { container } = renderShell({ step, enterDelayIndex: 2 });
     const wrapper = container.querySelector('[data-testid="rf-node-n2"]');
     expect(wrapper?.getAttribute("data-enter-delay-index")).toBe("2");
+  });
+});
+
+describe("NodeShell inline rename wiring", () => {
+  afterEach(() => cleanup());
+
+  it("commits the inline rename through onRename(stepId, trimmed name)", async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+    renderShell({ step: makeStep({ id: "leaf1", displayName: "Old name" }), onRename });
+
+    await user.click(screen.getByText("Old name"));
+    const input = screen.getByTestId("inline-rename-input");
+    fireEvent.change(input, { target: { value: "  New name  " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(onRename).toHaveBeenCalledWith("leaf1", "New name");
+  });
+
+  it("renders the name as a static titled label, not an editable trigger, when onRename is unwired", () => {
+    renderShell({ step: makeStep({ id: "leaf2", displayName: "Static name" }) });
+    const name = screen.getByText("Static name");
+    expect(name.tagName).toBe("DIV");
+    expect(name).toHaveAttribute("title", "Static name");
   });
 });

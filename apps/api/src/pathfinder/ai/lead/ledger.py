@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import Field, computed_field
 
+from pathfinder.ai.agents.param_vocab_render import render_param_vocab
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.graph.state import (
     ClarificationQuestion,
@@ -282,13 +283,17 @@ def _render_discovery_full(section: DiscoverySection) -> str:
             continue
         parts.append(f"\n### {status.title()} ({len(group)})")
         for report in group:
-            parts.extend(_render_fit_report(report))
+            overview = section.selections.get(report.search_name)
+            parts.extend(_render_fit_report(report, overview))
     if section.intent_gap:
         parts.append(f"\nintent_gap: {section.intent_gap}")
     return "\n".join(parts)
 
 
-def _render_fit_report(report: SearchFitReport) -> list[str]:
+def _render_fit_report(
+    report: SearchFitReport,
+    overview: SearchOverview | None,
+) -> list[str]:
     out = [
         f"- `{report.search_name}` — {report.display_name} "
         f"(conf={report.confidence:.2f})",
@@ -299,6 +304,10 @@ def _render_fit_report(report: SearchFitReport) -> list[str]:
         out.append(f"    why: {report.rationale}")
     if report.intent_sides_unmatched:
         out.append(f"    unmatched sides: {report.intent_sides_unmatched}")
+    if overview is not None and overview.param_vocab:
+        out.append("    params:")
+        for pname in sorted(overview.param_vocab):
+            out.extend(render_param_vocab(pname, overview.param_vocab[pname], indent=6))
     return out
 
 

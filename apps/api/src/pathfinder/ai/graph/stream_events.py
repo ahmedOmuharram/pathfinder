@@ -13,6 +13,7 @@ from uuid import UUID
 from pydantic import BaseModel, JsonValue
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
+from pathfinder.ai.memory.store import StoredMemory
 from pathfinder.platform.pydantic_base import CamelModel
 
 
@@ -67,6 +68,45 @@ def conversation_title_event(*, title: str) -> DataChunk:
             by_alias=True,
             mode="json",
         ),
+    )
+
+
+class MemoryRetrievedItem(CamelModel):
+    """One recalled memory shown in the ``data-memory-retrieved`` chunk."""
+
+    key: str
+    kind: str
+    name: str
+    summary: str
+    score: float
+
+
+class MemoryRetrievedPayload(CamelModel):
+    memories: list[MemoryRetrievedItem]
+
+
+def memory_retrieved_event(*, memories: list[StoredMemory]) -> DataChunk:
+    """Surface the cross-thread memories recalled at turn start.
+
+    Lets the user see what prior context the agent pulled in (and drives the
+    rail's recalled-memory badge). ``score`` is the HNSW similarity; ``None``
+    (no score on the stored item) collapses to ``0.0``.
+    """
+    payload = MemoryRetrievedPayload(
+        memories=[
+            MemoryRetrievedItem(
+                key=m.key,
+                kind=m.value.kind,
+                name=m.value.name,
+                summary=m.value.summary,
+                score=m.score if m.score is not None else 0.0,
+            )
+            for m in memories
+        ],
+    )
+    return DataChunk(
+        type="data-memory-retrieved",
+        data=payload.model_dump(by_alias=True, mode="json"),
     )
 
 

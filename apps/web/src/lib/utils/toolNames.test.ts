@@ -8,6 +8,13 @@ describe("humanizeToolName", () => {
     expect(humanizeToolName("update_search_decision")).toBe("Search decision");
     expect(humanizeToolName("run_control_tests_on_step")).toBe("Run control tests");
     expect(humanizeToolName("submit_plan_for_approval")).toBe("Submit plan");
+    expect(humanizeToolName("compare_variants_scored")).toBe("Score variants");
+    expect(humanizeToolName("build_control_set")).toBe("Build control set");
+    expect(humanizeToolName("consult_user")).toBe("Ask the user");
+  });
+
+  it("title-cases the deleted present_decision tool (no longer mapped)", () => {
+    expect(humanizeToolName("present_decision")).toBe("Present decision");
   });
 
   it("title-cases unknown snake_case names", () => {

@@ -20,7 +20,10 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.graph.runtime import Context, ReasoningEffort
-from pathfinder.ai.graph.state import PlanSlotAnswer
+from pathfinder.ai.graph.state import (
+    PlanSlotAnswer,
+    UserQuestionAnswer,
+)
 from pathfinder.ai.graph.stream_events import background_task_started_event
 from pathfinder.domain.research.citations import (
     LiteratureFilters,
@@ -35,6 +38,7 @@ from pathfinder.domain.strategy.strategy_ast import (
 from pathfinder.persistence.models import Conversation
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.db import async_session_factory
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.processing import LiteratureSearchResponse
 from pathfinder.services.research.web_search import (
@@ -164,12 +168,13 @@ def _extract_approval_responses(
 _PLAN_SLOT_ANSWERS_TYPE = "data-plan-slot-answers"
 
 
-class _PlanSlotAnswersPayload(BaseModel):
+class _PlanSlotAnswersPayload(CamelModel):
     """Shape of a ``data-plan-slot-answers`` UI part's ``data`` field.
 
     Frontend sends this on the assistant message that carries the
-    ``approval-responded`` part for ``submit_plan``. The pairing is by
-    ``tool_call_id``.
+    ``approval-responded`` part for ``submit_plan``, with camelCase keys
+    (``toolCallId``) — so this MUST be a CamelModel to parse it. The pairing
+    is by ``tool_call_id``.
     """
 
     tool_call_id: str
@@ -202,6 +207,47 @@ def _extract_plan_slot_answers(
     return out
 
 
+_USER_QUESTION_ANSWERS_TYPE = "data-user-question-answers"
+
+
+class _UserQuestionAnswersPayload(CamelModel):
+    """Shape of a ``data-user-question-answers`` UI part's ``data`` field.
+
+    The frontend question carousel sends this on the assistant message
+    carrying the ``approval-responded`` part for ``consult_user``, with
+    camelCase keys (``toolCallId``) — so this MUST be a CamelModel. Paired by
+    ``tool_call_id``.
+    """
+
+    tool_call_id: str
+    answers: list[UserQuestionAnswer]
+
+
+def _extract_user_question_answers(
+    incoming: ChatRequestBody,
+) -> dict[str, list[UserQuestionAnswer]]:
+    """Pull ``data-user-question-answers`` parts out of assistant messages.
+
+    Returns ``{tool_call_id: [UserQuestionAnswer, ...]}`` so the
+    ``consult_user`` body can hand the Lead the user's answers.
+    """
+    out: dict[str, list[UserQuestionAnswer]] = {}
+    for msg in incoming.messages:
+        if msg.role != "assistant":
+            continue
+        for part in msg.parts:
+            if not isinstance(part, DataUIPart):
+                continue
+            if part.type != _USER_QUESTION_ANSWERS_TYPE:
+                continue
+            try:
+                payload = _UserQuestionAnswersPayload.model_validate(part.data)
+            except ValidationError:
+                continue
+            out[payload.tool_call_id] = payload.answers
+    return out
+
+
 def _build_turn_input(
     incoming: ChatRequestBody,
     user_id: UUID,
@@ -216,6 +262,7 @@ def _build_turn_input(
         "mode": incoming.mode,
         "approval_responses": _extract_approval_responses(incoming),
         "plan_slot_answers": _extract_plan_slot_answers(incoming),
+        "user_question_answers": _extract_user_question_answers(incoming),
         "turn_trace_id": str(uuid4()),
         "turn_created_at": datetime.now(UTC).isoformat(),
         "turn_message_id": turn_message_id,
