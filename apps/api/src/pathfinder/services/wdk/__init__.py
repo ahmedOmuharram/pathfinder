@@ -5,6 +5,7 @@ higher-level consumers import from ``services.wdk`` instead of reaching
 into ``integrations.veupathdb`` directly.
 """
 
+from pathfinder.integrations.veupathdb.auth_login import password_login
 from pathfinder.integrations.veupathdb.client import VEuPathDBClient
 from pathfinder.integrations.veupathdb.discovery import SearchCatalog
 from pathfinder.integrations.veupathdb.discovery_service import (
@@ -58,5 +59,6 @@ __all__ = [
     "get_wdk_client",
     "is_internal_wdk_strategy_name",
     "list_sites",
+    "password_login",
     "strip_internal_wdk_strategy_name",
 ]

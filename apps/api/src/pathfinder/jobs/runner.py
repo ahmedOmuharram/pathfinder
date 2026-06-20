@@ -26,7 +26,7 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 
 from pathfinder.ai.conversation._turn_helpers import _interrupt_chunks
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.ai.conversation.event_writer import ChatEventWriter, ChatWriter
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
@@ -318,7 +318,7 @@ class _ResumedChunkEnvelope(BaseModel):
 
 
 async def _emit_chunk(
-    writer: ChatEventWriter,
+    writer: ChatWriter,
     chunk: StartChunk | FinishChunk | DoneChunk,
 ) -> None:
     await writer.write(
@@ -327,7 +327,7 @@ async def _emit_chunk(
 
 
 async def _emit_resume_custom(
-    writer: ChatEventWriter,
+    writer: ChatWriter,
     payload: Any,
 ) -> None:
     if not isinstance(payload, dict):

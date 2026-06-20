@@ -1,12 +1,22 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 from sqlalchemy import text
 
 from pathfinder.persistence.models import ConversationEvent
 from pathfinder.platform.db import async_session_factory
+
+
+class ChatWriter(Protocol):
+    """The chunk-sink contract ``run_turn`` drives. ``ChatEventWriter``
+    persists to Postgres; devtools supply a console implementation."""
+
+    conversation_id: UUID
+    turn_id: UUID
+
+    async def write(self, chunk: dict[str, Any]) -> int: ...
 
 
 class ChatEventWriter:

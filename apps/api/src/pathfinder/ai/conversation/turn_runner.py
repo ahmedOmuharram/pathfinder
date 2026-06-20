@@ -21,7 +21,7 @@ from pathfinder.ai.conversation._turn_helpers import (
     _interrupt_chunks,
     resolve_site_id,
 )
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.ai.conversation.event_writer import ChatWriter
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
 from pathfinder.ai.graph.stream_events import (
@@ -58,7 +58,7 @@ class _StreamConsumerCtx:
     runtime_context: Any
     title_task: asyncio.Task[str] | None
     body: ChatRequestBody
-    writer: ChatEventWriter
+    writer: ChatWriter
     result: _DriveResult
 
 
@@ -97,7 +97,7 @@ async def run_turn(
     user_id: UUID,
     compiled_graph: Any,
     memory_store: Any,
-    writer: ChatEventWriter,
+    writer: ChatWriter,
 ) -> None:
     """Drive one chat turn to completion, writing chunks through ``writer``.
 
@@ -220,7 +220,7 @@ async def _drive_graph(
     compiled_graph: Any,
     runtime_context: Any,
     title_task: asyncio.Task[str] | None,
-    writer: ChatEventWriter,
+    writer: ChatWriter,
 ) -> _DriveResult:
     result = _DriveResult()
     turn_message_id: UUID = graph_input["turn_message_id"]
@@ -296,7 +296,7 @@ async def _handle_custom(
     title_task: asyncio.Task[str] | None,
     conversation_id: UUID,
     result: _DriveResult,
-    writer: ChatEventWriter,
+    writer: ChatWriter,
 ) -> None:
     chunk = _extract_chunk(payload)
     if chunk is not None:

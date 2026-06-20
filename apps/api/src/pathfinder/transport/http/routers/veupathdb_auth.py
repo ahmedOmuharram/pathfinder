@@ -5,9 +5,6 @@ Pathfinder user (via ``User.external_id = email``) and returns a
 ``pathfinder-auth`` token so the frontend has a stable identity across sessions.
 """
 
-import base64
-import binascii
-import json
 from typing import TypedDict
 from urllib.parse import urlparse
 
@@ -28,7 +25,7 @@ from pathfinder.platform.security import (
     limiter,
 )
 from pathfinder.services.users import get_or_create_user_id
-from pathfinder.services.wdk import get_site, get_wdk_client
+from pathfinder.services.wdk import get_site, get_wdk_client, password_login
 from pathfinder.transport.http.deps import DBSession
 from pathfinder.transport.http.schemas import (
     AuthStatusResponse,
@@ -88,37 +85,6 @@ def _pick_redirect_url(candidate: str | None) -> str:
                 error=str(exc),
             )
     return allowed[0] if allowed else "http://localhost:3000"
-
-
-_JWT_MIN_SEGMENTS = 2
-
-
-def _is_guest_jwt(token: str) -> bool:
-    parts = token.split(".")
-    if len(parts) < _JWT_MIN_SEGMENTS:
-        return True
-    payload_b64 = parts[1]
-    padded = payload_b64 + "=" * (-len(payload_b64) % 4)
-    try:
-        raw = base64.urlsafe_b64decode(padded).decode("utf-8")
-        payload = json.loads(raw)
-    except ValueError, binascii.Error:
-        return True
-    return bool(payload.get("is_guest", False))
-
-
-def _extract_auth_cookie(set_cookie_headers: list[str]) -> str | None:
-    candidates: list[str] = []
-    for header in set_cookie_headers:
-        if not header.startswith("Authorization="):
-            continue
-        value = header.split(";", 1)[0].split("=", 1)[1].strip('"')
-        if value:
-            candidates.append(value)
-    for token in candidates:
-        if not _is_guest_jwt(token):
-            return token
-    return None
 
 
 async def _resolve_veupathdb_email(
@@ -224,20 +190,9 @@ async def login_with_password(
             ],
         )
 
-    auth_site = get_site(site_id)
-    redirect_url = _pick_redirect_url(redirect_to)
-    login_payload: dict[str, str] = {
-        "email": email,
-        "password": password,
-        "redirectUrl": redirect_url,
-    }
-
-    async with httpx.AsyncClient(
-        base_url=auth_site.service_url, follow_redirects=False
-    ) as client:
-        response = await client.post("/login", json=login_payload)
-        set_cookie_headers = response.headers.get_list("set-cookie")
-        token = _extract_auth_cookie(set_cookie_headers)
+    token = await password_login(
+        site_id, email, password, redirect_url=_pick_redirect_url(redirect_to)
+    )
 
     if not token:
         logger.warning(

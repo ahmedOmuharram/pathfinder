@@ -33,6 +33,13 @@ services:
       LOG_FORMAT: ${LOG_FORMAT:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
+      # Dev WDK login for the chat debugger (pathfinder.devtools.chat); set in .env.dev.
+      WDK_DEV_EMAIL: ${WDK_DEV_EMAIL:-}
+      WDK_DEV_PASSWORD: ${WDK_DEV_PASSWORD:-}
+    volumes:
+      # Devtools chat-debugger run artifacts (pathfinder.devtools.chat) land on
+      # the host so they can be inspected outside the container.
+      - ./apps/api/.pf-runs:/data/pf-runs
 
   worker:
     build:

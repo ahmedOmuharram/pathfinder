@@ -1,0 +1,200 @@
+# `pathfinder.devtools.chat` — chat pipeline debugger
+
+An in-process debugger for the PathFinder chat pipeline, built for **agents** to
+drive. It runs one chat turn through the real `run_turn` (same code path the
+worker uses) **without** the API server, worker, procrastinate, or SSE — then
+captures every plane of the run to flat files you can `cat`/`jq` and runs a
+diagnosis pass that names known failure modes for you.
+
+Use it to reproduce and localize chat/agent bugs (phase routing, tool-call
+loops, validation failures, token blowups, WDK disagreements) without clicking
+through the UI or re-running turns to "see more."
+
+---
+
+## Run it (inside the api container)
+
+The DB is reachable inside the container as `db:5432`. On the host, port 5432 is
+squatted by a non-docker postgres, so **always run via `docker compose exec api`**.
+
+```bash
+docker compose exec -T api .venv/bin/python -m pathfinder.devtools.chat run \
+  "Which OBPs are most highly female-adult enriched in Aedes aegypti?" \
+  --site vectorbase \
+  --approve auto \
+  --capture-wdk \
+  --quiet \
+  --run-dir /data/pf-runs/obp/turn1 \
+  --model lead=openai:gpt-4.1-mini \
+  --model scoping=openai:gpt-4.1-mini \
+  --model discovery=openai:gpt-4.1-mini \
+  --model planning=openai:gpt-4.1-mini \
+  --model execution=openai:gpt-4.1-mini \
+  --model verification=openai:gpt-4.1-mini
+```
+
+stdout is a clean compact trace + a final summary line with the run-dir path.
+Framework logs go to **stderr** (redirect with `2>/dev/null` if you don't want
+them). The summary prints any anomalies inline:
+
+```
+─── summary ───  status=ok  tokens=555763  cost=$0.206  toolcalls=43  failures=12  loop=true  anomalies=2
+  ⚑ [critical] loop: create_plan failed 5 times — the agent is stuck retrying.
+  ⚑ [warning] budget_burn: 555763 tokens ($0.21) — abnormally high.
+run-dir=/data/pf-runs/obp/turn2
+```
+
+### Artifacts land on the HOST
+
+`/data/pf-runs` in the container is bind-mounted to `apps/api/.pf-runs` on the
+host (gitignored). So after a run you read the artifacts directly:
+
+```bash
+jq -r '.[] | "[\(.severity)] \(.kind): \(.message)"' apps/api/.pf-runs/obp/turn2/diagnosis.json
+jq -r '.status, (.errors|map(.kind+":"+(.param//"?")))' apps/api/.pf-runs/obp/turn2/tools/28-create_plan.json
+```
+
+No DB and no re-run needed to inspect a past run — the files are the interface.
+
+---
+
+## `run` flags
+
+| flag | meaning |
+|------|---------|
+| `prompt` (positional) | the user message for this turn |
+| `--site` | WDK site id (e.g. `vectorbase`, `plasmodb`) — required |
+| `--conversation-id <uuid>` | resume an existing conversation (durable via checkpointer). Omit to mint a new one (printed unless `--quiet`). |
+| `--run-dir <path>` | where artifacts go. Default `/data/pf-runs/<conv>/<turn>`. Re-using a path is safe — each run **resets** the artifact subdirs (`tools/`, `state/`, `errors/`, `wdk/`) and top-level files first, so two runs never mix. Other files in the directory are left alone. |
+| `--model PHASE=ID` | per-phase model override (repeatable). Phases: `lead scoping discovery planning execution verification`. |
+| `--approve auto\|deny\|prompt` | how to answer mid-turn approval gates (`submit_plan`, etc.). `auto` for unattended; `prompt` reads stdin. |
+| `--capture-wdk` | also record raw WDK httpx round-trips to `wdk/`. |
+| `--mock` | use the deterministic FunctionModel (free; also sets `API_ENV=test`). Default is the real configured provider. |
+| `--email` / `--password` | WDK login override; default to `WDK_DEV_EMAIL` / `WDK_DEV_PASSWORD` (set in `.env.dev`). |
+
+**Login is mandatory for real runs.** A non-mock `run` logs in to VEuPathDB as the
+dev user (creds from `WDK_DEV_EMAIL`/`WDK_DEV_PASSWORD` in `.env.dev`, or
+`--email`/`--password`) and runs all WDK calls as that authenticated user. If the
+creds are missing or rejected it aborts with a clear error. `--mock` skips login
+(it never touches WDK). This requires running compose with `--env-file .env.dev`
+so the vars reach the container.
+| `--quiet` | suppress the live trace; still writes artifacts + prints the summary. |
+
+**Multi-turn — STRICTLY one turn at a time. NEVER batch turns.** This is a real
+conversation: you do not know what the agent will say until it says it. The agent
+routinely asks clarifying questions, presents decision forks, or reports partial
+results, and your next message must answer *what it actually asked* — not what you
+guessed it would ask.
+
+The required loop is:
+1. Run **one** turn.
+2. **Read** the assistant's final message and artifacts (`jq -r 'select(.type=="text-delta").delta' .../events.jsonl`, plus `summary.json`/`diagnosis.json`).
+3. Compose the next turn as a genuine reply to that message.
+4. Run the next turn with `--conversation-id <same>`. Repeat.
+
+**Do NOT** chain turn 1 and turn 2 in one shell invocation with a pre-written
+turn-2 reply. If you find yourself writing the next prompt before reading the last
+response, stop — you are guessing, and the run is invalid. There is no REPL (agents
+can't feed stdin to a live process); durable resume via `--conversation-id` is the
+equivalent and is what you should use, one step at a time.
+
+Exit code is non-zero when the turn ends on a terminal `error` chunk.
+
+---
+
+## Inspecting a run
+
+The flat files are grep/jq-friendly, but `inspect` adds cross-plane correlation
+that raw shell can't do trivially. Run it anywhere the files are reachable
+(in-container against `/data/pf-runs/...`, or on the host against
+`apps/api/.pf-runs/...`):
+
+```bash
+# every failed tool: args + decoded errors + traceback, correlated
+... chat inspect <run-dir> --failures
+
+# every attempt of one tool, args diffed across attempts (surfaces oscillation)
+... chat inspect <run-dir> --tool create_plan
+
+# the diagnosis (anomalies, most severe first)
+... chat inspect <run-dir> --anomalies
+
+# the span tree (shape: phases -> tool calls, with durations)
+... chat inspect <run-dir> --tree
+
+# divergence point between a failing and a passing run
+... chat diff <run-dir-a> <run-dir-b>
+```
+
+---
+
+## Run directory layout
+
+```
+<run-dir>/
+  summary.json        # shape + headline counts + pointers
+  diagnosis.json      # detected anomalies (see below)
+  events.jsonl        # every chunk, raw, untruncated — the SSOT
+  tools/NN-<tool>.json# per tool call: phase, FULL args, status, FULL result,
+                      #   decoded validation errors, duration
+  tree.{json,txt}     # turn -> phase -> tool-call span tree
+  state/<phase>.json  # ledger + problem-frame snapshot at each phase boundary
+  errors/NN-*.txt     # Python tracebacks for any logged exception
+  wdk/NN-*.json       # raw WDK request/response (only with --capture-wdk)
+  transcript.md       # human-readable trace
+```
+
+`tools/*.json` is the substrate for surgical debugging: display in stdout is
+clipped, but **disk keeps full args and full results** (e.g. the complete
+`create_plan` payload that failed), with Pydantic/`VALIDATION_ERROR`/"unknown
+keys" failure strings decoded into a typed `errors[]` list (`kind`, `param`,
+`search_name`).
+
+---
+
+## Diagnosis fingerprints (`diagnosis.json`)
+
+The engine (`diagnosis.py`) flags PathFinder's recurring failure modes:
+
+| kind | meaning |
+|------|---------|
+| `validation_catch_22` | a param is **required by one validator but rejected as unknown by another** — unsatisfiable. This is the `document_type` bug's exact signature. |
+| `loop` | one tool failed ≥5 times (consecutive or alternating error signatures) — the agent is stuck. |
+| `wdk_service_error` | the same search returned a WDK 5xx ≥2 times — the agent retried an unavailable search instead of routing around it. Usually an upstream outage, not a PathFinder bug. |
+| `outage_driven_rejection` | a search was **rejected for a service-outage reason, not a scientific one** — the plan silently drops a data dimension the user asked for while still reporting success. |
+| `silent_zero` | a step returned 0 results (`ledger.build.zeroResultSteps`) — possible silent failure (e.g. missing JSESSIONID, wrong params). |
+| `budget_burn` | the turn consumed an abnormal number of tokens (≥200k). |
+| `no_plan` | planning terminated without producing a plan. |
+
+---
+
+## Gotchas
+
+- **Run in the container, not the host** (host DB port conflict).
+- **Durable tools** (`run_control_tests_on_step`, `optimize_search_parameters`,
+  enrichment) call procrastinate, which isn't open in-process — they raise
+  `AppNotOpen`. The traceback is captured, but those tools can't fully execute
+  here. Use the full stack to debug them.
+- **State snapshots are chunk-derived** (reconstructed from ledger/problem-frame
+  chunks), not read from live `agent_state`.
+- **Editing the devtool?** Rebuild with the env file or settings validation
+  crashes the container:
+  `docker compose --env-file .env.dev up -d --build api`
+- Tests: `apps/api/src/pathfinder/tests/{unit,integration}/devtools/`.
+
+---
+
+## Modules
+
+| file | responsibility |
+|------|----------------|
+| `chat.py` | CLI: `run`/`inspect`/`diff`, bootstrap, turn loop, approval resume |
+| `capture.py` | `RunCapture` (chunk → artifacts writer) + `capture_tracebacks` |
+| `models.py` | artifact schema + chunk parsers + validation-error decoder |
+| `diagnosis.py` | the fingerprint engine |
+| `inspector.py` | `inspect`/`diff` rendering (pure, reads a run-dir) |
+| `wdk_capture.py` | opt-in WDK httpx capture (`--capture-wdk`) |
+
+`RunCapture` implements the `ChatWriter` protocol
+(`ai/conversation/event_writer.py`) — the same surface as the production
+`ChatEventWriter`, so the CLI exercises the real turn pipeline.

@@ -121,3 +121,6 @@ wdk-client/
 
 # Thesis files; temporarily ignored
 thesis/
+
+# devtools chat-debugger run artifacts
+apps/api/.pf-runs/

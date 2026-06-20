@@ -1,9 +1,9 @@
 import base64
 import json
 
-from pathfinder.transport.http.routers.veupathdb_auth import (
-    _extract_auth_cookie,
+from pathfinder.integrations.veupathdb.auth_login import (
     _is_guest_jwt,
+    extract_auth_cookie,
 )
 
 
@@ -45,7 +45,7 @@ def test_extract_picks_non_guest_over_guest_when_both_present() -> None:
         f"Authorization={guest};Version=1;Path=/;Max-Age=94608000",
         f"Authorization={real};Version=1;Path=/;Max-Age=94608000",
     ]
-    assert _extract_auth_cookie(headers) == real
+    assert extract_auth_cookie(headers) == real
 
 
 def test_extract_prefers_non_guest_regardless_of_order() -> None:
@@ -55,18 +55,18 @@ def test_extract_prefers_non_guest_regardless_of_order() -> None:
         f"Authorization={real};Path=/",
         f"Authorization={guest};Path=/",
     ]
-    assert _extract_auth_cookie(headers) == real
+    assert extract_auth_cookie(headers) == real
 
 
 def test_extract_returns_none_when_only_guest_present() -> None:
     guest = _mk_jwt(is_guest=True)
     headers = [f"Authorization={guest};Path=/"]
-    assert _extract_auth_cookie(headers) is None
+    assert extract_auth_cookie(headers) is None
 
 
 def test_extract_returns_none_when_no_authorization_cookie() -> None:
     headers = ["wdk_check_auth=;Path=/;Max-Age=0"]
-    assert _extract_auth_cookie(headers) is None
+    assert extract_auth_cookie(headers) is None
 
 
 def test_extract_ignores_unrelated_cookies() -> None:
@@ -76,4 +76,4 @@ def test_extract_ignores_unrelated_cookies() -> None:
         f"Authorization={real};Path=/",
         "other=xyz;Path=/",
     ]
-    assert _extract_auth_cookie(headers) == real
+    assert extract_auth_cookie(headers) == real
