@@ -8,6 +8,7 @@ from pathfinder.devtools.models import (
     Anomaly,
     CapturedToolCall,
     DecisionArgs,
+    LedgerConstraintsProbe,
     RunSummary,
     SearchArgs,
 )
@@ -98,6 +99,8 @@ def _wdk_service_errors(calls: list[CapturedToolCall]) -> list[Anomaly]:
     for call in calls:
         if call.status != "failed" or not call.result:
             continue
+        if "SEARCH_UNAVAILABLE" in call.result:
+            continue
         if not _SERVICE_ERROR_RE.search(call.result):
             continue
         search = SearchArgs.model_validate(call.args or {}).search_name
@@ -150,6 +153,43 @@ def _outage_driven_rejection(calls: list[CapturedToolCall]) -> list[Anomaly]:
                 ),
                 evidence=_evidence([call]),
                 details={"search_name": decision.search_name},
+            )
+        )
+    return out
+
+
+def _silent_constraint_violation(
+    ledgers: dict[str, dict[str, Any]],
+) -> list[Anomaly]:
+    out: list[Anomaly] = []
+    for phase, ledger in ledgers.items():
+        raw = (ledger or {}).get("constraints")
+        if raw is None:
+            continue
+        probe = LedgerConstraintsProbe.model_validate(raw)
+        if not probe.blocking:
+            continue
+        labels = [
+            g.constraint.label
+            for g in probe.grounded
+            if g.constraint.source == "user_explicit"
+            and g.status in {"substituted", "ungroundable"}
+        ]
+        out.append(
+            Anomaly(
+                kind="silent_constraint_violation",
+                severity="critical",
+                message=(
+                    f"{probe.unmet_count} user-explicit constraint(s) unmet "
+                    f"({', '.join(labels) or 'unnamed'}) yet the turn did not pause "
+                    f"or flag it — the plan silently deviated from what the user asked."
+                ),
+                evidence=[f"state/{phase}.json"],
+                details={
+                    "phase": phase,
+                    "unmet_count": probe.unmet_count,
+                    "labels": labels,
+                },
             )
         )
     return out
@@ -221,6 +261,7 @@ def diagnose(
         + _loops(calls)
         + _wdk_service_errors(calls)
         + _outage_driven_rejection(calls)
+        + _silent_constraint_violation(ledgers)
         + _silent_zero(ledgers)
         + _budget(summary)
         + _no_plan(summary)

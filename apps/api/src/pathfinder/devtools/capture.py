@@ -132,6 +132,8 @@ class RunCapture:
         self._phase_by_call: dict[str, str] = {}
         self._subagent_by_call: dict[str, str] = {}
         self._tool_name_by_call: dict[str, str] = {}
+        self._tool_args_by_call: dict[str, dict[str, Any]] = {}
+        self._durable_task: tuple[str, str] | None = None
         self._current_phase = ""
         self._ledger_by_phase: dict[str, dict[str, Any]] = {}
         self._problem_frame: dict[str, Any] | None = None
@@ -164,10 +166,12 @@ class RunCapture:
             "data-problem-frame": self._on_problem_frame,
             "tool-input-available": self._on_tool_input,
             "tool-approval-request": self._on_approval,
+            "data-background-task-started": self._on_durable_task,
             "error": self._on_error,
         }.get(env.type)
         if env.type == "start":
             self._pending = None
+            self._durable_task = None
         if handler is not None:
             handler(env)
 
@@ -240,6 +244,14 @@ class RunCapture:
     def _on_tool_input(self, env: Chunk) -> None:
         if env.tool_call_id and env.tool_name:
             self._tool_name_by_call[env.tool_call_id] = env.tool_name
+        if env.tool_call_id and env.input is not None:
+            self._tool_args_by_call[env.tool_call_id] = env.input
+
+    def _on_durable_task(self, env: Chunk) -> None:
+        data = env.data or {}
+        task_id = data.get("taskId")
+        if task_id:
+            self._durable_task = (str(task_id), str(data.get("toolName") or "?"))
 
     def _on_approval(self, env: Chunk) -> None:
         if not env.tool_call_id:
@@ -280,6 +292,23 @@ class RunCapture:
     @property
     def pending_approval(self) -> tuple[str, str] | None:
         return self._pending
+
+    @property
+    def durable_task(self) -> tuple[str, str] | None:
+        return self._durable_task
+
+    @property
+    def tool_args_by_call(self) -> dict[str, dict[str, Any]]:
+        return self._tool_args_by_call
+
+    def plan_open_slots(self) -> list[dict[str, Any]]:
+        """Open NEEDS_USER_INPUT plan slots from the latest ledger snapshot."""
+        for ledger in reversed(list(self._ledger_by_phase.values())):
+            plan = (ledger or {}).get("plan") or {}
+            slots = plan.get("openUserInputSlots")
+            if slots:
+                return list(slots)
+        return []
 
     @property
     def has_error(self) -> bool:

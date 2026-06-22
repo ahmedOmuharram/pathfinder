@@ -18,16 +18,17 @@ from pathfinder.ai.tools.standalone.catalog_discovery import (
     get_parameter_dependencies,
     get_parameter_options,
     get_search_overview,
-    update_search_decision,
+    resolve_search_parameters,
 )
+from pathfinder.ai.tools.standalone.catalog_selection import update_search_decision
 from pathfinder.ai.tools.standalone.gene import lookup_gene_records
 from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.research import literature_search, web_search
 from pathfinder.ai.tools.standalone.strategy_graph import get_strategy
 from pathfinder.ai.tools.standalone.think import think
 from pathfinder.ai.tools.toolsets._dynamic import (
-    DynamicEnumToolset,
     EnumOverrides,
+    ValidatingEnumToolset,
 )
 
 
@@ -60,6 +61,8 @@ def _discovery_enum_overrides(
         overrides[("get_search_overview", "search_name")] = candidates
     if inspected:
         overrides[("update_search_decision", "search_name")] = inspected
+        overrides[("update_search_decision", "replaces")] = inspected
+        overrides[("resolve_search_parameters", "search_name")] = inspected
         overrides[("get_parameter_options", "search_name")] = inspected
         overrides[("get_parameter_dependencies", "search_name")] = inspected
     if all_params:
@@ -73,12 +76,14 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
     Phase exit is handled by ``output_type=DiscoveryDecision`` on the
     discovery agent — no ``finish_*`` tool is exposed.
 
-    The toolset is wrapped in :class:`DynamicEnumToolset` so the JSON
-    schema for ``search_name`` and ``parameter_id`` arguments is
-    rewritten before every LLM request to include an ``enum`` of the
-    actually-discovered values. Strict mode at the OpenAI / Anthropic
-    layer then prevents the model from emitting hallucinated identifiers
-    at all.
+    The toolset is wrapped in :class:`ValidatingEnumToolset`, which
+    enforces the discovered-value constraints for ``search_name`` and
+    ``parameter_id`` at CALL time (an invalid identifier raises
+    ``ModelRetry`` naming the valid set) instead of injecting an ``enum``
+    into the tool JSON schema. The schema therefore stays constant across
+    the run, keeping the OpenAI/Anthropic prompt-cache prefix stable —
+    the growing-enum rewrite previously busted the cache on every newly
+    discovered search.
     """
     base: FunctionToolset[AgentDeps] = FunctionToolset(
         max_retries=3,
@@ -91,6 +96,7 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
             lookup_phyletic_codes,
             search_example_plans,
             get_search_overview,
+            resolve_search_parameters,
             update_search_decision,
             get_parameter_options,
             get_parameter_dependencies,
@@ -103,7 +109,7 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
             remember,
         ],
     )
-    return DynamicEnumToolset(
+    return ValidatingEnumToolset(
         wrapped=base,
         build_overrides=_discovery_enum_overrides,
     )

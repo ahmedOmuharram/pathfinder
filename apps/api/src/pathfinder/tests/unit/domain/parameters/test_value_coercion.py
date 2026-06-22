@@ -2,10 +2,70 @@ import pytest
 
 from pathfinder.domain.parameters.values import (
     MultiPickValue,
+    NumberRangeValue,
     NumberValue,
+    SinglePickValue,
     StringValue,
+    coerce_context_values,
     coerce_param_value,
+    param_value_from_raw,
 )
+
+
+def test_coerce_context_values_by_shape() -> None:
+    out = coerce_context_values(
+        {
+            "profileset_generic": "SRP047470 ... DESeq",
+            "samples": ["Adult_female", "Adult_male"],
+            "typed": {"type": "string", "value": "x"},
+        }
+    )
+    assert out["profileset_generic"] == SinglePickValue(value="SRP047470 ... DESeq")
+    assert out["samples"] == MultiPickValue(values=["Adult_female", "Adult_male"])
+    assert out["typed"] == StringValue(value="x")
+
+
+def test_coerce_context_values_passes_instances() -> None:
+    out = coerce_context_values({"p": SinglePickValue(value="v")})
+    assert out["p"] == SinglePickValue(value="v")
+
+
+def test_from_raw_string_scalar() -> None:
+    v = param_value_from_raw("odorant binding protein", "string")
+    assert isinstance(v, StringValue)
+    assert v.value == "odorant binding protein"
+
+
+def test_from_raw_number_accepts_int_and_str() -> None:
+    assert param_value_from_raw(2, "number") == NumberValue(value=2.0)
+    assert param_value_from_raw("2", "number") == NumberValue(value=2.0)
+
+
+def test_from_raw_single_pick() -> None:
+    v = param_value_from_raw("Aedes aegypti", "single-pick-vocabulary")
+    assert isinstance(v, SinglePickValue)
+    assert v.value == "Aedes aegypti"
+
+
+def test_from_raw_multi_pick_scalar_and_list() -> None:
+    assert param_value_from_raw("InterPro", "multi-pick-vocabulary") == MultiPickValue(
+        values=["InterPro"]
+    )
+    assert param_value_from_raw(
+        ["InterPro", "product"], "multi-pick-vocabulary"
+    ) == MultiPickValue(values=["InterPro", "product"])
+
+
+def test_from_raw_passes_through_already_typed() -> None:
+    v = param_value_from_raw({"type": "string", "value": "x"}, "string")
+    assert isinstance(v, StringValue)
+    assert v.value == "x"
+
+
+def test_from_raw_number_range_from_dict() -> None:
+    v = param_value_from_raw({"min": 1, "max": 5}, "number-range")
+    assert isinstance(v, NumberRangeValue)
+    assert (v.min, v.max) == (1.0, 5.0)
 
 
 def test_coerce_identity_returns_same_value() -> None:

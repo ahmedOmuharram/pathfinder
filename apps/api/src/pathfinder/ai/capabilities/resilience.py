@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from langgraph.errors import GraphInterrupt
+from pydantic import BaseModel, ConfigDict
 from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai.capabilities.abstract import AbstractCapability
 from pydantic_ai.exceptions import ModelRetry
@@ -260,6 +261,34 @@ def _semantic_directive(
     )
 
 
+_OUTAGE_GIVE_UP_THRESHOLD = 2
+
+_NEXT_ACTIONS_OUTAGE = [
+    "Choose a DIFFERENT search that covers the same intent",
+    "If no alternative search fits, report the outage to the user instead of retrying",
+]
+
+
+class _TransientArgs(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    search_name: str | None = None
+
+
+def _outage_directive(tool_name: str, search_name: str, error: Exception) -> str:
+    return build_error_directive(
+        error_type="SEARCH_UNAVAILABLE",
+        tool_name=tool_name,
+        tool_args={"search_name": search_name},
+        detail=(
+            f"'{search_name}' returned repeated server errors and is persistently "
+            f"unavailable this turn: {error}"
+        ),
+        next_actions=_NEXT_ACTIONS_OUTAGE,
+        do_not=f"Do not call {tool_name} on '{search_name}' again — it is down, not transient",
+    )
+
+
 # ---------------------------------------------------------------------------
 # ToolResilience capability
 # ---------------------------------------------------------------------------
@@ -314,6 +343,11 @@ class ToolResilience(AbstractCapability[AgentDeps]):
         category = classify_error(error)
 
         if category == ErrorCategory.TRANSIENT:
+            search_name = _TransientArgs.model_validate(args).search_name
+            if search_name is not None:
+                seen = ctx.deps.service_outage.record(f"{tool_name}:{search_name}")
+                if seen >= _OUTAGE_GIVE_UP_THRESHOLD:
+                    return _outage_directive(tool_name, search_name, error)
             retry_message = (
                 f"Transient error in {tool_name}: {error}. "
                 "The service may be temporarily unavailable. Retrying."

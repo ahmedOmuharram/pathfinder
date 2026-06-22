@@ -8,6 +8,7 @@ from pathfinder.ai.lead.deltas import OpenSlot
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
 from pathfinder.ai.lead.ledger import (
     BuildSection,
+    ConstraintSection,
     DiscoverySection,
     FrameSection,
     InvestigationLedger,
@@ -19,6 +20,11 @@ from pathfinder.ai.lead.ledger import (
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
     StepPushFailure,
+)
+from pathfinder.domain.strategy.constraints import (
+    ground_against_plan,
+    merge_constraints,
+    provisional_constraints,
 )
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
@@ -74,6 +80,7 @@ def derive_ledger(
     plan_section = _derive_plan_section(state)
     build_section = _derive_build_section(state)
     verification_section = _derive_verification_section(state)
+    constraint_section = _derive_constraint_section(state, intent)
 
     return InvestigationLedger(
         user_intent=intent,
@@ -82,7 +89,22 @@ def derive_ledger(
         plan=plan_section,
         build=build_section,
         verification=verification_section,
+        constraints=constraint_section,
     )
+
+
+def _derive_constraint_section(
+    state: PipelineState, intent: UserIntent | None
+) -> ConstraintSection:
+    plan = state.active_plan
+    provisional = state.problem_frame.constraints if state.problem_frame else []
+    explicit = intent.explicit_constraints if intent else []
+    merged = merge_constraints(provisional, explicit)
+    if not merged:
+        return ConstraintSection()
+    if plan is None:
+        return ConstraintSection(grounded=provisional_constraints(merged))
+    return ConstraintSection(grounded=ground_against_plan(merged, plan))
 
 
 def _derive_frame_section(
@@ -224,11 +246,17 @@ def _intent_satisfaction(
     return False, gap
 
 
+def open_user_input_slots(plan: StrategyPlan) -> list[OpenSlot]:
+    """The plan's unfilled NEEDS_USER_INPUT slots — what the user must answer
+    alongside (or instead of) a plain plan approval."""
+    return _open_slots(plan, ParamStatus.NEEDS_USER_INPUT)
+
+
 def _derive_plan_section(state: PipelineState) -> PlanSection:
     plan = state.active_plan
     if plan is None:
         return PlanSection()
-    user_slots = _open_slots(plan, ParamStatus.NEEDS_USER_INPUT)
+    user_slots = open_user_input_slots(plan)
     discovery_slots = _open_slots(plan, ParamStatus.NEEDS_DISCOVERY)
     approved = plan.status == PlanStatus.APPROVED
     return PlanSection(
@@ -236,7 +264,17 @@ def _derive_plan_section(state: PipelineState) -> PlanSection:
         open_user_input_slots=user_slots,
         open_discovery_slots=discovery_slots,
         approved=approved,
+        last_denial_message=None if approved else _latest_denial_message(state),
     )
+
+
+def _latest_denial_message(state: PipelineState) -> str | None:
+    """The reason from the most recent denied plan approval, if any."""
+    reason: str | None = None
+    for response in state.approval_responses.values():
+        if not response.approved and response.reason:
+            reason = response.reason
+    return reason
 
 
 _PARAM_STATUS_TO_SLOT_LABEL: dict[

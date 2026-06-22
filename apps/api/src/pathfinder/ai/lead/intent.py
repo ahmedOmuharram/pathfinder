@@ -4,6 +4,7 @@ from enum import StrEnum
 
 from pydantic import Field
 
+from pathfinder.domain.strategy.constraints import Constraint
 from pathfinder.platform.pydantic_base import CamelModel
 
 
@@ -44,4 +45,14 @@ class UserIntent(CamelModel):
     )
     referenced_step_ids: list[str] = Field(default_factory=list)
     referenced_strategy_ids: list[int] = Field(default_factory=list)
+    explicit_constraints: list[Constraint] = Field(
+        default_factory=list,
+        description=(
+            "Typed constraints the user STATED in this message (data_type, "
+            "statistical_threshold, fold_change, comparator, organism, "
+            "record_type). Captured fresh each turn from the literal message — "
+            "these are user-explicit by construction and override scoping's "
+            "provisional assumptions for the same dimension."
+        ),
+    )
     last_classified_at_turn: str | None = None

@@ -93,6 +93,27 @@ class DecisionArgs(BaseModel):
     selection_reason: str = ""
 
 
+class ConstraintProbe(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    kind: str = ""
+    label: str = ""
+    requested_value: str = Field(default="", alias="requestedValue")
+    source: str = ""
+
+
+class GroundedConstraintProbe(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    constraint: ConstraintProbe = Field(default_factory=ConstraintProbe)
+    status: str = ""
+
+
+class LedgerConstraintsProbe(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    blocking: bool = False
+    unmet_count: int = Field(default=0, alias="unmetCount")
+    grounded: list[GroundedConstraintProbe] = Field(default_factory=list)
+
+
 class DecodedError(BaseModel):
     kind: ErrorKind = "other"
     search_name: str | None = None

@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai.toolsets.wrapper import WrapperToolset
@@ -71,6 +72,48 @@ def _apply_enum_overrides(
     return replace(tool, tool_def=new_tool_def)
 
 
+@dataclass
+class ValidatingEnumToolset(WrapperToolset[AgentDepsT]):
+    """Enforce discovered-value constraints at CALL time instead of in the
+    tool JSON schema.
+
+    Same override builder as :class:`DynamicEnumToolset`, but the tool
+    schema is left untouched (no injected ``enum``) so the prompt-cache
+    prefix stays constant across the whole run. A call whose constrained
+    arg falls outside the allowed set raises ``ModelRetry`` naming the
+    valid values — a fast soft guardrail (no downstream I/O), bounded by
+    the agent's retry/circuit-breaker budget. Empty override set ⇒ the
+    arg is unconstrained (cold start).
+    """
+
+    build_overrides: EnumOverrideBuilder[AgentDepsT]
+
+    @property
+    def id(self) -> str | None:
+        return None
+
+    async def call_tool(
+        self,
+        name: str,
+        tool_args: dict[str, Any],
+        ctx: RunContext[AgentDepsT],
+        tool: ToolsetTool[AgentDepsT],
+    ) -> Any:
+        overrides = self.build_overrides(ctx)
+        for (t_name, arg), allowed in overrides.items():
+            if t_name != name or not allowed:
+                continue
+            value = tool_args.get(arg)
+            if isinstance(value, str) and value not in allowed:
+                retry_message = (
+                    f"{arg}={value!r} is not a known value for {name}. "
+                    f"Choose one of: {', '.join(sorted(allowed))}. "
+                    "Copy it verbatim — do not paraphrase or invent."
+                )
+                raise ModelRetry(retry_message)
+        return await self.wrapped.call_tool(name, tool_args, ctx, tool)
+
+
 def live_step_ids(deps: AgentDeps) -> list[str]:
     graph = deps.strategy_session.get_graph(None)
     if graph is None or not graph.steps:
@@ -94,6 +137,7 @@ __all__ = [
     "DynamicEnumToolset",
     "EnumOverrideBuilder",
     "EnumOverrides",
+    "ValidatingEnumToolset",
     "live_step_ids",
     "live_wdk_step_ids",
 ]

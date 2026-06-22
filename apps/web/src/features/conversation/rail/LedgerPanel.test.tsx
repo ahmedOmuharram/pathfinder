@@ -54,6 +54,7 @@ function makeLedger(
       succeeded: true,
     },
     verification: { complete: false, successful: false },
+    constraints: { grounded: [], unmetCount: 0, blocking: false },
     subAgentCallsThisTurn: 1,
     subAgentCallsTotal: 3,
     ...overrides,

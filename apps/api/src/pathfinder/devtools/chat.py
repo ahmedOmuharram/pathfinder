@@ -2,33 +2,58 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
+import time
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Literal
 from uuid import UUID, uuid4
 
 import structlog
-from pydantic import BaseModel
-from pydantic_ai.ui.vercel_ai.request_types import (
-    TextUIPart,
-    ToolApprovalResponded,
-    ToolApprovalRespondedPart,
-    UIMessage,
-)
+from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.ai.conversation.event_stream import latest_turn_boundary
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.turn_runner import run_turn
+from pathfinder.ai.graph._llm_capture import capture_llm
 from pathfinder.ai.graph.builder import build_graph
+from pathfinder.ai.graph.state import (
+    PendingApproval,
+    PlanSlotAnswer,
+    UserQuestionAnswer,
+)
+from pathfinder.ai.lead.derive import open_user_input_slots
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.devtools import inspector
 from pathfinder.devtools.capture import RunCapture, capture_tracebacks, reset_run_dir
+from pathfinder.devtools.gates import (
+    SUBMIT_PLAN_TOOLS,
+    BodyCtx,
+    Gate,
+    GateConsultQuestion,
+    approval_body,
+    consult_body,
+    detect_gate,
+    plan_slots_body,
+    user_body,
+)
 from pathfinder.devtools.wdk_capture import capture_wdk
+from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.integrations.veupathdb.auth_login import password_login
+from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.auth_context import attach_user_id, attach_wdk_auth
+from pathfinder.jobs.payloads import ChatTurnPayload
+from pathfinder.jobs.tasks import run_chat_turn_job
+from pathfinder.persistence.models import ConversationEvent
+from pathfinder.persistence.repositories.background_tasks import (
+    BackgroundTaskRepository,
+)
 from pathfinder.persistence.repositories.user import UserRepository
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.db import async_session_factory
@@ -48,10 +73,24 @@ class RunArgs(BaseModel):
     mock: bool = False
     approve: Literal["prompt", "auto", "deny"] = "prompt"
     capture_wdk: bool = False
+    capture_llm: bool = False
+    via_worker: bool = False
     quiet: bool = False
     email: str | None = None
     password: str | None = None
     phase_models: dict[PhaseRole, str] = {}
+
+
+class RespondArgs(RunArgs):
+    """Args for the ``respond`` subcommand — answer the gate a prior step
+    surfaced. ``prompt`` is unused (no new user message)."""
+
+    prompt: str = ""
+    accept: bool = False
+    deny: bool = False
+    reason: str | None = None
+    answers: list[str] = Field(default_factory=list)
+    slots: list[str] = Field(default_factory=list)
 
 
 class MissingCredentialsError(RuntimeError):
@@ -94,6 +133,13 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--mock", action="store_true")
     run.add_argument("--approve", choices=["prompt", "auto", "deny"], default="prompt")
     run.add_argument("--capture-wdk", action="store_true")
+    run.add_argument("--capture-llm", action="store_true")
+    run.add_argument(
+        "--via-worker",
+        action="store_true",
+        help="run the turn through the real worker (durable tools execute); "
+        "LLM capture happens in the worker, events are replayed from the DB",
+    )
     run.add_argument("--quiet", action="store_true")
     run.add_argument(
         "--email", default=None, help="WDK login email (else $WDK_DEV_EMAIL)"
@@ -103,12 +149,48 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--model", action="append", default=[], metavar="PHASE=ID")
 
+    resp = sub.add_parser(
+        "respond",
+        help="answer the conversation's pending gate (found via checkpoint)",
+    )
+    resp.add_argument("--site", required=True)
+    resp.add_argument("--conversation-id", required=True)
+    resp.add_argument("--run-dir", required=True)
+    resp.add_argument("--mode", default="strategy")
+    resp.add_argument("--mock", action="store_true")
+    resp.add_argument("--approve", choices=["prompt", "auto", "deny"], default="prompt")
+    resp.add_argument("--capture-wdk", action="store_true")
+    resp.add_argument("--capture-llm", action="store_true")
+    resp.add_argument("--via-worker", action="store_true")
+    resp.add_argument("--quiet", action="store_true")
+    resp.add_argument("--email", default=None)
+    resp.add_argument("--password", default=None)
+    resp.add_argument("--model", action="append", default=[], metavar="PHASE=ID")
+    resp.add_argument("--accept", action="store_true", help="approve the pending gate")
+    resp.add_argument("--deny", action="store_true", help="deny the pending gate")
+    resp.add_argument("--reason", default=None, help="reason for --deny")
+    resp.add_argument(
+        "--answer",
+        action="append",
+        default=[],
+        metavar="QID=VALUE",
+        help="consult answer (comma-separate VALUE for multi-choice)",
+    )
+    resp.add_argument(
+        "--slot",
+        action="append",
+        default=[],
+        metavar="STEP:PARAM=VALUE",
+        help="plan slot value",
+    )
+
     ins = sub.add_parser("inspect", help="read a captured run directory")
     ins.add_argument("run_dir")
     ins.add_argument("--failures", action="store_true")
     ins.add_argument("--anomalies", action="store_true")
     ins.add_argument("--tree", action="store_true")
     ins.add_argument("--tool", default=None)
+    ins.add_argument("--llm", nargs="?", const="__all__", default=None, metavar="ROLE")
 
     diff = sub.add_parser(
         "diff", help="diff two captured runs to find the divergence point"
@@ -134,10 +216,39 @@ def parse_run_args(argv: list[str]) -> RunArgs:
             "mock": ns.mock,
             "approve": ns.approve,
             "capture_wdk": ns.capture_wdk,
+            "capture_llm": ns.capture_llm,
+            "via_worker": ns.via_worker,
             "quiet": ns.quiet,
             "email": ns.email,
             "password": ns.password,
             "phase_models": phase_models,
+        }
+    )
+
+
+def parse_respond_args(argv: list[str]) -> RespondArgs:
+    ns = _build_parser().parse_args(["respond", *argv])
+    phase_models = dict(item.split("=", 1) for item in ns.model)
+    return RespondArgs.model_validate(
+        {
+            "site": ns.site,
+            "mode": ns.mode,
+            "conversation_id": UUID(ns.conversation_id),
+            "run_dir": Path(ns.run_dir),
+            "mock": ns.mock,
+            "approve": ns.approve,
+            "capture_wdk": ns.capture_wdk,
+            "capture_llm": ns.capture_llm,
+            "via_worker": ns.via_worker,
+            "quiet": ns.quiet,
+            "email": ns.email,
+            "password": ns.password,
+            "phase_models": phase_models,
+            "accept": ns.accept,
+            "deny": ns.deny,
+            "reason": ns.reason,
+            "answers": ns.answer,
+            "slots": ns.slot,
         }
     )
 
@@ -150,88 +261,231 @@ def _route_framework_logs_to_stderr() -> None:
     structlog.configure(logger_factory=structlog.PrintLoggerFactory(file=sys.stderr))
 
 
-def _user_body(args: RunArgs, *, message_id: UUID) -> ChatRequestBody:
-    return ChatRequestBody(
+_VIA_WORKER_TIMEOUT_S = 1200
+_VIA_WORKER_POLL_S = 3.0
+
+
+def _body_ctx(args: RunArgs) -> BodyCtx:
+    return BodyCtx(
         conversation_id=args.conversation_id,
         site_id=args.site,
         mode=args.mode,
-        messages=[
-            UIMessage(
-                id=str(message_id), role="user", parts=[TextUIPart(text=args.prompt)]
+        phase_models=args.phase_models,
+    )
+
+
+def _current_gate(capture: RunCapture) -> Gate:
+    return detect_gate(
+        pending_approval=capture.pending_approval,
+        tool_args=capture.tool_args_by_call,
+        plan_open_slots=capture.plan_open_slots(),
+        durable_task=capture.durable_task,
+    )
+
+
+async def _gate_from_checkpoint(conversation_id: UUID, settings_url: str) -> Gate:
+    """Derive the pending gate from the conversation's LangGraph checkpoint —
+    the SSOT for what the turn is blocked on, independent of which run-dir
+    produced it. Lets ``respond`` approve/answer a gate from any run-dir."""
+    async with lifespan_checkpointer(settings_url) as saver:
+        graph = build_graph(checkpointer=saver)
+        config: RunnableConfig = {"configurable": {"thread_id": str(conversation_id)}}
+        snapshot = await graph.aget_state(config)
+    values = snapshot.values or {}
+    raw_pending = values.get("pending_approval")
+    if not raw_pending:
+        return Gate(kind="none", message="turn complete")
+    pending = PendingApproval.model_validate(raw_pending)
+    plan_slots: list[dict[str, object]] = []
+    raw_plan = values.get("active_plan")
+    if raw_plan is not None and pending.tool_name in SUBMIT_PLAN_TOOLS:
+        plan = StrategyPlan.model_validate(raw_plan)
+        plan_slots = [s.model_dump(by_alias=True) for s in open_user_input_slots(plan)]
+    return detect_gate(
+        pending_approval=(pending.tool_name, pending.tool_call_id),
+        tool_args={pending.tool_call_id: dict(pending.tool_args)},
+        plan_open_slots=plan_slots,
+        durable_task=None,
+    )
+
+
+def _write_gate(run_dir: Path, gate: Gate) -> None:
+    (run_dir / "gate.json").write_text(gate.model_dump_json(indent=2, by_alias=True))
+
+
+def _auto_answer(q: GateConsultQuestion) -> UserQuestionAnswer:
+    chosen = [o.label for o in q.options if o.recommended]
+    if not chosen and q.options:
+        chosen = [q.options[0].label]
+    return UserQuestionAnswer(
+        question_id=q.id,
+        prompt=q.prompt,
+        chosen_labels=chosen,
+        note="" if chosen else "proceed with defaults",
+    )
+
+
+def _auto_respond(
+    args: RunArgs, gate: Gate, message_id: UUID
+) -> ChatRequestBody | None:
+    """Autopilot body for --approve auto|deny; None stops at the gate so the
+    operator can answer it with ``respond``."""
+    if gate.kind in {"none", "durable"} or args.approve not in {"auto", "deny"}:
+        return None
+    if gate.kind == "consult":
+        if args.approve == "deny" or gate.tool_call_id is None:
+            return None
+        return consult_body(
+            _body_ctx(args),
+            message_id=message_id,
+            tool_call_id=gate.tool_call_id,
+            answers=[_auto_answer(q) for q in gate.consult_questions],
+        )
+    if (
+        gate.kind == "approval"
+        and gate.tool is not None
+        and gate.tool_call_id is not None
+    ):
+        approved = args.approve == "auto"
+        if gate.plan_slots and approved:
+            return plan_slots_body(
+                _body_ctx(args),
+                message_id=message_id,
+                tool=gate.tool,
+                tool_call_id=gate.tool_call_id,
+                approved=True,
+                answers=[],
             )
-        ],
-        phase_models=args.phase_models,
-    )
+        return approval_body(
+            _body_ctx(args),
+            message_id=message_id,
+            tool=gate.tool,
+            tool_call_id=gate.tool_call_id,
+            approved=approved,
+            reason=None if approved else "auto-deny",
+        )
+    return None
 
 
-def _resume_body(
+async def _exec_one(
     args: RunArgs,
+    capture: RunCapture,
+    body: ChatRequestBody,
     *,
-    prior_assistant_id: UUID,
-    tool_name: str,
-    tool_call_id: str,
-    approved: bool,
-) -> ChatRequestBody:
-    part = ToolApprovalRespondedPart(
-        type=f"tool-{tool_name}",
-        tool_call_id=tool_call_id,
-        approval=ToolApprovalResponded(id=tool_call_id, approved=approved, reason=None),
-    )
-    return ChatRequestBody(
-        conversation_id=args.conversation_id,
-        site_id=args.site,
-        mode=args.mode,
-        messages=[
-            UIMessage(id=str(prior_assistant_id), role="assistant", parts=[part])
-        ],
-        phase_models=args.phase_models,
-    )
-
-
-def _decide(approve: str, tool_name: str) -> bool:
-    if approve == "auto":
-        return True
-    if approve == "deny":
-        return False
-    return input(
-        f"⏸ approval needed: {tool_name}  approve? [y/N] "
-    ).strip().lower() in {"y", "yes"}
-
-
-async def _drive(
-    args: RunArgs, capture: RunCapture, *, settings_url: str, wdk_token: str | None
+    settings_url: str,
+    wdk_token: str | None,
 ) -> None:
+    """Run one body to completion-or-gate, in-process or through the worker."""
+    if args.via_worker:
+        await _exec_via_worker(args, capture, body, wdk_token=wdk_token)
+        return
     async with AsyncExitStack() as stack:
         if args.capture_wdk:
             await stack.enter_async_context(capture_wdk(capture.run_dir))
+        if args.capture_llm:
+            stack.enter_context(capture_llm(capture.run_dir))
         await stack.enter_async_context(attach_wdk_auth(wdk_token))
         await stack.enter_async_context(attach_user_id(DEV_USER_ID))
         saver = await stack.enter_async_context(lifespan_checkpointer(settings_url))
         store = await stack.enter_async_context(lifespan_memory_store(settings_url))
         graph = build_graph(checkpointer=saver)
-        current = _user_body(args, message_id=capture.turn_id)
-        for _ in range(_MAX_RESUMES):
-            await run_turn(
-                body=current,
-                user_id=DEV_USER_ID,
-                compiled_graph=graph,
-                memory_store=store,
-                writer=capture,
+        await run_turn(
+            body=body,
+            user_id=DEV_USER_ID,
+            compiled_graph=graph,
+            memory_store=store,
+            writer=capture,
+        )
+
+
+async def _exec_via_worker(
+    args: RunArgs, capture: RunCapture, body: ChatRequestBody, *, wdk_token: str | None
+) -> None:
+    """Defer a real ``chat_turn:run`` job (worker runs durable tools), stream
+    task progress while it settles, then replay persisted chat_events."""
+    before = await latest_turn_boundary(args.conversation_id)
+    payload = ChatTurnPayload(
+        body=body,
+        user_id=DEV_USER_ID,
+        turn_id=capture.turn_id,
+        veupathdb_auth_token=wdk_token,
+        capture_dir=str(args.run_dir),
+    )
+    async with procrastinate_app.open_async():
+        await run_chat_turn_job.defer_async(
+            payload=payload.model_dump(mode="json", by_alias=True),
+        )
+    if not args.quiet:
+        print("deferred to worker; waiting…")
+
+    repo = BackgroundTaskRepository(session_factory=async_session_factory)
+    deadline = time.monotonic() + _VIA_WORKER_TIMEOUT_S
+    seen_progress: set[str] = set()
+    while time.monotonic() < deadline:
+        await asyncio.sleep(_VIA_WORKER_POLL_S)
+        boundary = await latest_turn_boundary(args.conversation_id)
+        active = await repo.list_active_for_conversation(
+            conversation_id=args.conversation_id
+        )
+        if not args.quiet:
+            for task in active:
+                line = f"  ⏳ task {task.tool_name} [{task.status}]"
+                if line not in seen_progress:
+                    seen_progress.add(line)
+                    print(line)
+        if boundary > before and not active:
+            break
+
+    async with async_session_factory() as session:
+        rows = await session.scalars(
+            select(ConversationEvent)
+            .where(
+                ConversationEvent.conversation_id == args.conversation_id,
+                ConversationEvent.id > before,
             )
-            pending = capture.pending_approval
-            if pending is None:
-                return
-            tool_name, tool_call_id = pending
-            approved = _decide(args.approve, tool_name)
-            resume_id = uuid4()
-            capture.turn_id = resume_id
-            current = _resume_body(
-                args,
-                prior_assistant_id=resume_id,
-                tool_name=tool_name,
-                tool_call_id=tool_call_id,
-                approved=approved,
-            )
+            .order_by(ConversationEvent.id),
+        )
+        for row in rows:
+            await capture.write(row.chunk)
+
+
+async def _drive_conversation(
+    args: RunArgs,
+    capture: RunCapture,
+    body: ChatRequestBody,
+    *,
+    settings_url: str,
+    wdk_token: str | None,
+) -> Gate:
+    """Run ``body``, then autopilot through gates (--approve auto|deny) until a
+    gate needs the operator (or completion). Returns the final pending gate."""
+    for _ in range(_MAX_RESUMES):
+        capture.turn_id = uuid4()
+        await _exec_one(
+            args, capture, body, settings_url=settings_url, wdk_token=wdk_token
+        )
+        gate = _current_gate(capture)
+        next_body = _auto_respond(args, gate, uuid4())
+        if next_body is None:
+            return gate
+        body = next_body
+    return _current_gate(capture)
+
+
+async def _replay_run_dir(capture: RunCapture, run_dir: Path) -> None:
+    """Rebuild capture state from a prior step's events.jsonl so ``respond``
+    continues with the full conversation context (and the pending gate)."""
+    events_path = run_dir / "events.jsonl"
+    if not events_path.is_file():
+        return
+    was_quiet = capture.quiet
+    capture.quiet = True
+    try:
+        for line in events_path.read_text().splitlines():
+            if line.strip():
+                await capture.write(json.loads(line))
+    finally:
+        capture.quiet = was_quiet
 
 
 async def run_once(args: RunArgs) -> int:
@@ -267,17 +521,123 @@ async def run_once(args: RunArgs) -> int:
         print(f"conversation={args.conversation_id}")
         print(f"run-dir={args.run_dir}")
 
+    body = user_body(_body_ctx(args), message_id=capture.turn_id, text=args.prompt)
     with capture_tracebacks(args.run_dir):
-        await _drive(
-            args, capture, settings_url=settings.database_url, wdk_token=wdk_token
+        gate = await _drive_conversation(
+            args, capture, body, settings_url=settings.database_url, wdk_token=wdk_token
         )
 
     capture.flush()
-    _report(capture)
+    _write_gate(args.run_dir, gate)
+    _report(capture, gate)
     return 1 if capture.has_error else 0
 
 
-def _report(capture: RunCapture) -> None:
+class GateResponseError(RuntimeError):
+    pass
+
+
+def _parse_answer(raw: str, gate: Gate) -> UserQuestionAnswer:
+    qid, _, value = raw.partition("=")
+    question = next((q for q in gate.consult_questions if q.id == qid), None)
+    prompt = question.prompt if question is not None else ""
+    if question is not None and question.kind == "free_text":
+        return UserQuestionAnswer(
+            question_id=qid, prompt=prompt, chosen_labels=[], note=value
+        )
+    labels = [v.strip() for v in value.split(",") if v.strip()]
+    return UserQuestionAnswer(question_id=qid, prompt=prompt, chosen_labels=labels)
+
+
+def _parse_slot(raw: str) -> PlanSlotAnswer:
+    left, _, value = raw.partition("=")
+    step, _, param = left.partition(":")
+    return PlanSlotAnswer(step_id=step, param_name=param, value=value)
+
+
+def _build_respond_body(args: RespondArgs, gate: Gate) -> ChatRequestBody:
+    mid = uuid4()
+    if gate.kind == "none" or gate.tool_call_id is None:
+        msg = "no pending gate to respond to"
+        raise GateResponseError(msg)
+    if args.answers:
+        return consult_body(
+            _body_ctx(args),
+            message_id=mid,
+            tool_call_id=gate.tool_call_id,
+            answers=[_parse_answer(a, gate) for a in args.answers],
+        )
+    if args.slots:
+        return plan_slots_body(
+            _body_ctx(args),
+            message_id=mid,
+            tool=gate.tool or "submit_plan_for_approval",
+            tool_call_id=gate.tool_call_id,
+            approved=True,
+            answers=[_parse_slot(s) for s in args.slots],
+        )
+    if args.deny or args.accept:
+        if gate.tool is None:
+            msg = "gate has no approvable tool"
+            raise GateResponseError(msg)
+        return approval_body(
+            _body_ctx(args),
+            message_id=mid,
+            tool=gate.tool,
+            tool_call_id=gate.tool_call_id,
+            approved=args.accept and not args.deny,
+            reason=args.reason if args.deny else None,
+        )
+    msg = "nothing to respond — pass --accept / --deny / --answer / --slot"
+    raise GateResponseError(msg)
+
+
+async def run_respond(args: RespondArgs) -> int:
+    _route_framework_logs_to_stderr()
+    if args.mock:
+        os.environ["PATHFINDER_CHAT_PROVIDER"] = "mock"
+        os.environ["API_ENV"] = "test"
+        get_settings.cache_clear()
+    settings = get_settings()
+    wdk_token = None if args.mock else await _wdk_token(args)
+
+    async with async_session_factory() as session:
+        await UserRepository(session).get_or_create(DEV_USER_ID)
+        await begin_conversation(
+            session=session,
+            conversation_id=args.conversation_id,
+            user_id=DEV_USER_ID,
+            site_id=args.site,
+        )
+        await session.commit()
+
+    capture = RunCapture(
+        conversation_id=args.conversation_id,
+        turn_id=uuid4(),
+        run_dir=args.run_dir,
+        quiet=args.quiet,
+    )
+    await _replay_run_dir(capture, args.run_dir)
+    gate = await _gate_from_checkpoint(args.conversation_id, settings.database_url)
+    if gate.kind == "none":
+        gate = _current_gate(capture)
+    if gate.kind == "none":
+        print("no pending gate to respond to (turn already complete)")
+        return 0
+    body = _build_respond_body(args, gate)
+
+    with capture_tracebacks(args.run_dir):
+        final_gate = await _drive_conversation(
+            args, capture, body, settings_url=settings.database_url, wdk_token=wdk_token
+        )
+
+    capture.flush()
+    _write_gate(args.run_dir, final_gate)
+    _report(capture, final_gate)
+    return 1 if capture.has_error else 0
+
+
+def _report(capture: RunCapture, gate: Gate) -> None:
     summary = capture.summary()
     anomalies = capture.anomalies()
     print(
@@ -288,12 +648,25 @@ def _report(capture: RunCapture) -> None:
     )
     for anomaly in anomalies:
         print(f"  ⚑ [{anomaly.severity}] {anomaly.kind}: {anomaly.message}")
+    print(f"─── gate ───  {gate.kind}: {gate.message}")
+    if gate.kind == "consult":
+        for q in gate.consult_questions:
+            opts = " | ".join(
+                f"{o.label}{'*' if o.recommended else ''}" for o in q.options
+            )
+            print(f"  ? [{q.id}] {q.prompt}  ({opts})")
+    elif gate.kind == "approval" and gate.plan_slots:
+        for s in gate.plan_slots:
+            print(f"  ▢ slot {s.step_id}:{s.param_name} — {s.question}")
     print(f"run-dir={summary.run_dir}")
 
 
 def _run_inspect(ns: argparse.Namespace) -> int:
     run_dir = Path(ns.run_dir)
-    if ns.tool:
+    if ns.llm is not None:
+        role = None if ns.llm == "__all__" else ns.llm
+        print(inspector.render_llm(run_dir, role))
+    elif ns.tool:
         print(inspector.render_tool(run_dir, ns.tool))
     elif ns.anomalies:
         print(inspector.render_anomalies(run_dir))
@@ -311,6 +684,12 @@ def main() -> None:
         try:
             sys.exit(asyncio.run(run_once(parse_run_args(argv[1:]))))
         except MissingCredentialsError as exc:
+            print(f"✖ {exc}", file=sys.stderr)
+            sys.exit(2)
+    if command == "respond":
+        try:
+            sys.exit(asyncio.run(run_respond(parse_respond_args(argv[1:]))))
+        except (MissingCredentialsError, GateResponseError) as exc:
             print(f"✖ {exc}", file=sys.stderr)
             sys.exit(2)
     ns = _build_parser().parse_args(argv)

@@ -13,6 +13,7 @@
   {
     "data": {
       "label": "Thinking...",
+      "model": "mock:lead",
       "waitingOnLlm": true
     },
     "type": "data-turn-status"
@@ -41,7 +42,17 @@
       "costUsd": "0",
       "totalTokens": 57
     },
+    "transient": true,
     "type": "data-turn-usage"
+  },
+  {
+    "data": {
+      "costUsd": "0",
+      "modelId": "mock:lead",
+      "tokens": 57
+    },
+    "id": "<REDACTED>",
+    "type": "data-lead-usage"
   },
   {
     "input": {
@@ -86,7 +97,17 @@
       "costUsd": "0",
       "totalTokens": 57
     },
+    "transient": true,
     "type": "data-turn-usage"
+  },
+  {
+    "data": {
+      "costUsd": "0",
+      "modelId": "mock:lead",
+      "tokens": 57
+    },
+    "id": "<REDACTED>",
+    "type": "data-lead-usage"
   },
   {
     "data": {
@@ -98,6 +119,11 @@
         "skippedCount": 0,
         "succeeded": false,
         "zeroResultSteps": []
+      },
+      "constraints": {
+        "blocking": false,
+        "grounded": [],
+        "unmetCount": 0
       },
       "discovery": {
         "fitReports": [],

@@ -508,6 +508,25 @@ export interface LedgerVerificationPayload {
   successful: boolean;
 }
 
+export interface LedgerConstraintPayload {
+  constraint: {
+    kind: string;
+    requestedValue: string;
+    label: string;
+    source: "user_explicit" | "assumed";
+    hard: boolean;
+  };
+  status: "provisional" | "grounded" | "substituted" | "ungroundable";
+  realizedValue?: string | null;
+  note: string;
+}
+
+export interface LedgerConstraintsPayload {
+  grounded: LedgerConstraintPayload[];
+  unmetCount: number;
+  blocking: boolean;
+}
+
 export interface DataLedgerUpdatePayload {
   userIntent: LedgerIntentPayload | null;
   frame: LedgerFramePayload;
@@ -515,6 +534,7 @@ export interface DataLedgerUpdatePayload {
   plan: LedgerPlanPayload;
   build: LedgerBuildPayload;
   verification: LedgerVerificationPayload;
+  constraints: LedgerConstraintsPayload;
   subAgentCallsThisTurn: number;
   subAgentCallsTotal: number;
 }

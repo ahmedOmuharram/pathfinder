@@ -12,6 +12,7 @@ after the original request disconnected.
 from __future__ import annotations
 
 import dataclasses
+from contextlib import nullcontext
 from typing import Any
 from uuid import UUID
 
@@ -27,6 +28,7 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 from pathfinder.ai.conversation._turn_helpers import _interrupt_chunks
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.ai.conversation.event_writer import ChatEventWriter, ChatWriter
+from pathfinder.ai.graph._llm_capture import capture_llm
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
@@ -51,6 +53,7 @@ async def run_durable_task(
     thread_id: str,
     args: dict[str, Any],
     veupathdb_auth_token: str | None = None,
+    capture_dir: str | None = None,
 ) -> None:
     """Execute a durable tool impl on the worker and resume the graph.
 
@@ -59,8 +62,28 @@ async def run_durable_task(
     cookie into the task payload and we re-install it here for the impl's
     lifetime. Without this, any WDK call inside the impl (enrichment,
     control tests, optimization) would fall through to the service-account
-    token in settings.
+    token in settings. ``capture_dir`` (devtools only) re-installs LLM capture
+    so the graph resume — where the post-result phase agent runs — is recorded.
     """
+    capture = capture_llm(capture_dir) if capture_dir else nullcontext()
+    with capture:
+        await _run_durable_task_inner(
+            tool_name=tool_name,
+            task_id=task_id,
+            thread_id=thread_id,
+            args=args,
+            veupathdb_auth_token=veupathdb_auth_token,
+        )
+
+
+async def _run_durable_task_inner(
+    *,
+    tool_name: str,
+    task_id: str,
+    thread_id: str,
+    args: dict[str, Any],
+    veupathdb_auth_token: str | None = None,
+) -> None:
     task_uuid = UUID(task_id)
     chat_uuid = UUID(thread_id)
     repo = BackgroundTaskRepository(session_factory=async_session_factory)

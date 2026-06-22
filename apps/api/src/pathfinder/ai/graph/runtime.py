@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, SkipValidation
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.capabilities.repetition_guard import ToolRepetitionGuard
+from pathfinder.ai.capabilities.service_outage import ServiceOutageMemory
 from pathfinder.ai.graph.state import (
     PipelineState,
     PlanSlotAnswer,
@@ -58,6 +59,7 @@ class AgentDeps(BaseModel):
     agent_state: AgentToolState = Field(default_factory=AgentToolState)
     problem_frame: ProblemFrame | None = None
     problem_frame_set_this_run: bool = False
+    service_outage: ServiceOutageMemory = Field(default_factory=ServiceOutageMemory)
     tool_repetition_guard: ToolRepetitionGuard = Field(
         default_factory=ToolRepetitionGuard,
     )

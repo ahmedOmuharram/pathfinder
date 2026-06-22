@@ -51,6 +51,7 @@ from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import ParamValue, from_decoded, to_decoded
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
     PlannedStep,
@@ -86,16 +87,29 @@ def _validate_plan_search_names(
     model into another full round-trip; ``ModelRetry`` re-prompts in the
     same step with a curated suggestion list.
     """
-    selected = sorted(deps.agent_state.selected_search_names())
-    if not selected:
-        return
-    bad = [
+    state = deps.agent_state
+    named = [
         s.search_name
         for s in steps
-        if s.step_type != StepType.COMBINE
-        and s.search_name
-        and s.search_name not in selected
+        if s.step_type != StepType.COMBINE and s.search_name
     ]
+    if not named:
+        return
+    selected = sorted(state.selected_search_names())
+    if not selected:
+        if state.discovered_search_names():
+            # Discovery inspected searches but committed none as selected
+            # (e.g. escape-hatch ``request_search_inspection`` candidates).
+            # Stay lenient — WDK validation downstream is the backstop.
+            return
+        msg = (
+            f"Discovery has committed zero searches, so the planned search "
+            f"name(s) {named!r} cannot be valid — they would be invented. "
+            "Stop planning and run discovery (discover_searches) first; only "
+            "author a plan with search names discovery has actually selected."
+        )
+        raise ModelRetry(msg)
+    bad = [n for n in named if n not in selected]
     if not bad:
         return
     suggestions = sorted(
@@ -281,6 +295,7 @@ def _step_to_node(step: PlannedStep) -> StrategyStepNode:
     return StrategyStepNode(
         search_name=step.search_name,
         display_name=step.display_name,
+        operator=parse_op(step.operator) if step.operator else None,
         parameters={p.name: p.value for p in step.parameters if p.value is not None},
     )
 
@@ -317,19 +332,13 @@ def _build_proposed_plan(plan: StrategyPlan) -> JSONObject | None:
         else:
             target_node.secondary_input = source_node
 
-    # Find root: step that is never a from_step target, or the last step.
-    target_ids = {c.to_step for c in plan.connections}
+    # Root feeds nothing; mirror plan_to_spec._resolve_root_step so the
+    # rendered tree matches what execution builds.
+    source_ids = {c.from_step for c in plan.connections}
     root_id = next(
-        (
-            s.id
-            for s in plan.steps
-            if s.id not in target_ids and s.step_type != StepType.LEAF
-        ),
-        None,
+        (s.id for s in plan.steps if s.id not in source_ids),
+        plan.steps[0].id,
     )
-    if root_id is None:
-        # Single-step plan or no combines — use the first step.
-        root_id = plan.steps[0].id
 
     root_node = node_by_id.get(root_id)
     if root_node is None:
@@ -651,6 +660,7 @@ def _mutate_plan(
     *,
     title: str | None,
     description: str | None,
+    rationale: str | None = None,
     step_updates: list[StepPatch] | None,
     add_steps: list[PlannedStepInput] | None,
     remove_steps: list[str] | None,
@@ -662,6 +672,8 @@ def _mutate_plan(
         plan.title = title
     if description is not None:
         plan.description = description
+    if rationale is not None:
+        plan.rationale = rationale
 
     if remove_steps:
         remove_set = set(remove_steps)
@@ -698,6 +710,7 @@ async def update_plan(
     remove_steps: list[str] | None = None,
     title: str | None = None,
     description: str | None = None,
+    rationale: str | None = None,
     questions: list[UserQuestionInput] | None = None,
 ) -> ToolReturn[StrategyPlan] | ToolErrorPayload:
     """Mutate the active plan in-place. Apply step patches, add/remove steps.
@@ -716,6 +729,7 @@ async def update_plan(
         remove_steps: Step IDs to remove from the plan.
         title: New plan title.
         description: New plan description.
+        rationale: Updated rationale for the plan (e.g. why this edit was made).
         questions: User-facing questions to merge into the plan before presentation.
     """
     plan = ctx.deps.agent_state.active_plan
@@ -765,6 +779,7 @@ async def update_plan(
             candidate,
             title=title,
             description=description,
+            rationale=rationale,
             step_updates=step_updates,
             add_steps=add_steps,
             remove_steps=remove_steps,

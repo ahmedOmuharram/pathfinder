@@ -14,7 +14,7 @@ next request — no wasted round-trip, no spammed retry loop.
 """
 
 from difflib import get_close_matches
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
@@ -22,7 +22,6 @@ from pydantic_ai.exceptions import ModelRetry
 from pathfinder.ai.agents.state import (
     ParamVocabSnapshot,
     SearchOverview,
-    SearchSelectionStatus,
 )
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import (
@@ -31,7 +30,8 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _filter_vocab,
     _resolve_record_type,
 )
-from pathfinder.domain.parameters.values import ParamValue
+from pathfinder.domain.parameters.values import coerce_context_values
+from pathfinder.platform.errors import WDKError
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
@@ -43,6 +43,7 @@ from pathfinder.services.catalog.param_formatting import (
     ParameterNotOnSearch,
     format_typed_param,
 )
+from pathfinder.services.catalog.searches import get_raw_searches
 from pathfinder.services.wdk import (
     WDKBaseParameter,
     WDKParameter,
@@ -62,6 +63,30 @@ class AlreadyReadNotice(CamelModel):
     message: str
     search_name: str
     parameter_id: str | None = None
+
+
+class ResolvedParamSummary(CamelModel):
+    """Compact, ready-to-use view of one parameter after resolution."""
+
+    name: str
+    param_type: str
+    required: bool
+    help: str = ""
+    default_value: str | None = None
+    accepted_values: list[str] | None = None
+    note: str = ""
+
+
+class ResolvedSearchParams(CamelModel):
+    """Result of ``resolve_search_parameters`` — every required param's vocab,
+    resolved and snapshotted so planning copies validated values."""
+
+    kind: Literal["resolved_search_params"] = "resolved_search_params"
+    search_name: str
+    params: list[ResolvedParamSummary]
+
+
+_SEARCH_NOT_FOUND_STATUS = 404
 
 
 def _did_you_mean(
@@ -123,7 +148,17 @@ async def get_search_overview(
         )
     rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
     client = get_wdk_client(deps.site_id)
-    details = await client.get_search_details(rt, search_name, expand_params=True)
+    try:
+        details = await client.get_search_details(rt, search_name, expand_params=True)
+    except WDKError as exc:
+        if exc.status != _SEARCH_NOT_FOUND_STATUS:
+            raise
+        valid = [
+            s.url_segment
+            for s in await get_raw_searches(deps.site_id, rt)
+            if s.url_segment
+        ]
+        raise ModelRetry(_did_you_mean(search_name, valid, kind="search")) from exc
     search = details.search_data
     params: list[WDKParameter] = search.parameters or []
 
@@ -159,7 +194,7 @@ async def get_parameter_options(
     search_name: str,
     parameter_id: str,
     record_type: str | None = None,
-    context_values: dict[str, ParamValue] | None = None,
+    context_values: dict[str, Any] | None = None,
     query: str | None = None,
 ) -> GetParameterOptionsResult | AlreadyReadNotice:
     """Get detailed parameter info including vocabulary/allowed values.
@@ -182,17 +217,17 @@ async def get_parameter_options(
             this search — copy verbatim, do not paraphrase.
         record_type: Record type. Auto-resolved from search name if omitted (recommended).
         context_values: Current values of the parent parameters this param
-            depends on, for dependent vocab refresh. Each value MUST be
-            wrapped in its typed shape — see the ``valueFormat`` field
-            from ``get_search_overview`` for the exact template per param.
-            Example: ``{"profileset_generic": {"type": "single-pick-vocabulary", "value": "<term>"}}``.
+            depends on, for dependent vocab refresh. Pass the RAW value — a
+            string for a single pick, a list for multi-pick; the system types
+            it. Example: ``{"profileset_generic": "<term>"}``.
         query: Optional substring filter for large vocabularies. Case-insensitive.
             Use when vocabulary is large and you need specific entries
             (e.g. query='cruzi' for T. cruzi).
     """
     deps = ctx.deps
+    typed_context = coerce_context_values(context_values) if context_values else None
     read_key = deps.agent_state.param_read_key(
-        search_name, parameter_id, context_values=context_values, query=query
+        search_name, parameter_id, context_values=typed_context, query=query
     )
     if deps.agent_state.was_param_read(read_key):
         return AlreadyReadNotice(
@@ -205,12 +240,12 @@ async def get_parameter_options(
             parameter_id=parameter_id,
         )
     rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
-    has_context = bool(context_values)
+    has_context = bool(typed_context)
 
     client = get_wdk_client(deps.site_id)
 
-    if has_context and context_values is not None:
-        encoded_ctx = encode_wdk_params(dict(context_values))
+    if has_context and typed_context is not None:
+        encoded_ctx = encode_wdk_params(dict(typed_context))
         result = await client.get_search_details_with_params(
             rt,
             search_name,
@@ -282,80 +317,80 @@ def _snapshot_param_vocab(
     deps.agent_state.register_search(search_name, updated)
 
 
-async def update_search_decision(
+async def resolve_search_parameters(
     ctx: RunContext[AgentDeps],
     search_name: str,
-    selection_status: SearchSelectionStatus,
-    rationale: str,
-    selection_reason: str = "",
-    confidence: float = 0.0,
-    param_hints: dict[str, str | list[str]] | None = None,
-) -> str:
-    """Commit discovery's decision about an already-inspected search.
+    record_type: str | None = None,
+) -> ResolvedSearchParams:
+    """Resolve EVERY required parameter of an inspected search in one call.
 
-    Call this AFTER ``get_search_overview`` (and any parameter inspection)
-    to record what you concluded — biological rationale, whether you're
-    keeping it, why, and any parameter values you already settled on.
-    Downstream phases (planning, execution, verification) read this
-    instead of replaying your tool history.
+    Fetches the search schema and, for each required param, records its
+    accepted values into the discovery vocab snapshot (the same store
+    ``get_parameter_options`` writes) so planning copies validated values
+    instead of guessing. Call this after ``get_search_overview`` and before
+    selecting the search — selection is blocked until required params are
+    resolved.
 
     Args:
-        search_name: WDK search urlSegment that was previously inspected.
-        selection_status: ``selected`` (committing this search to the plan),
-            ``candidate`` (still considering), or ``rejected`` (ruling out
-            but worth recording so planning doesn't re-discover it).
-        rationale: Why this search is biologically relevant to the user's
-            question. Reuse on every call — this is the "elevator pitch"
-            for the search, not the decision justification.
-        selection_reason: Short justification for the current
-            ``selection_status`` decision (e.g. "primary anchor for kinase
-            filter" or "user wants RNA-seq, not microarray").
-        confidence: 0..1 confidence that this search fits.
-        param_hints: Parameter values you settled on during inspection
-            (raw WDK form). Planning will use these as starting defaults.
+        ctx: Agent run context.
+        search_name: WDK search urlSegment, already inspected this turn.
+        record_type: Record type. Auto-resolved from the search name if omitted.
     """
-    if not 0.0 <= confidence <= 1.0:
-        msg = (
-            f"confidence must be in [0, 1]; got {confidence}. "
-            "Pick a value between 0.0 (no confidence this search fits) "
-            "and 1.0 (certain it fits)."
-        )
-        raise ModelRetry(msg)
     deps = ctx.deps
-    existing = deps.agent_state.get_overview(search_name)
-    if existing is None:
+    overview = deps.agent_state.get_overview(search_name)
+    if overview is None:
         discovered = sorted(deps.agent_state.discovered_searches)
         if not discovered:
             msg = (
-                f"Search {search_name!r} has not been inspected yet, and "
-                "no searches have been inspected this turn. Call "
-                "`get_search_overview` first to inspect a search."
+                f"Search {search_name!r} has not been inspected yet. Call "
+                "`get_search_overview` first, then resolve its parameters."
             )
             raise ModelRetry(msg)
-        raise ModelRetry(
-            _did_you_mean(search_name, discovered, kind="search_name"),
+        raise ModelRetry(_did_you_mean(search_name, discovered, kind="search_name"))
+
+    rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
+    client = get_wdk_client(deps.site_id)
+    details = await client.get_search_details(rt, search_name, expand_params=True)
+    all_params: list[WDKParameter] = details.search_data.parameters or []
+
+    depends_on: dict[str, list[str]] = {}
+    controls: dict[str, list[str]] = {}
+    for p in all_params:
+        base: WDKBaseParameter = p
+        if base.dependent_params:
+            controls[base.name] = list(base.dependent_params)
+            for dep in base.dependent_params:
+                depends_on.setdefault(dep, []).append(base.name)
+
+    by_name = {p.name: p for p in all_params}
+    summaries: list[ResolvedParamSummary] = []
+    for pname in overview.required_params:
+        wdk_p = by_name.get(pname)
+        if wdk_p is None:
+            continue
+        info = format_typed_param(wdk_p, depends_on=depends_on, controls=controls)
+        _snapshot_param_vocab(deps, search_name, info)
+        accepted: list[str] | None = None
+        note = ""
+        if info.allowed_values is not None:
+            accepted = [v.value for v in info.allowed_values]
+        elif info.allowed_values_tree:
+            note = (
+                "large tree vocabulary — use get_parameter_options(query=...) "
+                "to filter to the values you need"
+            )
+        summaries.append(
+            ResolvedParamSummary(
+                name=info.name,
+                param_type=info.type,
+                required=info.required,
+                help=info.help,
+                default_value=info.default_value,
+                accepted_values=accepted,
+                note=note,
+            ),
         )
-    if existing.decided and existing.selection_status == selection_status:
-        return (
-            f"Already decided '{search_name}' as {selection_status} — no change "
-            "recorded. It's hidden from the catalog now; move on to other "
-            "searches or finish discovery."
-        )
-    updated = existing.model_copy(
-        update={
-            "selection_status": selection_status,
-            "rationale": rationale,
-            "selection_reason": selection_reason,
-            "confidence": confidence,
-            "param_hints": dict(param_hints) if param_hints else {},
-            "decided": True,
-        },
-    )
-    deps.agent_state.register_search(search_name, updated)
-    return (
-        f"Recorded {selection_status} decision for {search_name} "
-        f"(confidence {confidence:.2f})."
-    )
+    return ResolvedSearchParams(search_name=search_name, params=summaries)
 
 
 async def get_parameter_dependencies(

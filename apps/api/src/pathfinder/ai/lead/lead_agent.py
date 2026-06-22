@@ -164,6 +164,21 @@ def classify_user_intent(
     values), ``inferred_goal`` (your one-sentence paraphrase),
     ``is_differential`` and ``differential_sides`` when the user is
     asking a comparison question, and any referenced step/strategy IDs.
+
+    Populate ``explicit_constraints`` with one typed Constraint for every
+    requirement the user STATES in this message — data type ("RNA-Seq
+    only"), statistical threshold ("adjusted p <= 0.05"), fold change,
+    comparator ("female vs male"), organism, record type. Capture their
+    exact stated value. These override scoping's provisional assumptions
+    for the same dimension, so a clarification answer like "RNA-Seq only,
+    hard requirement" lands here even when scoping earlier assumed
+    otherwise. Leave empty if the user states no concrete requirement.
+
+    Set ``hard=True`` for non-negotiable requirements ("only", "must",
+    "required", "do not use X"); set ``hard=False`` when the user states a
+    PREFERENCE with an acceptable fallback ("RNA-Seq preferred, microarray
+    fallback ok", "ideally X but Y is fine"). A soft constraint is surfaced
+    but never blocks the turn if substituted.
     """
     ctx.deps.intent = intent
     return intent

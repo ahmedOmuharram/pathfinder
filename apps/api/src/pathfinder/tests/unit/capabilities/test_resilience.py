@@ -26,6 +26,7 @@ from pathfinder.ai.capabilities.error_classification import (
     classify_error,
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
+from pathfinder.ai.capabilities.service_outage import ServiceOutageMemory
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -560,6 +561,61 @@ class TestOnToolExecuteError:
         assert isinstance(result, str)
         assert "ERROR:" in result
         assert "INTERNAL_TOOL_ERROR" in result
+
+    @pytest.mark.asyncio
+    async def test_persistent_5xx_on_same_search_gives_up_after_threshold(self) -> None:
+        capability = ToolResilience()
+        ctx = _make_ctx()
+        ctx.deps.service_outage = ServiceOutageMemory()
+        error = WDKError("server error", status=500)
+
+        async def _call() -> Any:
+            return await capability.on_tool_execute_error(
+                ctx,
+                call=_make_call("get_search_overview"),
+                tool_def=_make_tool_def("get_search_overview"),
+                args={"search_name": "GenesByRNASeqFoo"},
+                error=error,
+            )
+
+        with pytest.raises(ModelRetry):
+            await _call()
+        result = await _call()
+        assert isinstance(result, str)
+        assert "GenesByRNASeqFoo" in result
+        assert "different search" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_persistent_5xx_tracks_searches_independently(self) -> None:
+        capability = ToolResilience()
+        ctx = _make_ctx()
+        ctx.deps.service_outage = ServiceOutageMemory()
+        error = WDKError("server error", status=500)
+        for name in ("Foo", "Bar"):
+            with pytest.raises(ModelRetry):
+                await capability.on_tool_execute_error(
+                    ctx,
+                    call=_make_call("get_search_overview"),
+                    tool_def=_make_tool_def("get_search_overview"),
+                    args={"search_name": name},
+                    error=error,
+                )
+
+    @pytest.mark.asyncio
+    async def test_transient_without_search_name_still_retries(self) -> None:
+        capability = ToolResilience()
+        ctx = _make_ctx()
+        ctx.deps.service_outage = ServiceOutageMemory()
+        error = WDKError("server error", status=500)
+        for _ in range(3):
+            with pytest.raises(ModelRetry):
+                await capability.on_tool_execute_error(
+                    ctx,
+                    call=_make_call(),
+                    tool_def=_make_tool_def(),
+                    args={},
+                    error=error,
+                )
 
     @pytest.mark.asyncio
     async def test_permanent_error_returns_service_unavailable(self) -> None:

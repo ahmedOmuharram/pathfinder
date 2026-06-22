@@ -53,6 +53,7 @@ from pathfinder.ai.graph._lead_events import (
     is_suppressed_sub_agent_chunk,
 )
 from pathfinder.ai.graph._lead_turn import retrieve_memories
+from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PendingApproval, PipelineState
 from pathfinder.ai.graph.stream_events import (
@@ -182,7 +183,7 @@ def _resolve_lead_model_context(
     effective_model = model_override or _model_id(lead_agent)
     return (
         lead_agent.override(
-            model=to_pydantic_ai_model_name(effective_model),
+            model=maybe_wrap_model(to_pydantic_ai_model_name(effective_model), "lead"),
             model_settings=build_model_settings(
                 effective_model, thinking=reasoning_effort
             ),
@@ -318,16 +319,19 @@ def _build_state_delta(
     return delta
 
 
-def _consume_blocking_questions_on_user_reply(state: PipelineState) -> None:
-    """Clear ``problem_frame.blocking_questions`` when the user has just
-    replied with text on a non-resume turn.
+def _rescope_on_clarification_reply(state: PipelineState) -> None:
+    """Force a re-scope when the user replies to scoping's blocking questions.
 
-    Without this, the Ledger keeps reporting ``frame.blocked = True``
-    forever — the questions sit on the saved frame even after the user
-    answered them in conversation — and the Lead loops on scoping. The
-    user's reply is by definition the answer; the Lead reads the reply
-    as part of message_history and either accepts it (proceeds) or
-    asks targeted follow-ups in its prose.
+    The user's reply is the answer to those clarifying questions — and it may
+    override a structured assumption scoping defaulted (organism_scope,
+    record_type, a threshold). Discovery trusts the STRUCTURED frame, not the
+    raw reply, so if the frame isn't rebuilt the override is silently dropped
+    (conv-L: an explicit 'ALL Plasmodium' answer lost to the turn-1
+    'P. falciparum 3D7' default because the frame's term overlap made it
+    'match' and scoping never re-ran). Clearing the frame forces the Lead to
+    re-scope, folding the answer into the frame's structured fields. The
+    reply is in message_history, so scoping rebuilds with full context and
+    won't re-ask what was just answered (no loop).
     """
     if state.pending_approval is not None:
         return
@@ -336,7 +340,7 @@ def _consume_blocking_questions_on_user_reply(state: PipelineState) -> None:
     frame = state.problem_frame
     if frame is None or not frame.blocking_questions:
         return
-    frame.blocking_questions = []
+    state.problem_frame = None
 
 
 async def lead_node(
@@ -371,7 +375,7 @@ async def lead_node(
         emit_turn_usage(writer, total_tokens, cost_usd)
 
     working_state = state.model_copy(deep=True)
-    _consume_blocking_questions_on_user_reply(working_state)
+    _rescope_on_clarification_reply(working_state)
     deps = LeadDeps(
         state=working_state,
         intent=state.user_intent,

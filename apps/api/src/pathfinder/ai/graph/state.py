@@ -15,6 +15,7 @@ from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
+from pathfinder.domain.strategy.constraints import Constraint
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -60,6 +61,14 @@ class FailureCause(StrEnum):
     TRANSIENT_ERROR = "transient_error"
 
 
+class ConstraintCheck(CamelModel):
+    label: str
+    requested: str
+    realized: str
+    honored: bool
+    note: str = ""
+
+
 class VerificationDigest(CamelModel):
     disposition: PhaseDisposition = Field(
         description=(
@@ -89,6 +98,9 @@ class VerificationDigest(CamelModel):
     )
     key_findings: list[str] = Field(default_factory=list, max_length=10)
     caveats: list[str] = Field(default_factory=list, max_length=10)
+    constraint_report: list[ConstraintCheck] = Field(
+        default_factory=list, max_length=12
+    )
     remember: list[MemoryEntryDraft] = Field(
         default_factory=list,
         max_length=5,
@@ -153,6 +165,7 @@ class ProblemFrame(CamelModel):
     exclusion_criteria: list[str] = Field(default_factory=list)
     likely_data_sources: list[str] = Field(default_factory=list)
     success_criteria: list[str] = Field(default_factory=list)
+    constraints: list[Constraint] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
     strategy_sketch: list[StrategySketchNode] = Field(
         default_factory=list,

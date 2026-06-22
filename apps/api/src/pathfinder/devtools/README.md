@@ -69,6 +69,8 @@ No DB and no re-run needed to inspect a past run — the files are the interface
 | `--model PHASE=ID` | per-phase model override (repeatable). Phases: `lead scoping discovery planning execution verification`. |
 | `--approve auto\|deny\|prompt` | how to answer mid-turn approval gates (`submit_plan`, etc.). `auto` for unattended; `prompt` reads stdin. |
 | `--capture-wdk` | also record raw WDK httpx round-trips to `wdk/`. |
+| `--via-worker` | run the turn through the **real worker** (defers a `chat_turn:run` job) instead of in-process, so **durable tools actually execute** (enrichment, control tests, optimization) and verification can complete. The worker writes `llm/` to the shared run-dir (captures the durable resumes too — the post-result phase agents); the devtool waits for the turn to settle, then replays the persisted `chat_events` into `events.jsonl`/`tools/`/`diagnosis`. Use this whenever the in-process run can't finish because a durable tool raises (the `AppNotOpen`/stub case). Requires the worker container running. |
+| `--capture-llm` | (in-process runs) record the exact LLM I/O per call to `llm/NN-<role>-{request,response}.json` — the full system prompt (`instructions`), the complete typed message history **as the model receives it** (incl. `tool-return` / `retry-prompt` parts — i.e. whether the model actually sees an error/directive), the tool definitions offered, model settings, and the response parts + usage + finish reason. The ground-truth plane for "does the model truly see X". Read with `inspect <dir> --llm [role]`. |
 | `--mock` | use the deterministic FunctionModel (free; also sets `API_ENV=test`). Default is the real configured provider. |
 | `--email` / `--password` | WDK login override; default to `WDK_DEV_EMAIL` / `WDK_DEV_PASSWORD` (set in `.env.dev`). |
 
@@ -79,6 +81,35 @@ creds are missing or rejected it aborts with a clear error. `--mock` skips login
 (it never touches WDK). This requires running compose with `--env-file .env.dev`
 so the vars reach the container.
 | `--quiet` | suppress the live trace; still writes artifacts + prints the summary. |
+
+## Driving gates like the UI (`run` + `respond`)
+
+The CLI mirrors every action the chat UI offers, agent-style. After each step it
+detects the one pending interaction and writes **`gate.json`** (+ prints it):
+
+| gate `kind` | UI equivalent | how to answer |
+|------|------|------|
+| `approval` | approval card (`submit_plan`, `delete_step`, …) | `respond … --accept` / `--deny [--reason …]` |
+| `consult` | question carousel (`consult_user`) | `respond … --answer <qid>=<label>` (repeat; comma-separate for multi) |
+| `approval` w/ `plan_slots` | plan slot form (NEEDS_USER_INPUT) | `respond … --slot <stepId>:<param>=<value>` (repeat) |
+| `durable` | running background task | nothing — `--via-worker` streams progress and continues |
+| `none` | turn complete | — |
+
+```bash
+# one turn; stops at the first gate (default --approve prompt) and writes gate.json
+... chat run "<prompt>" --site vectorbase --conversation-id <uuid> --run-dir <dir>
+jq . <dir>/gate.json          # read what's pending (questions/options/slots)
+
+# answer it (same --run-dir continues the conversation)
+... chat respond --site vectorbase --conversation-id <uuid> --run-dir <dir> \
+    --answer strain_choice="Liverpool (default/recommended)"
+# ...repeat run/respond until gate.kind == "none"
+```
+
+`--approve auto` autopilots through gates (approves, picks recommended consult
+options) until completion or a gate it can't auto-answer. `--approve deny` denies
+approvals. Both `run` and `respond` honor `--via-worker` (durable tools execute in
+the worker) and `--capture-llm`.
 
 **Multi-turn — STRICTLY one turn at a time. NEVER batch turns.** This is a real
 conversation: you do not know what the agent will say until it says it. The agent

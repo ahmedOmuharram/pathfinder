@@ -87,7 +87,15 @@ in ``optional_questions`` (phrase it as "I'm assuming X — correct me \
 if wrong"). These don't halt the pipeline; they let the user override.
 - If an item is genuinely ambiguous and a wrong guess would send WDK \
 discovery in the wrong direction, record a **blocking question** in \
-``blocking_questions``.
+``blocking_questions``. When you raise a blocking question for a \
+dimension, do NOT also pin a narrowing concrete value in its structured \
+field — leave that field unset or at the BROADEST reading consistent \
+with ``interpreted_goal``. Example: the goal is "all Plasmodium" and you \
+are asking the user to confirm the strain — set \
+``organism_scope="Plasmodium"`` (broad), NOT \
+``"Plasmodium falciparum 3D7"``. Discovery trusts the structured field, \
+so a narrowing default you are actively asking about would silently \
+override the user's later answer.
 - **Err toward over-asking, not under-asking.** Every dimension you \
 silently default risks routing the whole investigation toward the \
 wrong dataset / threshold / comparison. The Lead presents your \
@@ -152,7 +160,17 @@ ending your turn. Populate ``blocking_questions`` and \
 ``context``, ``field`` pointing at the checklist item's frame key like \
 ``organism_scope``/``record_type``/``inclusion_criteria``, and \
 ``priority="blocking"`` or ``"optional"``). Embed the literature/web \
-findings you used to shape each question in its ``context``.
+findings you used to shape each question in its ``context``. \
+Populate ``constraints`` with one typed Constraint per concrete \
+requirement (kinds: ``data_type``, ``statistical_threshold``, \
+``fold_change``, ``comparator``, ``organism``, ``record_type``). Set \
+``source="user_explicit"`` ONLY when the user literally stated it; mark \
+everything you assume or default as ``source="assumed"``. Set \
+``hard=False`` when the user expresses a PREFERENCE with an acceptable \
+fallback ("RNA-Seq preferred, microarray ok"); ``hard=True`` for \
+non-negotiable requirements ("only", "must"). These are provisional — \
+discovery grounds them against the real catalog. Never label an assumed \
+default as user_explicit.
 
 **Once you have called `set_problem_frame`, that tool will no longer be \
 available in your toolset.** The frame is saved. Do not keep researching.

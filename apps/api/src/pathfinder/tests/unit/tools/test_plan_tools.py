@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ConfigDict
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
@@ -31,16 +32,29 @@ from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import (
     MultiPickValue,
     NumberValue,
+    SinglePickValue,
 )
 from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
+from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
+    PlannedParameter,
+    PlannedStep,
     PlanStatus,
+    StepStatus,
     StepType,
     StrategyPlan,
 )
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.errors import ValidationError
+from pathfinder.platform.pydantic_base import CamelModel
+
+
+class _ProposedPlanView(CamelModel):
+    model_config = ConfigDict(extra="ignore")
+
+    root: StrategyStepNode
 
 
 def _unwrap(result: Any) -> Any:
@@ -60,12 +74,19 @@ def _unwrap(result: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _make_deps(site_id: str = "plasmodb") -> AgentDeps:
+def _make_deps(
+    site_id: str = "plasmodb",
+    *,
+    searches: tuple[str, ...] = ("GenesByTaxon", "GenesByLocation"),
+) -> AgentDeps:
     session = StrategySession(site_id=site_id)
+    state = AgentToolState()
+    for name in searches:
+        _register_search(state, name)
     return AgentDeps(
         site_id=site_id,
         strategy_session=session,
-        agent_state=AgentToolState(),
+        agent_state=state,
     )
 
 
@@ -109,7 +130,9 @@ def _combine_step(
     )
 
 
-def _register_search(state: AgentToolState, search_name: str) -> None:
+def _register_search(
+    state: AgentToolState, search_name: str, *, selected: bool = True
+) -> None:
     state.register_search(
         search_name,
         SearchOverview(
@@ -119,6 +142,7 @@ def _register_search(state: AgentToolState, search_name: str) -> None:
             description=f"Test search {search_name}",
             parameter_names=["organism"],
             required_params=["organism"],
+            selection_status="selected" if selected else "candidate",
         ),
     )
 
@@ -213,6 +237,127 @@ async def test_create_plan_stores_plan_in_agent_state() -> None:
     assert len(plan.steps) == 3
     assert len(plan.connections) == 2
     assert plan.status == PlanStatus.DRAFT
+
+
+@pytest.mark.asyncio
+async def test_create_plan_proposed_tree_roots_at_terminal_combine() -> None:
+    """The serialized proposedStrategyPlan (shown in the approval card) must
+    root at the terminal combine — the step that feeds nothing — not at the
+    first leaf. Regression: the root finder used ``to_step`` (receivers)
+    instead of ``from_step`` (feeders), so every plan with a combine collapsed
+    to a single leaf in the artifact while still executing the full tree."""
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+
+    step_a = _leaf_step("step_a", "GenesByTaxon")
+    step_b = _leaf_step("step_b", "GenesByLocation")
+    combine = _combine_step("step_c", left_id="step_a", right_id="step_b")
+
+    result = await create_plan(
+        ctx,
+        title="Tree Plan",
+        description="Intersect two gene sets",
+        rationale="r",
+        steps=[step_a, step_b, combine],
+    )
+
+    payload = _unwrap(result)
+    assert isinstance(payload, PlanCreatedResponse)
+    assert payload.planning_artifact is not None
+    proposed = _ProposedPlanView.model_validate(
+        payload.planning_artifact["proposedStrategyPlan"]
+    )
+    root = proposed.root
+    assert root.operator == CombineOp.INTERSECT
+    assert root.primary_input is not None
+    assert root.secondary_input is not None
+    assert root.primary_input.search_name == "GenesByTaxon"
+    assert root.secondary_input.search_name == "GenesByLocation"
+
+
+@pytest.mark.asyncio
+async def test_create_plan_proposed_tree_preserves_nested_combines() -> None:
+    """A nested plan ((a ∩ b) ∩ c) must serialize all combines, not collapse
+    to one leaf. Mirrors the real 4-leaf/3-combine strategy that exposed the
+    mis-rooting bug."""
+    deps = _make_deps(
+        searches=("GenesByTaxon", "GenesByLocation", "GenesByGoTerm"),
+    )
+    ctx = _make_ctx(deps)
+
+    a = _leaf_step("step_a", "GenesByTaxon")
+    b = _leaf_step("step_b", "GenesByLocation")
+    c = _leaf_step("step_c", "GenesByGoTerm")
+    inner = _combine_step("c_inner", left_id="step_a", right_id="step_b")
+    outer = _combine_step("c_outer", left_id="c_inner", right_id="step_c")
+
+    result = await create_plan(
+        ctx,
+        title="Nested",
+        description="d",
+        rationale="r",
+        steps=[a, b, c, inner, outer],
+    )
+
+    payload = _unwrap(result)
+    assert isinstance(payload, PlanCreatedResponse)
+    assert payload.step_count == 5
+    assert payload.planning_artifact is not None
+    proposed = _ProposedPlanView.model_validate(
+        payload.planning_artifact["proposedStrategyPlan"]
+    )
+    root = proposed.root
+    assert root.operator == CombineOp.INTERSECT
+    assert root.secondary_input is not None
+    assert root.secondary_input.search_name == "GenesByGoTerm"
+    assert root.primary_input is not None
+    assert root.primary_input.operator == CombineOp.INTERSECT
+    assert root.primary_input.primary_input is not None
+    assert root.primary_input.primary_input.search_name == "GenesByTaxon"
+    assert root.primary_input.secondary_input is not None
+    assert root.primary_input.secondary_input.search_name == "GenesByLocation"
+
+
+@pytest.mark.asyncio
+async def test_create_plan_rejects_when_no_searches_discovered() -> None:
+    """With an empty discovered universe (discovery never ran), a leaf plan
+    must be rejected — planning has no real searches and would invent names."""
+    deps = _make_deps(searches=())
+    ctx = _make_ctx(deps)
+
+    with pytest.raises(ModelRetry) as excinfo:
+        await create_plan(
+            ctx,
+            title="No discovery",
+            description="d",
+            rationale="r",
+            steps=[_leaf_step("step_a", "GenesByRNASeqInvented")],
+        )
+
+    msg = str(excinfo.value)
+    assert "discover" in msg.lower()
+    assert "GenesByRNASeqInvented" in msg
+
+
+@pytest.mark.asyncio
+async def test_create_plan_suggests_close_match_for_unselected_search() -> None:
+    """When discovery selected real searches, an invented near-miss name is
+    rejected with a did-you-mean pointing at the real selected search."""
+    deps = _make_deps(searches=("GenesByText",))
+    ctx = _make_ctx(deps)
+
+    with pytest.raises(ModelRetry) as excinfo:
+        await create_plan(
+            ctx,
+            title="Near miss",
+            description="d",
+            rationale="r",
+            steps=[_leaf_step("step_a", "GeneByTextSearch")],
+        )
+
+    msg = str(excinfo.value)
+    assert "GenesByText" in msg
+    assert "GeneByTextSearch" in msg
 
 
 @pytest.mark.asyncio
@@ -416,6 +561,119 @@ async def test_update_plan_applies_step_patches() -> None:
     organism = next(p for p in patched_step.parameters if p.name == "organism")
     assert organism.value == MultiPickValue(values=["Plasmodium vivax"])
     assert organism.status == ParamStatus.SET
+
+
+def _interpro_step_with_two_params() -> PlannedStep:
+    return PlannedStep(
+        id="s1",
+        search_name="GenesByInterproDomain",
+        display_name="InterPro kinase",
+        step_type=StepType.LEAF,
+        status=StepStatus.READY,
+        parameters=[
+            PlannedParameter(
+                name="organism",
+                display_name="organism",
+                param_type="multi-pick-vocabulary",
+                value=MultiPickValue(values=["Plasmodium"]),
+                status=ParamStatus.SET,
+                required=True,
+            ),
+            PlannedParameter(
+                name="domain_database",
+                display_name="domain_database",
+                param_type="single-pick-vocabulary",
+                value=SinglePickValue(value="PFAM"),
+                status=ParamStatus.SET,
+                required=True,
+            ),
+        ],
+    )
+
+
+_GO_SPECS: dict[str, dict[str, ParamSpecNormalized]] = {
+    "GenesByGoTerm": {
+        "organism": _DEFAULT_ORGANISM_SPEC,
+        "go_typeahead": ParamSpecNormalized(
+            name="go_typeahead",
+            param_type="multi-pick-vocabulary",
+            help="GO term ids",
+            allow_empty_value=False,
+        ),
+    },
+}
+
+
+def test_apply_step_patches_search_name_change_clears_stale_params() -> None:
+    """Swapping a leaf step's search_name must drop the old search's params —
+    they don't exist on the new search and WDK rejects them as unknown. Lead
+    repro: replacing an InterPro kinase step with GenesByGoTerm left
+    domain_database behind and every retry failed 'Unknown parameter'."""
+    plan = StrategyPlan(
+        title="t",
+        description="d",
+        rationale="r",
+        steps=[_interpro_step_with_two_params()],
+        connections=[],
+    )
+    patch = StepPatch(
+        step_id="s1",
+        search_name="GenesByGoTerm",
+        parameters={
+            "organism": MultiPickValue(values=["Plasmodium"]),
+            "go_typeahead": MultiPickValue(values=["GO:0004672"]),
+        },
+    )
+    _apply_step_patches(plan, [patch], specs_by_search=_GO_SPECS)
+
+    step = plan.steps[0]
+    assert step.search_name == "GenesByGoTerm"
+    assert {p.name for p in step.parameters} == {"organism", "go_typeahead"}
+
+
+def test_apply_step_patches_param_only_merges_without_clearing() -> None:
+    """A patch that does NOT change search_name keeps existing params (the
+    additive/merge behavior for normal threshold tweaks)."""
+    plan = StrategyPlan(
+        title="t",
+        description="d",
+        rationale="r",
+        steps=[_interpro_step_with_two_params()],
+        connections=[],
+    )
+    patch = StepPatch(
+        step_id="s1",
+        parameters={"organism": MultiPickValue(values=["Plasmodium vivax"])},
+    )
+    _apply_step_patches(plan, [patch])
+
+    step = plan.steps[0]
+    assert step.search_name == "GenesByInterproDomain"
+    assert {p.name for p in step.parameters} == {"organism", "domain_database"}
+
+
+@pytest.mark.asyncio
+async def test_update_plan_accepts_and_applies_rationale() -> None:
+    """update_plan tolerates a top-level ``rationale`` (the model naturally
+    supplies one to explain the edit) and applies it to the plan instead of
+    rejecting the call with extra_forbidden — which caused 4.1-mini to loop."""
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    await create_plan(
+        ctx,
+        title="P",
+        description="d",
+        rationale="original rationale",
+        steps=[_leaf_step("step_a", "GenesByTaxon")],
+    )
+
+    result = await update_plan(
+        ctx,
+        rationale="switched kinase basis to GO molecular function",
+    )
+    payload = _unwrap(result)
+    assert isinstance(payload, StrategyPlan)
+    assert payload.rationale == "switched kinase basis to GO molecular function"
 
 
 @pytest.mark.asyncio

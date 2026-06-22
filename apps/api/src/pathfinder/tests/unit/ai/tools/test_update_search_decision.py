@@ -16,17 +16,48 @@ import pytest
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.agents._instructions import pinned_discovered_searches
-from pathfinder.ai.agents.state import AgentToolState, SearchOverview
-from pathfinder.ai.tools.standalone.catalog_discovery import (
+from pathfinder.ai.agents.state import (
+    AgentToolState,
+    ParamVocabSnapshot,
+    SearchOverview,
+)
+from pathfinder.ai.tools.standalone.catalog_selection import (
     update_search_decision,
 )
+from pathfinder.domain.parameters.wdk_vocab import VocabOption
+
+
+def _taxon_vocab() -> dict[str, ParamVocabSnapshot]:
+    return {
+        "taxon": ParamVocabSnapshot(
+            param_type="multi-pick-vocabulary",
+            required=True,
+            help="organisms",
+            allowed_values=[VocabOption(value="Plasmodium", display="Plasmodium")],
+        ),
+    }
 
 
 def _seed_overview(name: str, record_type: str = "transcript") -> SearchOverview:
+    """A search whose required params are already resolved (param_vocab set) —
+    the precondition for selection after the resolver guard."""
     return SearchOverview(
         search_name=name,
         display_name=f"{name} display",
         record_type=record_type,
+        description="seeded by get_search_overview",
+        parameter_names=["taxon"],
+        required_params=["taxon"],
+        param_vocab=_taxon_vocab(),
+    )
+
+
+def _unresolved_overview(name: str) -> SearchOverview:
+    """A search inspected but whose required params are NOT yet resolved."""
+    return SearchOverview(
+        search_name=name,
+        display_name=f"{name} display",
+        record_type="transcript",
         description="seeded by get_search_overview",
         parameter_names=["taxon"],
         required_params=["taxon"],
@@ -104,6 +135,113 @@ async def test_invalid_confidence_raises_modelretry_with_bounds() -> None:
     assert "0" in msg
     assert "1" in msg
     assert "1.5" in msg
+
+
+@pytest.mark.asyncio
+async def test_select_blocked_when_required_param_unresolved() -> None:
+    """Selecting a search whose required params have no vocab snapshot is
+    refused — planning would otherwise guess the values (the go_term_evidence
+    thrash). The retry message names the param and points to the resolver."""
+    ctx = _ctx_with({"GenesByGoTerm": _unresolved_overview("GenesByGoTerm")})
+    with pytest.raises(ModelRetry) as excinfo:
+        await update_search_decision(
+            ctx,
+            search_name="GenesByGoTerm",
+            selection_status="selected",
+            rationale="anchor",
+            confidence=0.9,
+        )
+    msg = str(excinfo.value)
+    assert "taxon" in msg
+    assert "resolve_search_parameters" in msg
+
+
+@pytest.mark.asyncio
+async def test_select_allowed_once_required_params_resolved() -> None:
+    """With every required param snapshotted, selection proceeds normally."""
+    ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
+    result = await update_search_decision(
+        ctx,
+        search_name="GenesByGoTerm",
+        selection_status="selected",
+        rationale="anchor",
+        confidence=0.9,
+    )
+    assert isinstance(result, str)
+    assert "selected decision for GenesByGoTerm" in result
+
+
+@pytest.mark.asyncio
+async def test_candidate_and_rejected_not_blocked_by_resolver_guard() -> None:
+    """The guard only gates ``selected`` — candidate/rejected are bookkeeping
+    that must work even on unresolved searches."""
+    for status in ("candidate", "rejected"):
+        ctx = _ctx_with({"GenesByGoTerm": _unresolved_overview("GenesByGoTerm")})
+        result = await update_search_decision(
+            ctx,
+            search_name="GenesByGoTerm",
+            selection_status=status,  # type: ignore[arg-type]
+            rationale="bookkeeping",
+            confidence=0.4,
+        )
+        assert isinstance(result, str)
+
+
+@pytest.mark.asyncio
+async def test_select_with_replaces_records_link_and_rejects_old() -> None:
+    """A targeted-re-discovery replacement: selecting GenesByGoTerm with
+    replaces=GenesByInterproDomain records the link and auto-rejects the old
+    search, so deterministic reconciliation can swap the plan leaf."""
+    ctx = _ctx_with(
+        {
+            "GenesByGoTerm": _seed_overview("GenesByGoTerm"),
+            "GenesByInterproDomain": _seed_overview("GenesByInterproDomain"),
+        },
+    )
+    await update_search_decision(
+        ctx,
+        search_name="GenesByGoTerm",
+        selection_status="selected",
+        rationale="anchor",
+        confidence=0.9,
+        replaces="GenesByInterproDomain",
+    )
+    state = ctx.deps.agent_state
+    go = state.get_overview("GenesByGoTerm")
+    assert go is not None
+    assert go.replaces == "GenesByInterproDomain"
+    old = state.get_overview("GenesByInterproDomain")
+    assert old is not None
+    assert old.selection_status == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_replaces_unknown_search_raises_modelretry() -> None:
+    ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
+    with pytest.raises(ModelRetry) as excinfo:
+        await update_search_decision(
+            ctx,
+            search_name="GenesByGoTerm",
+            selection_status="selected",
+            rationale="anchor",
+            confidence=0.9,
+            replaces="GenesByNeverInspected",
+        )
+    assert "GenesByNeverInspected" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_replaces_self_raises_modelretry() -> None:
+    ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
+    with pytest.raises(ModelRetry):
+        await update_search_decision(
+            ctx,
+            search_name="GenesByGoTerm",
+            selection_status="selected",
+            rationale="anchor",
+            confidence=0.9,
+            replaces="GenesByGoTerm",
+        )
 
 
 @pytest.mark.asyncio

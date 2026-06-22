@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from langgraph.config import get_stream_writer
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -21,6 +22,7 @@ from pathfinder.ai.lead.deltas import (
     RecoveryDelta,
     VerificationDelta,
 )
+from pathfinder.ai.lead.plan_reconcile import reconcile_plan_with_replacements
 from pathfinder.ai.lead.sub_agent_tools import (
     LeadDeps,
     _apply_agent_state,
@@ -106,28 +108,57 @@ async def scope_problem(
     return delta
 
 
+def _discovery_work_order(
+    reason: str,
+    intent_summary: str,
+    hints: str,
+    *,
+    keep_prior_selections: bool,
+) -> str:
+    parts = [f"Discovery work order: {reason}", f"Intent: {intent_summary}"]
+    if keep_prior_selections:
+        parts.append(
+            "TARGETED RE-DISCOVERY: this is an incremental pass, not a fresh "
+            "start. KEEP every currently-`selected` search exactly as-is — do "
+            "NOT re-evaluate or reject them. Find ONLY the search(es) named in "
+            "the Intent/Hints above. If you are REPLACING an existing search, "
+            "reject the old one explicitly and select the replacement.",
+        )
+    if hints:
+        parts.append(f"Hints: {hints}")
+    parts.append("Return a DiscoveryDelta.")
+    return "\n".join(parts)
+
+
 async def discover_searches(
     ctx: RunContext[LeadDeps],
     reason: str,
     intent_summary: str,
     hints: str = "",
+    *,
+    keep_prior_selections: bool = False,
+    supersedes: str = "",
 ) -> DiscoveryDelta:
     """Run the discovery sub-agent to find WDK searches.
 
     ``hints`` carries Lead-derived guidance (e.g. "vocab gap: prior
     selection covers gametocyte but not asexual blood stages — find a
-    search whose vocab spans both"). The sub-agent commits selections
-    via ``update_search_decision``; we mirror those onto LeadDeps.state.
+    search whose vocab spans both"). Set ``keep_prior_selections=True``
+    when re-dispatching after a plan denial that needs a different/missing
+    search basis: the sub-agent then keeps all selected searches and finds
+    ONLY what ``intent_summary``/``hints`` name. When the denial REPLACES a
+    search already in the plan, also pass ``supersedes=<that search name>``:
+    once discovery finds the replacement, the plan leaf is swapped to it
+    automatically (no hand-editing). The sub-agent commits selections via
+    ``update_search_decision``; we mirror those onto state.
     """
     deps = ctx.deps
-    work_order_parts = [
-        f"Discovery work order: {reason}",
-        f"Intent: {intent_summary}",
-    ]
-    if hints:
-        work_order_parts.append(f"Hints: {hints}")
-    work_order_parts.append("Return a DiscoveryDelta.")
-    work_order = "\n".join(work_order_parts)
+    work_order = _discovery_work_order(
+        reason=reason,
+        intent_summary=intent_summary,
+        hints=hints,
+        keep_prior_selections=keep_prior_selections,
+    )
     agent_deps = _agent_deps(deps)
     delta = await _stream_sub_agent(
         role="discovery",
@@ -141,7 +172,40 @@ async def discover_searches(
     if delta is None:
         msg = "Discovery sub-agent did not return a DiscoveryDelta."
         raise RuntimeError(msg)
+    _reconcile_active_plan(deps, supersedes=supersedes or None)
     return delta
+
+
+def _reconcile_active_plan(deps: LeadDeps, *, supersedes: str | None) -> None:
+    """Apply discovery's replacements to the active plan deterministically
+    (swap the superseded leaf), so the Lead never hand-edits the plan for a
+    search swap. No-op when there's no plan or no replacement. *supersedes*
+    is the Lead's denial classification (the plan search being replaced).
+    Inference always runs: a reject-old + select-new pattern maps 1:1 even
+    when the model emits no explicit link or flag — the reliable signal that
+    a weak model actually produces."""
+    plan = deps.state.active_plan
+    if plan is None:
+        return
+    result = reconcile_plan_with_replacements(
+        plan,
+        deps.state.discovered_searches,
+        infer_replacements=True,
+        supersedes=supersedes,
+    )
+    if not result.changes:
+        return
+    deps.state.active_plan = result.plan
+    agent_deps = _agent_deps(deps)
+    graph = agent_deps.strategy_session.get_graph(None)
+    if graph is not None:
+        get_stream_writer()(
+            {
+                "chunk": graph_snapshot_chunk(
+                    agent_deps.strategy_session, graph
+                ).model_dump(by_alias=True, mode="json", exclude_none=True),
+            },
+        )
 
 
 async def build_plan(
@@ -155,6 +219,17 @@ async def build_plan(
     ``submit_plan_for_approval`` deferred-tool.
     """
     deps = ctx.deps
+    if not any(
+        ov.selection_status == "selected"
+        for ov in deps.state.discovered_searches.values()
+    ):
+        msg = (
+            "Discovery has committed zero searches — planning would have no "
+            "real WDK searches to build from and would invent search names. "
+            "Call discover_searches first; only call build_plan once discovery "
+            "has selected at least one search."
+        )
+        raise ModelRetry(msg)
     work_order = (
         f"Planning work order: {reason}\n"
         "Construct a complete StrategyPlan from the discovered searches.\n"

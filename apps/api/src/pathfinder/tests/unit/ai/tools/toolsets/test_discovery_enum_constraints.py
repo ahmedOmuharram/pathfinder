@@ -1,12 +1,19 @@
-"""End-to-end tests for the discovery toolset's per-step enum injection.
+"""Tests for the discovery toolset's discovered-value constraints.
 
-These tests build a real ``RunContext`` (the same shape pydantic-ai
-hands to ``get_tools``), let the discovery toolset's ``DynamicEnumToolset``
-wrapper compute its overrides, and assert on the JSON schema the model
-will actually receive. The schema is what OpenAI's strict mode and
-Anthropic's constrained generation read to mask non-enum tokens at
-sampling time — so if the enum doesn't land here, the whole
-hallucination-prevention story is broken.
+Discovery constrains ``search_name`` / ``parameter_id`` to the set the
+agent has actually surfaced, killing the 404 hallucination-retry loop.
+The constraint is enforced at CALL time by :class:`ValidatingEnumToolset`
+(an invalid identifier raises ``ModelRetry`` naming the valid set), NOT
+by injecting a per-request ``enum`` into the tool JSON schema. Keeping
+the schema constant across the run is what lets the OpenAI/Anthropic
+prompt-cache prefix stay warm — the old growing-enum rewrite busted the
+cache every time a new search was discovered (≈440K input tokens for one
+discovery dispatch in the captured turn).
+
+These tests build a real ``RunContext`` (the shape pydantic-ai hands to
+``get_tools`` / ``call_tool``), let the discovery toolset compute its
+overrides, and assert on (a) the override sets, (b) the static schema,
+and (c) the call-time ModelRetry guardrail.
 """
 
 from __future__ import annotations
@@ -15,6 +22,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from pydantic_ai.usage import RunUsage
@@ -108,7 +116,7 @@ def test_get_search_overview_unconstrained_on_cold_start() -> None:
 def test_get_search_overview_constrained_to_catalog_candidates() -> None:
     """Once search_for_searches / list_searches have returned names, the
     model may only inspect one of THOSE names — invented names (the 404
-    hallucination loop) are masked at sampling time."""
+    hallucination loop) are rejected at call time."""
     state = AgentToolState()
     state.record_catalog_searches(["GenesByGoTerm", "GenesByText"])
     overrides = _discovery_enum_overrides(_ctx(state))
@@ -120,7 +128,7 @@ def test_get_search_overview_constrained_to_catalog_candidates() -> None:
 
 def test_get_search_overview_candidates_include_already_inspected() -> None:
     """An inspected search stays inspectable even if it isn't in the latest
-    catalog listing (re-inspection must not be masked)."""
+    catalog listing (re-inspection must not be blocked)."""
     state = AgentToolState()
     state.record_catalog_searches(["GenesByText"])
     state.register_search("GenesByGoTerm", _ov("GenesByGoTerm", ["go_term"]))
@@ -152,102 +160,69 @@ def test_overrides_constrain_parameter_id_after_inspection() -> None:
     ]
 
 
-# ---- Tool schema actually carries the enum ----
+# ---- Schema stays STATIC (prompt-cache prefix stability) ----
 
 
 @pytest.mark.asyncio
-async def test_get_parameter_options_schema_carries_enum() -> None:
-    """The whole point: when the agent calls ``toolset.get_tools(ctx)``,
-    the JSON schema for ``parameter_id`` MUST include an ``enum`` keyed
-    on the discovered params. OpenAI strict / Anthropic constrained
-    generation reads this enum and refuses to emit any other value."""
+async def test_schema_carries_no_enum_even_after_inspection() -> None:
+    """The cache-stability invariant: no matter how many searches/params
+    have been discovered, the tool JSON schema must NOT gain an injected
+    ``enum``. A constant schema keeps the OpenAI/Anthropic prompt-cache
+    prefix warm across the whole discovery loop."""
     state = AgentToolState()
     state.register_search(
         "GenesByGoTerm",
         _ov("GenesByGoTerm", ["go_term", "taxon"]),
     )
-    state.register_search(
-        "GenesByText",
-        _ov("GenesByText", ["query"]),
-    )
+    state.register_search("GenesByText", _ov("GenesByText", ["query"]))
     toolset = build_toolset()
     tools = await toolset.get_tools(_ctx(state))
-    tool = tools["get_parameter_options"]
-    schema = tool.tool_def.parameters_json_schema
-    properties = schema["properties"]  # type: ignore[index]
-    assert properties["parameter_id"]["enum"] == [
-        "go_term",
-        "query",
-        "taxon",
-    ]
-    # search_name is also constrained to the inspected set.
-    assert properties["search_name"]["enum"] == [
-        "GenesByGoTerm",
-        "GenesByText",
-    ]
-
-
-@pytest.mark.asyncio
-async def test_unrelated_tools_unchanged() -> None:
-    """Override only applies to the tools we listed in the override
-    builder. Tools like ``think`` or ``get_record_types`` must keep
-    their original schemas."""
-    state = AgentToolState()
-    state.register_search(
-        "GenesByGoTerm",
-        _ov("GenesByGoTerm", ["go_term"]),
-    )
-    toolset = build_toolset()
-    tools = await toolset.get_tools(_ctx(state))
-    think_tool = tools["think"]
-    schema = think_tool.tool_def.parameters_json_schema
-    properties = schema["properties"]  # type: ignore[index]
-    # The think tool's "thought" arg should remain a plain string with
-    # no enum injected — our override targets are surgical.
-    for prop in properties.values():
-        assert "enum" not in prop, f"unrelated tool got an enum override: {prop!r}"
+    props = tools["get_parameter_options"].tool_def.parameters_json_schema["properties"]  # type: ignore[index]
+    assert "enum" not in props["parameter_id"]
+    assert "enum" not in props["search_name"]
 
 
 @pytest.mark.asyncio
 async def test_cold_start_schema_has_no_enum() -> None:
-    """Before any search is inspected, parameter_id must NOT have an
-    enum (else the model could not call get_parameter_options at all
-    on a freshly-discovered search before we've inspected it)."""
+    """Before any inspection the schema also carries no enum — same
+    static shape, so the prefix is identical from the first request."""
     toolset = build_toolset()
     tools = await toolset.get_tools(_ctx(AgentToolState()))
-    schema = tools["get_parameter_options"].tool_def.parameters_json_schema
-    properties = schema["properties"]  # type: ignore[index]
-    assert "enum" not in properties["parameter_id"]
-    assert "enum" not in properties["search_name"]
+    props = tools["get_parameter_options"].tool_def.parameters_json_schema["properties"]  # type: ignore[index]
+    assert "enum" not in props["parameter_id"]
+    assert "enum" not in props["search_name"]
+
+
+# ---- Call-time validation guardrail (the moved constraint) ----
 
 
 @pytest.mark.asyncio
-async def test_base_toolset_definition_not_mutated() -> None:
-    """Subtle but critical: the wrapper must NOT mutate the wrapped
-    toolset's cached parameters_json_schema. If it did, every later
-    request would inherit stale enums and the model would see
-    ever-growing constraint sets that don't match current state."""
-    state_a = AgentToolState()
-    state_a.register_search("A", _ov("A", ["alpha"]))
-    state_b = AgentToolState()
-    state_b.register_search("B", _ov("B", ["beta"]))
-
+async def test_invalid_search_name_raises_model_retry() -> None:
+    """An inspect call on a name the agent never surfaced is rejected
+    with ModelRetry naming the valid candidates — no WDK round-trip."""
+    state = AgentToolState()
+    state.record_catalog_searches(["GenesByGoTerm", "GenesByText"])
     toolset = build_toolset()
+    ctx = _ctx(state)
+    tool = (await toolset.get_tools(ctx))["get_search_overview"]
+    with pytest.raises(ModelRetry) as exc:
+        await toolset.call_tool(
+            "get_search_overview", {"search_name": "GenesByImaginary"}, ctx, tool
+        )
+    msg = str(exc.value)
+    assert "GenesByImaginary" in msg
+    assert "GenesByGoTerm" in msg
+    assert "GenesByText" in msg
 
-    tools_a = await toolset.get_tools(_ctx(state_a))
-    enum_a = tools_a["get_parameter_options"].tool_def.parameters_json_schema[
-        "properties"
-    ]["parameter_id"]["enum"]
-    assert enum_a == ["alpha"]
 
-    tools_b = await toolset.get_tools(_ctx(state_b))
-    enum_b = tools_b["get_parameter_options"].tool_def.parameters_json_schema[
-        "properties"
-    ]["parameter_id"]["enum"]
-    assert enum_b == ["beta"]
-    # And the first request's schema is still {alpha} — not contaminated
-    # with {beta} from the later request.
-    enum_a_after = tools_a["get_parameter_options"].tool_def.parameters_json_schema[
-        "properties"
-    ]["parameter_id"]["enum"]
-    assert enum_a_after == ["alpha"]
+@pytest.mark.asyncio
+async def test_cold_start_inspect_is_not_blocked() -> None:
+    """With no catalog listing yet, get_search_overview has no override,
+    so any name passes validation (it then hits the real tool body)."""
+    state = AgentToolState()
+    toolset = build_toolset()
+    ctx = _ctx(state)
+    tool = (await toolset.get_tools(ctx))["get_search_overview"]
+    overrides = _discovery_enum_overrides(ctx)
+    assert ("get_search_overview", "search_name") not in overrides
+    del tool  # cold-start validation is a no-op; body execution needs WDK I/O

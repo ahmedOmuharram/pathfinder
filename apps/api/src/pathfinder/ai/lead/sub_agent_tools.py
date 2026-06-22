@@ -50,6 +50,7 @@ from pathfinder.ai.agents.scoping import scoping_agent
 from pathfinder.ai.agents.verification import verification_agent
 from pathfinder.ai.capabilities.error_classification import is_error_directive
 from pathfinder.ai.cost import cost_for_run
+from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.graph.stream_events import (
@@ -347,6 +348,8 @@ async def _stream_sub_agent[OutputT: BaseModel](
     current_site_id.set(deps.runtime.site_id)
     current_user_text.set(deps.state.user_prompt)
     override_kwargs = _phase_override_kwargs(deps.runtime, role)
+    if "model" in override_kwargs:
+        override_kwargs["model"] = maybe_wrap_model(override_kwargs["model"], role)
     override_ctx = (
         agent.override(**override_kwargs)
         if override_kwargs

@@ -204,10 +204,17 @@ def _elide_returns_in_message(
     new_parts: list[ModelRequestPart] = []
     changed = False
     for part in msg.parts:
+        # Mask any consumed return — including structured (Pydantic / list /
+        # dict) content. pydantic-ai keeps the raw object in ``.content`` and
+        # serializes it only at request-build time, so an ``isinstance(str)``
+        # guard here would skip exactly the heavy discovery payloads
+        # (search results, parameter schemas, vocabularies) this is meant to
+        # compress. ``content != stub`` keeps it idempotent: once replaced,
+        # the stub string compares equal and is left alone.
         if (
             isinstance(part, ToolReturnPart)
             and part.tool_call_id in elide_ids
-            and isinstance(part.content, str)
+            and not part.files
             and part.content != _ELIDED_RESULT_STUB
         ):
             new_parts.append(

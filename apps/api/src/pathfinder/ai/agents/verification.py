@@ -84,6 +84,13 @@ pathway enrichment to confirm biological relevance.
 5. **Export**: Use `export_gene_set` and `create_workbench_gene_set` to \
 make results available for downstream analysis.
 
+6. **Reconcile constraints**: For each constraint in the ledger's \
+Constraints section, emit one ``constraint_report`` entry (``label``, \
+``requested``, ``realized``, ``honored``, ``note``). If any user-explicit \
+constraint is not honored — a substituted data type, a dropped statistical \
+threshold — set ``success=False`` and add the deviation to ``caveats``. \
+Never report success while a user-explicit constraint is unmet.
+
 ## Guidelines
 
 - Always check estimated sizes first — a strategy returning 0 genes or \

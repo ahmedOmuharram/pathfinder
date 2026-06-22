@@ -15,6 +15,7 @@ fail outright with a "tool_use_id has no matching tool_result" error.
 
 from __future__ import annotations
 
+from pydantic import BaseModel
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -28,6 +29,7 @@ from pydantic_ai.messages import (
 )
 
 from pathfinder.ai.agents._history_processor import (
+    _ELIDED_RESULT_STUB,
     KEEP_RECENT_TOOL_PAIRS,
     elide_consumed_tool_results,
 )
@@ -290,6 +292,103 @@ def test_text_only_assistant_responses_not_dropped() -> None:
 # ---------------------------------------------------------------------------
 # Realistic discovery-phase shape (the actual cause of the 1.94M-token bug)
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Structured (non-string) tool-return content — the real discovery shape
+# ---------------------------------------------------------------------------
+#
+# Discovery tools return Pydantic models / lists / dicts, NOT strings
+# (search_for_searches -> list[JSONObject], get_search_overview ->
+# SearchOverviewResult, get_parameter_options -> GetParameterOptionsResult).
+# pydantic-ai stores the raw object in ToolReturnPart.content and only
+# serializes to text at request-build time. If elision only fires on
+# str content, these never collapse and the discovery loop grows
+# unbounded (~440K input tokens for one dispatch in the captured run).
+
+
+class _StructuredResult(BaseModel):
+    search_name: str
+    rows: list[str]
+
+
+def _structured_tool_return(call_id: str, content: object) -> ModelRequest:
+    return ModelRequest(
+        parts=[
+            ToolReturnPart(
+                tool_name="tool_x",
+                content=content,
+                tool_call_id=call_id,
+            ),
+        ],
+    )
+
+
+def _interleaved_structured(
+    n: int,
+    *,
+    payload: object,
+) -> list[ModelMessage]:
+    out: list[ModelMessage] = [_user("kick off")]
+    for i in range(n):
+        out.append(_assistant_with_call(f"call_{i}"))
+        out.append(_structured_tool_return(f"call_{i}", payload))
+    return out
+
+
+def test_older_structured_dict_returns_get_stubbed() -> None:
+    """A dict tool-return (the search_for_searches / JSONObject shape)
+    must be masked once consumed, exactly like a string one."""
+    payload = {"results": ["a", "b", "c"], "score": 0.91, "blob": "z" * 3000}
+    n = KEEP_RECENT_TOOL_PAIRS + 5
+    msgs = _interleaved_structured(n, payload=payload)
+    out = elide_consumed_tool_results(list(msgs))
+    returns = _returns_in_order(out)
+    elided_count = n - KEEP_RECENT_TOOL_PAIRS
+    elided = returns[:elided_count]
+    kept = returns[elided_count:]
+    assert all(r.content == _ELIDED_RESULT_STUB for r in elided)
+    assert all(r.content == payload for r in kept)
+    assert len(kept) == KEEP_RECENT_TOOL_PAIRS
+
+
+def test_older_structured_list_returns_get_stubbed() -> None:
+    """search_for_searches returns ``list[JSONObject]`` — list content
+    must collapse to the stub once consumed."""
+    payload = [{"name": f"GenesBy{i}", "description": "d" * 500} for i in range(8)]
+    n = KEEP_RECENT_TOOL_PAIRS + 4
+    msgs = _interleaved_structured(n, payload=payload)
+    out = elide_consumed_tool_results(list(msgs))
+    returns = _returns_in_order(out)
+    elided = returns[: n - KEEP_RECENT_TOOL_PAIRS]
+    assert elided  # there ARE older returns to elide
+    assert all(r.content == _ELIDED_RESULT_STUB for r in elided)
+
+
+def test_older_pydantic_model_returns_get_stubbed() -> None:
+    """get_search_overview / get_parameter_options return Pydantic
+    models. The model object sits in .content until serialization; it
+    must still be masked once consumed."""
+    payload = _StructuredResult(search_name="GenesByText", rows=["r"] * 200)
+    n = KEEP_RECENT_TOOL_PAIRS + 3
+    msgs = _interleaved_structured(n, payload=payload)
+    out = elide_consumed_tool_results(list(msgs))
+    returns = _returns_in_order(out)
+    elided = returns[: n - KEEP_RECENT_TOOL_PAIRS]
+    kept = returns[n - KEEP_RECENT_TOOL_PAIRS :]
+    assert elided
+    assert all(r.content == _ELIDED_RESULT_STUB for r in elided)
+    assert all(r.content == payload for r in kept)
+
+
+def test_structured_elision_is_idempotent() -> None:
+    """Once a structured return is stubbed (now a str), a second pass
+    must leave it alone — before_model_request runs every request."""
+    payload = {"big": "y" * 4000}
+    msgs = _interleaved_structured(KEEP_RECENT_TOOL_PAIRS + 4, payload=payload)
+    once = elide_consumed_tool_results(list(msgs))
+    twice = elide_consumed_tool_results(once)
+    assert once == twice
 
 
 def test_realistic_30_call_discovery_loop_collapses_payload() -> None:

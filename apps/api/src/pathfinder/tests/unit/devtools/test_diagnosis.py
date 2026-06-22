@@ -124,6 +124,27 @@ def test_detects_repeated_wdk_service_error_on_same_search() -> None:
     assert all("get_search_overview" in e for e in svc[0].evidence)
 
 
+def test_breaker_handled_outage_not_counted_as_retry() -> None:
+    directive = (
+        "ERROR: SEARCH_UNAVAILABLE\nTOOL: get_search_overview\n"
+        "'GenesByRNASeqFoo' returned repeated server errors and is persistently "
+        "unavailable: VEuPathDB service error: Server error '500 Internal Server "
+        "Error'. Do not call get_search_overview on it again."
+    )
+    calls = [
+        _call(
+            i,
+            "get_search_overview",
+            "failed",
+            args={"search_name": "GenesByRNASeqFoo"},
+            result=directive,
+        )
+        for i in range(1, 4)
+    ]
+    anomalies = diagnose(calls, {}, RunSummary())
+    assert not [a for a in anomalies if a.kind == "wdk_service_error"]
+
+
 def test_single_service_error_below_threshold_not_flagged() -> None:
     calls = [
         _call(
@@ -171,6 +192,44 @@ def test_scientific_rejection_not_flagged() -> None:
     )
     anomalies = diagnose([call], {}, RunSummary())
     assert not [a for a in anomalies if a.kind == "outage_driven_rejection"]
+
+
+def test_detects_silent_constraint_violation() -> None:
+    ledgers = {
+        "verification": {
+            "constraints": {
+                "blocking": True,
+                "unmetCount": 1,
+                "grounded": [
+                    {
+                        "constraint": {
+                            "kind": "data_type",
+                            "requestedValue": "RNA-Seq",
+                            "label": "data type",
+                            "source": "user_explicit",
+                        },
+                        "status": "substituted",
+                        "realizedValue": "microarray",
+                        "note": "x",
+                    }
+                ],
+            }
+        }
+    }
+    anomalies = diagnose([], ledgers, RunSummary(status="ok"))
+    hits = [a for a in anomalies if a.kind == "silent_constraint_violation"]
+    assert len(hits) == 1
+    assert "data type" in hits[0].message
+
+
+def test_no_silent_constraint_violation_when_not_blocking() -> None:
+    ledgers = {
+        "verification": {
+            "constraints": {"blocking": False, "unmetCount": 0, "grounded": []}
+        }
+    }
+    anomalies = diagnose([], ledgers, RunSummary(status="ok"))
+    assert not [a for a in anomalies if a.kind == "silent_constraint_violation"]
 
 
 def test_clean_run_has_no_anomalies() -> None:

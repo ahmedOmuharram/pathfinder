@@ -14,6 +14,7 @@ from pathfinder.ai.graph.state import (
 from pathfinder.ai.lead.deltas import OpenSlot
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
+from pathfinder.domain.strategy.constraints import GroundedConstraint, is_blocking
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -139,6 +140,18 @@ class VerificationSection(CamelModel):
         return self.digest is not None and self.digest.success
 
 
+class ConstraintSection(CamelModel):
+    grounded: list[GroundedConstraint] = Field(default_factory=list)
+
+    @computed_field
+    def unmet_count(self) -> int:
+        return sum(1 for g in self.grounded if is_blocking(g))
+
+    @computed_field
+    def blocking(self) -> bool:
+        return any(is_blocking(g) for g in self.grounded)
+
+
 class SubAgentCallRecord(CamelModel):
     sub_agent: SubAgentName
     called_at_turn: str
@@ -163,6 +176,7 @@ class InvestigationLedger(CamelModel):
     plan: PlanSection
     build: BuildSection
     verification: VerificationSection
+    constraints: ConstraintSection = Field(default_factory=ConstraintSection)
     sub_agent_calls_this_turn: list[SubAgentCallRecord] = Field(
         default_factory=list,
     )
@@ -213,6 +227,7 @@ class InvestigationLedger(CamelModel):
                 f"- open_discovery_slots: {len(self.plan.open_discovery_slots)}",
                 f"- blocked_kind: {self.plan.blocked_kind}",
                 f"- ready_to_execute: {self.plan.ready_to_execute}",
+                f"- last_denial: {self.plan.last_denial_message or 'none'}",
                 "",
                 "## Build",
                 f"- pushed: {self.build.pushed_count}",
@@ -226,6 +241,10 @@ class InvestigationLedger(CamelModel):
                 "## Verification",
                 f"- complete: {self.verification.complete}",
                 f"- successful: {self.verification.successful}",
+                "",
+                "## Constraints",
+                f"- blocking: {self.constraints.blocking}",
+                f"- unmet (user-explicit): {self.constraints.unmet_count}",
                 "",
                 f"## Sub-agent calls this turn: {len(self.sub_agent_calls_this_turn)}",
             ]
@@ -244,8 +263,28 @@ class InvestigationLedger(CamelModel):
             return _render_build_full(self.build)
         if section == "verification":
             return _render_verification_full(self.verification)
+        if section == "constraints":
+            return _render_constraints_full(self.constraints)
         msg = f"unknown section: {section}"
         raise ValueError(msg)
+
+
+def _render_constraints_full(section: ConstraintSection) -> str:
+    if not section.grounded:
+        return "## Constraints\n(none)"
+    lines = [
+        "## Constraints",
+        f"blocking: {section.blocking}  unmet (user-explicit): {section.unmet_count}",
+    ]
+    for g in section.grounded:
+        c = g.constraint
+        realized = g.realized_value or "—"
+        note = f" — {g.note}" if g.note else ""
+        lines.append(
+            f"- [{c.source}] {c.label} ({c.kind}): requested {c.requested_value!r} "
+            f"→ {g.status} (realized {realized}){note}"
+        )
+    return "\n".join(lines)
 
 
 def _render_frame_full(section: FrameSection) -> str:

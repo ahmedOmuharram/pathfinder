@@ -9,6 +9,7 @@ import { useRightRailStore } from "@/state/useRightRailStore";
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
 import { DataPlanArtifact } from "../content/parts/DataPlanArtifact";
 import { latestPlanAcross } from "../content/parts/planCarouselData";
+import { ConstraintsSection } from "./ConstraintsSection";
 import { DiscoveryDetail } from "./DiscoveryDetail";
 import {
   BuildSection,
@@ -156,6 +157,7 @@ function LedgerTabContent({
         <PlanSection plan={ledger.plan} />
         <BuildSection build={ledger.build} />
         <VerificationSection verification={ledger.verification} />
+        <ConstraintsSection constraints={ledger.constraints} />
         <SubAgentCountSection
           thisTurn={ledger.subAgentCallsThisTurn}
           total={ledger.subAgentCallsTotal}
@@ -201,6 +203,7 @@ function LedgerTabContent({
   return (
     <div className="divide-y divide-border">
       <VerificationSection verification={ledger.verification} />
+      <ConstraintsSection constraints={ledger.constraints} />
     </div>
   );
 }

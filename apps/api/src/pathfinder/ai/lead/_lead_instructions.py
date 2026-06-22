@@ -120,6 +120,28 @@ that wastes budget and flips no state.
   param values as form fields, and offers Approve / Request-changes. Do \
   NOT bundle design decisions here — those were settled via consult_user. \
   Never ask "submit or request changes?" — the card already offers both.
+- ``plan.last_denial`` is set (the user denied the plan — read the reason) → \
+  do NOT just resubmit the same plan. Classify the reason:
+   - It SWAPS the basis of a step already in the plan (e.g. "use GO \
+     molecular function for kinases, not the InterPro PFAM domain"; a \
+     different dataset/annotation source for an existing leaf) → call \
+     ``discover_searches`` with ``keep_prior_selections=True``, an \
+     ``intent_summary`` naming the search to find, AND \
+     ``supersedes=<the search name currently in that plan leaf>`` (read it \
+     from the plan section of the Ledger). Once discovery finds the \
+     replacement, the plan leaf is rewritten to it **automatically** — you \
+     do NOT call ``build_plan`` or hand-edit the plan for a swap. Just \
+     ``submit_plan_for_approval`` once discovery returns. NEVER patch a \
+     step's parameters to impersonate a different search (e.g. forcing a \
+     domain search to "be GO").
+   - It ADDS a genuinely new data dimension (e.g. "also require expression \
+     evidence" — a new leaf + combine, not a swap) → ``discover_searches`` \
+     (``keep_prior_selections=True``) then ``build_plan`` to wire the new \
+     leaf into the topology.
+   - It is only a **parameter/threshold/operator/topology tweak** on the \
+     searches already selected → ``build_plan`` (it edits the active plan); \
+     no re-discovery needed.
+   Then ``submit_plan_for_approval`` once the revised plan is settled.
 - ``plan.ready_to_execute = True`` AND ``build.outcome is None`` → \
   ``execute_plan``.
 - ``build.needs_recovery = True`` — branch on ``build.recovery_kind``:
@@ -132,6 +154,18 @@ that wastes budget and flips no state.
   ``verify_strategy``.
 - ``verification.complete = True`` → synthesize the answer; \
   ``next_state=complete``.
+- **Constraint gate (hard).** If ``constraints.blocking`` is True you MUST \
+  NOT finish the turn reporting success. A user-explicit constraint is \
+  unmet — the plan substituted a data type the user did not ask for, or \
+  dropped a threshold the chosen search cannot express. Either (a) \
+  ``consult_user`` naming the exact deviation ("you asked for RNA-Seq but \
+  only microarray covers female-vs-male — proceed with microarray, or wait \
+  for RNA-Seq?" / "the selected search has no adjusted-p parameter — \
+  proceed without it?") and ``next_state=await_user``; or (b) if the user \
+  already accepted this deviation earlier in the conversation, finish with \
+  the verification digest's ``success`` reflecting partial fidelity and the \
+  deviation listed as a top-level caveat. Never substitute a user-explicit \
+  data type or silently drop a user-explicit threshold.
 
 ## Hints to discovery
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from pydantic_ai.ui.vercel_ai.request_types import ToolApprovalResponded
+
 from pathfinder.ai.agents.state import (
     ParamVocabSnapshot,
     SearchOverview,
@@ -270,6 +272,71 @@ def test_plan_approved_and_clean_is_ready_to_execute() -> None:
     ledger = derive_ledger(state, None)
     assert ledger.plan.ready_to_execute is True
     assert ledger.plan.blocked_kind == "none"
+
+
+def test_plan_denial_surfaces_reason_when_unapproved() -> None:
+    plan = _plan_with_user_slot()
+    state = _state(
+        active_plan=plan,
+        approval_responses={
+            "call_1": ToolApprovalResponded(
+                id="call_1",
+                approved=False,
+                reason="Use GO molecular function for kinases, not the InterPro PFAM domain.",
+            ),
+        },
+    )
+    ledger = derive_ledger(state, None)
+    assert ledger.plan.last_denial_message == (
+        "Use GO molecular function for kinases, not the InterPro PFAM domain."
+    )
+
+
+def test_plan_denial_not_surfaced_once_approved() -> None:
+    plan = _plan_with_user_slot()
+    plan.status = PlanStatus.APPROVED
+    state = _state(
+        active_plan=plan,
+        approval_responses={
+            "call_1": ToolApprovalResponded(
+                id="call_1", approved=False, reason="old denial"
+            ),
+            "call_2": ToolApprovalResponded(id="call_2", approved=True, reason=""),
+        },
+    )
+    ledger = derive_ledger(state, None)
+    assert ledger.plan.last_denial_message is None
+
+
+def test_plan_denial_takes_most_recent_denied_response() -> None:
+    plan = _plan_with_user_slot()
+    state = _state(
+        active_plan=plan,
+        approval_responses={
+            "call_1": ToolApprovalResponded(
+                id="call_1", approved=False, reason="first"
+            ),
+            "call_2": ToolApprovalResponded(
+                id="call_2", approved=False, reason="second"
+            ),
+        },
+    )
+    ledger = derive_ledger(state, None)
+    assert ledger.plan.last_denial_message == "second"
+
+
+def test_render_summary_surfaces_denial_message() -> None:
+    plan = _plan_with_user_slot()
+    state = _state(
+        active_plan=plan,
+        approval_responses={
+            "call_1": ToolApprovalResponded(
+                id="call_1", approved=False, reason="Use GO, not InterPro."
+            ),
+        },
+    )
+    summary = derive_ledger(state, None).render_summary()
+    assert "Use GO, not InterPro." in summary
 
 
 def test_build_section_recovery_kind_empty_result() -> None:

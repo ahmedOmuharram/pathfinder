@@ -18,6 +18,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.ai.graph._llm_capture import current_capture_dir
 from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.types import JSONObject
 
@@ -31,6 +32,7 @@ class ChatTurnPayload(BaseModel):
     user_id: UUID
     turn_id: UUID
     veupathdb_auth_token: str | None = None
+    capture_dir: str | None = None
 
     @classmethod
     def from_context(
@@ -39,13 +41,16 @@ class ChatTurnPayload(BaseModel):
         body: ChatRequestBody,
         user_id: UUID,
         turn_id: UUID,
+        capture_dir: str | None = None,
     ) -> Self:
-        """Build a payload, capturing ``veupathdb_auth_token_ctx`` at call time."""
+        """Build a payload, capturing ``veupathdb_auth_token_ctx`` at call time.
+        ``capture_dir`` (devtools only) routes worker LLM capture to a run-dir."""
         return cls(
             body=body,
             user_id=user_id,
             turn_id=turn_id,
             veupathdb_auth_token=veupathdb_auth_token_ctx.get(),
+            capture_dir=capture_dir,
         )
 
 
@@ -58,6 +63,7 @@ class DurableTaskPayload(BaseModel):
     thread_id: UUID
     args: JSONObject = Field(default_factory=dict)
     veupathdb_auth_token: str | None = None
+    capture_dir: str | None = None
 
     @classmethod
     def from_context(
@@ -67,12 +73,14 @@ class DurableTaskPayload(BaseModel):
         thread_id: UUID,
         args: JSONObject,
     ) -> Self:
-        """Build a durable payload, capturing ``veupathdb_auth_token_ctx``."""
+        """Build a durable payload, capturing ``veupathdb_auth_token_ctx`` and the
+        active LLM-capture run-dir so the worker resume job keeps capturing."""
         return cls(
             task_id=task_id,
             thread_id=thread_id,
             args=args,
             veupathdb_auth_token=veupathdb_auth_token_ctx.get(),
+            capture_dir=current_capture_dir(),
         )
 
 

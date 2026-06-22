@@ -109,6 +109,58 @@ def render_tree(run_dir: Path) -> str:
     return path.read_text() if path.is_file() else "No tree.txt."
 
 
+def _part_line(part: dict[str, Any]) -> str | None:
+    content = str(part.get("content", ""))
+    tool = part.get("tool_name") or ""
+    formatters = {
+        "system-prompt": lambda: f"  [system] {content[:1500]}",
+        "user-prompt": lambda: f"  [user] {content[:800]}",
+        "tool-return": lambda: f"  [tool-return {tool}] {content[:800]}",
+        "retry-prompt": lambda: f"  [retry {tool}] {content[:800]}",
+        "text": lambda: f"  [text] {content[:800]}",
+        "thinking": lambda: f"  [thinking] {content[:400]}",
+        "tool-call": lambda: (
+            f"  [tool-call {tool}] {json.dumps(part.get('args'))[:600]}"
+        ),
+    }
+    fmt = formatters.get(str(part.get("part_kind")))
+    return fmt() if fmt is not None else None
+
+
+def render_llm(run_dir: Path, role: str | None) -> str:
+    llm_dir = run_dir / "llm"
+    if not llm_dir.is_dir():
+        return "No llm/ capture (run with --capture-llm)."
+    blocks: list[str] = []
+    for req_path in sorted(llm_dir.glob("*-request.json")):
+        req = json.loads(req_path.read_text())
+        if role is not None and req.get("role") != role:
+            continue
+        stem = req_path.name.removesuffix("-request.json")
+        lines = [
+            f"━━ {stem}  model={req.get('model')}  tools={len(req.get('tools', []))}"
+        ]
+        messages = req.get("messages", [])
+        last = messages[-1] if messages else {}
+        if isinstance(last, dict) and last.get("instructions"):
+            lines.append(f"  [instructions] {str(last['instructions'])[:1500]}")
+        for msg in messages:
+            for part in msg.get("parts", []) if isinstance(msg, dict) else []:
+                line = _part_line(part)
+                if line is not None:
+                    lines.append(line)
+        resp_path = llm_dir / f"{stem}-response.json"
+        if resp_path.is_file():
+            resp = json.loads(resp_path.read_text())
+            lines.append(f"  → response (finish={resp.get('finishReason')}):")
+            for part in resp.get("response", {}).get("parts", []):
+                line = _part_line(part)
+                if line is not None:
+                    lines.append("  " + line)
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks) if blocks else "No matching LLM calls."
+
+
 def _signature(calls: list[CapturedToolCall]) -> list[tuple[str, str]]:
     return [(c.tool, c.status) for c in calls]
 

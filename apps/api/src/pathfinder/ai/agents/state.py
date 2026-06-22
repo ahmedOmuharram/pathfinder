@@ -42,6 +42,7 @@ class SearchOverview(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     param_hints: dict[str, str | list[str]] = Field(default_factory=dict)
     param_vocab: dict[str, ParamVocabSnapshot] = Field(default_factory=dict)
+    replaces: str | None = None
     decided: bool = False
 
 

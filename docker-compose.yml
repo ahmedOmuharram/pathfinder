@@ -76,6 +76,8 @@ services:
       VEUPATHDB_OAUTH_CLIENT_ID: ${VEUPATHDB_OAUTH_CLIENT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
       LOG_FORMAT: ${LOG_FORMAT:-}
+    volumes:
+      - ./apps/api/.pf-runs:/data/pf-runs
 
   web:
     build:

@@ -36,6 +36,7 @@ async def run_control_tests_on_step_job(
     thread_id: str,
     args: dict[str, Any],
     veupathdb_auth_token: str | None = None,
+    capture_dir: str | None = None,
 ) -> None:
     await run_durable_task(
         tool_name="run_control_tests_on_step",
@@ -43,6 +44,7 @@ async def run_control_tests_on_step_job(
         thread_id=thread_id,
         args=args,
         veupathdb_auth_token=veupathdb_auth_token,
+        capture_dir=capture_dir,
     )
 
 
@@ -52,6 +54,7 @@ async def optimize_search_parameters_job(
     thread_id: str,
     args: dict[str, Any],
     veupathdb_auth_token: str | None = None,
+    capture_dir: str | None = None,
 ) -> None:
     await run_durable_task(
         tool_name="optimize_search_parameters",
@@ -59,6 +62,7 @@ async def optimize_search_parameters_job(
         thread_id=thread_id,
         args=args,
         veupathdb_auth_token=veupathdb_auth_token,
+        capture_dir=capture_dir,
     )
 
 
@@ -68,6 +72,7 @@ async def geneset_enrichment_job(
     thread_id: str,
     args: dict[str, Any],
     veupathdb_auth_token: str | None = None,
+    capture_dir: str | None = None,
 ) -> None:
     await run_durable_task(
         tool_name="geneset_enrichment",
@@ -75,6 +80,7 @@ async def geneset_enrichment_job(
         thread_id=thread_id,
         args=args,
         veupathdb_auth_token=veupathdb_auth_token,
+        capture_dir=capture_dir,
     )
 
 

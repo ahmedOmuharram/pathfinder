@@ -125,6 +125,13 @@ dataset was selected for a "vs asexual" question because discovery never \
 verified that "asexual blood stages" was in the sample vocab. Don't \
 repeat that.
 
+**Resolve params before selecting (REQUIRED).** Before you mark a search \
+``selected``, call ``resolve_search_parameters(search_name)`` once — it \
+returns the accepted values for EVERY required parameter and records them so \
+planning copies validated values instead of guessing. Selection is refused \
+until the required params are resolved. Pick your ``param_hints`` from the \
+accepted values it returns; never invent param values.
+
 After you've inspected a search and reached a verdict on it, call \
 `update_search_decision` to commit that verdict — set ``selection_status`` \
 to ``selected``, ``candidate``, or ``rejected``, with a ``rationale`` \
@@ -142,6 +149,18 @@ pathway identifiers, organism-specific terminology).
 5. **Check existing work**: Use `get_strategy` to inspect any strategy \
 already in progress. Use `search_example_plans` to find similar solved \
 problems.
+
+## Targeted re-discovery
+
+If the work order contains a **TARGETED RE-DISCOVERY** directive, you are being \
+re-invoked to find ONE specific thing (a missing or replacement search) — not \
+to redo the whole catalog sweep. KEEP every search already marked `selected`; \
+do not re-inspect, re-evaluate, or reject them. Find only the search the work \
+order names. If you are REPLACING a search that's already in the plan, select \
+the replacement with ``update_search_decision(..., replaces="<old search \
+name>")`` — that one field auto-rejects the old search AND rewrites the plan \
+leaf to the new search with your resolved params. Do not reject the old search \
+separately and do not hand-edit the plan. Don't touch anything else.
 
 ## Guidelines
 

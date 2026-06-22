@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import (
@@ -18,7 +18,7 @@ from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import (
     ParamValue,
     as_param_kind,
-    coerce_param_value,
+    param_value_from_raw,
 )
 from pathfinder.domain.parameters.wdk_vocab import WDKVocabulary, flatten_vocab
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME
@@ -96,12 +96,13 @@ class PlannedStepInput(BaseModel):
     record_type: str = "transcript"
     rationale: str = ""
     step_type: StepType = StepType.LEAF
-    parameters: dict[str, ParamValue] = Field(
+    parameters: dict[str, Any] = Field(
         default_factory=dict,
         description=(
-            "Each value MUST be wrapped in its typed shape (`type` discriminator). "
-            "Use the `valueFormat` field from `get_search_overview` per param. "
-            'Example: `{"organism": {"type": "multi-pick-vocabulary", "values": ["Pf3D7"]}}`.'
+            "Param values — pass the RAW value (string, number, or list); the "
+            "system types it from the WDK spec. "
+            'Example: `{"organism": ["Pf3D7"], "min_fold_change": 2}`. '
+            "Copy vocabulary values EXACTLY from get_parameter_options."
         ),
     )
     unfilled_slots: list[UnfilledSlotInput] = Field(default_factory=list)
@@ -150,11 +151,12 @@ class StepPatch(BaseModel):
     step_id: str
     search_name: str | None = None
     display_name: str | None = None
-    parameters: dict[str, ParamValue] | None = Field(
+    parameters: dict[str, Any] | None = Field(
         default=None,
         description=(
-            "Each value MUST be wrapped in its typed shape (`type` discriminator). "
-            "See `valueFormat` from `get_search_overview` for the per-param template."
+            "Param values — pass the RAW value (string, number, or list); the "
+            "system types it from the WDK spec. Copy vocabulary values EXACTLY "
+            "from get_parameter_options."
         ),
     )
     unfilled_slots: list[UnfilledSlotInput] | None = None
@@ -307,7 +309,7 @@ def _build_unfilled_param(
 
 def _build_param(
     name: str,
-    value: ParamValue | None,
+    value: object,
     spec: ParamSpecNormalized | None,
 ) -> PlannedParameter:
     if spec is None:
@@ -317,15 +319,14 @@ def _build_param(
         )
         raise ValueError(msg)
     kind = as_param_kind(spec.param_type)
+    typed: ParamValue | None = None
     if value is not None:
         try:
-            value = coerce_param_value(value, kind)
+            typed = param_value_from_raw(value, kind)
         except ValueError as exc:
-            msg = (
-                f"PlannedParameter {name!r}: {exc}. Wrap it as "
-                f"{{'type': {kind!r}, ...}} — see the param's valueFormat."
-            )
+            msg = f"PlannedParameter {name!r}: {exc}"
             raise ValueError(msg) from exc
+    value = typed
     return PlannedParameter(
         name=name,
         display_name=name,
@@ -465,7 +466,14 @@ def _apply_step_patches(
                 f"Valid step ids: {sorted(step_map.keys())}."
             )
             raise ModelRetry(msg)
+        search_changed = (
+            patch.search_name is not None and patch.search_name != step.search_name
+        )
         _apply_metadata_patch(step, patch)
+        if search_changed:
+            # The old search's params don't exist on the new search; WDK rejects
+            # them as unknown. Drop them so the patch repopulates from scratch.
+            step.parameters = []
         param_specs = specs_by_search.get(step.search_name) if specs_by_search else None
         if patch.parameters is not None:
             _apply_parameters_patch(step, patch.parameters, param_specs)
@@ -492,7 +500,7 @@ def _apply_metadata_patch(step: PlannedStep, patch: StepPatch) -> None:
 
 def _apply_parameters_patch(
     step: PlannedStep,
-    parameters: dict[str, ParamValue],
+    parameters: dict[str, Any],
     param_specs: dict[str, ParamSpecNormalized] | None,
 ) -> None:
     for name, value in parameters.items():
@@ -501,7 +509,7 @@ def _apply_parameters_patch(
             None,
         )
         if existing is not None:
-            existing.value = coerce_param_value(value, existing.param_type)
+            existing.value = param_value_from_raw(value, existing.param_type)
             existing.status = ParamStatus.SET
         else:
             spec = param_specs.get(name) if param_specs else None

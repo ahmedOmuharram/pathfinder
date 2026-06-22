@@ -319,6 +319,82 @@ def coerce_param_value(value: ParamValue, kind: ParamKind) -> ParamValue:
     raise ValueError(msg)
 
 
+_SCALAR_VALUE_BY_KIND: dict[ParamKind, Callable[[object], ParamValue]] = {
+    "string": lambda v: StringValue(value=str(v)),
+    "number": lambda v: NumberValue(value=float(str(v))),
+    "date": lambda v: DateValue(value=str(v)),
+    "timestamp": lambda v: TimestampValue(value=str(v)),
+    "single-pick-vocabulary": lambda v: SinglePickValue(value=str(v)),
+    "input-dataset": lambda v: InputDatasetValue(dataset_id=str(v)),
+    "input-step": lambda v: InputStepValue(step_id=str(v)),
+    "multi-pick-vocabulary": lambda v: MultiPickValue(
+        values=[str(x) for x in v] if isinstance(v, list) else [str(v)]
+    ),
+}
+
+
+_PARAM_VALUE_TYPES = (
+    StringValue,
+    NumberValue,
+    NumberRangeValue,
+    DateValue,
+    DateRangeValue,
+    TimestampValue,
+    SinglePickValue,
+    MultiPickValue,
+    FilterValue,
+    InputDatasetValue,
+    InputStepValue,
+)
+
+
+def param_value_from_raw(raw: object, kind: ParamKind) -> ParamValue:
+    """Build a typed ``ParamValue`` of *kind* from a raw scalar/list/dict the
+    LLM supplied, so callers needn't hand-construct the typed wrapper. An
+    already-typed value (a ``ParamValue`` instance or a dict carrying ``type``)
+    is coerced to *kind*; structural kinds (ranges/filter) are validated from
+    their object form. The system knows *kind* from the WDK spec, so it does
+    the typing."""
+
+    if isinstance(raw, _PARAM_VALUE_TYPES):
+        return coerce_param_value(raw, kind)
+    if isinstance(raw, dict) and "type" in raw:
+        return coerce_param_value(_PARAM_VALUE_ADAPTER.validate_python(raw), kind)
+    builder = _SCALAR_VALUE_BY_KIND.get(kind)
+    if builder is not None and not isinstance(raw, dict):
+        return builder(raw)
+    structural: dict[ParamKind, type[ParamValue]] = {
+        "number-range": NumberRangeValue,
+        "date-range": DateRangeValue,
+        "filter": FilterValue,
+    }
+    model = structural.get(kind)
+    if model is not None and isinstance(raw, dict):
+        return model.model_validate(raw)
+    msg = f"cannot build a {kind!r} parameter value from {raw!r}"
+    raise ValueError(msg)
+
+
+def coerce_context_values(raw: dict[str, object]) -> dict[str, ParamValue]:
+    """Coerce raw context param values (parent values for dependent-vocab
+    refresh) into ``ParamValue``s by SHAPE — list → multi-pick, scalar →
+    single-pick, already-typed (instance or ``type`` dict) → validated. No spec
+    needed: WDK is stringly-typed, so the wire form is identical regardless of
+    the param's declared kind."""
+
+    out: dict[str, ParamValue] = {}
+    for name, value in raw.items():
+        if isinstance(value, _PARAM_VALUE_TYPES):
+            out[name] = value
+        elif isinstance(value, dict) and "type" in value:
+            out[name] = _PARAM_VALUE_ADAPTER.validate_python(value)
+        elif isinstance(value, list):
+            out[name] = MultiPickValue(values=[str(x) for x in value])
+        else:
+            out[name] = SinglePickValue(value=str(value))
+    return out
+
+
 def wire_map(values: dict[str, ParamValue]) -> dict[str, str]:
     return {name: to_wire(v) for name, v in values.items()}
 

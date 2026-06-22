@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.ai.graph._llm_capture import capture_llm
 from pathfinder.jobs.payloads import (
     ChatTurnPayload,
     DurableTaskPayload,
@@ -171,3 +172,38 @@ class TestDurableTaskPayloadFromContext:
             args={},
         )
         assert payload.veupathdb_auth_token is None
+
+
+class TestCaptureDirThreading:
+    """The crux of worker-side LLM capture: a durable task deferred *inside* a
+    ``capture_llm`` block must inherit the run-dir so the worker resume keeps
+    capturing into the same dir. Outside the block it must be None (prod path)."""
+
+    def test_chat_turn_payload_carries_capture_dir_roundtrip(self) -> None:
+        payload = ChatTurnPayload(
+            body=_body(),
+            user_id=uuid4(),
+            turn_id=uuid4(),
+            capture_dir="/data/pf-runs/x/turn1",
+        )
+        restored = ChatTurnPayload.model_validate(
+            json.loads(payload.model_dump_json(by_alias=True))
+        )
+        assert restored.capture_dir == "/data/pf-runs/x/turn1"
+
+    def test_durable_payload_inherits_active_capture_dir(self, tmp_path) -> None:
+        with capture_llm(tmp_path):
+            payload = DurableTaskPayload.from_context(
+                task_id=uuid4(),
+                thread_id=uuid4(),
+                args={"args": [], "kwargs": {}},
+            )
+        assert payload.capture_dir == str(tmp_path)
+
+    def test_durable_payload_capture_dir_none_outside_block(self) -> None:
+        payload = DurableTaskPayload.from_context(
+            task_id=uuid4(),
+            thread_id=uuid4(),
+            args={},
+        )
+        assert payload.capture_dir is None

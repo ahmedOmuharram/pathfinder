@@ -5,6 +5,7 @@ including fallback scanning across all record types when the initial
 fetch fails.
 """
 
+from difflib import get_close_matches
 from typing import Any, cast
 
 from pydantic import JsonValue
@@ -78,9 +79,15 @@ async def _fallback_scan_record_types(
     if response is None:
         available = await discovery.get_searches(ctx.site_id, resolved_record_type)
         available_searches: list[str] = [s.url_segment for s in available]
+        suggestions = get_close_matches(
+            ctx.search_name, available_searches, n=5, cutoff=0.3
+        )
+        detail = f"Search not found: {ctx.search_name}."
+        if suggestions:
+            detail += f" Did you mean: {suggestions}?"
         error_dict: JSONObject = {
             "path": "searchName",
-            "message": f"Search not found: {ctx.search_name}",
+            "message": detail,
             "code": ErrorCode.SEARCH_NOT_FOUND.value,
             "recordType": resolved_record_type,
             "searchName": ctx.search_name,
@@ -89,7 +96,7 @@ async def _fallback_scan_record_types(
         }
         raise CoreValidationError(
             title="Search not found",
-            detail=f"Search not found: {ctx.search_name}",
+            detail=detail,
             errors=[error_dict],
         ) from original_error
 

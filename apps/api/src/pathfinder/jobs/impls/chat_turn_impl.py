@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.turn_runner import run_turn
+from pathfinder.ai.graph._llm_capture import capture_llm
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.jobs.auth_context import attach_user_id, attach_wdk_auth
@@ -38,13 +40,17 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
         lifespan_memory_store(settings.database_url) as store,
     ):
         graph = build_graph(checkpointer=saver)
-        await run_turn(
-            body=body,
-            user_id=parsed.user_id,
-            compiled_graph=graph,
-            memory_store=store,
-            writer=writer,
+        capture = (
+            capture_llm(parsed.capture_dir) if parsed.capture_dir else nullcontext()
         )
+        with capture:
+            await run_turn(
+                body=body,
+                user_id=parsed.user_id,
+                compiled_graph=graph,
+                memory_store=store,
+                writer=writer,
+            )
     logger.info(
         "chat turn completed",
         conversation_id=str(body.conversation_id),

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic_ai.exceptions import ModelRetry
 
-from pathfinder.ai.agents.state import AgentToolState
+from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._plan_models import PlannedStepInput
 from pathfinder.ai.tools.standalone.plan import create_plan
@@ -57,6 +57,18 @@ def _stub_fetch_specs_by_search(monkeypatch: pytest.MonkeyPatch) -> None:
 def _deps(existing: StrategyPlan | None = None) -> AgentDeps:
     session = StrategySession(site_id="plasmodb")
     state = AgentToolState()
+    state.register_search(
+        "GenesByTaxon",
+        SearchOverview(
+            search_name="GenesByTaxon",
+            display_name="GenesByTaxon",
+            record_type="transcript",
+            description="Test search",
+            parameter_names=["organism"],
+            required_params=["organism"],
+            selection_status="selected",
+        ),
+    )
     if existing is not None:
         state.active_plan = existing
     return AgentDeps(
