@@ -5,6 +5,7 @@ import math
 from collections.abc import Sequence
 
 from pathfinder.ai.memory.schemas import MemoryValue
+from pathfinder.integrations.embeddings.prefixes import SEARCH_DOCUMENT_PREFIX
 from pathfinder.integrations.embeddings.semantic_index import get_embedding_model
 
 MEMORY_EMBEDDING_MODEL: str = "nomic-ai/nomic-embed-text-v1.5"
@@ -57,4 +58,7 @@ def format_embedded_string(value: MemoryValue) -> str:
     in the payload — the store indexes that one key.
     """
     tags_joined = ", ".join(value.tags)
-    return f"{value.kind} :: {value.name} :: {tags_joined} :: {value.summary}"
+    return (
+        f"{SEARCH_DOCUMENT_PREFIX}{value.kind} :: {value.name} :: "
+        f"{tags_joined} :: {value.summary}"
+    )

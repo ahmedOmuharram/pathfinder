@@ -232,6 +232,9 @@ def fuzzy_score(query: str, text: str) -> float:
         return fallback_ratio(q, t)
 
 
+_MIN_ABSTRACT_SCORE_LEN = 40
+
+
 def rerank_score(query: str, paper: ParsedPaper) -> tuple[float, dict[str, float]]:
     """Calculate reranking score for a literature search result.
 
@@ -243,7 +246,14 @@ def rerank_score(query: str, paper: ParsedPaper) -> tuple[float, dict[str, float
     abstract = paper.abstract or paper.snippet or ""
     journal = paper.journal_title or ""
     title_s = fuzzy_score(query, title)
-    abs_s = fuzzy_score(query, abstract)
+    # Only score the abstract when it carries real content. A short journal-name
+    # snippet (e.g. "Vaccine") is a query subword and token_set_ratio would award
+    # it a phantom 100, ranking abstract-less results above real ones.
+    abs_s = (
+        fuzzy_score(query, abstract)
+        if len(abstract.strip()) >= _MIN_ABSTRACT_SCORE_LEN
+        else 0.0
+    )
     journal_s = fuzzy_score(query, journal) if journal else 0.0
     score = 0.70 * title_s + 0.28 * abs_s + 0.02 * journal_s
     return score, {"title": title_s, "abstract": abs_s, "journal": journal_s}

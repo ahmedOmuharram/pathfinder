@@ -285,6 +285,15 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
             "experiments, gene_sets, control_sets, users "
             "RESTART IDENTITY CASCADE"
         )
+        # LangGraph's cross-thread Store tables are created lazily by
+        # ``store.setup()`` (only in memory tests), so guard on existence —
+        # cleaning them prevents memory state leaking across tests.
+        await conn.exec_driver_sql(
+            "DO $$ BEGIN "
+            "IF to_regclass('public.store') IS NOT NULL THEN "
+            "TRUNCATE TABLE store, store_vectors RESTART IDENTITY CASCADE; "
+            "END IF; END $$"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 
 from pathfinder.ai.memory.embedding import format_embedded_string
 from pathfinder.ai.memory.schemas import MemoryKind, MemoryValue
+from pathfinder.integrations.embeddings.prefixes import SEARCH_QUERY_PREFIX
 
 
 @dataclass(frozen=True)
@@ -98,7 +99,7 @@ class MemoryStore:
     ) -> list[StoredMemory]:
         items = await self.store.asearch(
             self._ns(user_id, kind),
-            query=query,
+            query=f"{SEARCH_QUERY_PREFIX}{query}",
             limit=top_k,
         )
         return [_to_stored_search(i) for i in items]

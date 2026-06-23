@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC, datetime
 
 import pytest
 
@@ -8,7 +9,10 @@ from pathfinder.ai.memory.embedding import (
     EMBEDDING_DIMENSIONS,
     MEMORY_EMBEDDING_MODEL,
     embed_text,
+    format_embedded_string,
 )
+from pathfinder.ai.memory.schemas import MemoryValue
+from pathfinder.integrations.embeddings.prefixes import SEARCH_DOCUMENT_PREFIX
 
 
 def test_embedding_dimensions_are_512() -> None:
@@ -71,3 +75,26 @@ async def test_embed_text_returns_l2_normalized_vectors() -> None:
     assert abs(norm_sq - 1.0) < 1e-5, (
         f"embed_text must L2-normalize; got norm^2 = {norm_sq}"
     )
+
+
+def test_format_embedded_string_carries_nomic_document_prefix() -> None:
+    """Stored memories are documents in nomic's asymmetric retrieval scheme.
+
+    Without the ``search_document:`` prefix the stored vectors live in a
+    different space than ``search_query:``-prefixed queries, degrading recall.
+    """
+    value = MemoryValue(
+        kind="gene_set",
+        name="vaccine_antigens",
+        summary="surface-exposed blood-stage antigens",
+        tags=["malaria", "vaccine"],
+        content={},
+        created_at=datetime.now(UTC),
+    )
+    text = format_embedded_string(value)
+    assert text.startswith(SEARCH_DOCUMENT_PREFIX)
+    # The semantic payload (kind/name/tags/summary) survives the prefix.
+    assert "gene_set" in text
+    assert "vaccine_antigens" in text
+    assert "surface-exposed blood-stage antigens" in text
+    assert "malaria" in text

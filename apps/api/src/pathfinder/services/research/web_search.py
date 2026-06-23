@@ -97,7 +97,12 @@ class WebSearchService:
         summary_max_chars = max(200, min(int(summary_max_chars or 600), 4000))
 
         results, diag = await self._ddgs_search(q, limit=limit)
-        if include_summary and results:
+        needs_summary = [
+            r
+            for r in results
+            if not r.snippet or len(r.snippet.strip()) < _MIN_SNIPPET_LENGTH
+        ]
+        if include_summary and needs_summary:
             async with httpx.AsyncClient(
                 timeout=min(self._timeout, 15.0),
                 headers={
@@ -115,16 +120,14 @@ class WebSearchService:
                             r.url,
                             max_chars=summary_max_chars,
                         )
-                        for r in results
+                        for r in needs_summary
                     ],
                     return_exceptions=True,
                 )
-            for r, s in zip(results, summaries, strict=True):
+            for r, s in zip(needs_summary, summaries, strict=True):
                 summary = s.strip() if isinstance(s, str) and s.strip() else None
                 r.summary = summary
-                if (
-                    not r.snippet or len(r.snippet.strip()) < _MIN_SNIPPET_LENGTH
-                ) and summary:
+                if summary:
                     r.snippet = summary
 
         citations: list[Citation] = []

@@ -9,6 +9,7 @@ from typing import cast
 from pydantic_ai import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.memory.embedding import embed_text
 from pathfinder.ai.tools.query_validation import search_query_error
 from pathfinder.ai.tools.standalone._catalog_models import _UNIVERSAL_SEARCHES
 from pathfinder.platform.errors import AppError
@@ -18,6 +19,7 @@ from pathfinder.platform.types import JSONObject
 from pathfinder.services import catalog
 from pathfinder.services.catalog.public_strategy_search import (
     rank_public_strategies,
+    rank_public_strategies_semantic,
 )
 from pathfinder.services.wdk import get_strategy_api
 
@@ -185,7 +187,9 @@ async def search_example_plans(
     query: str,
     limit: int = 3,
 ) -> list[JSONObject]:
-    """Retrieve relevant public strategies from WDK matched by text relevance.
+    """Retrieve relevant public strategies from WDK, ranked by semantic
+    similarity to the query (falls back to lexical token overlap if the
+    embedding model is unavailable).
 
     Args:
         ctx: Agent run context.
@@ -195,7 +199,16 @@ async def search_example_plans(
     try:
         api = get_strategy_api(ctx.deps.site_id)
         public_strategies = await api.list_public_strategies()
-        return rank_public_strategies(public_strategies, query=query, limit=limit)
     except (AppError, OSError) as exc:
         logger.warning("Failed to fetch public strategies", error=str(exc))
         return []
+    try:
+        return await rank_public_strategies_semantic(
+            public_strategies, query, embed=embed_text, limit=limit
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.warning(
+            "Semantic strategy ranking unavailable; using lexical fallback",
+            error=str(exc),
+        )
+        return rank_public_strategies(public_strategies, query=query, limit=limit)

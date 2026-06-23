@@ -76,7 +76,7 @@ def deduplicate_and_filter(
     """
     filtered: list[EnrichedPaper] = []
     citations_by_key: dict[str, Citation] = {}
-    seen: set[str] = set()
+    index_by_key: dict[str, int] = {}
 
     for src, payload in by_source.items():
         for i, paper in enumerate(payload.results):
@@ -94,9 +94,21 @@ def deduplicate_and_filter(
                 continue
 
             key = dedupe_key(paper)
-            if key in seen:
+            existing_index = index_by_key.get(key)
+            if existing_index is not None:
+                # Same paper from another source — fill a missing abstract so the
+                # abstract-less copy (often crossref, seen first) doesn't win.
+                kept = filtered[existing_index]
+                if not (kept.abstract or "").strip() and (paper.abstract or "").strip():
+                    merged = (
+                        truncate_text(paper.abstract, options.abstract_max_chars)
+                        if options.include_abstract
+                        else paper.abstract
+                    )
+                    filtered[existing_index] = kept.model_copy(
+                        update={"abstract": merged}
+                    )
                 continue
-            seen.add(key)
 
             authors_limited = limit_authors(
                 paper.authors or None,
@@ -115,6 +127,7 @@ def deduplicate_and_filter(
                     abstract=abstract_value,
                 )
             )
+            index_by_key[key] = len(filtered) - 1
 
             if c is not None:
                 citation_authors = limit_authors(c.authors, options.max_authors)

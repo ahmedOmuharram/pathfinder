@@ -5,7 +5,12 @@ against the user's query. Returns the top N matches.
 """
 
 import re
+from collections.abc import Awaitable, Callable, Sequence
 
+from pathfinder.integrations.embeddings.prefixes import (
+    SEARCH_DOCUMENT_PREFIX,
+    SEARCH_QUERY_PREFIX,
+)
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
 from pathfinder.platform.types import JSONObject
 
@@ -67,6 +72,52 @@ def rank_public_strategies(
     ]
     scored = [(s, score) for s, score in scored if score > 0]
     scored.sort(key=lambda x: x[1], reverse=True)
+    return [
+        s.model_dump(by_alias=True, exclude_none=True, mode="json")
+        for s, _ in scored[:limit]
+    ]
+
+
+EmbedFn = Callable[[Sequence[str]], Awaitable[list[list[float]]]]
+
+_DEFAULT_SEMANTIC_MIN_SCORE = 0.4
+
+
+def _strategy_doc(strategy: WDKStrategySummary) -> str:
+    return f"{strategy.name}. {strategy.description}. {strategy.name_of_first_step}".strip()
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    # embed_text L2-normalizes its output, so cosine similarity == dot product.
+    return sum(x * y for x, y in zip(a, b, strict=False))
+
+
+async def rank_public_strategies_semantic(
+    strategies: list[WDKStrategySummary],
+    query: str,
+    *,
+    embed: EmbedFn,
+    limit: int = 3,
+    min_score: float = _DEFAULT_SEMANTIC_MIN_SCORE,
+) -> list[JSONObject]:
+    """Rank public strategies by embedding cosine similarity to the query.
+
+    Bridges paraphrase gaps that lexical token overlap misses ("immunization
+    targets" vs "vaccine antigens"). The embedding function is injected so this
+    stays in the services layer (no AI-layer import) and is pure to test.
+    """
+    if not strategies or not query.strip():
+        return []
+    texts = [SEARCH_QUERY_PREFIX + query]
+    texts.extend(SEARCH_DOCUMENT_PREFIX + _strategy_doc(s) for s in strategies)
+    vectors = await embed(texts)
+    query_vec = vectors[0]
+    scored: list[tuple[WDKStrategySummary, float]] = []
+    for strategy, doc_vec in zip(strategies, vectors[1:], strict=False):
+        sim = _cosine(query_vec, doc_vec)
+        if sim >= min_score:
+            scored.append((strategy, sim))
+    scored.sort(key=lambda pair: pair[1], reverse=True)
     return [
         s.model_dump(by_alias=True, exclude_none=True, mode="json")
         for s, _ in scored[:limit]

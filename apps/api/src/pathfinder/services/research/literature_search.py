@@ -12,6 +12,7 @@ from pathfinder.domain.research.citations import (
     LiteratureSort,
     LiteratureSource,
 )
+from pathfinder.platform.errors import ExternalServiceError
 from pathfinder.services.research.clients import (
     ArxivClient,
     CrossrefClient,
@@ -261,7 +262,13 @@ class LiteratureSearchService:
                         citations=res.citations,
                     ),
                 )
-            except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
+            except (
+                httpx.HTTPError,
+                ExternalServiceError,
+                ValueError,
+                TypeError,
+                KeyError,
+            ) as exc:
                 return (name, SourcePayload(error=str(exc)))
 
         pairs = await asyncio.gather(*(_safe(name, coro) for name, coro in tasks))

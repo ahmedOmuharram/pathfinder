@@ -26,6 +26,10 @@ import numpy as np
 from fastembed import TextEmbedding
 from numpy.typing import NDArray
 
+from pathfinder.integrations.embeddings.prefixes import (
+    SEARCH_DOCUMENT_PREFIX,
+    SEARCH_QUERY_PREFIX,
+)
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 from pathfinder.platform.logging import get_logger
 
@@ -197,7 +201,7 @@ class SemanticSearchIndex:
 
         # Cache miss — encode with fastembed.
         model = get_embedding_model()
-        texts = [f"search_document: {e.enriched_text}" for e in self.entries]
+        texts = [f"{SEARCH_DOCUMENT_PREFIX}{e.enriched_text}" for e in self.entries]
         self.embeddings = np.array(list(model.embed(texts, batch_size=8)))
         _save_cache(self.site_id, h, self.embeddings)
         # Free encoding intermediates before moving to the next site.
@@ -221,7 +225,7 @@ class SemanticSearchIndex:
             return []
 
         model = get_embedding_model()
-        query_emb = np.array(list(model.embed([f"search_query: {query_text}"])))
+        query_emb = np.array(list(model.embed([f"{SEARCH_QUERY_PREFIX}{query_text}"])))
         similarities = (self.embeddings @ query_emb.T).flatten()
 
         top_indices = np.argsort(similarities)[::-1][:top_k]
