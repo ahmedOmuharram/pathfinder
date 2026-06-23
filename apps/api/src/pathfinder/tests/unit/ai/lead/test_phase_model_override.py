@@ -56,7 +56,7 @@ def _ctx(
 
 def test_default_phase_model_translated_to_responses() -> None:
     kwargs = _phase_override_kwargs(_ctx(), "discovery")
-    assert kwargs["model"] == "openai-responses:gpt-4.1-mini"
+    assert kwargs["model"] == "openai-responses:gpt-5-mini"
 
 
 def test_anthropic_pick_enables_caching() -> None:
@@ -96,4 +96,4 @@ def test_reasoning_effort_composes_with_caching() -> None:
 def test_phase_default_model_id_stays_stable_for_cost() -> None:
     # The readback id used for cost attribution must remain the stable
     # ``openai:`` id, NOT the translated ``openai-responses:`` inference name.
-    assert _phase_default_model_id("discovery") == "openai:gpt-4.1-mini"
+    assert _phase_default_model_id("discovery") == "openai:gpt-5-mini"

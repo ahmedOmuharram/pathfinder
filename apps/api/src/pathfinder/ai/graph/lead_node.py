@@ -319,20 +319,20 @@ def _build_state_delta(
     return delta
 
 
-def _rescope_on_clarification_reply(state: PipelineState) -> None:
-    """Force a re-scope when the user replies to scoping's blocking questions.
+def _request_rescope_on_clarification_reply(state: PipelineState) -> None:
+    """Request a re-scope when the user replies to scoping's blocking questions.
 
-    The user's reply is the answer to those clarifying questions — and it may
-    override a structured assumption scoping defaulted (organism_scope,
-    record_type, a threshold). Discovery trusts the STRUCTURED frame, not the
-    raw reply, so if the frame isn't rebuilt the override is silently dropped
-    (conv-L: an explicit 'ALL Plasmodium' answer lost to the turn-1
-    'P. falciparum 3D7' default because the frame's term overlap made it
-    'match' and scoping never re-ran). Clearing the frame forces the Lead to
-    re-scope, folding the answer into the frame's structured fields. The
-    reply is in message_history, so scoping rebuilds with full context and
-    won't re-ask what was just answered (no loop).
+    The reply answers those questions and may override a structured assumption
+    scoping defaulted (organism_scope, record_type, a threshold). Discovery
+    trusts the STRUCTURED frame, so the frame must be updated. We set a transient
+    flag (NOT clear the frame): the frame is scoping's only cross-turn memory, so
+    clearing it makes scoping re-derive blind and re-ask the same questions
+    forever (conversation 5edf9e38). With the frame kept, the re-scope reads it
+    (pinned frame + ledger), folds the answer in, and converges.
+
+    Reset-then-set so a stale flag from a prior turn never lingers.
     """
+    state.rescope_requested = False
     if state.pending_approval is not None:
         return
     if not state.user_prompt.strip():
@@ -340,7 +340,7 @@ def _rescope_on_clarification_reply(state: PipelineState) -> None:
     frame = state.problem_frame
     if frame is None or not frame.blocking_questions:
         return
-    state.problem_frame = None
+    state.rescope_requested = True
 
 
 async def lead_node(
@@ -375,7 +375,7 @@ async def lead_node(
         emit_turn_usage(writer, total_tokens, cost_usd)
 
     working_state = state.model_copy(deep=True)
-    _rescope_on_clarification_reply(working_state)
+    _request_rescope_on_clarification_reply(working_state)
     deps = LeadDeps(
         state=working_state,
         intent=state.user_intent,

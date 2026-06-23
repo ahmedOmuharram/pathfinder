@@ -21,6 +21,21 @@ def make_settings(**overrides: object) -> Settings:
     return Settings(_env_file=None, **values)
 
 
+def test_piguard_enabled_defaults_true() -> None:
+    assert make_settings().piguard_enabled is True
+
+
+def test_piguard_can_be_disabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIGUARD_ENABLED", "false")
+    settings = Settings(
+        api_env="test",
+        api_secret_key="pathfinder-test-secret-key-1234567890",
+        database_url="postgresql+asyncpg://postgres:postgres@db:5432/pathfinder",
+        pathfinder_chat_provider="mock",
+    )
+    assert settings.piguard_enabled is False
+
+
 def test_mock_provider_is_rejected_outside_development() -> None:
     with pytest.raises(
         ValueError,

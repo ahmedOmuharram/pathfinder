@@ -10,6 +10,7 @@ from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_discovered_searches,
     pinned_graph_state,
+    pinned_ledger,
     pinned_scratchpad,
     pinned_user_memories,
 )
@@ -158,7 +159,7 @@ voice from your typed delta + the resulting Ledger.
 """
 
 execution_agent: Agent[AgentDeps, RecoveryDelta | DeferredToolRequests] = Agent(
-    "openai:gpt-4.1-mini",
+    "openai:gpt-5-mini",
     output_type=[RecoveryDelta, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_EXECUTION_INSTRUCTIONS,
@@ -185,6 +186,7 @@ for _fn in (
     pinned_graph_state,
     pinned_user_memories,
     pinned_scratchpad,
+    pinned_ledger,
     pinned_discovered_searches,
 ):
     execution_agent.instructions(_fn)

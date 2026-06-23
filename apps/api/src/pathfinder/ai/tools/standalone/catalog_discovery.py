@@ -37,6 +37,7 @@ from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
     format_search_overview,
 )
+from pathfinder.services.catalog.param_dag import resolve_parameter_dag
 from pathfinder.services.catalog.param_formatting import (
     GetParameterOptionsResult,
     ParameterInfo,
@@ -74,6 +75,7 @@ class ResolvedParamSummary(CamelModel):
     help: str = ""
     default_value: str | None = None
     accepted_values: list[str] | None = None
+    resolved_value: str | None = None
     note: str = ""
 
 
@@ -324,12 +326,12 @@ async def resolve_search_parameters(
 ) -> ResolvedSearchParams:
     """Resolve EVERY required parameter of an inspected search in one call.
 
-    Fetches the search schema and, for each required param, records its
-    accepted values into the discovery vocab snapshot (the same store
-    ``get_parameter_options`` writes) so planning copies validated values
-    instead of guessing. Call this after ``get_search_overview`` and before
-    selecting the search — selection is blocked until required params are
-    resolved.
+    Walks the parameter dependency DAG, refreshing each dependent param's
+    vocabulary under its resolved parent, and snapshots every required param's
+    vocab so planning copies validated values. Per param the result carries
+    either a ``resolved_value`` (a single forced value, use as-is) or
+    ``accepted_values`` to pick from. Call after ``get_search_overview`` and
+    before selecting — selection is blocked until required params are resolved.
 
     Args:
         ctx: Agent run context.
@@ -349,26 +351,19 @@ async def resolve_search_parameters(
         raise ModelRetry(_did_you_mean(search_name, discovered, kind="search_name"))
 
     rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
-    client = get_wdk_client(deps.site_id)
-    details = await client.get_search_details(rt, search_name, expand_params=True)
-    all_params: list[WDKParameter] = details.search_data.parameters or []
-
-    depends_on: dict[str, list[str]] = {}
-    controls: dict[str, list[str]] = {}
-    for p in all_params:
-        base: WDKBaseParameter = p
-        if base.dependent_params:
-            controls[base.name] = list(base.dependent_params)
-            for dep in base.dependent_params:
-                depends_on.setdefault(dep, []).append(base.name)
-
-    by_name = {p.name: p for p in all_params}
+    chosen = {k: v for k, v in overview.param_hints.items() if isinstance(v, str)}
+    resolution = await resolve_parameter_dag(
+        site_id=deps.site_id,
+        record_type=rt,
+        search_name=search_name,
+        chosen_values=chosen,
+    )
+    auto_values = {a.name: a.value for a in resolution.auto_resolved}
+    required = set(overview.required_params)
     summaries: list[ResolvedParamSummary] = []
-    for pname in overview.required_params:
-        wdk_p = by_name.get(pname)
-        if wdk_p is None:
+    for info in resolution.param_infos:
+        if info.name not in required:
             continue
-        info = format_typed_param(wdk_p, depends_on=depends_on, controls=controls)
         _snapshot_param_vocab(deps, search_name, info)
         accepted: list[str] | None = None
         note = ""
@@ -387,6 +382,7 @@ async def resolve_search_parameters(
                 help=info.help,
                 default_value=info.default_value,
                 accepted_values=accepted,
+                resolved_value=auto_values.get(info.name),
                 note=note,
             ),
         )

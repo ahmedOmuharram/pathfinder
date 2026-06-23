@@ -104,7 +104,7 @@ class Settings(BaseSettings):
 
     # Unified model defaults — provider + tier resolve to per-phase models.
     default_provider: ModelProvider = "openai"
-    default_tier: TierName = "fast"
+    default_tier: TierName = "default"
 
     # VEuPathDB
     veupathdb_default_site: str = "veupathdb"
@@ -122,6 +122,9 @@ class Settings(BaseSettings):
 
     # Conversation provider (set to "mock" for deterministic offline E2E testing)
     pathfinder_chat_provider: str = ""
+
+    # Security — prompt-injection screening (PIGuard ONNX model)
+    piguard_enabled: bool = True
 
     # Logging
     log_level: str = "INFO"

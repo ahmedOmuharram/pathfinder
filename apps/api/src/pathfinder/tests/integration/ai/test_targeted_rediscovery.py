@@ -129,6 +129,8 @@ async def test_keep_prior_selections_targets_and_seeds(
         seeded.agent_state.discovered_searches["GenesByInterproDomain"].selection_status
         == "selected"
     )
+    # The sub-agent is handed the Lead's ledger as read-only shared context.
+    assert "## Discovery" in seeded.ledger_summary
 
 
 async def test_default_discovery_has_no_targeted_directive(

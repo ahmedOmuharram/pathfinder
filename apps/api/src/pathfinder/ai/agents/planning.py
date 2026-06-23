@@ -12,6 +12,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_active_plan,
     pinned_discovered_searches,
     pinned_graph_state,
+    pinned_ledger,
     pinned_problem_frame,
     pinned_scratchpad,
     pinned_user_memories,
@@ -208,7 +209,7 @@ The Lead synthesizes the user's voice from your typed delta.
 """
 
 planning_agent: Agent[AgentDeps, PlanDelta | DeferredToolRequests] = Agent(
-    "openai:gpt-4.1-mini",
+    "openai:gpt-5-mini",
     output_type=[PlanDelta, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
@@ -233,6 +234,7 @@ for _fn in (
     pinned_active_plan,
     pinned_user_memories,
     pinned_scratchpad,
+    pinned_ledger,
     pinned_discovered_searches,
 ):
     planning_agent.instructions(_fn)

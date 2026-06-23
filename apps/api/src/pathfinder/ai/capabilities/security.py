@@ -12,6 +12,7 @@ from pathfinder.ai.capabilities.piguard import (
     SecurityRejectionError,
     resolve_model_dir,
 )
+from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -133,6 +134,8 @@ _scanner = UserInputScanner()
 
 async def scan_user_input(text: str, *, is_approval_reply: bool = False) -> None:
     """Offload the CPU-bound scan to a thread so the event loop stays free."""
+    if not get_settings().piguard_enabled:
+        return
     await asyncio.to_thread(_scanner.scan, text, is_approval_reply=is_approval_reply)
 
 

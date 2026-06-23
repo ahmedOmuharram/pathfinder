@@ -128,8 +128,8 @@ def sub_agent_model_id(tool_name: str) -> str:
 class SubAgentRunUsage:
     """Per-run usage from one sub-agent dispatch — fed back to lead_node so
     sub-agent tokens roll into the cumulative turn cost using the
-    sub-agent's own model pricing (the Lead's pricing would be wrong;
-    Lead is gpt-4.1, sub-agents are gpt-4.1-mini)."""
+    sub-agent's own model pricing (each phase may run a different model, so
+    the Lead's pricing would be wrong for a sub-agent's tokens)."""
 
     usage: RunUsage
     model_name: str | None

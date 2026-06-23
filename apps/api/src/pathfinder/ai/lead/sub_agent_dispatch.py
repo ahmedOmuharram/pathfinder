@@ -22,6 +22,7 @@ from pathfinder.ai.lead.deltas import (
     RecoveryDelta,
     VerificationDelta,
 )
+from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.plan_reconcile import reconcile_plan_with_replacements
 from pathfinder.ai.lead.sub_agent_tools import (
     LeadDeps,
@@ -58,6 +59,7 @@ def _agent_deps(deps: LeadDeps) -> AgentDeps:
             active_plan=state.active_plan,
         ),
         problem_frame=state.problem_frame,
+        ledger_summary=derive_ledger(state, deps.intent).render_summary(),
         experiment_id=runtime.experiment_id,
         cancel_event=runtime.cancel_event,
         memory_store=runtime.memory_store,
@@ -105,6 +107,8 @@ async def scope_problem(
         msg = "Scoping sub-agent did not return a FrameDelta."
         raise RuntimeError(msg)
     deps.state.problem_frame = delta.frame
+    # Consumed: scoping has folded the reply in — don't re-scope again this turn.
+    deps.state.rescope_requested = False
     return delta
 
 

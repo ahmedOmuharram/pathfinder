@@ -80,6 +80,16 @@ def pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return render_graph_state(graph, session.sync_state)
 
 
+def pinned_ledger(ctx: RunContext[AgentDeps]) -> str | None:
+    """The Lead's investigation ledger (curated structured state) — what's
+    framed, discovered, planned, built, verified. Read-only shared context so
+    a sub-agent knows what's already resolved and doesn't redo or re-ask it."""
+    summary = ctx.deps.ledger_summary
+    if not summary.strip():
+        return None
+    return f"## Investigation ledger (read-only)\n{summary}"
+
+
 def pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
     memories = ctx.deps.retrieved_memories
     if not memories:
@@ -164,6 +174,8 @@ def _render_search(name: str, ov: SearchOverview) -> list[str]:
         out.append(f"    why: {ov.rationale}")
     if ov.selection_reason:
         out.append(f"    decision: {ov.selection_reason}")
+    if ov.selection_status == "rejected":
+        return out
     if ov.required_params:
         out.append(f"    required params: {', '.join(ov.required_params)}")
     if ov.param_hints:

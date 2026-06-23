@@ -1,14 +1,12 @@
-"""``resolve_search_parameters`` resolves and snapshots the vocabulary for
-every REQUIRED param of a selected search in one call — so planning copies
-validated values instead of guessing (the GenesByGoTerm go_term_evidence=EXP
-thrash). It reuses the same WDK fetch + format_typed_param + _snapshot_param_vocab
-machinery as get_parameter_options, looped over the required params.
-"""
+"""``resolve_search_parameters`` delegates to the DAG resolver, snapshots every
+required param's (context-refreshed) vocab, and returns accepted values plus the
+Tier-1 ``resolved_value`` — so planning copies validated values instead of
+guessing. The inspection guard is unchanged."""
 
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic_ai.exceptions import ModelRetry
@@ -16,6 +14,7 @@ from pydantic_ai.exceptions import ModelRetry
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.tools.standalone import catalog_discovery
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
+from pathfinder.services.catalog.param_dag import AutoResolved, DagResolution
 from pathfinder.services.catalog.param_formatting import ParameterInfo
 
 
@@ -25,13 +24,6 @@ def _ctx_with_state(state: AgentToolState) -> Any:
     ctx.deps.site_id = "plasmodb"
     ctx.deps.agent_state = state
     return ctx
-
-
-def _wdk_param(name: str) -> Any:
-    p = MagicMock()
-    p.name = name
-    p.dependent_params = []
-    return p
 
 
 def _go_search() -> SearchOverview:
@@ -45,64 +37,59 @@ def _go_search() -> SearchOverview:
     )
 
 
-_INFO: dict[str, ParameterInfo] = {
-    "organism": ParameterInfo(
-        name="organism",
-        display_name="organism",
-        type="multi-pick-vocabulary",
+def _pinfo(
+    name: str,
+    ptype: str,
+    *,
+    allowed: list[VocabOption] | None = None,
+    tree: str | None = None,
+    default: str | None = None,
+) -> ParameterInfo:
+    return ParameterInfo(
+        name=name,
+        display_name=name,
+        type=ptype,
         required=True,
         is_visible=True,
-        help="organisms",
-        value_format='{"type": "multi-pick-vocabulary"}',
-        default_value=None,
-        allowed_values_tree="Plasmodium\n  P. falciparum 3D7",
-    ),
-    "go_term": ParameterInfo(
-        name="go_term",
-        display_name="GO term",
-        type="string",
-        required=True,
-        is_visible=True,
-        help="legacy widget; use N/A",
-        value_format='{"type": "string"}',
-        default_value="N/A",
-    ),
-    "go_term_evidence": ParameterInfo(
-        name="go_term_evidence",
-        display_name="Evidence",
-        type="multi-pick-vocabulary",
-        required=True,
-        is_visible=True,
-        help="evidence class",
-        value_format='{"type": "multi-pick-vocabulary"}',
-        default_value=None,
-        allowed_values=[
-            VocabOption(value="Curated", display="Curated"),
-            VocabOption(value="Computed", display="Computed"),
-        ],
-    ),
-}
+        help=f"{name} help",
+        value_format="",
+        default_value=default,
+        allowed_values=allowed,
+        allowed_values_tree=tree,
+    )
+
+
+_RESOLUTION = DagResolution(
+    auto_resolved=[AutoResolved(name="go_term", value="N/A")],
+    param_infos=[
+        _pinfo("organism", "multi-pick-vocabulary", tree="Plasmodium\n  P. falciparum"),
+        _pinfo(
+            "go_term",
+            "string",
+            allowed=[VocabOption(value="N/A", display="N/A")],
+            default="N/A",
+        ),
+        _pinfo(
+            "go_term_evidence",
+            "multi-pick-vocabulary",
+            allowed=[
+                VocabOption(value="Curated", display="Curated"),
+                VocabOption(value="Computed", display="Computed"),
+            ],
+        ),
+    ],
+)
 
 
 def _patch(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _resolve(*_a: Any, **_k: Any) -> str:
+    async def _resolve_rt(*_a: Any, **_k: Any) -> str:
         return "transcript"
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    async def _resolver(**_k: Any) -> DagResolution:
+        return _RESOLUTION
 
-    fake_details = MagicMock()
-    fake_details.search_data.parameters = [
-        _wdk_param(n)
-        for n in ("organism", "go_typeahead", "go_term", "go_term_evidence")
-    ]
-    client = MagicMock()
-    client.get_search_details = AsyncMock(return_value=fake_details)
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
-    monkeypatch.setattr(
-        catalog_discovery,
-        "format_typed_param",
-        lambda p, **_k: _INFO[p.name],
-    )
+    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve_rt)
+    monkeypatch.setattr(catalog_discovery, "resolve_parameter_dag", _resolver)
 
 
 @pytest.mark.asyncio
@@ -119,7 +106,6 @@ async def test_resolve_snapshots_all_required_params(
 
     overview = state.get_overview("GenesByGoTerm")
     assert overview is not None
-    # Every required param is now snapshotted (not just the one queried earlier).
     assert {"organism", "go_term", "go_term_evidence"} <= set(overview.param_vocab)
     ev = overview.param_vocab["go_term_evidence"]
     assert ev.allowed_values is not None
@@ -127,7 +113,7 @@ async def test_resolve_snapshots_all_required_params(
 
 
 @pytest.mark.asyncio
-async def test_resolve_result_lists_accepted_values(
+async def test_resolve_result_lists_accepted_and_resolved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = AgentToolState()
@@ -137,17 +123,19 @@ async def test_resolve_result_lists_accepted_values(
     result = await catalog_discovery.resolve_search_parameters(
         _ctx_with_state(state), search_name="GenesByGoTerm"
     )
+
     blob = result.model_dump_json()
-    assert "go_term_evidence" in blob
     assert "Curated" in blob
     assert "Computed" in blob
+    go_term = next(p for p in result.params if p.name == "go_term")
+    assert go_term.resolved_value == "N/A"
 
 
 @pytest.mark.asyncio
 async def test_resolve_requires_prior_inspection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    state = AgentToolState()  # nothing inspected
+    state = AgentToolState()
     _patch(monkeypatch)
     with pytest.raises(ModelRetry):
         await catalog_discovery.resolve_search_parameters(

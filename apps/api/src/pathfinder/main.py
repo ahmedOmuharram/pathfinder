@@ -90,13 +90,17 @@ async def _warm_up_subsystems() -> None:
         logger.exception("[warm-up] Embedding model failed")
         readiness.mark_failed("embedding_model", str(e))
 
-    try:
-        logger.info("[warm-up] Loading PIGuard ONNX model")
-        warm_up_piguard()
+    if get_settings().piguard_enabled:
+        try:
+            logger.info("[warm-up] Loading PIGuard ONNX model")
+            warm_up_piguard()
+            readiness.mark_ready("piguard")
+        except (AppError, OSError, RuntimeError) as e:
+            logger.exception("[warm-up] PIGuard failed")
+            readiness.mark_failed("piguard", str(e))
+    else:
+        logger.info("[warm-up] PIGuard disabled (PIGUARD_ENABLED=false); skipping")
         readiness.mark_ready("piguard")
-    except (AppError, OSError, RuntimeError) as e:
-        logger.exception("[warm-up] PIGuard failed")
-        readiness.mark_failed("piguard", str(e))
 
     try:
         logger.info("[warm-up] Preloading discovery catalogs (all sites)")

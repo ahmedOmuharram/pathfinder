@@ -318,7 +318,7 @@ _consult_user_tool: Tool[LeadDeps] = Tool(
 
 
 lead_agent: Agent[LeadDeps, LeadResponse | DeferredToolRequests] = Agent(
-    "openai:gpt-4.1",
+    "openai:gpt-5-mini",
     output_type=[LeadResponse, DeferredToolRequests],
     deps_type=LeadDeps,
     instructions=LEAD_INSTRUCTIONS,
@@ -341,7 +341,7 @@ lead_agent: Agent[LeadDeps, LeadResponse | DeferredToolRequests] = Agent(
         _submit_plan_tool,
     ],
     capabilities=[
-        Thinking(effort="high"),
+        Thinking(effort="medium"),
         *(ProcessHistory[LeadDeps](p) for p in PHASE_HISTORY_PROCESSORS),
     ],
     retries=3,

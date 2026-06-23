@@ -1,18 +1,18 @@
-"""When the user replies to scoping's blocking clarifying questions, the frame
-must be re-scoped so the answer folds into the STRUCTURED frame fields
-(organism_scope, record_type, …). Otherwise discovery trusts the stale frame
-default and silently ignores the user's explicit override — the conv-L bug
-where 'ALL Plasmodium' was dropped in favor of the turn-1 'P. falciparum 3D7'
-default because scoping never re-ran.
+"""When the user replies to scoping's blocking questions, the frame must be
+RE-SCOPED so the answer folds into the structured fields — but the frame must
+SURVIVE (it is scoping's only cross-turn memory). Clearing it made scoping
+amnesiac and re-ask the same questions forever (conversation 5edf9e38). So we
+set a transient ``rescope_requested`` flag and keep the frame.
 """
 
 from __future__ import annotations
 
 from uuid import uuid4
 
-from pathfinder.ai.graph.lead_node import _rescope_on_clarification_reply
+from pathfinder.ai.graph.lead_node import _request_rescope_on_clarification_reply
 from pathfinder.ai.graph.state import (
     ClarificationQuestion,
+    PendingApproval,
     PipelineState,
     ProblemFrame,
 )
@@ -40,15 +40,16 @@ def _frame_with_blocking() -> ProblemFrame:
     )
 
 
-def test_reply_to_blocking_questions_forces_rescope() -> None:
+def test_reply_to_blocking_questions_requests_rescope_and_keeps_frame() -> None:
+    frame = _frame_with_blocking()
     state = _state(
-        problem_frame=_frame_with_blocking(),
+        problem_frame=frame,
         user_prompt="Use ALL Plasmodium species, not just 3D7.",
     )
-    _rescope_on_clarification_reply(state)
-    # Frame is cleared so the Lead re-runs scoping and rebuilds organism_scope
-    # from the user's answer instead of trusting the stale default.
-    assert state.problem_frame is None
+    _request_rescope_on_clarification_reply(state)
+    assert state.rescope_requested is True
+    # The frame SURVIVES so scoping keeps its memory and merges the answer.
+    assert state.problem_frame is frame
 
 
 def test_no_rescope_when_frame_has_no_blocking_questions() -> None:
@@ -58,12 +59,39 @@ def test_no_rescope_when_frame_has_no_blocking_questions() -> None:
         organism_scope="Plasmodium falciparum 3D7",
     )
     state = _state(problem_frame=frame, user_prompt="anything")
-    _rescope_on_clarification_reply(state)
-    assert state.problem_frame is frame  # untouched
+    _request_rescope_on_clarification_reply(state)
+    assert state.rescope_requested is False
+    assert state.problem_frame is frame
 
 
 def test_no_rescope_when_no_user_reply() -> None:
-    frame = _frame_with_blocking()
-    state = _state(problem_frame=frame, user_prompt="")
-    _rescope_on_clarification_reply(state)
-    assert state.problem_frame is frame  # nothing to fold in
+    state = _state(problem_frame=_frame_with_blocking(), user_prompt="")
+    _request_rescope_on_clarification_reply(state)
+    assert state.rescope_requested is False
+
+
+def test_no_rescope_during_pending_approval() -> None:
+    state = _state(
+        problem_frame=_frame_with_blocking(),
+        user_prompt="approve",
+        pending_approval=PendingApproval(
+            phase="lead",
+            tool_call_id="c1",
+            tool_name="submit_plan_for_approval",
+            tool_args={},
+        ),
+    )
+    _request_rescope_on_clarification_reply(state)
+    assert state.rescope_requested is False
+
+
+def test_flag_is_reset_when_condition_no_longer_holds() -> None:
+    # A stale True flag from a prior turn must be cleared when this turn has
+    # nothing to re-scope (no blocking questions).
+    state = _state(
+        problem_frame=ProblemFrame(user_goal="g", interpreted_goal="g"),
+        user_prompt="hi",
+        rescope_requested=True,
+    )
+    _request_rescope_on_clarification_reply(state)
+    assert state.rescope_requested is False

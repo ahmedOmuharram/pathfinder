@@ -10,7 +10,9 @@ from pathfinder.ai.agents._history_processor import (
 from pathfinder.ai.agents._hooks import apply_discovery_hook
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
+    pinned_discovered_searches,
     pinned_graph_state,
+    pinned_ledger,
     pinned_problem_frame,
     pinned_scratchpad,
     pinned_user_memories,
@@ -53,9 +55,10 @@ for ``GenesByOrthologPattern``.
 schema, types, constraints, dependencies. Registers the search in the \
 discovery gate. **MUST be called before any later phase can use the search.**
 - ``get_parameter_options(search_name, param_name, record_type?, \
-context_values?, query?)`` — Get vocabulary/allowed values for one parameter. \
-Pass ``context_values`` for dependent parameter refresh. Use ``query`` to \
-filter large vocabularies (e.g. ``query="cruzi"``).
+context_values?, query?)`` — Use ONLY to filter a large tree vocabulary by \
+``query`` (e.g. ``query="cruzi"``). Normal resolution, including \
+dependent-param refresh, is done for you by ``resolve_search_parameters`` — \
+do not hand-probe parameters one at a time.
 - ``get_parameter_dependencies(search_name, record_type?)`` — Parameter \
 dependency DAG with topological fill order.
 - ``update_search_decision(search_name, selection_status, rationale, \
@@ -114,10 +117,10 @@ to understand vocabularies and dependent parameter chains.
 When the user's question is "X vs Y" (e.g. gametocytes vs asexual blood \
 stages, infected vs uninfected, treated vs control), the chosen search's \
 sample/condition vocabulary MUST contain BOTH sides. Before committing \
-the search via ``update_search_decision``: call ``get_parameter_options`` \
-on the comparison/sample param (and on each parent of a dependent vocab) \
-and confirm both X-side and Y-side values are present in ``allowedValues`` \
-or the tree. If only one side is in vocab — the dataset is single-stage \
+the search via ``update_search_decision``: call \
+``resolve_search_parameters(search_name)`` and confirm both X-side and Y-side \
+values appear in the ``accepted_values`` it returns for the comparison/sample \
+param (it has already refreshed dependent vocab under each resolved parent). If only one side is in vocab — the dataset is single-stage \
 or single-condition — the search does NOT fit. Reject it with \
 ``selection_status="rejected"`` and look for a different search whose \
 vocab spans both sides. fa2deb2b regression: a gametocyte-only RNA-Seq \
@@ -126,11 +129,13 @@ verified that "asexual blood stages" was in the sample vocab. Don't \
 repeat that.
 
 **Resolve params before selecting (REQUIRED).** Before you mark a search \
-``selected``, call ``resolve_search_parameters(search_name)`` once — it \
-returns the accepted values for EVERY required parameter and records them so \
-planning copies validated values instead of guessing. Selection is refused \
-until the required params are resolved. Pick your ``param_hints`` from the \
-accepted values it returns; never invent param values.
+``selected``, call ``resolve_search_parameters(search_name)`` once. It walks \
+the parameter dependency DAG and returns, per required param, either a \
+``resolved_value`` (a single forced value — use as-is) or ``accepted_values`` \
+to choose from. Map the user's intent to a value from ``accepted_values`` \
+(e.g. which sample group is the gametocyte side) and set it via ``param_hints``; \
+leave anything genuinely ambiguous for the user. Never invent param values; \
+selection is refused until required params are resolved.
 
 After you've inspected a search and reached a verdict on it, call \
 `update_search_decision` to commit that verdict — set ``selection_status`` \
@@ -199,7 +204,7 @@ _discovery_hooks: Hooks[AgentDeps] = Hooks(
 )
 
 discovery_agent: Agent[AgentDeps, DiscoveryDelta] = Agent(
-    "openai:gpt-4.1-mini",
+    "openai:gpt-5-mini",
     output_type=DiscoveryDelta,
     deps_type=AgentDeps,
     instructions=_DISCOVERY_INSTRUCTIONS,
@@ -223,6 +228,8 @@ for _fn in (
     pinned_graph_state,
     pinned_user_memories,
     pinned_scratchpad,
+    pinned_ledger,
+    pinned_discovered_searches,
 ):
     discovery_agent.instructions(_fn)
 

@@ -33,6 +33,8 @@ services:
       LOG_FORMAT: ${LOG_FORMAT:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
+      # Set PIGUARD_ENABLED=false to skip the prompt-injection model load + per-message scan.
+      PIGUARD_ENABLED: ${PIGUARD_ENABLED:-true}
       # Dev WDK login for the chat debugger (pathfinder.devtools.chat); set in .env.dev.
       WDK_DEV_EMAIL: ${WDK_DEV_EMAIL:-}
       WDK_DEV_PASSWORD: ${WDK_DEV_PASSWORD:-}

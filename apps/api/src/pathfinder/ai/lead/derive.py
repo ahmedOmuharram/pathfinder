@@ -115,7 +115,12 @@ def _derive_frame_section(
     if frame is None:
         return FrameSection(frame=None, matches_current_intent=False)
 
-    matches = _frame_matches_intent(frame.user_goal, intent)
+    # A pending re-scope (user just answered scoping's blocking questions)
+    # forces frame.needed True so scoping re-runs and folds the answer in —
+    # but the frame stays so scoping keeps its memory.
+    matches = not state.rescope_requested and _frame_matches_intent(
+        frame.user_goal, intent
+    )
     return FrameSection(
         frame=frame,
         matches_current_intent=matches,

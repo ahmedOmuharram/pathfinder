@@ -41,6 +41,23 @@ class TierPreset(CamelModel):
 
 
 _ANTHROPIC: dict[TierName, TierPreset] = {
+    "default": TierPreset(
+        scoping=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        discovery=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        planning=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        execution=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        verification=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+    ),
     "quality": TierPreset(
         scoping=PhaseTierConfig(
             model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
@@ -113,24 +130,52 @@ _OPENAI: dict[TierName, TierPreset] = {
             model_id="openai:gpt-4.1", reasoning_effort="medium"
         ),
     ),
-    "fast": TierPreset(
-        scoping=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
+    "default": TierPreset(
+        scoping=PhaseTierConfig(
+            model_id="openai:gpt-5-mini", reasoning_effort="medium"
+        ),
         discovery=PhaseTierConfig(
-            model_id="openai:gpt-4.1-mini", reasoning_effort="low"
+            model_id="openai:gpt-5-mini", reasoning_effort="medium"
         ),
         planning=PhaseTierConfig(
-            model_id="openai:gpt-4.1-mini", reasoning_effort="low"
+            model_id="openai:gpt-5-mini", reasoning_effort="medium"
         ),
         execution=PhaseTierConfig(
-            model_id="openai:gpt-4.1-mini", reasoning_effort="low"
+            model_id="openai:gpt-5-mini", reasoning_effort="medium"
         ),
         verification=PhaseTierConfig(
-            model_id="openai:gpt-4.1-mini", reasoning_effort="low"
+            model_id="openai:gpt-5-mini", reasoning_effort="medium"
+        ),
+    ),
+    "fast": TierPreset(
+        scoping=PhaseTierConfig(model_id="openai:gpt-5-mini", reasoning_effort="low"),
+        discovery=PhaseTierConfig(model_id="openai:gpt-5-mini", reasoning_effort="low"),
+        planning=PhaseTierConfig(model_id="openai:gpt-5-mini", reasoning_effort="low"),
+        execution=PhaseTierConfig(model_id="openai:gpt-5-mini", reasoning_effort="low"),
+        verification=PhaseTierConfig(
+            model_id="openai:gpt-5-mini", reasoning_effort="low"
         ),
     ),
 }
 
 _GOOGLE: dict[TierName, TierPreset] = {
+    "default": TierPreset(
+        scoping=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        discovery=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        planning=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        execution=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        verification=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+    ),
     "quality": TierPreset(
         scoping=PhaseTierConfig(
             model_id="google:gemini-2.5-pro", reasoning_effort="medium"

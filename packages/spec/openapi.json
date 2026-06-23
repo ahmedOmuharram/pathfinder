@@ -13380,6 +13380,7 @@
           "defaultTier": {
             "type": "string",
             "enum": [
+              "default",
               "quality",
               "balanced",
               "fast",
@@ -19346,6 +19347,7 @@
               },
               "propertyNames": {
                 "enum": [
+                  "default",
                   "quality",
                   "balanced",
                   "fast",

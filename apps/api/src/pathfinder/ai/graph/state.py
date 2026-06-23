@@ -267,3 +267,4 @@ class PipelineState(BaseModel):
     )
     created_gene_set_ids: list[str] = Field(default_factory=list)
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
+    rescope_requested: bool = False

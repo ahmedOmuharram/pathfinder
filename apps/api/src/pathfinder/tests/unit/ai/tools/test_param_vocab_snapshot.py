@@ -240,3 +240,47 @@ def test_pinned_discovered_searches_renders_param_vocab() -> None:
     # Param help ("what it does") is surfaced so downstream phases know the
     # meaning of the param, not just its allowed values.
     assert "Tier-quantile floor for read counts" in rendered
+
+
+def test_pinned_discovered_searches_omits_vocab_for_rejected() -> None:
+    """A rejected search shows its name + reason but NOT its param_vocab — the
+    model only needs to remember it rejected it, not re-read full vocabularies
+    for a dataset it threw out (the pinned-notebook cost lever)."""
+    state = AgentToolState()
+    overview = SearchOverview(
+        search_name="GenesByRNASeqGametocytesOnly",
+        display_name="Gametocyte-only RNA-Seq",
+        record_type="transcript",
+        description="",
+        parameter_names=["hard_floor"],
+        required_params=["hard_floor"],
+        selection_status="rejected",
+        rationale="gametocyte-only dataset",
+        selection_reason="sample vocab missing asexual blood stages",
+    )
+    overview = overview.model_copy(
+        update={
+            "param_vocab": {
+                "hard_floor": ParamVocabSnapshot(
+                    param_type="number-enum",
+                    required=True,
+                    help="Tier-quantile floor",
+                    default_value="6772.93",
+                    allowed_values=[VocabOption(value="6772.93", display="6772 reads")],
+                ),
+            },
+        },
+    )
+    state.register_search(overview.search_name, overview)
+
+    ctx = MagicMock()
+    ctx.deps = MagicMock()
+    ctx.deps.agent_state = state
+    rendered = pinned_discovered_searches(ctx)
+    assert rendered is not None
+    # name + reason are kept
+    assert "GenesByRNASeqGametocytesOnly" in rendered
+    assert "sample vocab missing asexual blood stages" in rendered
+    # full vocab is dropped for a rejected search
+    assert "param_vocab" not in rendered
+    assert "6772.93" not in rendered

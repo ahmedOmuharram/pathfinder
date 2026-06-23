@@ -16,7 +16,7 @@ from pathfinder.ai.models.tiers import TIER_PRESETS, PhaseTierConfig
 from pathfinder.transport.http.routers.tiers import TierListResponse, list_tiers
 
 EXPECTED_PROVIDERS: frozenset[str] = frozenset({"anthropic", "openai", "google"})
-EXPECTED_TIERS: frozenset[str] = frozenset({"quality", "balanced", "fast"})
+EXPECTED_TIERS: frozenset[str] = frozenset({"default", "quality", "balanced", "fast"})
 EXPECTED_PHASES: tuple[str, ...] = (
     "scoping",
     "discovery",

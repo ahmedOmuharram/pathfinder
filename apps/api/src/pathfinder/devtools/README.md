@@ -25,12 +25,12 @@ docker compose exec -T api .venv/bin/python -m pathfinder.devtools.chat run \
   --capture-wdk \
   --quiet \
   --run-dir /data/pf-runs/obp/turn1 \
-  --model lead=openai:gpt-4.1-mini \
-  --model scoping=openai:gpt-4.1-mini \
-  --model discovery=openai:gpt-4.1-mini \
-  --model planning=openai:gpt-4.1-mini \
-  --model execution=openai:gpt-4.1-mini \
-  --model verification=openai:gpt-4.1-mini
+  --model lead=openai:gpt-5-mini \
+  --model scoping=openai:gpt-5-mini \
+  --model discovery=openai:gpt-5-mini \
+  --model planning=openai:gpt-5-mini \
+  --model execution=openai:gpt-5-mini \
+  --model verification=openai:gpt-5-mini
 ```
 
 stdout is a clean compact trace + a final summary line with the run-dir path.

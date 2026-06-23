@@ -9,6 +9,7 @@ from pathfinder.ai.agents._history_processor import (
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
+    pinned_ledger,
     pinned_problem_frame,
     pinned_scratchpad,
     pinned_user_memories,
@@ -175,28 +176,31 @@ default as user_explicit.
 **Once you have called `set_problem_frame`, that tool will no longer be \
 available in your toolset.** The frame is saved. Do not keep researching.
 
-## Revision invocations (post-discovery rescoping)
+## Revision invocations (re-scoping an existing frame)
 
-The Lead may invoke you a second time mid-investigation, typically after \
-discovery has surfaced catalog constraints the original frame couldn't \
-predict ("the user agreed to narrow from all strains to 3D7", "no single \
-dataset covers both differential sides — user accepted union of two", \
-etc.). The pinned ``Current Problem Frame`` will already contain the \
-prior scoping output; the work order's ``reason`` will name what \
-changed and why.
+The Lead invokes you a second time when (a) the **user has answered your \
+blocking questions** (their latest message in the work order is the answer), \
+or (b) discovery surfaced catalog constraints the original frame couldn't \
+predict. EITHER way the pinned ``Current Problem Frame`` AND the pinned \
+``Investigation ledger`` already contain your prior output — read them. You \
+are MERGING, not starting over.
 
 When invoked this way:
 
-- DO update the frame fields (organism_scope, success_criteria, \
-  inclusion_criteria, assumptions, ``strategy_sketch``) to reflect \
-  the revision. The sketch in particular often needs updating — \
-  e.g. one leaf becomes two with a UNION combine on top.
-- DO NOT re-ask the original blocking/optional questions verbatim — \
-  the user has already answered them. Carry their answers forward.
-- DO ask a small set of NEW blocking/optional questions only if the \
-  revision exposed new ambiguities (e.g. "with two datasets, do you \
-  want union of upregulated genes, or intersection of consistently \
-  upregulated?"). One or two new questions, not a full re-scope.
+- DO fold the user's answers into the structured frame fields \
+  (``organism_scope``, ``record_type``, thresholds, ``success_criteria``, \
+  ``inclusion_criteria``, ``assumptions``, ``strategy_sketch``). If they said \
+  "all Plasmodium" set ``organism_scope="Plasmodium"``; if "only P. vivax \
+  P01" set that. The sketch often needs updating too.
+- DO **resolve** the blocking questions they answered — remove them from \
+  ``blocking_questions``. Once the open questions are answered, set \
+  ``ready_for_wdk_discovery=true`` so the pipeline proceeds to discovery.
+- DO NOT re-ask anything the frame/ledger shows is already answered or \
+  defaulted. The user already engaged — do not re-trap them.
+- After the user has answered a clarification round, prefer **assumptions + \
+  ``optional_questions``** over new ``blocking_questions``. Raise a new \
+  blocking question ONLY if a genuinely new, investigation-routing ambiguity \
+  appeared (one or two, not a full re-scope). Default the rest and proceed.
 - Bump ``confidence`` when the revision concretizes things.
 
 ## Scratchpad
@@ -231,7 +235,7 @@ plan tools in this phase.
 """
 
 scoping_agent: Agent[AgentDeps, FrameDelta] = Agent(
-    "openai:gpt-4.1-mini",
+    "openai:gpt-5-mini",
     output_type=FrameDelta,
     deps_type=AgentDeps,
     instructions=_SCOPING_INSTRUCTIONS,
@@ -254,5 +258,6 @@ for _fn in (
     pinned_graph_state,
     pinned_user_memories,
     pinned_scratchpad,
+    pinned_ledger,
 ):
     scoping_agent.instructions(_fn)

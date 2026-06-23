@@ -325,6 +325,20 @@ def test_plan_denial_takes_most_recent_denied_response() -> None:
     assert ledger.plan.last_denial_message == "second"
 
 
+def test_rescope_requested_forces_frame_needed_but_keeps_frame() -> None:
+    frame = ProblemFrame(user_goal="X", interpreted_goal="X")
+    state = _state(problem_frame=frame, rescope_requested=True)
+    intent = UserIntent(
+        raw_text="approve",
+        classification=IntentClassification.APPROVAL,
+        inferred_goal="X",
+    )
+    ledger = derive_ledger(state, intent)
+    # Without the flag this frame would match (continuation) → needed False.
+    assert ledger.frame.needed is True
+    assert ledger.frame.frame is frame  # frame survives for scoping's memory
+
+
 def test_render_summary_surfaces_denial_message() -> None:
     plan = _plan_with_user_slot()
     state = _state(

@@ -8533,6 +8533,7 @@ components:
         defaultTier:
           type: string
           enum:
+          - default
           - quality
           - balanced
           - fast
@@ -12288,6 +12289,7 @@ components:
               $ref: '#/components/schemas/TierPreset'
             propertyNames:
               enum:
+              - default
               - quality
               - balanced
               - fast
