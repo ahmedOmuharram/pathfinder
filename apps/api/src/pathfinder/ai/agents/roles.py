@@ -6,18 +6,14 @@ from typing import Literal
 
 PhaseRole = Literal[
     "lead",
-    "scoping",
-    "discovery",
-    "planning",
+    "frame",
     "execution",
     "verification",
 ]
 
 PHASE_ROLES: tuple[PhaseRole, ...] = (
     "lead",
-    "scoping",
-    "discovery",
-    "planning",
+    "frame",
     "execution",
     "verification",
 )

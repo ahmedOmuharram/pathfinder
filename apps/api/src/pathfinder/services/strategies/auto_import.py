@@ -172,6 +172,19 @@ async def import_gene_set_for_conversation(
             if conversation is None:
                 return None
             gene_set_svc = GeneSetService(get_gene_set_store())
+            if (
+                conversation.gene_set_id is not None
+                and conversation.wdk_strategy_id is not None
+            ):
+                # Already linked → re-resolve from the (rebuilt) strategy so a
+                # re-run that changed the result replaces the stale snapshot.
+                resynced = await gene_set_svc.resync_strategy(
+                    conversation.gene_set_id,
+                    wdk_strategy_id=conversation.wdk_strategy_id,
+                    site_id=site_id,
+                )
+                await session.commit()
+                return resynced
             created = await auto_import_gene_sets(
                 [conversation],
                 conv_repo=repo,

@@ -21,8 +21,6 @@ interface ConversationListItemProps {
   isRenaming: boolean;
   renameValue: string;
   isActiveStreaming: boolean;
-  activePhase: string | null;
-  activePhaseStatus: string | null;
   onRenameValueChange: (value: string) => void;
   onCommitRename: (item: ConversationItem) => void;
   onCancelRename: () => void;

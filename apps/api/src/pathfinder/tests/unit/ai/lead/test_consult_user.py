@@ -1,10 +1,9 @@
 """The consult_user deferred tool: a blocking gate that asks the user design
-questions BEFORE a plan is finalized, then hands the answers back to the Lead
-so it can re-run build_plan with them. Mirrors submit_plan_for_approval's
-resume path: pydantic-ai paused on the first call, the user answered in the
-carousel, the next POST carried the approval + a data-user-question-answers
-payload, the backend extracted it into state.user_question_answers, and the
-body now reads it.
+questions at a genuine fork, then hands the answers back to the Lead so it can
+re-run frame_problem with them. pydantic-ai paused on the first call, the user
+answered in the carousel, the next POST carried the approval + a
+data-user-question-answers payload, the backend extracted it into
+state.user_question_answers, and the body now reads it.
 """
 
 from __future__ import annotations
@@ -73,8 +72,8 @@ async def test_returns_user_answers_and_instructs_replan() -> None:
     assert "Fold-change threshold?" in result.content
     assert "2-fold" in result.content
     assert "RNA-seq is enough" in result.content
-    # The Lead is told to re-plan with the answers, not to execute.
-    assert "build_plan" in result.content
+    # The Lead is told to re-frame with the answers, not to execute.
+    assert "frame_problem" in result.content
 
 
 @pytest.mark.asyncio

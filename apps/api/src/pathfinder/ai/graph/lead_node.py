@@ -139,6 +139,11 @@ def _absorb_run_result(
         capture.response = output
     elif isinstance(output, DeferredToolRequests) and output.approvals:
         approval_call = output.approvals[0]
+        # Replay the FULL run history (request + the deferred tool call), not
+        # just new_messages(): when the Lead's first action is the deferred
+        # tool, new_messages() holds only the assistant ToolCallPart with no
+        # leading ModelRequest, which pydantic-ai rejects on resume as an
+        # empty history. all_messages() always carries the user request.
         capture.pending_approval = PendingApproval(
             phase="lead",
             tool_call_id=approval_call.tool_call_id,
@@ -146,7 +151,7 @@ def _absorb_run_result(
             tool_args=approval_call.args_as_dict(),
             plan_id=None,
             prior_messages_json=ModelMessagesTypeAdapter.dump_json(
-                capture.new_messages,
+                list(run_result.all_messages()),
             ).decode(),
         )
     usage = run_result.usage
@@ -301,9 +306,8 @@ def _build_state_delta(
     )
     delta: dict[str, Any] = {
         "user_intent": deps.intent,
-        "problem_frame": deps.state.problem_frame,
+        "operational_spec": deps.state.operational_spec,
         "discovered_searches": dict(deps.state.discovered_searches),
-        "active_plan": deps.state.active_plan,
         "verification_digest": deps.state.verification_digest,
         "last_build_outcome": deps.state.last_build_outcome,
         "retrieved_memories": memories,
@@ -317,30 +321,6 @@ def _build_state_delta(
     if capture.response is not None:
         delta["lead_next_state"] = capture.response.next_state
     return delta
-
-
-def _request_rescope_on_clarification_reply(state: PipelineState) -> None:
-    """Request a re-scope when the user replies to scoping's blocking questions.
-
-    The reply answers those questions and may override a structured assumption
-    scoping defaulted (organism_scope, record_type, a threshold). Discovery
-    trusts the STRUCTURED frame, so the frame must be updated. We set a transient
-    flag (NOT clear the frame): the frame is scoping's only cross-turn memory, so
-    clearing it makes scoping re-derive blind and re-ask the same questions
-    forever (conversation 5edf9e38). With the frame kept, the re-scope reads it
-    (pinned frame + ledger), folds the answer in, and converges.
-
-    Reset-then-set so a stale flag from a prior turn never lingers.
-    """
-    state.rescope_requested = False
-    if state.pending_approval is not None:
-        return
-    if not state.user_prompt.strip():
-        return
-    frame = state.problem_frame
-    if frame is None or not frame.blocking_questions:
-        return
-    state.rescope_requested = True
 
 
 async def lead_node(
@@ -375,7 +355,6 @@ async def lead_node(
         emit_turn_usage(writer, total_tokens, cost_usd)
 
     working_state = state.model_copy(deep=True)
-    _request_rescope_on_clarification_reply(working_state)
     deps = LeadDeps(
         state=working_state,
         intent=state.user_intent,

@@ -28,11 +28,9 @@ from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, sub_agent_model_id
 
 _SUB_AGENT_TOOL_TO_PHASE: dict[str, str] = {
-    "scope_problem": "scoping",
-    "discover_searches": "discovery",
-    "build_plan": "planning",
-    "execute_plan": "execution",
-    "recover_failed_steps": "execution",
+    "frame_problem": "frame",
+    "build_strategy": "build",
+    "recover_failed_steps": "build",
     "verify_strategy": "verification",
 }
 _SUB_AGENT_TOOL_NAMES = frozenset(_SUB_AGENT_TOOL_TO_PHASE.keys())
@@ -77,16 +75,9 @@ def _truncate_summary(text: str, limit: int = 280) -> str:
 def _summarize_sub_agent_call_args(args: dict[str, Any]) -> str:
     """One-line input summary for the SubAgentCallCard 'started' state."""
     reason = args.get("reason")
-    intent_summary = args.get("intent_summary")
-    hints = args.get("hints")
-    parts: list[str] = []
     if isinstance(reason, str) and reason:
-        parts.append(reason)
-    if isinstance(intent_summary, str) and intent_summary:
-        parts.append(f"intent: {intent_summary}")
-    if isinstance(hints, str) and hints:
-        parts.append(f"hints: {hints}")
-    return _truncate_summary(" · ".join(parts))
+        return _truncate_summary(reason)
+    return ""
 
 
 def _summarize_sub_agent_result(result: ToolReturnPart) -> str:
@@ -107,15 +98,6 @@ def _plural(count: int, noun: str) -> str:
     return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
-def _summarize_frame(frame: dict[str, Any]) -> str:
-    open_questions = len(frame.get("blocking_questions", []))
-    if open_questions > 0:
-        return _plural(open_questions, "open question")
-    if frame.get("ready_for_wdk_discovery", False):
-        return "Ready for discovery"
-    return "Problem framed"
-
-
 def _summarize_outcome(outcome: dict[str, Any]) -> str:
     built = len(outcome.get("pushed_step_ids") or [])
     failed = len(outcome.get("failed_steps") or [])
@@ -126,14 +108,13 @@ def _summarize_outcome(outcome: dict[str, Any]) -> str:
 
 def _summarize_delta_dict(data: dict[str, Any]) -> str:
     """Compact, human-readable one-liner from a sub-agent's typed delta."""
-    if "frame" in data:
-        return _summarize_frame(data.get("frame") or {})
-    if "selections" in data or "fit_reports" in data:
-        n = len(data.get("selections") or {})
-        return f"Selected {n} {'search' if n == 1 else 'searches'}"
-    if "plan" in data:
-        steps = (data.get("plan") or {}).get("steps") or []
-        return f"Drafted a {_plural(len(steps), 'step')} plan"
+    if "disposition" in data:
+        disposition = data.get("disposition")
+        if disposition == "needs_user":
+            return _plural(len(data.get("open_questions") or []), "open question")
+        return _truncate_summary(str(data.get("summary") or "Framed"))
+    if "actions_taken" in data:
+        return _plural(len(data.get("actions_taken") or []), "recovery action")
     if "outcome" in data:
         return _summarize_outcome(data.get("outcome") or {})
     if "digest" in data:

@@ -13,9 +13,8 @@ from pathfinder.ai.graph.runtime import (
     AgentDeps,
     Context,
     build_node_deps,
-    extract_state_delta,
 )
-from pathfinder.ai.graph.state import PipelineState, ProblemFrame
+from pathfinder.ai.graph.state import PipelineState
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
@@ -59,8 +58,6 @@ def test_agent_deps_is_pydantic_and_lists_live_fields() -> None:
         "web_search_service",
         "literature_search_service",
         "agent_state",
-        "problem_frame",
-        "problem_frame_set_this_run",
         "ledger_summary",
         "service_outage",
         "tool_repetition_guard",
@@ -71,7 +68,6 @@ def test_agent_deps_is_pydantic_and_lists_live_fields() -> None:
         "conversation_id",
         "db_session_factory",
         "writer",
-        "plan_slot_answers",
     }
 
 
@@ -99,12 +95,8 @@ def test_build_node_deps_copies_state_into_scratchpad() -> None:
         parameter_names=["dataset"],
         required_params=["dataset"],
     )
-    frame = ProblemFrame(user_goal="g", interpreted_goal="g")
     state = state.model_copy(
-        update={
-            "problem_frame": frame,
-            "discovered_searches": {"GenesByExpression": overview},
-        }
+        update={"discovered_searches": {"GenesByExpression": overview}}
     )
     deps = build_node_deps(state, ctx)
     assert deps.site_id == ctx.site_id
@@ -112,7 +104,6 @@ def test_build_node_deps_copies_state_into_scratchpad() -> None:
     assert deps.strategy_session is ctx.strategy_session
     assert deps.web_search_service is ctx.web_search_service
     assert deps.literature_search_service is ctx.literature_search_service
-    assert deps.problem_frame == frame
     assert deps.agent_state.discovered_searches == state.discovered_searches
     assert deps.agent_state.discovered_searches is not state.discovered_searches
 
@@ -136,32 +127,6 @@ def test_build_node_deps_yields_fresh_tool_repetition_guard() -> None:
     deps_a = build_node_deps(state, ctx)
     deps_b = build_node_deps(state, ctx)
     assert deps_a.tool_repetition_guard is not deps_b.tool_repetition_guard
-
-
-def test_extract_state_delta_returns_only_mutable_fields() -> None:
-    ctx = _build_context()
-    state = _build_state()
-    deps = build_node_deps(state, ctx)
-    deps.problem_frame = ProblemFrame(user_goal="g", interpreted_goal="g")
-    deps.agent_state.register_search(
-        "X",
-        SearchOverview(
-            search_name="X",
-            display_name="X",
-            record_type="transcript",
-            description="",
-            parameter_names=[],
-            required_params=[],
-        ),
-    )
-    delta = extract_state_delta(deps)
-    assert set(delta.keys()) == {
-        "problem_frame",
-        "discovered_searches",
-        "active_plan",
-    }
-    assert delta["problem_frame"] is deps.problem_frame
-    assert "X" in delta["discovered_searches"]
 
 
 def test_context_is_a_frozen_dataclass() -> None:

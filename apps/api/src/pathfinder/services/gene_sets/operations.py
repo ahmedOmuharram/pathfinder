@@ -37,6 +37,17 @@ from pathfinder.services.wdk.step_results import StepResultsService
 logger = get_logger(__name__)
 
 
+def _dedup_ordered(gene_ids: list[str]) -> list[str]:
+    """Gene IDs with duplicates removed, preserving first-seen order."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for gid in gene_ids:
+        if gid not in seen:
+            seen.add(gid)
+            out.append(gid)
+    return out
+
+
 class GeneSetService:
     """Orchestrates all gene-set domain operations.
 
@@ -85,14 +96,7 @@ class GeneSetService:
         """Create a gene set, auto-resolving from WDK if needed."""
         ctx = wdk or GeneSetWdkContext()
         gene_ids, ctx, step_count = await resolve_wdk_context(site_id, gene_ids, ctx)
-
-        # Deduplicate gene IDs while preserving order
-        seen: set[str] = set()
-        unique_gene_ids: list[str] = []
-        for gid in gene_ids:
-            if gid not in seen:
-                seen.add(gid)
-                unique_gene_ids.append(gid)
+        unique_gene_ids = _dedup_ordered(gene_ids)
 
         gs = GeneSet(
             id=str(uuid4()),
@@ -113,6 +117,36 @@ class GeneSetService:
             "Gene set created",
             gene_set_id=gs.id,
             name=gs.name,
+            gene_count=len(gs.gene_ids),
+        )
+        return gs
+
+    async def resync_strategy(
+        self, gene_set_id: str, *, wdk_strategy_id: int, site_id: str
+    ) -> GeneSet | None:
+        """Re-resolve a strategy-linked gene set from the (possibly rebuilt) WDK
+        strategy, replacing its stored snapshot. Passes NO step id so the CURRENT
+        root step is resolved — a rebuild can create a new root under the same
+        strategy id — which fixes a set left stale after a re-run changed the
+        result. Returns the updated set, or ``None`` if it no longer exists."""
+        gs = await self._store.aget(gene_set_id)
+        if gs is None:
+            return None
+        gene_ids, ctx, step_count = await resolve_wdk_context(
+            site_id,
+            [],
+            GeneSetWdkContext(
+                wdk_strategy_id=wdk_strategy_id, record_type=gs.record_type
+            ),
+        )
+        gs.gene_ids = _dedup_ordered(gene_ids)
+        gs.wdk_strategy_id = ctx.wdk_strategy_id
+        gs.wdk_step_id = ctx.wdk_step_id
+        gs.step_count = step_count
+        self._store.save(gs)
+        logger.info(
+            "Re-synced strategy gene set",
+            gene_set_id=gs.id,
             gene_count=len(gs.gene_ids),
         )
         return gs

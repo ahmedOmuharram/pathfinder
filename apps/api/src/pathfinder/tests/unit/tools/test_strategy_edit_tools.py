@@ -20,7 +20,7 @@ from pathfinder.ai.tools.standalone.strategy import (
     update_leaf_params,
     update_step_metadata,
 )
-from pathfinder.domain.parameters.values import MultiPickValue
+from pathfinder.domain.parameters.values import MultiPickValue, SinglePickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.operations import DeleteResolution
 from pathfinder.domain.strategy.ops import CombineOp
@@ -349,6 +349,46 @@ async def test_update_leaf_params_happy(stub_api: _StubAPI) -> None:
     patch_calls = [c for c in stub_api.calls if c.name == "update_step_search_config"]
     assert len(patch_calls) >= 1, f"calls: {[c.name for c in stub_api.calls]}"
     assert patch_calls[0].kwargs["step_id"] == 100
+
+
+@pytest.mark.asyncio
+async def test_update_leaf_params_validates_merged_not_partial(
+    stub_api: _StubAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A real leaf search has many required params; the model updates ONE. The
+    # update must MERGE over the step's existing params BEFORE validation — else
+    # validation sees only the changed param and rejects the rest as "missing".
+    del stub_api
+    a = _leaf(
+        "a",
+        params={
+            "organism": MultiPickValue(values=["Pf3D7"]),
+            "ReadFrequencyPercent": SinglePickValue(value="60%"),
+        },
+    )
+    deps = _seed(a, wdk_step_ids={"a": 100})
+
+    seen: dict[str, dict[str, Any]] = {}
+
+    async def _capture_validate(
+        _search_ctx: Any, *, parameters: dict[str, Any], **_kw: Any
+    ) -> dict[str, Any]:
+        seen["parameters"] = dict(parameters)
+        return dict(parameters)
+
+    monkeypatch.setattr(strategy_module, "validate_parameters", _capture_validate)
+
+    await update_leaf_params(
+        _ctx(deps),
+        "a",
+        {"ReadFrequencyPercent": SinglePickValue(value="80%")},
+    )
+
+    # validation receives the FULL merged config, not just the one changed param
+    assert set(seen["parameters"]) == {"organism", "ReadFrequencyPercent"}
+    assert seen["parameters"]["ReadFrequencyPercent"] == SinglePickValue(value="80%")
+    assert seen["parameters"]["organism"] == MultiPickValue(values=["Pf3D7"])
 
 
 @pytest.mark.asyncio

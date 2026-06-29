@@ -7,7 +7,6 @@ import { DataGeneSet } from "./parts/DataGeneSet";
 import { DataGraphCleared } from "./parts/DataGraphCleared";
 import { DataGraphSnapshot } from "./parts/DataGraphSnapshot";
 import { DataMemoryRetrieved } from "./parts/DataMemoryRetrieved";
-import { DataProblemFrame } from "./parts/DataProblemFrame";
 import { DataStrategyLink } from "./parts/DataStrategyLink";
 import { DataStrategyMeta } from "./parts/DataStrategyMeta";
 import { DataEnrichmentResults } from "./parts/DataEnrichmentResults";
@@ -38,8 +37,6 @@ export const dataPartComponents: {
   "data-strategy-meta": DataStrategyMeta,
   "data-graph-snapshot": DataGraphSnapshot,
   "data-graph-cleared": DataGraphCleared,
-  "data-problem-frame": DataProblemFrame,
-  "data-plan-artifact": () => null,
   "data-variant-comparison": DataVariantComparison,
   "data-scored-comparison": DataScoredComparison,
   "data-tool-approval-request": DataToolApprovalRequest,

@@ -4,9 +4,7 @@ import warnings
 from pydantic_ai.capabilities import PydanticAIDeprecationWarning
 
 _AGENT_MODULES = (
-    "pathfinder.ai.agents.scoping",
-    "pathfinder.ai.agents.discovery",
-    "pathfinder.ai.agents.planning",
+    "pathfinder.ai.agents.frame",
     "pathfinder.ai.agents.execution",
     "pathfinder.ai.agents.verification",
     "pathfinder.ai.lead.lead_agent",

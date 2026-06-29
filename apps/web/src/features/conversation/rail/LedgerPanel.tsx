@@ -1,34 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import type { DataLedgerUpdatePayload, PlanArtifact } from "@pathfinder/shared";
+import type { DataLedgerUpdatePayload } from "@pathfinder/shared";
 
 import { cn } from "@/lib/utils/cn";
 import { useRightRailStore } from "@/state/useRightRailStore";
 
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
-import { DataPlanArtifact } from "../content/parts/DataPlanArtifact";
-import { latestPlanAcross } from "../content/parts/planCarouselData";
 import { ConstraintsSection } from "./ConstraintsSection";
-import { DiscoveryDetail } from "./DiscoveryDetail";
 import {
   BuildSection,
-  DiscoverySection,
   FrameSection,
   IntentSection,
-  PlanSection,
   SubAgentCountSection,
   VerificationSection,
 } from "./LedgerPanelSections";
 
-type Tab = "summary" | "frame" | "discovery" | "plan" | "build" | "verification";
+type Tab = "summary" | "frame" | "build" | "verification";
 type DetailTab = Exclude<Tab, "summary">;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "summary", label: "Summary" },
   { id: "frame", label: "Frame" },
-  { id: "discovery", label: "Discovery" },
-  { id: "plan", label: "Plan" },
   { id: "build", label: "Build" },
   { id: "verification", label: "Verification" },
 ];
@@ -38,8 +31,6 @@ export function ledgerTabSignatures(
 ): Record<DetailTab, string> {
   return {
     frame: JSON.stringify([ledger.userIntent, ledger.frame]),
-    discovery: JSON.stringify(ledger.discovery),
-    plan: JSON.stringify(ledger.plan),
     build: JSON.stringify(ledger.build),
     verification: JSON.stringify(ledger.verification),
   };
@@ -67,7 +58,6 @@ function latestLedger(
 export function LedgerPanel({ conversationId }: { conversationId: string }) {
   const chat = useChatHelpersOptional();
   const ledger = chat !== null ? latestLedger(chat.messages) : null;
-  const planArtifact = chat !== null ? latestPlanAcross(chat.messages) : null;
   const [tab, setTab] = useState<Tab>("summary");
   const ledgerSeen = useRightRailStore((s) => s.ledgerSeen);
   const markLedgerTabSeen = useRightRailStore((s) => s.markLedgerTabSeen);
@@ -103,7 +93,7 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
           Live state of the Lead&apos;s investigation. Tabs show per-phase detail.
         </p>
       </div>
-      <div className="grid shrink-0 grid-cols-3 gap-0.5 border-b border-border bg-muted/30 p-1">
+      <div className="grid shrink-0 grid-cols-4 gap-0.5 border-b border-border bg-muted/30 p-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -132,7 +122,7 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
             Waiting for the Lead to dispatch its first sub-agent...
           </p>
         ) : (
-          <LedgerTabContent tab={tab} ledger={ledger} planArtifact={planArtifact} />
+          <LedgerTabContent tab={tab} ledger={ledger} />
         )}
       </div>
     </div>
@@ -142,19 +132,15 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
 function LedgerTabContent({
   tab,
   ledger,
-  planArtifact,
 }: {
   tab: Tab;
   ledger: DataLedgerUpdatePayload;
-  planArtifact: PlanArtifact | null;
 }) {
   if (tab === "summary") {
     return (
       <div className="divide-y divide-border">
         <IntentSection intent={ledger.userIntent} />
         <FrameSection frame={ledger.frame} />
-        <DiscoverySection discovery={ledger.discovery} />
-        <PlanSection plan={ledger.plan} />
         <BuildSection build={ledger.build} />
         <VerificationSection verification={ledger.verification} />
         <ConstraintsSection constraints={ledger.constraints} />
@@ -170,26 +156,6 @@ function LedgerTabContent({
       <div className="divide-y divide-border">
         <IntentSection intent={ledger.userIntent} />
         <FrameSection frame={ledger.frame} />
-      </div>
-    );
-  }
-  if (tab === "discovery") {
-    return (
-      <div className="divide-y divide-border">
-        <DiscoverySection discovery={ledger.discovery} />
-        <DiscoveryDetail discovery={ledger.discovery} />
-      </div>
-    );
-  }
-  if (tab === "plan") {
-    return (
-      <div className="divide-y divide-border">
-        <PlanSection plan={ledger.plan} />
-        {planArtifact !== null && (
-          <div className="p-3">
-            <DataPlanArtifact data={planArtifact} />
-          </div>
-        )}
       </div>
     );
   }

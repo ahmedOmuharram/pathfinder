@@ -2,22 +2,19 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from pathfinder.ai.graph.state import PlanSlotAnswer, UserQuestionAnswer
+from pathfinder.ai.graph.state import UserQuestionAnswer
 from pathfinder.devtools.gates import (
     BodyCtx,
     approval_body,
     consult_body,
     detect_gate,
-    plan_slots_body,
 )
 
 _CTX = BodyCtx(conversation_id=uuid4(), site_id="vectorbase", mode="strategy")
 
 
 def test_detect_none_when_no_pending() -> None:
-    gate = detect_gate(
-        pending_approval=None, tool_args={}, plan_open_slots=[], durable_task=None
-    )
+    gate = detect_gate(pending_approval=None, tool_args={}, durable_task=None)
     assert gate.kind == "none"
 
 
@@ -25,7 +22,6 @@ def test_detect_generic_approval() -> None:
     gate = detect_gate(
         pending_approval=("delete_step", "c1"),
         tool_args={},
-        plan_open_slots=[],
         durable_task=None,
     )
     assert gate.kind == "approval"
@@ -51,7 +47,6 @@ def test_detect_consult_parses_questions() -> None:
                 ]
             }
         },
-        plan_open_slots=[],
         durable_task=None,
     )
     assert gate.kind == "consult"
@@ -61,26 +56,10 @@ def test_detect_consult_parses_questions() -> None:
     assert gate.consult_questions[0].options[0].recommended is True
 
 
-def test_detect_submit_plan_with_slots() -> None:
-    gate = detect_gate(
-        pending_approval=("submit_plan_for_approval", "c3"),
-        tool_args={},
-        plan_open_slots=[
-            {"stepId": "s1", "paramName": "organism", "question": "Which organism?"}
-        ],
-        durable_task=None,
-    )
-    assert gate.kind == "approval"
-    assert gate.tool == "submit_plan_for_approval"
-    assert gate.plan_slots[0].step_id == "s1"
-    assert gate.plan_slots[0].param_name == "organism"
-
-
 def test_detect_durable_task() -> None:
     gate = detect_gate(
         pending_approval=None,
         tool_args={},
-        plan_open_slots=[],
         durable_task=("task-123", "geneset_enrichment"),
     )
     assert gate.kind == "durable"
@@ -120,24 +99,3 @@ def test_consult_body_has_approval_and_answers() -> None:
     )
     assert data_part.data["toolCallId"] == "c2"
     assert data_part.data["answers"][0]["chosenLabels"] == ["Liverpool"]
-
-
-def test_plan_slots_body_has_approval_and_answers() -> None:
-    answers = [
-        PlanSlotAnswer(step_id="s1", param_name="organism", value="Aedes aegypti")
-    ]
-    body = plan_slots_body(
-        _CTX,
-        message_id=uuid4(),
-        tool="submit_plan_for_approval",
-        tool_call_id="c3",
-        approved=True,
-        answers=answers,
-    )
-    types = [p.type for p in body.messages[0].parts]
-    assert "tool-submit_plan_for_approval" in types
-    assert "data-plan-slot-answers" in types
-    data_part = next(
-        p for p in body.messages[0].parts if p.type == "data-plan-slot-answers"
-    )
-    assert data_part.data["answers"][0]["stepId"] == "s1"

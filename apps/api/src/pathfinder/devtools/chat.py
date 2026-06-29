@@ -25,26 +25,21 @@ from pathfinder.ai.graph._llm_capture import capture_llm
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.graph.state import (
     PendingApproval,
-    PlanSlotAnswer,
     UserQuestionAnswer,
 )
-from pathfinder.ai.lead.derive import open_user_input_slots
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.devtools import inspector
 from pathfinder.devtools.capture import RunCapture, capture_tracebacks, reset_run_dir
 from pathfinder.devtools.gates import (
-    SUBMIT_PLAN_TOOLS,
     BodyCtx,
     Gate,
     GateConsultQuestion,
     approval_body,
     consult_body,
     detect_gate,
-    plan_slots_body,
     user_body,
 )
 from pathfinder.devtools.wdk_capture import capture_wdk
-from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.integrations.veupathdb.auth_login import password_login
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.auth_context import attach_user_id, attach_wdk_auth
@@ -90,7 +85,6 @@ class RespondArgs(RunArgs):
     deny: bool = False
     reason: str | None = None
     answers: list[str] = Field(default_factory=list)
-    slots: list[str] = Field(default_factory=list)
 
 
 class MissingCredentialsError(RuntimeError):
@@ -176,13 +170,6 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="QID=VALUE",
         help="consult answer (comma-separate VALUE for multi-choice)",
     )
-    resp.add_argument(
-        "--slot",
-        action="append",
-        default=[],
-        metavar="STEP:PARAM=VALUE",
-        help="plan slot value",
-    )
 
     ins = sub.add_parser("inspect", help="read a captured run directory")
     ins.add_argument("run_dir")
@@ -248,7 +235,6 @@ def parse_respond_args(argv: list[str]) -> RespondArgs:
             "deny": ns.deny,
             "reason": ns.reason,
             "answers": ns.answer,
-            "slots": ns.slot,
         }
     )
 
@@ -278,7 +264,6 @@ def _current_gate(capture: RunCapture) -> Gate:
     return detect_gate(
         pending_approval=capture.pending_approval,
         tool_args=capture.tool_args_by_call,
-        plan_open_slots=capture.plan_open_slots(),
         durable_task=capture.durable_task,
     )
 
@@ -296,15 +281,9 @@ async def _gate_from_checkpoint(conversation_id: UUID, settings_url: str) -> Gat
     if not raw_pending:
         return Gate(kind="none", message="turn complete")
     pending = PendingApproval.model_validate(raw_pending)
-    plan_slots: list[dict[str, object]] = []
-    raw_plan = values.get("active_plan")
-    if raw_plan is not None and pending.tool_name in SUBMIT_PLAN_TOOLS:
-        plan = StrategyPlan.model_validate(raw_plan)
-        plan_slots = [s.model_dump(by_alias=True) for s in open_user_input_slots(plan)]
     return detect_gate(
         pending_approval=(pending.tool_name, pending.tool_call_id),
         tool_args={pending.tool_call_id: dict(pending.tool_args)},
-        plan_open_slots=plan_slots,
         durable_task=None,
     )
 
@@ -347,15 +326,6 @@ def _auto_respond(
         and gate.tool_call_id is not None
     ):
         approved = args.approve == "auto"
-        if gate.plan_slots and approved:
-            return plan_slots_body(
-                _body_ctx(args),
-                message_id=message_id,
-                tool=gate.tool,
-                tool_call_id=gate.tool_call_id,
-                approved=True,
-                answers=[],
-            )
         return approval_body(
             _body_ctx(args),
             message_id=message_id,
@@ -549,12 +519,6 @@ def _parse_answer(raw: str, gate: Gate) -> UserQuestionAnswer:
     return UserQuestionAnswer(question_id=qid, prompt=prompt, chosen_labels=labels)
 
 
-def _parse_slot(raw: str) -> PlanSlotAnswer:
-    left, _, value = raw.partition("=")
-    step, _, param = left.partition(":")
-    return PlanSlotAnswer(step_id=step, param_name=param, value=value)
-
-
 def _build_respond_body(args: RespondArgs, gate: Gate) -> ChatRequestBody:
     mid = uuid4()
     if gate.kind == "none" or gate.tool_call_id is None:
@@ -566,15 +530,6 @@ def _build_respond_body(args: RespondArgs, gate: Gate) -> ChatRequestBody:
             message_id=mid,
             tool_call_id=gate.tool_call_id,
             answers=[_parse_answer(a, gate) for a in args.answers],
-        )
-    if args.slots:
-        return plan_slots_body(
-            _body_ctx(args),
-            message_id=mid,
-            tool=gate.tool or "submit_plan_for_approval",
-            tool_call_id=gate.tool_call_id,
-            approved=True,
-            answers=[_parse_slot(s) for s in args.slots],
         )
     if args.deny or args.accept:
         if gate.tool is None:
@@ -588,7 +543,7 @@ def _build_respond_body(args: RespondArgs, gate: Gate) -> ChatRequestBody:
             approved=args.accept and not args.deny,
             reason=args.reason if args.deny else None,
         )
-    msg = "nothing to respond — pass --accept / --deny / --answer / --slot"
+    msg = "nothing to respond — pass --accept / --deny / --answer"
     raise GateResponseError(msg)
 
 
@@ -655,9 +610,6 @@ def _report(capture: RunCapture, gate: Gate) -> None:
                 f"{o.label}{'*' if o.recommended else ''}" for o in q.options
             )
             print(f"  ? [{q.id}] {q.prompt}  ({opts})")
-    elif gate.kind == "approval" and gate.plan_slots:
-        for s in gate.plan_slots:
-            print(f"  ▢ slot {s.step_id}:{s.param_name} — {s.question}")
     print(f"run-dir={summary.run_dir}")
 
 

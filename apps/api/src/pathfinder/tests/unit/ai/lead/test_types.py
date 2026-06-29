@@ -1,9 +1,7 @@
 """Lead module type-shape sanity tests.
 
-These lock the surface so later tasks (derivation, lead agent, sub-agent
-wrappers) can rely on stable contracts. Each test asserts a specific
-field/computed value — not "imports work" but "the type does what its
-docstring says."
+These lock the surface so derivation, lead agent, and sub-agent wrappers can
+rely on stable contracts. Each test asserts a specific field/computed value.
 """
 
 from __future__ import annotations
@@ -13,32 +11,26 @@ from pydantic import ValidationError
 
 from pathfinder.ai.graph.state import PhaseDisposition, VerificationDigest
 from pathfinder.ai.lead.deltas import (
-    DiscoveryDelta,
     ExecuteDelta,
-    OpenSlot,
-    PlanDelta,
+    FrameResult,
+    RecoveryDelta,
     VerificationDelta,
 )
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
 from pathfinder.ai.lead.ledger import (
     BuildSection,
-    DiscoverySection,
     FrameSection,
     InvestigationLedger,
-    PlanSection,
     SubAgentCallRecord,
     VerificationSection,
 )
-from pathfinder.domain.parameters.values import StringValue
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
-from pathfinder.domain.strategy.plan import (
-    ParamStatus,
-    PlannedParameter,
-    PlannedStep,
-    PlanStatus,
-    StepStatus,
-    StepType,
-    StrategyPlan,
+from pathfinder.domain.strategy.operational_spec import (
+    Criterion,
+    OpenSlot,
+    OperationalSpec,
+    SpecStructure,
+    StructureNode,
 )
 
 
@@ -75,82 +67,20 @@ def test_user_intent_differential_sides_rejects_three() -> None:
         )
 
 
-def test_open_slot_status_literal() -> None:
-    slot = OpenSlot(
-        step_id="s1",
-        param_name="hard_floor",
-        status="needs_user_input",
-        question="Pick a tier",
+def test_frame_result_disposition_default_spec_ready() -> None:
+    result = FrameResult(summary="bound 3 criteria")
+    assert result.disposition == "spec_ready"
+    assert result.open_questions == []
+
+
+def test_frame_result_needs_user_carries_questions() -> None:
+    result = FrameResult(
+        summary="one open slot",
+        disposition="needs_user",
+        open_questions=["Which RNA-seq dataset?"],
     )
-    assert slot.status == "needs_user_input"
-
-
-def _plan_with_unresolved_slot() -> StrategyPlan:
-    return StrategyPlan(
-        title="t",
-        description="d",
-        rationale="r",
-        steps=[
-            PlannedStep(
-                id="s1",
-                search_name="X",
-                display_name="X",
-                step_type=StepType.LEAF,
-                status=StepStatus.READY,
-                parameters=[
-                    PlannedParameter(
-                        name="p",
-                        display_name="p",
-                        param_type="string",
-                        value=None,
-                        status=ParamStatus.NEEDS_USER_INPUT,
-                        required=True,
-                    ),
-                ],
-            ),
-        ],
-        connections=[],
-    )
-
-
-def _plan_all_set() -> StrategyPlan:
-    return StrategyPlan(
-        title="t",
-        description="d",
-        rationale="r",
-        status=PlanStatus.APPROVED,
-        steps=[
-            PlannedStep(
-                id="s1",
-                search_name="X",
-                display_name="X",
-                step_type=StepType.LEAF,
-                status=StepStatus.READY,
-                parameters=[
-                    PlannedParameter(
-                        name="p",
-                        display_name="p",
-                        param_type="string",
-                        value=StringValue(value="v"),
-                        status=ParamStatus.SET,
-                        required=True,
-                    ),
-                ],
-            ),
-        ],
-        connections=[],
-    )
-
-
-def test_plan_delta_is_lightweight_summary() -> None:
-    # The plan lives in agent_state.active_plan (built via create_plan); the
-    # delta never re-carries it. Re-emitting StrategyPlan caused the planner's
-    # final_result to fail on displayName / array-vs-object errors.
-    delta = PlanDelta(summary="2-step plan: GO term anchor combined with taxon")
-    assert delta.summary == "2-step plan: GO term anchor combined with taxon"
-    assert not hasattr(delta, "plan")
-    assert not hasattr(delta, "new_open_slots")
-    assert not hasattr(delta, "has_unresolved_slots")
+    assert result.disposition == "needs_user"
+    assert result.open_questions == ["Which RNA-seq dataset?"]
 
 
 def test_execute_delta_carries_outcome() -> None:
@@ -159,17 +89,10 @@ def test_execute_delta_carries_outcome() -> None:
     assert delta.outcome.root_count == 152
 
 
-def test_discovery_delta_is_lightweight_summary() -> None:
-    # Selections/rejections live in agent_state (committed via
-    # update_search_decision); the delta is just a summary so the model
-    # never re-types heavy SearchOverview objects in its final output.
-    delta = DiscoveryDelta(
-        findings_summary="found nothing", open_questions=["which strain?"]
-    )
-    assert delta.findings_summary == "found nothing"
-    assert delta.open_questions == ["which strain?"]
-    assert not hasattr(delta, "new_selections")
-    assert not hasattr(delta, "new_rejections")
+def test_recovery_delta_is_light() -> None:
+    delta = RecoveryDelta(actions_taken=["rebuilt s1"], follow_up_needed=False)
+    assert delta.actions_taken == ["rebuilt s1"]
+    assert not hasattr(delta, "final_outcome")
 
 
 def test_verification_delta_carries_digest() -> None:
@@ -183,32 +106,35 @@ def test_verification_delta_carries_digest() -> None:
     assert delta.digest.success is True
 
 
-def test_frame_section_needed_when_no_frame() -> None:
-    section = FrameSection(frame=None, matches_current_intent=False)
-    assert section.needed is True
-    assert section.blocked is False
-
-
-def test_plan_section_blocked_kind_needs_user_when_user_slots_open() -> None:
-    section = PlanSection(
-        plan=_plan_with_unresolved_slot(),
-        open_user_input_slots=[
-            OpenSlot(
-                step_id="s1",
-                param_name="p",
-                status="needs_user_input",
-                question="?",
-            ),
-        ],
+def _ready_spec() -> OperationalSpec:
+    return OperationalSpec(
+        goal="g",
+        criteria=[Criterion(id="c1", text="x", search_name="GenesByTaxon")],
+        structure=SpecStructure(root=StructureNode(kind="leaf", criterion_id="c1")),
     )
-    assert section.blocked_kind == "needs_user"
-    assert section.ready_to_execute is False
 
 
-def test_plan_section_ready_to_execute_when_approved_and_clean() -> None:
-    section = PlanSection(plan=_plan_all_set(), approved=True)
-    assert section.blocked_kind == "none"
-    assert section.ready_to_execute is True
+def test_frame_section_absent_when_no_spec() -> None:
+    section = FrameSection(spec=None)
+    assert section.present is False
+    assert section.needs_user is False
+    assert section.ready_to_build is False
+
+
+def test_frame_section_needs_user_with_open_slot() -> None:
+    spec = _ready_spec()
+    spec.criteria[0].open_params = [OpenSlot(criterion_id="c1", param_name="dataset")]
+    section = FrameSection(spec=spec)
+    assert section.present is True
+    assert section.open_slot_count == 1
+    assert section.needs_user is True
+    assert section.ready_to_build is False
+
+
+def test_frame_section_ready_to_build_when_bound() -> None:
+    section = FrameSection(spec=_ready_spec())
+    assert section.bound_count == 1
+    assert section.ready_to_build is True
 
 
 def test_build_section_succeeded() -> None:
@@ -220,11 +146,6 @@ def test_build_section_succeeded() -> None:
 def test_build_section_not_succeeded_with_failures() -> None:
     section = BuildSection(failed_count=1)
     assert section.succeeded is False
-
-
-def test_discovery_section_needs_more_discovery_when_zero_selections() -> None:
-    section = DiscoverySection(selected_count=0, intent_satisfied=False)
-    assert section.needs_more_discovery is True
 
 
 def test_verification_section_successful_only_when_digest_success() -> None:
@@ -243,23 +164,21 @@ def test_verification_section_successful_only_when_digest_success() -> None:
 def test_investigation_ledger_compose() -> None:
     ledger = InvestigationLedger(
         user_intent=None,
-        frame=FrameSection(frame=None, matches_current_intent=False),
-        discovery=DiscoverySection(),
-        plan=PlanSection(),
+        frame=FrameSection(spec=None),
         build=BuildSection(),
         verification=VerificationSection(),
     )
-    assert ledger.frame.needed is True
-    assert ledger.plan.blocked_kind == "none"
+    assert ledger.frame.present is False
+    assert ledger.build.succeeded is False
     assert ledger.sub_agent_calls_total == 0
 
 
 def test_sub_agent_call_record_shape() -> None:
     rec = SubAgentCallRecord(
-        sub_agent="discover",
+        sub_agent="frame",
         called_at_turn="t1",
-        input_summary="find searches",
-        output_summary="2 selections",
+        input_summary="frame the goal",
+        output_summary="3 criteria",
         succeeded=True,
     )
-    assert rec.sub_agent == "discover"
+    assert rec.sub_agent == "frame"

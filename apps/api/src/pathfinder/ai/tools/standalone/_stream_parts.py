@@ -28,21 +28,13 @@ from shared_py.stream_parts.graph import (
     GraphNode,
     GraphSnapshot,
 )
-from shared_py.stream_parts.plan import (
-    PlanArtifact,
-    PlannedStep,
-    PlanSlotForm,
-)
-from shared_py.stream_parts.problem_frame import ProblemFrame as ProblemFramePart
 from shared_py.stream_parts.strategy import (
     StrategyLink,
     StrategyMeta,
 )
 
-from pathfinder.ai.graph.state import ProblemFrame
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
-from pathfinder.platform.pydantic_base import CamelModel
 
 # ── Operator coercion ──────────────────────────────────────────────────────
 
@@ -210,62 +202,6 @@ def strategy_link_chunk(
     payload = StrategyLink(strategy_id=strategy_id, url=url, title=title)
     return DataChunk(
         type="data-strategy-link",
-        data=payload.model_dump(by_alias=True, mode="json"),
-    )
-
-
-# ── Problem frame ──────────────────────────────────────────────────────────
-
-
-def problem_frame_chunk(frame: ProblemFrame, *, site_id: str) -> DataChunk:
-    """Build the ``data-problem-frame`` DataChunk from an internal ProblemFrame.
-
-    The wire payload mirrors the internal frame field-for-field so the UI can
-    render every populated piece of context, not just a summary. Pydantic
-    re-validates through the shared-py model to strip any backend-only extras
-    and emit camelCase aliases.
-    """
-    payload = ProblemFramePart.model_validate(
-        {**frame.model_dump(by_alias=True, mode="json"), "siteId": site_id},
-    )
-    return DataChunk(
-        type="data-problem-frame",
-        data=payload.model_dump(by_alias=True, mode="json"),
-    )
-
-
-# ── Plan ───────────────────────────────────────────────────────────────────
-
-
-class _SimplePlanStep(CamelModel):
-    """Minimal shape used to derive plan-artifact steps without pulling domain deps."""
-
-    search_name: str
-    rationale: str = ""
-
-
-def plan_artifact_chunk(
-    *,
-    plan_id: str,
-    steps: list[PlannedStep],
-    rationale: str,
-    slots: list[PlanSlotForm] | None = None,
-) -> DataChunk:
-    """Build the ``data-plan-artifact`` DataChunk for a proposed plan.
-
-    ``slots`` lists NEEDS_USER_INPUT (and informationally NEEDS_DISCOVERY)
-    parameters so the submit_plan card can render inline form fields the
-    user must answer before approving.
-    """
-    payload = PlanArtifact(
-        plan_id=plan_id,
-        steps=steps,
-        rationale=rationale,
-        slots=slots or [],
-    )
-    return DataChunk(
-        id=plan_id,
-        type="data-plan-artifact",
         data=payload.model_dump(by_alias=True, mode="json"),
     )
 

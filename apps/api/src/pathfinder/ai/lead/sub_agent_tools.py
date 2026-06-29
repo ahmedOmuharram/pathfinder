@@ -42,11 +42,9 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 )
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-from pathfinder.ai.agents.discovery import discovery_agent
 from pathfinder.ai.agents.execution import execution_agent
-from pathfinder.ai.agents.planning import planning_agent
+from pathfinder.ai.agents.frame import frame_agent
 from pathfinder.ai.agents.roles import PhaseRole
-from pathfinder.ai.agents.scoping import scoping_agent
 from pathfinder.ai.agents.verification import verification_agent
 from pathfinder.ai.capabilities.error_classification import is_error_directive
 from pathfinder.ai.cost import cost_for_run
@@ -82,17 +80,13 @@ PHASE_USAGE_LIMITS: UsageLimits = UsageLimits(
 )
 
 _SUB_AGENT_BY_ROLE: dict[PhaseRole, Any] = {
-    "scoping": scoping_agent,
-    "discovery": discovery_agent,
-    "planning": planning_agent,
+    "frame": frame_agent,
     "execution": execution_agent,
     "verification": verification_agent,
 }
 
 TOOL_TO_PHASE_ROLE: dict[str, PhaseRole] = {
-    "scope_problem": "scoping",
-    "discover_searches": "discovery",
-    "build_plan": "planning",
+    "frame_problem": "frame",
     "recover_failed_steps": "execution",
     "verify_strategy": "verification",
 }
@@ -113,10 +107,10 @@ def _phase_default_model_id(role: PhaseRole) -> str:
 
 
 def sub_agent_model_id(tool_name: str) -> str:
-    """Model id for a sub-agent tool name. ``execute_plan`` is declarative
+    """Model id for a sub-agent tool name. ``build_strategy`` is declarative
     (no LLM); everything else maps to the underlying phase agent's model.
     """
-    if tool_name == "execute_plan":
+    if tool_name == "build_strategy":
         return "declarative:no-llm"
     role = TOOL_TO_PHASE_ROLE.get(tool_name)
     if role is None:
@@ -159,9 +153,9 @@ def _apply_agent_state(deps: LeadDeps, agent_deps: AgentDeps) -> None:
     deps.state.discovered_searches = dict(
         agent_deps.agent_state.discovered_searches,
     )
-    deps.state.active_plan = agent_deps.agent_state.active_plan
-    if agent_deps.problem_frame is not None:
-        deps.state.problem_frame = agent_deps.problem_frame
+    draft = agent_deps.agent_state.operational_spec_draft
+    if draft.criteria or draft.dropped:
+        deps.state.operational_spec = draft
 
 
 def _emit_step(writer: Any, payload: SubAgentStepPayload) -> None:
@@ -201,10 +195,10 @@ def _forward_tool_metadata(writer: Any, metadata: object) -> None:
     """Forward a sub-agent tool's ``ToolReturn.metadata`` chunks to the
     main stream.
 
-    Sub-agent tools (e.g. ``create_plan``) run outside the VercelAIAdapter
-    that surfaces direct-agent tool metadata, so their ``DataChunk`` /
-    source / file payloads would be dropped. Re-emit the same chunk shapes
-    the adapter would, so artifacts (plan, gene set, graph) reach the UI.
+    Sub-agent tools run outside the VercelAIAdapter that surfaces
+    direct-agent tool metadata, so their ``DataChunk`` / source / file
+    payloads would be dropped. Re-emit the same chunk shapes the adapter
+    would, so artifacts (gene set, graph) reach the UI.
     """
     if not isinstance(metadata, list):
         return
@@ -317,9 +311,7 @@ def _phase_override_kwargs(
 
 _PHASE_STATUS_LABELS: dict[PhaseRole, str] = {
     "lead": "Thinking...",
-    "scoping": "Scoping the problem...",
-    "discovery": "Finding searches...",
-    "planning": "Building a plan...",
+    "frame": "Framing the strategy...",
     "execution": "Recovering failed steps...",
     "verification": "Verifying the strategy...",
 }

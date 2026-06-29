@@ -55,14 +55,14 @@ def _ctx(
 
 
 def test_default_phase_model_translated_to_responses() -> None:
-    kwargs = _phase_override_kwargs(_ctx(), "discovery")
+    kwargs = _phase_override_kwargs(_ctx(), "frame")
     assert kwargs["model"] == "openai-responses:gpt-5-mini"
 
 
 def test_anthropic_pick_enables_caching() -> None:
     kwargs = _phase_override_kwargs(
-        _ctx(phase_models={"discovery": "anthropic:claude-opus-4-6"}),
-        "discovery",
+        _ctx(phase_models={"frame": "anthropic:claude-opus-4-6"}),
+        "frame",
     )
     assert kwargs["model"] == "anthropic:claude-opus-4-6"
     settings = kwargs["model_settings"]
@@ -73,8 +73,8 @@ def test_anthropic_pick_enables_caching() -> None:
 
 def test_openai_pick_translated_without_anthropic_flags() -> None:
     kwargs = _phase_override_kwargs(
-        _ctx(phase_models={"planning": "openai:gpt-5.4"}),
-        "planning",
+        _ctx(phase_models={"execution": "openai:gpt-5.4"}),
+        "execution",
     )
     assert kwargs["model"] == "openai-responses:gpt-5.4"
     assert "anthropic_cache_instructions" not in kwargs["model_settings"]
@@ -83,10 +83,10 @@ def test_openai_pick_translated_without_anthropic_flags() -> None:
 def test_reasoning_effort_composes_with_caching() -> None:
     kwargs = _phase_override_kwargs(
         _ctx(
-            phase_models={"planning": "anthropic:claude-opus-4-6"},
-            phase_reasoning={"planning": "high"},
+            phase_models={"execution": "anthropic:claude-opus-4-6"},
+            phase_reasoning={"execution": "high"},
         ),
-        "planning",
+        "execution",
     )
     settings = kwargs["model_settings"]
     assert settings["thinking"] == "high"
@@ -96,4 +96,4 @@ def test_reasoning_effort_composes_with_caching() -> None:
 def test_phase_default_model_id_stays_stable_for_cost() -> None:
     # The readback id used for cost attribution must remain the stable
     # ``openai:`` id, NOT the translated ``openai-responses:`` inference name.
-    assert _phase_default_model_id("discovery") == "openai:gpt-5-mini"
+    assert _phase_default_model_id("frame") == "openai:gpt-5-mini"

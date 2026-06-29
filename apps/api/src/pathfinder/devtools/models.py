@@ -152,7 +152,6 @@ class SpanNode(BaseModel):
 class PhaseSnapshot(BaseModel):
     phase: str
     ledger: dict[str, Any] | None = None
-    problem_frame: dict[str, Any] | None = None
 
 
 class Anomaly(BaseModel):

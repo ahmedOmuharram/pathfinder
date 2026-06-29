@@ -12,9 +12,9 @@ from pathfinder.ai.graph.state import (
     PhaseDisposition,
     PhaseName,
     PipelineState,
-    ProblemFrame,
     VerificationDigest,
 )
+from pathfinder.domain.strategy.operational_spec import Criterion, OperationalSpec
 
 
 @pytest.fixture
@@ -30,10 +30,8 @@ def base_state() -> PipelineState:
 def test_phase_names_constant_matches_literal_args() -> None:
     assert set(PHASE_NAMES) == set(get_args(PhaseName))
     assert PHASE_NAMES == (
-        "scoping",
-        "discovery",
-        "planning",
-        "execution",
+        "frame",
+        "build",
         "verification",
     )
 
@@ -44,7 +42,7 @@ def test_state_minimum_construction(base_state: PipelineState) -> None:
     assert base_state.user_prompt == ""
     assert base_state.user_parts == []
     assert base_state.discovered_searches == {}
-    assert base_state.problem_frame is None
+    assert base_state.operational_spec is None
     assert base_state.verification_digest is None
     assert base_state.last_build_outcome is None
     assert base_state.user_intent is None
@@ -77,19 +75,20 @@ def test_state_carries_verification_digest(
     assert rehydrated.verification_digest.key_findings == ["1234 hits"]
 
 
-def test_state_carries_problem_frame(base_state: PipelineState) -> None:
-    frame = ProblemFrame(
-        user_goal="find drug targets",
+def test_state_carries_operational_spec(base_state: PipelineState) -> None:
+    spec = OperationalSpec(
+        goal="find drug targets",
         interpreted_goal="find drug targets in P. falciparum",
         organism_scope="P. falciparum",
-        ready_for_wdk_discovery=True,
-        confidence=0.8,
+        criteria=[
+            Criterion(id="c1", text="kinases", search_name="GenesByGoTerm"),
+        ],
     )
-    state = base_state.model_copy(update={"problem_frame": frame})
+    state = base_state.model_copy(update={"operational_spec": spec})
     rehydrated = PipelineState.model_validate(state.model_dump(mode="json"))
-    assert rehydrated.problem_frame is not None
-    assert rehydrated.problem_frame.user_goal == "find drug targets"
-    assert rehydrated.problem_frame.confidence == 0.8
+    assert rehydrated.operational_spec is not None
+    assert rehydrated.operational_spec.goal == "find drug targets"
+    assert rehydrated.operational_spec.criteria[0].search_name == "GenesByGoTerm"
 
 
 def test_state_carries_discovered_searches(base_state: PipelineState) -> None:

@@ -89,6 +89,27 @@ class StepsMixin(StrategyAPIBase):
         self._answer_param_cache[cache_key] = names
         return names
 
+    async def _empty_answer_params(
+        self,
+        record_type: str,
+        search_name: str,
+        raw_params: JSONObject,
+    ) -> JSONObject:
+        """Force every ``input-step`` (AnswerParam) of the search to ``""``.
+
+        WDK requires answer params on a NEW step to be the empty string — the
+        real input is wired via the ``stepTree`` at strategy-creation time. Used
+        by both ``create_step`` (leaf) and ``create_transform_step`` so neither
+        path can leave a stale or missing answer-param value that WDK rejects.
+        """
+        answer_param_names = await self._get_answer_param_names(
+            record_type, search_name
+        )
+        params: JSONObject = dict(raw_params)
+        for ap_name in answer_param_names:
+            params[ap_name] = ""
+        return params
+
     async def find_step(self, step_id: int, user_id: str | None = None) -> WDKStep:
         """Fetch a single step by ID. Matches monorepo's findStep."""
         uid = await self._get_user_id(user_id)
@@ -137,8 +158,11 @@ class StepsMixin(StrategyAPIBase):
         :param user_id: Explicit user ID override, or ``None`` to use resolved.
         :returns: Created step identifier.
         """
+        raw_params = await self._empty_answer_params(
+            record_type, spec.search_name, dict(spec.search_config.parameters)
+        )
         _, search_config = await self._prepare_search_config(
-            raw_params=dict(spec.search_config.parameters),
+            raw_params=raw_params,
             record_type=record_type,
             search_name=spec.search_name,
             wdk_weight=spec.search_config.wdk_weight,
@@ -247,12 +271,9 @@ class StepsMixin(StrategyAPIBase):
         :param user_id: Explicit user ID override, or ``None`` to use resolved.
         :returns: Created step identifier.
         """
-        answer_param_names = await self._get_answer_param_names(
-            record_type, spec.search_name
+        clean_params = await self._empty_answer_params(
+            record_type, spec.search_name, dict(spec.search_config.parameters)
         )
-        clean_params: JSONObject = dict(spec.search_config.parameters)
-        for ap_name in answer_param_names:
-            clean_params[ap_name] = ""
 
         normalized, search_config = await self._prepare_search_config(
             raw_params=clean_params,

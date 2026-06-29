@@ -56,6 +56,7 @@ class WDKBaseParameter(WDKModel):
 
     # Filter-only fields (declared on base so the formatter can read uniformly).
     ontology: list[WDKFilterOntologyTerm] = Field(default_factory=list)
+    values: dict[str, list[str]] | None = None
     filter_data_type_display_name: str | None = None
 
     # Dataset-only fields (declared on base for the same reason).

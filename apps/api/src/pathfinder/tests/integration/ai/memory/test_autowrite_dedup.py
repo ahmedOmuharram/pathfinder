@@ -12,7 +12,7 @@ from pathfinder.ai.memory.autowrite import auto_write_memories
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.memory.tombstones import TombstoneRepository
-from pathfinder.domain.strategy.plan import StrategyPlan
+from pathfinder.domain.strategy.operational_spec import Criterion, OperationalSpec
 from pathfinder.persistence.models import User
 from pathfinder.platform.db import async_session_factory
 
@@ -30,14 +30,10 @@ async def test_strategy_autowrite_is_idempotent(
         session.add(User(id=user_id))
         await session.commit()
 
-    plan = StrategyPlan.model_validate(
-        {
-            "title": "Malaria",
-            "description": "t",
-            "rationale": "r",
-            "steps": [],
-            "connections": [],
-        }
+    spec = OperationalSpec(
+        goal="q",
+        interpreted_goal="Malaria",
+        criteria=[Criterion(id="c1", text="malaria", search_name="GenesByGoTerm")],
     )
     state = PipelineState(
         conversation_id=conversation_id,
@@ -45,7 +41,7 @@ async def test_strategy_autowrite_is_idempotent(
         site_id="plasmodb",
         mode="strategy",
         user_prompt="q",
-        active_plan=plan,
+        operational_spec=spec,
     )
 
     async with lifespan_memory_store(database_url) as raw:

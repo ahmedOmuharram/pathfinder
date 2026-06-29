@@ -1,28 +1,16 @@
 const TOOL_LABELS: Record<string, string> = {
-  // Discovery / catalog
+  // Lead dispatch / inspection
   read_ledger_section: "Read ledger",
-  get_search_overview: "Inspect search",
-  get_parameter_options: "Param options",
-  get_parameter_dependencies: "Param dependencies",
-  search_for_searches: "Search catalog",
-  update_search_decision: "Search decision",
-  list_transforms: "List transforms",
-  request_search_inspection: "Request inspection",
-  // Scoping / intent
-  set_problem_frame: "Set frame",
-  scope_problem: "Scope problem",
   classify_user_intent: "Classify intent",
-  // Lead dispatch
-  discover_searches: "Discover searches",
   consult_user: "Ask the user",
   recover_failed_steps: "Recover steps",
-  // Planning
-  create_plan: "Build plan",
-  build_plan: "Build plan",
-  update_plan: "Update plan",
-  get_plan: "Get plan",
-  submit_plan: "Submit plan",
-  submit_plan_for_approval: "Submit plan",
+  // FRAME
+  frame_problem: "Frame problem",
+  search_for_searches: "Search catalog",
+  get_search_overview: "Inspect search",
+  set_criterion: "Set criterion",
+  set_structure: "Set structure",
+  drop_criterion: "Drop criterion",
   // Experiments / controls
   compare_search_variants: "Compare variants",
   compare_variants_scored: "Score variants",
@@ -30,9 +18,8 @@ const TOOL_LABELS: Record<string, string> = {
   list_control_sets: "List control sets",
   import_control_ids_from_gene_set: "Controls from gene set",
   import_control_ids_from_strategy: "Controls from strategy",
-  // Execution / strategy
+  // BUILD / strategy
   build_strategy: "Build strategy",
-  execute_plan: "Execute plan",
   verify_strategy: "Verify strategy",
   update_leaf_params: "Update parameters",
   replace_subtree: "Replace subtree",

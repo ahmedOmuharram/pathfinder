@@ -7,9 +7,8 @@ from pydantic import Field
 from shared_py.pydantic_base import CamelModel
 
 PhaseName = Literal[
-    "scoping",
-    "discovery",
-    "planning",
+    "frame",
+    "build",
     "execution",
     "verification",
     "completed",

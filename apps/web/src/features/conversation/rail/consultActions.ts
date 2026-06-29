@@ -2,7 +2,14 @@
 
 import type { UIMessage } from "ai";
 
-import type { ChatHelpersForApproval } from "./planPanelActions";
+export interface ChatHelpersForApproval {
+  setMessages: (updater: (messages: UIMessage[]) => UIMessage[]) => void;
+  addToolApprovalResponse: (response: {
+    id: string;
+    approved: boolean;
+    reason?: string;
+  }) => void;
+}
 
 export const USER_QUESTION_ANSWERS_PART_TYPE = "data-user-question-answers";
 

@@ -14,12 +14,10 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.ai.graph.state import PlanSlotAnswer, UserQuestionAnswer
+from pathfinder.ai.graph.state import UserQuestionAnswer
 from pathfinder.platform.pydantic_base import CamelModel
 
-SUBMIT_PLAN_TOOLS = frozenset({"submit_plan_for_approval", "submit_plan"})
 _USER_QUESTION_ANSWERS_TYPE = "data-user-question-answers"
-_PLAN_SLOT_ANSWERS_TYPE = "data-plan-slot-answers"
 
 
 class GateOption(CamelModel):
@@ -36,25 +34,15 @@ class GateConsultQuestion(CamelModel):
     options: list[GateOption] = Field(default_factory=list)
 
 
-class GatePlanSlot(CamelModel):
-    model_config = ConfigDict(extra="ignore")
-
-    step_id: str
-    param_name: str
-    question: str = ""
-
-
 class Gate(CamelModel):
     """The single pending interaction a turn is blocked on — the CLI's mirror
-    of whatever the UI would render (approval card, consult carousel, plan
-    slot form, or a running durable task). ``kind == "none"`` means the turn
-    completed."""
+    of whatever the UI would render (approval card, consult carousel, or a
+    running durable task). ``kind == "none"`` means the turn completed."""
 
     kind: str = "none"
     tool: str | None = None
     tool_call_id: str | None = None
     consult_questions: list[GateConsultQuestion] = Field(default_factory=list)
-    plan_slots: list[GatePlanSlot] = Field(default_factory=list)
     task_id: str | None = None
     task_tool: str | None = None
     message: str = ""
@@ -64,7 +52,6 @@ def detect_gate(
     *,
     pending_approval: tuple[str, str] | None,
     tool_args: dict[str, dict[str, Any]],
-    plan_open_slots: list[dict[str, Any]],
     durable_task: tuple[str, str] | None,
 ) -> Gate:
     """Classify the pending interaction from captured turn state."""
@@ -89,18 +76,6 @@ def detect_gate(
             tool_call_id=call_id,
             consult_questions=questions,
             message=f"consult_user: {len(questions)} question(s) to answer",
-        )
-    if tool in SUBMIT_PLAN_TOOLS:
-        slots = [GatePlanSlot.model_validate(s) for s in plan_open_slots]
-        return Gate(
-            kind="approval",
-            tool=tool,
-            tool_call_id=call_id,
-            plan_slots=slots,
-            message=(
-                "plan approval: approve/deny"
-                + (f" + {len(slots)} slot(s) to fill" if slots else "")
-            ),
         )
     return Gate(
         kind="approval",
@@ -207,34 +182,6 @@ def consult_body(
                 ),
                 _data_part(
                     part_type=_USER_QUESTION_ANSWERS_TYPE,
-                    tool_call_id=tool_call_id,
-                    answers=answers,
-                ),
-            ],
-        ),
-    )
-
-
-def plan_slots_body(
-    ctx: BodyCtx,
-    *,
-    message_id: UUID,
-    tool: str,
-    tool_call_id: str,
-    approved: bool,
-    answers: list[PlanSlotAnswer],
-) -> ChatRequestBody:
-    return _body(
-        ctx,
-        UIMessage(
-            id=str(message_id),
-            role="assistant",
-            parts=[
-                _approval_part(
-                    tool=tool, tool_call_id=tool_call_id, approved=approved, reason=None
-                ),
-                _data_part(
-                    part_type=_PLAN_SLOT_ANSWERS_TYPE,
                     tool_call_id=tool_call_id,
                     answers=answers,
                 ),

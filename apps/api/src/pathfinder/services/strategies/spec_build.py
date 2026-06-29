@@ -27,7 +27,12 @@ from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     walk_step_tree,
 )
-from pathfinder.domain.strategy.build_outcome import BuildOutcome, StepPushFailure
+from pathfinder.domain.strategy.build_outcome import (
+    BuildOutcome,
+    NodeResult,
+    StepPushFailure,
+    node_status,
+)
 from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.param_validation import validate_parameters
@@ -44,6 +49,27 @@ from pathfinder.services.strategies.sync import sync_strategy_for_site
 from pathfinder.services.strategies.sync_state import WDKSyncState, ensure_sync_state
 
 logger = get_logger(__name__)
+
+
+def _node_results(
+    nodes: list[StrategyStepNode],
+    sync_state: WDKSyncState,
+    outcome: BuildOutcome,
+) -> list[NodeResult]:
+    failed = {f.step_id: f.error for f in outcome.failed_steps}
+    return [
+        NodeResult(
+            node_id=node.id,
+            search_name=node.search_name or COMBINE_SEARCH_NAME,
+            wdk_step_id=sync_state.wdk_step_ids.get(node.id),
+            count=outcome.counts.get(node.id),
+            status=node_status(
+                count=outcome.counts.get(node.id), failed=node.id in failed
+            ),
+            error=failed.get(node.id),
+        )
+        for node in nodes
+    ]
 
 
 async def build_strategy_from_spec(
@@ -109,6 +135,7 @@ async def build_strategy_from_spec(
             graph=graph,
             sync_result=None,
         )
+        outcome.node_results = _node_results(nodes, sync_state, outcome)
         return outcome
 
     try:
@@ -132,6 +159,7 @@ async def build_strategy_from_spec(
                 error=str(exc),
             ),
         )
+        outcome.node_results = _node_results(nodes, sync_state, outcome)
         return outcome
 
     outcome.wdk_strategy_id = sync_result.wdk_strategy_id
@@ -140,6 +168,7 @@ async def build_strategy_from_spec(
     outcome.root_count = sync_result.root_count
     outcome.zero_step_ids = list(sync_result.zero_step_ids)
 
+    outcome.node_results = _node_results(nodes, sync_state, outcome)
     await persist_strategy_ast_to_conversation(
         deps=deps,
         graph=graph,

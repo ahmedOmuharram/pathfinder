@@ -9,10 +9,8 @@ from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.toolsets.prepared import PreparedToolset
 from pydantic_ai.toolsets.wrapper import WrapperToolset
 
-from pathfinder.ai.agents.discovery import discovery_agent
 from pathfinder.ai.agents.execution import execution_agent
-from pathfinder.ai.agents.planning import planning_agent
-from pathfinder.ai.agents.scoping import scoping_agent
+from pathfinder.ai.agents.frame import frame_agent
 from pathfinder.ai.agents.verification import verification_agent
 from pathfinder.ai.scratchpad.toolset import build_scratchpad_toolset
 
@@ -66,13 +64,11 @@ def _flat_tool_names_from_agent(agent: Agent[Any, Any]) -> set[str]:
 @pytest.mark.parametrize(
     "agent",
     [
-        scoping_agent,
-        discovery_agent,
-        planning_agent,
+        frame_agent,
         execution_agent,
         verification_agent,
     ],
-    ids=["scoping", "discovery", "planning", "execution", "verification"],
+    ids=["frame", "execution", "verification"],
 )
 def test_phase_agent_exposes_scratchpad_tools(agent: Agent[object, object]) -> None:
     """Each phase agent composes the scratchpad toolset alongside its phase tools."""
@@ -86,13 +82,11 @@ def test_phase_agent_exposes_scratchpad_tools(agent: Agent[object, object]) -> N
 @pytest.mark.parametrize(
     "agent",
     [
-        scoping_agent,
-        discovery_agent,
-        planning_agent,
+        frame_agent,
         execution_agent,
         verification_agent,
     ],
-    ids=["scoping", "discovery", "planning", "execution", "verification"],
+    ids=["frame", "execution", "verification"],
 )
 def test_phase_toolset_does_not_embed_scratchpad(
     agent: Agent[object, object],

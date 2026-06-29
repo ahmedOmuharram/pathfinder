@@ -6,15 +6,17 @@ annotation and vocabulary rendering.
 """
 
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import Field
+from pydantic import Field, TypeAdapter, ValidationError, model_validator
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import ParamKind
 from pathfinder.domain.parameters.wdk_vocab import (
     VocabOption,
     WDKTreeBoxVocabNode,
     WDKVocabulary,
+    flatten_vocab,
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.pydantic_base import CamelModel
@@ -49,6 +51,16 @@ def _value_format(param_type: str) -> str:
     )
 
 
+_PARAM_KIND_ADAPTER: TypeAdapter[ParamKind] = TypeAdapter(ParamKind)
+
+
+def _to_param_kind(type_str: str) -> ParamKind:
+    try:
+        return _PARAM_KIND_ADAPTER.validate_python(type_str)
+    except ValidationError:
+        return "string"
+
+
 _PROFILE_PATTERN_HELP = (
     "Phylogenetic profile pattern. Format: %CODE:STATE[:QUANTIFIER]% (percent-delimited).\n"
     "  CODE  = species or group code from lookup_phyletic_codes()\n"
@@ -74,6 +86,18 @@ _PROFILE_PATTERN_HELP = (
 )
 
 
+class FilterFieldInfo(CamelModel):
+    """A selectable facet of a WDK filter param — one leaf ontology term, with
+    its valid values. Surfaced so a criterion can target it via a
+    ``<field>=<value>`` override; category nodes (``type is None``) are omitted."""
+
+    term: str
+    display: str
+    type: str
+    is_range: bool = False
+    values: list[str] = Field(default_factory=list)
+
+
 class ParameterInfo(CamelModel):
     """Formatted WDK parameter info for AI tool consumption."""
 
@@ -92,6 +116,18 @@ class ParameterInfo(CamelModel):
     controls_vocab_of: list[str] | None = None
     vocab_depends_on: list[str] | None = None
     note: str | None = None
+    filter_fields: list[FilterFieldInfo] = Field(default_factory=list)
+    # Flattened vocabulary leaves for internal override matching (esp. tree-box
+    # params, whose values are not in ``allowed_values``). Excluded from the
+    # model-facing payload — the model sees ``allowed_values``/``_tree`` instead.
+    vocab_leaves: list[VocabOption] = Field(default_factory=list, exclude=True)
+    # `type` is the WDK ParamKind; `kind` is the model discriminator.
+    param_kind: ParamKind = "string"
+
+    @model_validator(mode="after")
+    def _derive_param_kind(self) -> Self:
+        self.param_kind = _to_param_kind(self.type)
+        return self
 
 
 class ParameterNotOnSearch(CamelModel):
@@ -245,7 +281,34 @@ def format_typed_param(
         controls_vocab_of=controls.get(name),
         vocab_depends_on=vocab_depends_on,
         note=note,
+        filter_fields=filter_fields_for(param),
+        vocab_leaves=(
+            flatten_vocab(param.vocabulary) if not vocab.allowed_values else []
+        ),
     )
+
+
+_MAX_FILTER_FIELD_VALUES = 12
+
+
+def filter_fields_for(param: WDKParameter) -> list[FilterFieldInfo]:
+    """The selectable facets of a filter param: each leaf ontology term (those
+    carrying a data ``type``) paired with its valid values. Category/branch
+    nodes (``type is None``) are not selectable and are skipped."""
+    if param.type != "filter":
+        return []
+    values = param.values or {}
+    return [
+        FilterFieldInfo(
+            term=term.term,
+            display=term.display or term.term,
+            type=term.type,
+            is_range=term.is_range,
+            values=(values.get(term.term) or [])[:_MAX_FILTER_FIELD_VALUES],
+        )
+        for term in param.ontology
+        if term.type is not None
+    ]
 
 
 def format_normalized_param_info(

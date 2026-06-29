@@ -12,7 +12,11 @@ from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKParameter,
 )
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.services.catalog.param_formatting import _value_format
+from pathfinder.services.catalog.param_formatting import (
+    FilterFieldInfo,
+    _value_format,
+    filter_fields_for,
+)
 from pathfinder.services.catalog.vocab_rendering import allowed_values
 
 _PHYLETIC_STRUCTURAL_PARAMS = frozenset({"phyletic_indent_map", "phyletic_term_map"})
@@ -32,6 +36,7 @@ class ParamOverviewEntry(CamelModel):
     max: float | None = None
     vocab_summary: str | None = None
     controls_vocab_of: list[str] | None = None
+    filter_facets: list[FilterFieldInfo] = Field(default_factory=list)
 
 
 class DependencyEntry(CamelModel):
@@ -119,6 +124,7 @@ def _format_param_overview(
         max=param.max,
         vocab_summary=_vocab_summary(param),
         controls_vocab_of=controls.get(param.name),
+        filter_facets=filter_fields_for(param),
     )
 
 

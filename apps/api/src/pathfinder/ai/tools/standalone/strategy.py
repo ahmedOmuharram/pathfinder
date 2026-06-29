@@ -178,11 +178,12 @@ async def update_leaf_params(
     *,
     graph_id: str | None = None,
 ) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
-    """Update a leaf step's parameters atomically.
+    """Update a leaf step's parameters — a partial patch.
 
-    Each value in ``parameters`` MUST be wrapped in its typed shape — see
-    the ``valueFormat`` field from ``get_search_overview`` for the exact
-    template per param. Example:
+    Only the params you pass are changed; the step's other params are kept, so
+    you can update one param without re-supplying the whole search config. Each
+    value MUST be wrapped in its typed shape — see the ``valueFormat`` field
+    from ``get_search_overview`` for the exact template per param. Example:
     ``{"organism": {"type": "multi-pick-vocabulary", "values": ["Pf3D7"]}}``.
     """
     deps = ctx.deps
@@ -202,10 +203,11 @@ async def update_leaf_params(
         raise ModelRetry(msg)
 
     record_type = graph.record_type or "transcript"
+    merged = {**step.parameters, **parameters}
     try:
         canonical = await validate_parameters(
             SearchContext(deps.site_id, record_type, step.search_name),
-            parameters=dict(parameters),
+            parameters=merged,
             callbacks=_make_callbacks(deps.site_id),
         )
     except ValidationError as exc:

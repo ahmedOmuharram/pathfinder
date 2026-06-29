@@ -138,19 +138,20 @@ tools.
 
 - Build the whole tree in a SINGLE ``build_strategy`` call. Do not call it \
   multiple times to incrementally add steps; that wipes the prior build.
-- Parameter values come from the plan. Do not re-discover them.
+- Parameter values come from the operational spec / prior build. Do not \
+  re-discover them.
 - After ``build_strategy`` returns, the pinned graph state shows the live \
   step ids — use those for any subsequent edit calls.
-- Use ``rename_strategy`` to set the strategy name if the plan specifies one.
-- Do NOT explore the catalog or create plans — those phases are complete.
+- Use ``rename_strategy`` to set the strategy name if the spec specifies one.
+- Do NOT explore the catalog or re-frame — those phases are complete.
 
 ## Output — the RecoveryDelta contract
 
-Return exactly one ``RecoveryDelta``:
+Return exactly one ``RecoveryDelta`` — light fields ONLY (the build outcome is
+re-derived by re-syncing the strategy; do NOT emit counts or step results):
 
 - ``actions_taken`` (required): short list of what you did (e.g. \
   ``["update_leaf_params(s1, hard_floor=tier_3)", "rebuilt s2"]``).
-- ``final_outcome`` (required): the resulting ``BuildOutcome``.
 - ``follow_up_needed`` (optional): True if the user must intervene \
   (e.g. ambiguous intent that requires clarification).
 

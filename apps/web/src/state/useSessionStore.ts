@@ -9,11 +9,7 @@ import { createPersistedStore } from "./middleware";
 import { useStrategyStore } from "./strategy/store";
 import { useWorkbenchStore } from "./useWorkbenchStore";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
-import type {
-  GeneSetPart,
-  OptimizationSnapshot,
-  ProblemFramePart,
-} from "@pathfinder/shared";
+import type { GeneSetPart, OptimizationSnapshot } from "@pathfinder/shared";
 
 interface SessionState {
   selectedSite: string;
@@ -31,7 +27,6 @@ interface SessionState {
   chatResetCounter: number;
 
   // Stream-derived session state (from chat data-* parts)
-  problemFrame: ProblemFramePart | null;
   lastGeneSet: GeneSetPart | null;
   optimizationProgress: OptimizationSnapshot | null;
 
@@ -50,7 +45,6 @@ interface SessionState {
   bumpChatResetCounter: () => void;
 
   // Stream-derived session setters (from chat data-* parts)
-  setProblemFrame: (frame: ProblemFramePart) => void;
   recordGeneSet: (set: GeneSetPart) => void;
   setOptimizationProgress: (snapshot: OptimizationSnapshot) => void;
 }
@@ -69,7 +63,6 @@ export const useSessionStore = createPersistedStore<SessionState>(
     pendingUserSubmission: null,
     chatResetCounter: 0,
 
-    problemFrame: null,
     lastGeneSet: null,
     optimizationProgress: null,
 
@@ -116,7 +109,6 @@ export const useSessionStore = createPersistedStore<SessionState>(
     bumpChatResetCounter: () =>
       set((s) => ({ chatResetCounter: s.chatResetCounter + 1 })),
 
-    setProblemFrame: (frame) => set({ problemFrame: frame }),
     recordGeneSet: (geneSet) => set({ lastGeneSet: geneSet }),
     setOptimizationProgress: (snapshot) => set({ optimizationProgress: snapshot }),
   }),

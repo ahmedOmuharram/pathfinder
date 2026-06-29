@@ -1,10 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import type {
-  GeneSetPart,
-  OptimizationSnapshot,
-  ProblemFramePart,
-} from "@pathfinder/shared";
+import type { GeneSetPart, OptimizationSnapshot } from "@pathfinder/shared";
 
 import { useSessionStore } from "./useSessionStore";
 
@@ -19,7 +15,6 @@ beforeEach(() => {
     composerPrefill: null,
     pendingUserSubmission: null,
     chatResetCounter: 0,
-    problemFrame: null,
     lastGeneSet: null,
     optimizationProgress: null,
   });
@@ -91,16 +86,13 @@ describe("useSessionStore — chat + stream-derived setters", () => {
     expect(useSessionStore.getState()).toBe(snap);
   });
 
-  it("records stream-derived problem frame, gene set and optimization", () => {
+  it("records stream-derived gene set and optimization", () => {
     const s = useSessionStore.getState();
-    const frame = { goal: "g" } as unknown as ProblemFramePart;
     const geneSet = { name: "set" } as unknown as GeneSetPart;
     const snapshot = { trial: 1 } as unknown as OptimizationSnapshot;
-    s.setProblemFrame(frame);
     s.recordGeneSet(geneSet);
     s.setOptimizationProgress(snapshot);
     const st = useSessionStore.getState();
-    expect(st.problemFrame).toBe(frame);
     expect(st.lastGeneSet).toBe(geneSet);
     expect(st.optimizationProgress).toBe(snapshot);
   });

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from enum import StrEnum
 
 from pydantic import Field
 
-from pathfinder.domain.strategy.plan import PlannedStep, StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
 
 
@@ -94,24 +94,24 @@ _RNASEQ_REQUEST_RE = re.compile(r"rna[\s_-]?seq", re.IGNORECASE)
 _EXPRESSION_SEARCH_RE = re.compile(r"rnaseq|microarray", re.IGNORECASE)
 
 
-def _expression_steps(plan: StrategyPlan) -> list[PlannedStep]:
-    return [s for s in plan.steps if _EXPRESSION_SEARCH_RE.search(s.search_name)]
+class _RealizedSpec(CamelModel):
+    """The bound facts a constraint is grounded against: the criteria's WDK
+    search names and the union of their parameter names."""
+
+    search_names: list[str] = Field(default_factory=list)
+    param_names: frozenset[str] = Field(default_factory=frozenset)
 
 
-def _param_names(plan: StrategyPlan) -> set[str]:
-    return {p.name for s in plan.steps for p in s.parameters}
-
-
-def _ground_data_type(c: Constraint, plan: StrategyPlan) -> GroundedConstraint:
-    expr = _expression_steps(plan)
+def _ground_data_type(c: Constraint, realized: _RealizedSpec) -> GroundedConstraint:
+    expr = [s for s in realized.search_names if _EXPRESSION_SEARCH_RE.search(s)]
     if not expr:
         return GroundedConstraint(
             constraint=c,
             status=ConstraintStatus.UNGROUNDABLE,
-            note="no expression search in the plan",
+            note="no expression search in the strategy",
         )
     wants_rnaseq = bool(_RNASEQ_REQUEST_RE.search(c.requested_value))
-    all_microarray = all(_MICROARRAY_RE.search(s.search_name) for s in expr)
+    all_microarray = all(_MICROARRAY_RE.search(s) for s in expr)
     if wants_rnaseq and all_microarray:
         return GroundedConstraint(
             constraint=c,
@@ -126,8 +126,8 @@ def _ground_data_type(c: Constraint, plan: StrategyPlan) -> GroundedConstraint:
     )
 
 
-def _ground_threshold(c: Constraint, plan: StrategyPlan) -> GroundedConstraint:
-    if any(_SIGNIFICANCE_RE.search(name) for name in _param_names(plan)):
+def _ground_threshold(c: Constraint, realized: _RealizedSpec) -> GroundedConstraint:
+    if any(_SIGNIFICANCE_RE.search(name) for name in realized.param_names):
         return GroundedConstraint(constraint=c, status=ConstraintStatus.GROUNDED)
     return GroundedConstraint(
         constraint=c,
@@ -136,13 +136,13 @@ def _ground_threshold(c: Constraint, plan: StrategyPlan) -> GroundedConstraint:
     )
 
 
-def _ground_fold_change(c: Constraint, plan: StrategyPlan) -> GroundedConstraint:
-    if "fold_change" in _param_names(plan):
+def _ground_fold_change(c: Constraint, realized: _RealizedSpec) -> GroundedConstraint:
+    if any("fold_change" in name for name in realized.param_names):
         return GroundedConstraint(constraint=c, status=ConstraintStatus.GROUNDED)
     return GroundedConstraint(
         constraint=c,
         status=ConstraintStatus.UNGROUNDABLE,
-        note="no fold_change parameter in the plan",
+        note="no fold_change parameter in the strategy",
     )
 
 
@@ -153,9 +153,17 @@ _HANDLERS = {
 }
 
 
-def ground_against_plan(
-    constraints: list[Constraint], plan: StrategyPlan
+def ground_constraints(
+    constraints: list[Constraint],
+    *,
+    search_names: Collection[str],
+    param_names: Collection[str],
 ) -> list[GroundedConstraint]:
+    """Ground each constraint against the realized strategy facts (the criteria's
+    bound WDK search names + the union of their parameter names)."""
+    realized = _RealizedSpec(
+        search_names=list(search_names), param_names=frozenset(param_names)
+    )
     out: list[GroundedConstraint] = []
     for c in constraints:
         handler = _HANDLERS.get(c.kind)
@@ -164,5 +172,5 @@ def ground_against_plan(
                 GroundedConstraint(constraint=c, status=ConstraintStatus.GROUNDED)
             )
         else:
-            out.append(handler(c, plan))
+            out.append(handler(c, realized))
     return out

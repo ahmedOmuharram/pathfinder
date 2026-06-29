@@ -1,6 +1,6 @@
-"""The deterministic mock's Lead routing: approval resume, deny→rebuild, and
-the consult/variant/attachment journeys. These drive the e2e chat flows, so a
-regression here silently reds the whole browser suite."""
+"""The deterministic mock's Lead routing: the FRAME→BUILD→VERIFY build journey
+plus the consult / variant / attachment branches. These drive the e2e chat
+flows, so a regression here silently reds the whole browser suite."""
 
 from __future__ import annotations
 
@@ -20,71 +20,26 @@ def _user(text: str) -> ModelRequest:
     return ModelRequest(parts=[UserPromptPart(content=text)])
 
 
-def _submit_call() -> ModelResponse:
-    return ModelResponse(
-        parts=[
-            ToolCallPart(
-                tool_name="submit_plan_for_approval", args={}, tool_call_id="s1"
-            )
-        ]
-    )
-
-
-def _submit_return(outcome: str) -> ModelRequest:
-    return ModelRequest(
-        parts=[
-            ToolReturnPart(
-                tool_name="submit_plan_for_approval",
-                content="ok",
-                tool_call_id="s1",
-                outcome=outcome,
-            )
-        ]
-    )
-
-
 def _names(seq: list[ToolCallPart]) -> list[str]:
     return [c.tool_name for c in seq]
 
 
-def test_fresh_approval_resumes_to_execute() -> None:
-    msgs: list[ModelMessage] = [
-        _user("...3d7...interpro..."),
-        _submit_call(),
-        _submit_return("approved"),
-    ]
-    assert "execute_plan" in _names(mock._lead_sequence(msgs))
-
-
-def test_fresh_denial_resumes_to_deny_prose() -> None:
-    msgs: list[ModelMessage] = [
-        _user("...3d7...interpro..."),
-        _submit_call(),
-        _submit_return("denied"),
-    ]
-    assert _names(mock._lead_sequence(msgs)) == ["final_result"]
-
-
-def test_user_message_after_denial_rebuilds_instead_of_redenying() -> None:
-    # The user denied, got the "set that draft aside" prose, then asked for a
-    # change. The stale denied submit must NOT trigger another deny — it must
-    # build a fresh plan.
-    msgs: list[ModelMessage] = [
-        _user("...3d7...interpro..."),
-        _submit_call(),
-        _submit_return("denied"),
-        ModelResponse(
-            parts=[ToolCallPart(tool_name="final_result", args={}, tool_call_id="f1")]
-        ),
-        _user("Add InterPro PF00069 and EC 2.7 to broaden kinase identification."),
-    ]
+def test_build_journey_frames_builds_verifies() -> None:
+    msgs: list[ModelMessage] = [_user("...3d7...interpro...")]
     assert _names(mock._lead_sequence(msgs)) == [
-        "build_plan",
-        "submit_plan_for_approval",
+        "frame_problem",
+        "build_strategy",
+        "verify_strategy",
+        "final_result",
     ]
 
 
-def test_consult_resume_builds_plan() -> None:
+def test_consult_marker_pauses_on_consult_user() -> None:
+    msgs: list[ModelMessage] = [_user("Consult me before planning this strategy.")]
+    assert _names(mock._lead_sequence(msgs)) == ["consult_user"]
+
+
+def test_consult_resume_runs_the_build_journey() -> None:
     msgs: list[ModelMessage] = [
         _user("Consult me before planning this strategy."),
         ModelResponse(
@@ -100,19 +55,21 @@ def test_consult_resume_builds_plan() -> None:
         ),
     ]
     assert _names(mock._lead_sequence(msgs)) == [
-        "build_plan",
-        "submit_plan_for_approval",
+        "frame_problem",
+        "build_strategy",
+        "verify_strategy",
+        "final_result",
     ]
 
 
-def test_user_message_after_approval_does_not_re_execute() -> None:
-    msgs: list[ModelMessage] = [
-        _user("...3d7...interpro..."),
-        _submit_call(),
-        _submit_return("approved"),
-        ModelResponse(
-            parts=[ToolCallPart(tool_name="execute_plan", args={}, tool_call_id="e1")]
-        ),
-        _user("now show me the kinase genes only"),
+def test_variant_marker_compares_variants() -> None:
+    msgs: list[ModelMessage] = [_user("Compare two search variants for kinases.")]
+    assert _names(mock._lead_sequence(msgs)) == [
+        "compare_search_variants",
+        "final_result",
     ]
-    assert "execute_plan" not in _names(mock._lead_sequence(msgs))
+
+
+def test_plain_prompt_echoes_only() -> None:
+    msgs: list[ModelMessage] = [_user("hello there")]
+    assert _names(mock._lead_sequence(msgs)) == ["final_result"]

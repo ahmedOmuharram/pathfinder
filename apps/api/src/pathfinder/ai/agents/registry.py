@@ -6,19 +6,15 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from pathfinder.ai.agents.discovery import discovery_agent
 from pathfinder.ai.agents.execution import execution_agent
-from pathfinder.ai.agents.planning import planning_agent
+from pathfinder.ai.agents.frame import frame_agent
 from pathfinder.ai.agents.roles import PHASE_ROLES, PhaseRole
-from pathfinder.ai.agents.scoping import scoping_agent
 from pathfinder.ai.agents.verification import verification_agent
 from pathfinder.ai.lead.lead_agent import lead_agent
 
 PHASE_AGENTS: dict[PhaseRole, Agent[Any, Any]] = {
     "lead": lead_agent,
-    "scoping": scoping_agent,
-    "discovery": discovery_agent,
-    "planning": planning_agent,
+    "frame": frame_agent,
     "execution": execution_agent,
     "verification": verification_agent,
 }

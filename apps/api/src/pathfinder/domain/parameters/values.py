@@ -4,7 +4,7 @@ import json
 from collections.abc import Callable
 from typing import Annotated, Literal
 
-from pydantic import ConfigDict, Field, JsonValue, TypeAdapter, model_validator
+from pydantic import Field, JsonValue, TypeAdapter, model_validator
 
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -153,9 +153,15 @@ class MultiPickValue(CamelModel):
 
 
 class FilterTermClause(CamelModel):
-    model_config = ConfigDict(extra="allow")
+    """One faceted clause of a WDK filter value. Keys mirror wdk-client's
+    authoritative ``BaseFilter`` (field/type/isRange/includeUnknown/value);
+    parsing ignores extra keys (e.g. ``fieldDisplayName``) and emits only these."""
+
     field: str
-    value: JsonValue
+    type: str = "string"
+    is_range: bool = False
+    include_unknown: bool = False
+    value: JsonValue = Field(default_factory=list)
 
 
 class FilterValue(CamelModel):

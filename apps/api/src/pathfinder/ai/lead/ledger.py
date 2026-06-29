@@ -4,21 +4,17 @@ from typing import Literal
 
 from pydantic import Field, computed_field
 
-from pathfinder.ai.agents.param_vocab_render import render_param_vocab
-from pathfinder.ai.agents.state import SearchOverview
-from pathfinder.ai.graph.state import (
-    ClarificationQuestion,
-    ProblemFrame,
-    VerificationDigest,
-)
-from pathfinder.ai.lead.deltas import OpenSlot
+from pathfinder.ai.graph.state import VerificationDigest
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.constraints import GroundedConstraint, is_blocking
-from pathfinder.domain.strategy.plan import StrategyPlan
+from pathfinder.domain.strategy.operational_spec import (
+    Criterion,
+    OperationalSpec,
+    StructureNode,
+)
 from pathfinder.platform.pydantic_base import CamelModel
 
-BlockedKind = Literal["none", "needs_discovery", "needs_user", "needs_approval"]
 RecoveryKind = Literal[
     "none",
     "transient_retry",
@@ -28,10 +24,8 @@ RecoveryKind = Literal[
     "empty_result_review",
 ]
 SubAgentName = Literal[
-    "scope",
-    "discover",
-    "plan",
-    "execute",
+    "frame",
+    "build",
     "execute_recovery",
     "verify",
     "validate",
@@ -40,73 +34,47 @@ SubAgentName = Literal[
 
 
 class FrameSection(CamelModel):
-    frame: ProblemFrame | None
-    matches_current_intent: bool
-    blocking_questions_unanswered: list[ClarificationQuestion] = Field(
-        default_factory=list,
-    )
+    """The OperationalSpec the FRAME phase produced — criteria bound to real WDK
+    searches with resolved params + a combine structure. Replaces the old
+    scoping/discovery/planning sections: FRAME does all three in one pass."""
+
+    spec: OperationalSpec | None = None
 
     @computed_field
-    def needed(self) -> bool:
-        return self.frame is None or not self.matches_current_intent
+    def present(self) -> bool:
+        return self.spec is not None
 
     @computed_field
-    def blocked(self) -> bool:
-        return bool(self.blocking_questions_unanswered)
-
-
-class SearchFitReport(CamelModel):
-    """Per-search assessment: does its vocab cover the user's intent?"""
-
-    search_name: str
-    display_name: str
-    selection_status: Literal["selected", "candidate", "rejected"]
-    intent_sides_covered: dict[str, bool] = Field(default_factory=dict)
-    intent_sides_unmatched: list[str] = Field(default_factory=list)
-    confidence: float
-    rationale: str = ""
-    selection_reason: str = ""
-
-
-class DiscoverySection(CamelModel):
-    selections: dict[str, SearchOverview] = Field(default_factory=dict)
-    fit_reports: list[SearchFitReport] = Field(default_factory=list)
-    selected_count: int = 0
-    rejected_count: int = 0
-    intent_satisfied: bool = False
-    intent_gap: str | None = None
+    def criteria_count(self) -> int:
+        return len(self.spec.criteria) if self.spec else 0
 
     @computed_field
-    def needs_more_discovery(self) -> bool:
-        return self.selected_count == 0 or not self.intent_satisfied
-
-
-class PlanSection(CamelModel):
-    plan: StrategyPlan | None = None
-    open_user_input_slots: list[OpenSlot] = Field(default_factory=list)
-    open_discovery_slots: list[OpenSlot] = Field(default_factory=list)
-    submitted_at_turn: str | None = None
-    approved: bool = False
-    last_denial_message: str | None = None
+    def bound_count(self) -> int:
+        return sum(1 for c in self.spec.criteria if c.bound) if self.spec else 0
 
     @computed_field
-    def ready_to_execute(self) -> bool:
-        return (
-            self.plan is not None
-            and self.approved
-            and not self.open_user_input_slots
-            and not self.open_discovery_slots
+    def open_slot_count(self) -> int:
+        if self.spec is None:
+            return 0
+        return len(self.spec.open_slots) + sum(
+            len(c.open_params) for c in self.spec.criteria
         )
 
     @computed_field
-    def blocked_kind(self) -> BlockedKind:
-        if self.open_discovery_slots:
-            return "needs_discovery"
-        if self.open_user_input_slots:
-            return "needs_user"
-        if self.plan is not None and not self.approved:
-            return "needs_approval"
-        return "none"
+    def dropped_count(self) -> int:
+        return len(self.spec.dropped) if self.spec else 0
+
+    @computed_field
+    def ready_to_build(self) -> bool:
+        return self.spec.ready_to_build if self.spec else False
+
+    @computed_field
+    def needs_user(self) -> bool:
+        if self.spec is None:
+            return False
+        return bool(self.spec.open_slots) or any(
+            c.open_params for c in self.spec.criteria
+        )
 
 
 class BuildSection(CamelModel):
@@ -164,16 +132,14 @@ class InvestigationLedger(CamelModel):
     """Lead reads this in full each turn. Sub-agents do NOT read it; they
     receive scoped slices via typed work orders.
 
-    Constructed by ``InvestigationLedger.from_state`` (defined in
-    ``derive.py``). The Ledger is derived, not persisted — only
-    ``user_intent`` and ``last_build_outcome`` are added to ``PipelineState``;
-    every other field of the Ledger composes from existing typed state.
+    Constructed by ``derive_ledger`` (in ``derive.py``). The Ledger is derived,
+    not persisted — only ``user_intent``, ``operational_spec`` and
+    ``last_build_outcome`` live on ``PipelineState``; every other field composes
+    from those.
     """
 
     user_intent: UserIntent | None
     frame: FrameSection
-    discovery: DiscoverySection
-    plan: PlanSection
     build: BuildSection
     verification: VerificationSection
     constraints: ConstraintSection = Field(default_factory=ConstraintSection)
@@ -185,9 +151,9 @@ class InvestigationLedger(CamelModel):
     def render_summary(self) -> str:
         """Compact markdown view the Lead reads in pinned context.
 
-        Counts + derived booleans + tiny samples. Full content of any
-        section is fetched via ``read_ledger_section`` tool, keeping the
-        Lead's prompt bounded for 20+-step strategies.
+        Counts + derived booleans. Full content of any section is fetched via
+        ``read_ledger_section`` tool, keeping the Lead's prompt bounded for
+        20+-step strategies.
         """
         intent = self.user_intent
         intent_line = (
@@ -209,25 +175,13 @@ class InvestigationLedger(CamelModel):
             [
                 "",
                 "## Frame",
-                f"- needed: {self.frame.needed}",
-                f"- blocked: {self.frame.blocked}",
-                f"- blocking_questions: {len(self.frame.blocking_questions_unanswered)}",
-                "",
-                "## Discovery",
-                f"- selected: {self.discovery.selected_count}",
-                f"- rejected: {self.discovery.rejected_count}",
-                f"- intent_satisfied: {self.discovery.intent_satisfied}",
-                f"- intent_gap: {self.discovery.intent_gap or 'none'}",
-                f"- needs_more_discovery: {self.discovery.needs_more_discovery}",
-                "",
-                "## Plan",
-                f"- present: {self.plan.plan is not None}",
-                f"- approved: {self.plan.approved}",
-                f"- open_user_input_slots: {len(self.plan.open_user_input_slots)}",
-                f"- open_discovery_slots: {len(self.plan.open_discovery_slots)}",
-                f"- blocked_kind: {self.plan.blocked_kind}",
-                f"- ready_to_execute: {self.plan.ready_to_execute}",
-                f"- last_denial: {self.plan.last_denial_message or 'none'}",
+                f"- present: {self.frame.present}",
+                f"- criteria: {self.frame.criteria_count} "
+                f"(bound: {self.frame.bound_count})",
+                f"- dropped: {self.frame.dropped_count}",
+                f"- open_slots: {self.frame.open_slot_count}",
+                f"- needs_user: {self.frame.needs_user}",
+                f"- ready_to_build: {self.frame.ready_to_build}",
                 "",
                 "## Build",
                 f"- pushed: {self.build.pushed_count}",
@@ -255,10 +209,6 @@ class InvestigationLedger(CamelModel):
         """Full detail of one section. Used by ``read_ledger_section`` tool."""
         if section == "frame":
             return _render_frame_full(self.frame)
-        if section == "discovery":
-            return _render_discovery_full(self.discovery)
-        if section == "plan":
-            return _render_plan_full(self.plan)
         if section == "build":
             return _render_build_full(self.build)
         if section == "verification":
@@ -288,101 +238,63 @@ def _render_constraints_full(section: ConstraintSection) -> str:
 
 
 def _render_frame_full(section: FrameSection) -> str:
-    if section.frame is None:
-        return "## Frame\n(no frame)"
-    f = section.frame
+    spec = section.spec
+    if spec is None:
+        return "## Frame\n(no spec yet)"
     parts = [
         "## Frame (full)",
-        f"- user_goal: {f.user_goal}",
-        f"- interpreted_goal: {f.interpreted_goal}",
-        f"- organism_scope: {f.organism_scope}",
-        f"- record_type: {f.record_type}",
-        f"- biological_entities: {f.biological_entities}",
-        f"- inclusion_criteria: {f.inclusion_criteria}",
-        f"- exclusion_criteria: {f.exclusion_criteria}",
-        f"- success_criteria: {f.success_criteria}",
-        f"- assumptions: {f.assumptions}",
-        f"- ready_for_wdk_discovery: {f.ready_for_wdk_discovery}",
-        f"- confidence: {f.confidence}",
+        f"- goal: {spec.goal}",
+        f"- interpreted_goal: {spec.interpreted_goal}",
+        f"- record_type: {spec.record_type}",
+        f"- organism_scope: {spec.organism_scope or 'any'}",
+        f"- title: {spec.title}",
+        f"- ready_to_build: {spec.ready_to_build}",
+        "",
+        f"### Criteria ({len(spec.criteria)})",
     ]
-    if section.blocking_questions_unanswered:
-        parts.append("\n### Blocking questions")
-        parts.extend(f"- {q.question}" for q in section.blocking_questions_unanswered)
+    for crit in spec.criteria:
+        parts.extend(_render_criterion(crit))
+    if spec.structure is not None:
+        parts.append("\n### Structure")
+        parts.append(_render_structure(spec.structure.root, spec))
+    if spec.open_slots:
+        parts.append("\n### Open slots (user must answer)")
+        parts.extend(
+            f"- {s.criterion_id or '—'}.{s.param_name}: {s.question}"
+            for s in spec.open_slots
+        )
+    if spec.dropped:
+        parts.append("\n### Dropped criteria")
+        parts.extend(f"- {d.text} — {d.reason}" for d in spec.dropped)
     return "\n".join(parts)
 
 
-def _render_discovery_full(section: DiscoverySection) -> str:
-    parts = [
-        "## Discovery (full)",
-        f"- selected: {section.selected_count}, rejected: {section.rejected_count}",
-    ]
-    for status in ("selected", "candidate", "rejected"):
-        group = [r for r in section.fit_reports if r.selection_status == status]
-        if not group:
-            continue
-        parts.append(f"\n### {status.title()} ({len(group)})")
-        for report in group:
-            overview = section.selections.get(report.search_name)
-            parts.extend(_render_fit_report(report, overview))
-    if section.intent_gap:
-        parts.append(f"\nintent_gap: {section.intent_gap}")
-    return "\n".join(parts)
-
-
-def _render_fit_report(
-    report: SearchFitReport,
-    overview: SearchOverview | None,
-) -> list[str]:
+def _render_criterion(crit: Criterion) -> list[str]:
     out = [
-        f"- `{report.search_name}` — {report.display_name} "
-        f"(conf={report.confidence:.2f})",
+        f"- `{crit.id}` [{crit.role}] {crit.text} → "
+        f"search={crit.search_name or '(unbound)'} (conf={crit.confidence:.2f})",
     ]
-    if report.selection_reason:
-        out.append(f"    decision: {report.selection_reason}")
-    if report.rationale:
-        out.append(f"    why: {report.rationale}")
-    if report.intent_sides_unmatched:
-        out.append(f"    unmatched sides: {report.intent_sides_unmatched}")
-    if overview is not None and overview.param_vocab:
-        out.append("    params:")
-        for pname in sorted(overview.param_vocab):
-            out.extend(render_param_vocab(pname, overview.param_vocab[pname], indent=6))
+    out.extend(f"    {name}={value!r}" for name, value in crit.resolved_params.items())
+    out.extend(f"    OPEN {s.param_name}: {s.question}" for s in crit.open_params)
     return out
 
 
-def _render_plan_full(section: PlanSection) -> str:
-    if section.plan is None:
-        return "## Plan\n(no plan yet)"
-    plan = section.plan
-    parts = [
-        "## Plan (full)",
-        f"- id: {plan.id}",
-        f"- title: {plan.title}",
-        f"- status: {plan.status.value}",
-        f"- step_count: {len(plan.steps)}",
-        f"- connection_count: {len(plan.connections)}",
-    ]
-    for step in plan.steps:
-        parts.append(
-            f"- step {step.id} ({step.step_type.value}) "
-            f"search={step.search_name} status={step.status.value}",
+def _render_structure(node: StructureNode, spec: OperationalSpec) -> str:
+    by_id = {c.id: c for c in spec.criteria}
+    if node.kind in {"leaf", "transform"}:
+        crit = by_id.get(node.criterion_id or "")
+        name = (
+            crit.search_name
+            if crit and crit.search_name
+            else (node.criterion_id or "?")
         )
-        parts.extend(
-            f"    {p.name}={p.value!r} status={p.status.value} required={p.required}"
-            for p in step.parameters
-        )
-    if section.open_user_input_slots:
-        parts.append("\n### Open user-input slots")
-        parts.extend(
-            f"- {s.step_id}.{s.param_name}: {s.question}"
-            for s in section.open_user_input_slots
-        )
-    if section.open_discovery_slots:
-        parts.append("\n### Open discovery slots")
-        parts.extend(
-            f"- {s.step_id}.{s.param_name}" for s in section.open_discovery_slots
-        )
-    return "\n".join(parts)
+        if node.kind == "transform":
+            inner = _render_structure(node.inputs[0], spec) if node.inputs else "?"
+            return f"{name}({inner})"
+        return name
+    op = node.operator.value if node.operator else "?"
+    inner = f" {op} ".join(_render_structure(child, spec) for child in node.inputs)
+    return f"({inner})"
 
 
 def _render_build_full(section: BuildSection) -> str:

@@ -12,8 +12,6 @@ import type { Strategy } from "@pathfinder/shared";
 import { geneSetSchema } from "@pathfinder/shared/generated/zod/geneSetSchema";
 import { graphClearedSchema } from "@pathfinder/shared/generated/zod/graphClearedSchema";
 import { graphSnapshotSchema } from "@pathfinder/shared/generated/zod/graphSnapshotSchema";
-import { planArtifactSchema } from "@pathfinder/shared/generated/zod/planArtifactSchema";
-import { problemFrameSchema } from "@pathfinder/shared/generated/zod/problemFrameSchema";
 import { strategyMetaSchema } from "@pathfinder/shared/generated/zod/strategyMetaSchema";
 import { turnUsageSchema } from "@pathfinder/shared/generated/zod/turnUsageSchema";
 
@@ -23,7 +21,6 @@ import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/u
 import { strategyQueryKey, strategyQueryOptions } from "@/lib/api/strategy";
 import { getMyQuotaQueryKey } from "@pathfinder/shared/generated/hooks/useGetMyQuota";
 import { listScratchpadNotesQueryOptions } from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
-import { usePlanStore } from "@/state/usePlanStore";
 import { useRightRailStore } from "@/state/useRightRailStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useSettingsStore } from "@/state/useSettingsStore";
@@ -100,16 +97,6 @@ export function useChatRuntime({
           void queryClient.invalidateQueries({
             queryKey: listScratchpadNotesQueryOptions(conversationId).queryKey,
           });
-          break;
-        case "data-plan-artifact":
-          usePlanStore
-            .getState()
-            .appendPlanArtifact(planArtifactSchema.parse(dataPart.data));
-          break;
-        case "data-problem-frame":
-          useSessionStore
-            .getState()
-            .setProblemFrame(problemFrameSchema.parse(dataPart.data));
           break;
         case "data-gene-set":
           useSessionStore.getState().recordGeneSet(geneSetSchema.parse(dataPart.data));

@@ -20,10 +20,7 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.graph.runtime import Context, ReasoningEffort
-from pathfinder.ai.graph.state import (
-    PlanSlotAnswer,
-    UserQuestionAnswer,
-)
+from pathfinder.ai.graph.state import UserQuestionAnswer
 from pathfinder.ai.graph.stream_events import background_task_started_event
 from pathfinder.domain.research.citations import (
     LiteratureFilters,
@@ -165,48 +162,6 @@ def _extract_approval_responses(
     return dict(iter_tool_approval_responses(incoming.messages))
 
 
-_PLAN_SLOT_ANSWERS_TYPE = "data-plan-slot-answers"
-
-
-class _PlanSlotAnswersPayload(CamelModel):
-    """Shape of a ``data-plan-slot-answers`` UI part's ``data`` field.
-
-    Frontend sends this on the assistant message that carries the
-    ``approval-responded`` part for ``submit_plan``, with camelCase keys
-    (``toolCallId``) — so this MUST be a CamelModel to parse it. The pairing
-    is by ``tool_call_id``.
-    """
-
-    tool_call_id: str
-    answers: list[PlanSlotAnswer]
-
-
-def _extract_plan_slot_answers(
-    incoming: ChatRequestBody,
-) -> dict[str, list[PlanSlotAnswer]]:
-    """Pull ``data-plan-slot-answers`` parts out of assistant messages.
-
-    Returns ``{tool_call_id: [PlanSlotAnswer, ...]}``. The submit_plan
-    body resolves its own ``tool_call_id`` from ``ctx`` and applies the
-    matched list to the active plan.
-    """
-    out: dict[str, list[PlanSlotAnswer]] = {}
-    for msg in incoming.messages:
-        if msg.role != "assistant":
-            continue
-        for part in msg.parts:
-            if not isinstance(part, DataUIPart):
-                continue
-            if part.type != _PLAN_SLOT_ANSWERS_TYPE:
-                continue
-            try:
-                payload = _PlanSlotAnswersPayload.model_validate(part.data)
-            except ValidationError:
-                continue
-            out[payload.tool_call_id] = payload.answers
-    return out
-
-
 _USER_QUESTION_ANSWERS_TYPE = "data-user-question-answers"
 
 
@@ -261,7 +216,6 @@ def _build_turn_input(
         "site_id": incoming.site_id,
         "mode": incoming.mode,
         "approval_responses": _extract_approval_responses(incoming),
-        "plan_slot_answers": _extract_plan_slot_answers(incoming),
         "user_question_answers": _extract_user_question_answers(incoming),
         "turn_trace_id": str(uuid4()),
         "turn_created_at": datetime.now(UTC).isoformat(),

@@ -6,12 +6,6 @@ from shared_py.stream_parts.gene_set import GeneSet
 from shared_py.stream_parts.graph import GraphEdge, GraphNode, GraphSnapshot
 from shared_py.stream_parts.optimization import OptimizationSnapshot
 from shared_py.stream_parts.phase import PhaseChange
-from shared_py.stream_parts.plan import (
-    PlanArtifact,
-    PlannedStep,
-    PlanUpdate,
-)
-from shared_py.stream_parts.problem_frame import ProblemFrame
 from shared_py.stream_parts.strategy import (
     StrategyLink,
     StrategyMeta,
@@ -81,34 +75,6 @@ def test_strategy_link_validates():
     assert link.url.startswith("https://")
 
 
-def test_plan_artifact_validates():
-    art = PlanArtifact(
-        plan_id="p_x",
-        steps=[PlannedStep(order=0, search_name="ByText", rationale="filter by term")],
-        rationale="three-step funnel",
-    )
-    assert len(art.steps) == 1
-
-
-def test_plan_update_validates():
-    upd = PlanUpdate(plan_id="p_x", status="revised", reason="swapped step 2")
-    assert upd.status == "revised"
-
-
-def test_problem_frame_validates():
-    pf = ProblemFrame(
-        site_id="plasmodb",
-        user_goal="find drug targets for PfATP4",
-        interpreted_goal="identify essential plasmodium genes related to ATP4",
-        biological_entities=["PfATP4"],
-        ready_for_wdk_discovery=True,
-        confidence=0.9,
-    )
-    assert pf.site_id == "plasmodb"
-    assert pf.biological_entities == ["PfATP4"]
-    assert pf.ready_for_wdk_discovery is True
-
-
 def test_gene_set_validates():
     gs = GeneSet(
         gene_set_id="gs_1",
@@ -132,22 +98,22 @@ def test_optimization_snapshot_validates():
 
 def test_phase_change_validates():
     pc = PhaseChange(
-        phase="discovery",
+        phase="frame",
         status="started",
         duration_ms=None,
     )
-    assert pc.phase == "discovery"
+    assert pc.phase == "frame"
 
 
 def test_phase_change_carries_reason():
     pc = PhaseChange(
-        phase="planning",
+        phase="build",
         status="started",
-        reason="user answered scoping question",
+        reason="user answered a design question",
     )
-    assert pc.reason == "user answered scoping question"
+    assert pc.reason == "user answered a design question"
     dumped = pc.model_dump(by_alias=True, exclude_none=True)
-    assert dumped["reason"] == "user answered scoping question"
+    assert dumped["reason"] == "user answered a design question"
 
 
 def test_phase_change_reason_optional():

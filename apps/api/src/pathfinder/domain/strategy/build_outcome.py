@@ -1,6 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
+
+from pathfinder.platform.pydantic_base import CamelModel
+
+NodeStatus = Literal["ok", "zero", "failed"]
+
+
+def node_status(*, count: int | None, failed: bool) -> NodeStatus:
+    if failed:
+        return "failed"
+    if count == 0:
+        return "zero"
+    return "ok"
+
+
+class NodeResult(CamelModel):
+    """Per-node build result surfaced to the Ledger/UI (BUILD's count feedback)."""
+
+    node_id: str
+    search_name: str
+    wdk_step_id: int | None = None
+    count: int | None = None
+    status: NodeStatus
+    error: str | None = None
 
 
 @dataclass
@@ -22,6 +46,7 @@ class BuildOutcome:
     counts: dict[str, int | None] = field(default_factory=dict)
     root_count: int | None = None
     zero_step_ids: list[str] = field(default_factory=list)
+    node_results: list[NodeResult] = field(default_factory=list)
 
     @property
     def fully_succeeded(self) -> bool:

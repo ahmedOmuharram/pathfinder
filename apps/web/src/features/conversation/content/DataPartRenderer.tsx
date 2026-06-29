@@ -31,8 +31,6 @@ export function DataPartRenderer({
     .with("data-strategy-meta", (k) => renderKind(k, data))
     .with("data-graph-snapshot", (k) => renderKind(k, data))
     .with("data-graph-cleared", (k) => renderKind(k, data))
-    .with("data-problem-frame", (k) => renderKind(k, data))
-    .with("data-plan-artifact", (k) => renderKind(k, data))
     .with("data-variant-comparison", (k) => renderKind(k, data))
     .with("data-scored-comparison", (k) => renderKind(k, data))
     .with("data-tool-approval-request", (k) => renderKind(k, data))

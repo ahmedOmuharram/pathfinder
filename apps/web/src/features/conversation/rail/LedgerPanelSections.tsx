@@ -2,10 +2,8 @@
 
 import type {
   LedgerBuildPayload,
-  LedgerDiscoveryPayload,
   LedgerFramePayload,
   LedgerIntentPayload,
-  LedgerPlanPayload,
   LedgerVerificationPayload,
 } from "@pathfinder/shared";
 
@@ -58,102 +56,41 @@ export function IntentSection({
 }
 
 export function FrameSection({ frame }: { frame: LedgerFramePayload }) {
-  const blockingTone: Tone =
-    frame.blockingQuestionsUnanswered.length > 0 ? "warn" : "neutral";
   return (
     <LedgerSection title="Frame">
-      <LedgerRow label="needed" value={<BoolBadge value={frame.needed} />} />
-      <LedgerRow label="blocked" value={<BoolBadge value={frame.blocked} />} />
+      <LedgerRow label="present" value={<BoolBadge value={frame.present} />} />
       <LedgerRow
-        label="blocking questions"
+        label="criteria"
         value={
           <CountChip
-            value={frame.blockingQuestionsUnanswered.length}
-            tone={blockingTone}
+            value={frame.criteriaCount}
+            tone={frame.criteriaCount > 0 ? "good" : "neutral"}
           />
         }
       />
-      {frame.blockingQuestionsUnanswered.slice(0, 3).map((q, i) => (
-        <p
-          key={i}
-          className="ml-1 border-l border-border pl-2 text-[11px] italic text-muted-foreground"
-        >
-          {q.question}
-        </p>
-      ))}
-    </LedgerSection>
-  );
-}
-
-export function DiscoverySection({ discovery }: { discovery: LedgerDiscoveryPayload }) {
-  return (
-    <LedgerSection title="Discovery">
+      <LedgerRow label="bound" value={<CountChip value={frame.boundCount} />} />
       <LedgerRow
-        label="selected"
+        label="open slots"
         value={
           <CountChip
-            value={discovery.selectedCount}
-            tone={discovery.selectedCount > 0 ? "good" : "neutral"}
+            value={frame.openSlotCount}
+            tone={frame.openSlotCount > 0 ? "warn" : "neutral"}
           />
         }
       />
       <LedgerRow
-        label="rejected"
-        value={<CountChip value={discovery.rejectedCount} />}
-      />
-      <LedgerRow
-        label="intent satisfied"
-        value={<BoolBadge value={discovery.intentSatisfied} />}
-      />
-      <LedgerRow
-        label="needs more"
-        value={<BoolBadge value={discovery.needsMoreDiscovery} />}
-      />
-      {discovery.intentGap !== null && discovery.intentGap !== "" && (
-        <p className="ml-1 border-l border-warning/40 pl-2 text-[11px] italic text-warning">
-          gap: {discovery.intentGap}
-        </p>
-      )}
-    </LedgerSection>
-  );
-}
-
-export function PlanSection({ plan }: { plan: LedgerPlanPayload }) {
-  const blockedTone: Tone =
-    plan.blockedKind === "none"
-      ? "good"
-      : plan.blockedKind === "needs_approval"
-        ? "warn"
-        : "bad";
-  return (
-    <LedgerSection title="Plan">
-      <LedgerRow label="present" value={<BoolBadge value={plan.plan !== null} />} />
-      <LedgerRow label="approved" value={<BoolBadge value={plan.approved} />} />
-      <LedgerRow
-        label="open user-input slots"
+        label="dropped"
         value={
           <CountChip
-            value={plan.openUserInputSlots.length}
-            tone={plan.openUserInputSlots.length > 0 ? "warn" : "neutral"}
+            value={frame.droppedCount}
+            tone={frame.droppedCount > 0 ? "warn" : "neutral"}
           />
         }
       />
+      <LedgerRow label="needs user" value={<BoolBadge value={frame.needsUser} />} />
       <LedgerRow
-        label="open discovery slots"
-        value={
-          <CountChip
-            value={plan.openDiscoverySlots.length}
-            tone={plan.openDiscoverySlots.length > 0 ? "warn" : "neutral"}
-          />
-        }
-      />
-      <LedgerRow
-        label="blocked kind"
-        value={<StatusPill text={plan.blockedKind} tone={blockedTone} />}
-      />
-      <LedgerRow
-        label="ready to execute"
-        value={<BoolBadge value={plan.readyToExecute} />}
+        label="ready to build"
+        value={<BoolBadge value={frame.readyToBuild} />}
       />
     </LedgerSection>
   );

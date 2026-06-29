@@ -12,26 +12,23 @@ Tool surface (in three groups):
     - ``classify_user_intent`` — sets the typed UserIntent on deps once
       per turn. The Lead calls this first.
     - ``read_ledger_section`` — fetch full detail of a Ledger section
-      (frame / discovery / plan / build / verification). The Lead reads
-      a compact summary in pinned instructions; this lets it drill in
-      when a section's counts indicate something needs attention.
+      (frame / build / verification). The Lead reads a compact summary in
+      pinned instructions; this lets it drill in when a section's counts
+      indicate something needs attention.
 
   Sub-agent tools (work-order wrappers around phase agents)
-    - ``scope_problem`` — runs the scoping sub-agent.
-    - ``discover_searches`` — runs the discovery sub-agent (with hints).
-    - ``build_plan`` — runs the planning sub-agent.
-    - ``execute_plan`` — declarative no-LLM build of an APPROVED plan.
+    - ``frame_problem`` — runs FRAME: operationalize the goal into criteria,
+      bind each to a real WDK search, resolve params → an OperationalSpec.
+    - ``build_strategy`` — declarative no-LLM materialization of the spec
+      into a real WDK strategy.
     - ``recover_failed_steps`` — runs the LLM execution-recovery agent.
     - ``verify_strategy`` — runs the verification sub-agent.
 
-  User-touching (both deferred-tools that pause with a ToolApprovalRequest)
+  User-touching (deferred-tool that pauses with a ToolApprovalRequest)
     - ``consult_user`` — ask the user design questions that shape the
-      investigation BEFORE a plan is finalized. The carousel renders them
-      as question slides (options + free-text note); answers come back to
-      the Lead, which re-runs build_plan honoring them.
-    - ``submit_plan_for_approval`` — clean go/no-go on a settled plan. The
-      plan card surfaces remaining NEEDS_USER_INPUT slots as form fields;
-      on approval the body applies slot answers and marks the plan APPROVED.
+      investigation at a genuine fork (which arm to add, a threshold that
+      changes the steps). The carousel renders them as question slides
+      (options + free-text note); answers come back to the Lead.
 
 The Lead's final output is a ``LeadResponse`` containing user-facing
 prose and a turn-state literal (``await_user`` vs ``complete``). All
@@ -46,10 +43,7 @@ from typing import Literal
 from pydantic import Field
 from pydantic_ai import Agent, DeferredToolRequests, RunContext, Tool
 from pydantic_ai.capabilities import ProcessHistory, Thinking
-from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
-from pydantic_ai.tools import ToolDefinition
-from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 from pathfinder.ai.agents._history_processor import (
     PHASE_HISTORY_PROCESSORS,
@@ -58,41 +52,26 @@ from pathfinder.ai.graph.state import ConsultQuestion, UserQuestionAnswer
 from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.intent import UserIntent
-from pathfinder.ai.lead.slot_answers import (
-    apply_plan_slot_answers,
-    assert_no_unresolved_slots,
-    mark_plan_approved,
-)
 from pathfinder.ai.lead.sub_agent_dispatch import (
-    build_plan,
-    discover_searches,
-    execute_plan,
+    build_strategy,
+    frame_problem,
     recover_failed_steps,
-    scope_problem,
     verify_strategy,
 )
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
-from pathfinder.ai.tools.standalone._stream_parts import plan_artifact_chunk
 from pathfinder.ai.tools.standalone.control_sets import (
     build_control_set,
     import_control_ids_from_gene_set,
     import_control_ids_from_strategy,
     list_control_sets,
 )
-from pathfinder.ai.tools.standalone.plan import (
-    planned_steps_for_stream,
-    slot_forms_for_stream,
-)
 from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_scored
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
-from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
 
 LeadTurnState = Literal["await_user", "complete"]
 LedgerSectionName = Literal[
     "frame",
-    "discovery",
-    "plan",
     "build",
     "verification",
 ]
@@ -121,6 +100,28 @@ def pinned_ledger_summary(ctx: RunContext[LeadDeps]) -> str:
     """Compact Ledger summary, derived fresh each instruction render."""
     ledger = derive_ledger(ctx.deps.state, ctx.deps.intent)
     return ledger.render_summary()
+
+
+def pinned_operational_spec(ctx: RunContext[LeadDeps]) -> str | None:
+    """The in-progress Operational Spec FRAME produces — the Lead reads this to
+    decide BUILD readiness."""
+    spec = ctx.deps.state.operational_spec
+    if spec is None:
+        return "## Operational Spec\nNot framed yet. Call ``frame_problem``."
+    lines = [
+        "## Operational Spec",
+        f"- goal: {spec.interpreted_goal or spec.goal}",
+        f"- ready_to_build: {spec.ready_to_build}",
+    ]
+    for c in spec.criteria:
+        slots = [s.param_name for s in c.open_params]
+        line = f"  - [{c.id}] {c.text[:60]} -> {c.search_name or '(UNBOUND)'}"
+        if slots:
+            line += f" | open: {slots}"
+        lines.append(line)
+    if spec.dropped:
+        lines.append("  dropped: " + "; ".join(d.text for d in spec.dropped))
+    return "\n".join(lines)
 
 
 def pinned_user_intent(ctx: RunContext[LeadDeps]) -> str | None:
@@ -198,53 +199,6 @@ def read_ledger_section(
     return ledger.render_section(section)
 
 
-async def submit_plan_for_approval(
-    ctx: RunContext[LeadDeps],
-) -> ToolReturn[StrategyPlan]:
-    """Surface the active plan to the user for approval.
-
-    Registered with ``requires_approval=True`` — the agent halts on the
-    first call with a ``DeferredToolRequests``; pydantic-ai emits a
-    ``ToolApprovalRequest`` chunk that the dispatcher converts into a
-    ``data-tool-approval-request`` SSE event. The plan card renders
-    NEEDS_USER_INPUT slots as inline form fields.
-
-    On approval, the body resumes with ``DeferredToolResults({id: True})``.
-    Slot answers arrive on ``state.plan_slot_answers[tool_call_id]``;
-    we apply them, refuse the submission if any NEEDS_DISCOVERY remains,
-    then mark the plan APPROVED and emit a ``data-plan-artifact`` chunk
-    so the frontend re-renders the form-free approved card.
-    """
-    state = ctx.deps.state
-    plan = state.active_plan
-    if plan is None:
-        msg = (
-            "NO_ACTIVE_PLAN: cannot submit a plan that doesn't exist. "
-            "Call build_plan first."
-        )
-        raise ModelRetry(msg)
-
-    pending = state.pending_approval
-    answers = (
-        list(state.plan_slot_answers.get(pending.tool_call_id, []))
-        if pending is not None
-        else []
-    )
-    apply_plan_slot_answers(plan, answers)
-    assert_no_unresolved_slots(plan)
-    mark_plan_approved(plan)
-
-    metadata: list[DataChunk] = [
-        plan_artifact_chunk(
-            plan_id=plan.id,
-            steps=planned_steps_for_stream(plan),
-            rationale=plan.rationale or "",
-            slots=slot_forms_for_stream(plan),
-        ),
-    ]
-    return ToolReturn(return_value=plan, metadata=metadata)
-
-
 def _format_answers(answers: list[UserQuestionAnswer]) -> str:
     parts: list[str] = []
     for a in answers:
@@ -267,7 +221,7 @@ async def consult_user(
 
     This pauses the turn: the user answers each question in a carousel
     (options + optional free-text note). Their answers are returned to you
-    here so you can run (or re-run) ``build_plan`` with them as hard
+    here so you can run (or re-run) ``frame_problem`` with them as hard
     constraints. Ask only the few questions that genuinely change the
     answer; pick sensible defaults for everything else and state your
     assumptions in prose. Do NOT ask "submit or request changes?" — the
@@ -291,25 +245,10 @@ async def consult_user(
         return_value=answers,
         content=(
             f"The user answered your questions: {_format_answers(answers)}. "
-            "Now run build_plan honoring these as hard constraints."
+            "Now run frame_problem honoring these as hard constraints."
         ),
     )
 
-
-async def _require_active_plan(
-    ctx: RunContext[LeadDeps], tool_def: ToolDefinition
-) -> ToolDefinition | None:
-    """Hide ``submit_plan_for_approval`` until a plan actually exists, so the
-    Lead can't halt for approval on a non-existent plan — it must call
-    ``build_plan`` first."""
-    return tool_def if ctx.deps.state.active_plan is not None else None
-
-
-_submit_plan_tool: Tool[LeadDeps] = Tool(
-    submit_plan_for_approval,
-    requires_approval=True,
-    prepare=_require_active_plan,
-)
 
 _consult_user_tool: Tool[LeadDeps] = Tool(
     consult_user,
@@ -325,10 +264,8 @@ lead_agent: Agent[LeadDeps, LeadResponse | DeferredToolRequests] = Agent(
     tools=[
         Tool(classify_user_intent),
         Tool(read_ledger_section),
-        Tool(scope_problem),
-        Tool(discover_searches),
-        Tool(build_plan),
-        Tool(execute_plan),
+        Tool(frame_problem),
+        Tool(build_strategy),
         Tool(recover_failed_steps),
         Tool(verify_strategy),
         Tool(compare_search_variants),
@@ -338,7 +275,6 @@ lead_agent: Agent[LeadDeps, LeadResponse | DeferredToolRequests] = Agent(
         Tool(import_control_ids_from_strategy),
         Tool(compare_variants_scored),
         _consult_user_tool,
-        _submit_plan_tool,
     ],
     capabilities=[
         Thinking(effort="medium"),
@@ -351,5 +287,10 @@ lead_agent: Agent[LeadDeps, LeadResponse | DeferredToolRequests] = Agent(
 )
 
 
-for _fn in (pinned_user_prompt, pinned_user_intent, pinned_ledger_summary):
+for _fn in (
+    pinned_user_prompt,
+    pinned_user_intent,
+    pinned_operational_spec,
+    pinned_ledger_summary,
+):
     lead_agent.instructions(_fn)

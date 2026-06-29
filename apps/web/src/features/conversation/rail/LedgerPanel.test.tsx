@@ -22,27 +22,14 @@ function makeLedger(
       differentialSides: [],
     },
     frame: {
-      needed: true,
-      blocked: false,
-      matchesCurrentIntent: true,
-      blockingQuestionsUnanswered: [],
-      frame: null,
-    },
-    discovery: {
-      selectedCount: 2,
-      rejectedCount: 1,
-      intentSatisfied: true,
-      intentGap: null,
-      needsMoreDiscovery: false,
-      fitReports: [],
-    },
-    plan: {
-      approved: false,
-      openUserInputSlots: [],
-      openDiscoverySlots: [],
-      blockedKind: "none",
-      readyToExecute: true,
-      plan: null,
+      present: true,
+      criteriaCount: 2,
+      boundCount: 2,
+      openSlotCount: 0,
+      droppedCount: 0,
+      readyToBuild: true,
+      needsUser: false,
+      spec: null,
     },
     build: {
       pushedCount: 1,
@@ -94,7 +81,7 @@ describe("ledgerTabSignatures", () => {
     );
     expect(buildChanged.build).not.toBe(base.build);
     expect(buildChanged.frame).toBe(base.frame);
-    expect(buildChanged.discovery).toBe(base.discovery);
+    expect(buildChanged.verification).toBe(base.verification);
   });
 });
 
@@ -116,6 +103,6 @@ describe("LedgerPanel tab indicators", () => {
     fireEvent.click(screen.getByRole("button", { name: /Summary/ }));
 
     expect(screen.queryByLabelText("Frame has updates")).toBeNull();
-    expect(screen.getByLabelText("Discovery has updates")).toBeInTheDocument();
+    expect(screen.getByLabelText("Build has updates")).toBeInTheDocument();
   });
 });

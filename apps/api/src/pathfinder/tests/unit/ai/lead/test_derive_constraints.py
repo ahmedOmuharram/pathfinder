@@ -4,8 +4,8 @@ from uuid import uuid4
 
 from pathfinder.ai.graph.state import (
     ConstraintCheck,
+    PhaseDisposition,
     PipelineState,
-    ProblemFrame,
     VerificationDigest,
 )
 from pathfinder.ai.lead.derive import derive_ledger
@@ -17,58 +17,49 @@ from pathfinder.domain.strategy.constraints import (
     ConstraintSource,
     ConstraintStatus,
 )
-from pathfinder.domain.strategy.plan import (
-    PlannedParameter,
-    PlannedStep,
-    StepStatus,
-    StepType,
-    StrategyPlan,
+from pathfinder.domain.strategy.operational_spec import (
+    Criterion,
+    OperationalSpec,
+)
+
+_MICROARRAY_SEARCH = (
+    "GenesByMicroarrayaaegLVP_AGWG_microarrayExpression_GSE22339_male_vs_female_RSRC"
 )
 
 
-def _microarray_plan() -> StrategyPlan:
-    step = PlannedStep(
-        id="s2",
-        search_name="GenesByMicroarrayaaegLVP_AGWG_microarrayExpression_GSE22339_male_vs_female_RSRC",
-        display_name="microarray fc",
-        step_type=StepType.LEAF,
-        status=StepStatus.READY,
-        parameters=[
-            PlannedParameter(
-                name="fold_change",
-                display_name="Fold change",
-                param_type="number",
-                value=NumberValue(value=2.0),
-                status="set",
-                required=True,
-            )
+def _microarray_spec(constraints: list[Constraint]) -> OperationalSpec:
+    return OperationalSpec(
+        goal="g",
+        interpreted_goal="g",
+        constraints=constraints,
+        criteria=[
+            Criterion(
+                id="c1",
+                text="microarray fold change",
+                search_name=_MICROARRAY_SEARCH,
+                resolved_params={"fold_change": NumberValue(value=2.0)},
+            ),
         ],
-    )
-    return StrategyPlan(
-        title="t", description="d", rationale="r", steps=[step], connections=[]
     )
 
 
 def _state_with_constraint(source: ConstraintSource) -> PipelineState:
-    frame = ProblemFrame(
-        user_goal="g",
-        interpreted_goal="g",
-        constraints=[
+    spec = _microarray_spec(
+        [
             Constraint(
                 kind=ConstraintKind.DATA_TYPE,
                 requested_value="RNA-Seq",
                 source=source,
                 label="data type",
             )
-        ],
+        ]
     )
     return PipelineState(
         conversation_id=uuid4(),
         user_id=uuid4(),
         site_id="vectorbase",
         mode="strategy",
-        problem_frame=frame,
-        active_plan=_microarray_plan(),
+        operational_spec=spec,
     )
 
 
@@ -93,18 +84,16 @@ def test_render_summary_surfaces_blocking_constraints() -> None:
     assert "blocking: True" in summary
 
 
-def test_explicit_turn_constraint_overrides_assumed_frame_and_blocks() -> None:
-    frame = ProblemFrame(
-        user_goal="g",
-        interpreted_goal="g",
-        constraints=[
+def test_explicit_turn_constraint_overrides_assumed_spec_and_blocks() -> None:
+    spec = _microarray_spec(
+        [
             Constraint(
                 kind=ConstraintKind.DATA_TYPE,
                 requested_value="RNA-Seq or microarray",
                 source=ConstraintSource.ASSUMED,
                 label="data type",
             )
-        ],
+        ]
     )
     intent = UserIntent(
         raw_text="RNA-Seq only — hard requirement, do not use microarray",
@@ -124,8 +113,7 @@ def test_explicit_turn_constraint_overrides_assumed_frame_and_blocks() -> None:
         user_id=uuid4(),
         site_id="vectorbase",
         mode="strategy",
-        problem_frame=frame,
-        active_plan=_microarray_plan(),
+        operational_spec=spec,
     )
     ledger = derive_ledger(state, intent)
     assert ledger.constraints.blocking is True
@@ -139,7 +127,7 @@ def test_explicit_turn_constraint_overrides_assumed_frame_and_blocks() -> None:
     assert data_type.constraint.source is ConstraintSource.USER_EXPLICIT
 
 
-def test_constraints_surface_as_provisional_when_no_plan_yet() -> None:
+def test_constraints_surface_as_provisional_when_no_spec_yet() -> None:
     intent = UserIntent(
         raw_text="RNA-Seq only",
         classification=IntentClassification.NEW_STRATEGY,
@@ -158,8 +146,6 @@ def test_constraints_surface_as_provisional_when_no_plan_yet() -> None:
         user_id=uuid4(),
         site_id="vectorbase",
         mode="strategy",
-        problem_frame=None,
-        active_plan=None,
     )
     ledger = derive_ledger(state, intent)
     assert len(ledger.constraints.grounded) == 1
@@ -169,7 +155,7 @@ def test_constraints_surface_as_provisional_when_no_plan_yet() -> None:
 
 def test_verification_digest_carries_constraint_report() -> None:
     d = VerificationDigest(
-        disposition="done",
+        disposition=PhaseDisposition.DONE,
         prose="p",
         reason="r",
         success=False,
@@ -186,19 +172,17 @@ def test_verification_digest_carries_constraint_report() -> None:
     assert d.constraint_report[0].honored is False
 
 
-def test_problem_frame_carries_typed_constraints() -> None:
-    frame = ProblemFrame(
-        user_goal="g",
-        interpreted_goal="g",
-        constraints=[
+def test_operational_spec_carries_typed_constraints() -> None:
+    spec = _microarray_spec(
+        [
             Constraint(
                 kind=ConstraintKind.DATA_TYPE,
                 requested_value="RNA-Seq",
                 source=ConstraintSource.USER_EXPLICIT,
                 label="data type",
             )
-        ],
+        ]
     )
-    assert frame.constraints[0].kind is ConstraintKind.DATA_TYPE
-    round_trip = ProblemFrame.model_validate(frame.model_dump(by_alias=True))
+    assert spec.constraints[0].kind is ConstraintKind.DATA_TYPE
+    round_trip = OperationalSpec.model_validate(spec.model_dump(by_alias=True))
     assert round_trip.constraints[0].source is ConstraintSource.USER_EXPLICIT

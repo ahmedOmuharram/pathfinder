@@ -4,35 +4,23 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from pydantic_ai.ui.vercel_ai.request_types import ToolApprovalResponded
-
-from pathfinder.ai.agents.state import (
-    ParamVocabSnapshot,
-    SearchOverview,
-)
 from pathfinder.ai.graph.state import (
-    ClarificationQuestion,
     PhaseDisposition,
     PipelineState,
-    ProblemFrame,
     VerificationDigest,
 )
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
-from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
     StepPushFailure,
 )
-from pathfinder.domain.strategy.plan import (
-    ParamStatus,
-    PlannedParameter,
-    PlannedStep,
-    PlanStatus,
-    StepStatus,
-    StepType,
-    StrategyPlan,
-    UserQuestion,
+from pathfinder.domain.strategy.operational_spec import (
+    Criterion,
+    OpenSlot,
+    OperationalSpec,
+    SpecStructure,
+    StructureNode,
 )
 
 
@@ -47,310 +35,69 @@ def _state(**kwargs: object) -> PipelineState:
     return PipelineState(**base)  # type: ignore[arg-type]
 
 
-def _intent_diff(sides: tuple[str, str]) -> UserIntent:
-    return UserIntent(
-        raw_text="X vs Y",
-        classification=IntentClassification.NEW_STRATEGY,
-        inferred_goal="diff",
-        is_differential=True,
-        differential_sides=list(sides),
-    )
-
-
-def _gametocyte_only_search() -> SearchOverview:
-    return SearchOverview(
-        search_name="GenesByRNASeq_Bartfai",
-        display_name="Bartfai gametocytes",
-        record_type="transcript",
-        description="gametocyte only",
-        parameter_names=["sample"],
-        required_params=["sample"],
-        selection_status="selected",
-        param_vocab={
-            "sample": ParamVocabSnapshot(
-                param_type="single-pick-vocabulary",
-                required=True,
-                help="Which RNA-seq sample to compare",
-                allowed_values=[
-                    VocabOption(value="male gametocyte", display="male gametocyte"),
-                    VocabOption(value="female gametocyte", display="female gametocyte"),
-                ],
+def _bound_spec() -> OperationalSpec:
+    return OperationalSpec(
+        goal="kinases",
+        interpreted_goal="protein kinase genes",
+        criteria=[
+            Criterion(
+                id="c1",
+                text="protein kinases",
+                search_name="GenesByGoTerm",
+                resolved_params={},
             ),
-        },
-    )
-
-
-def _full_lifecycle_search() -> SearchOverview:
-    return SearchOverview(
-        search_name="GenesByRNASeq_LopezBarragan",
-        display_name="LopezBarragan full life-cycle",
-        record_type="transcript",
-        description="all stages",
-        parameter_names=["sample"],
-        required_params=["sample"],
-        selection_status="selected",
-        param_vocab={
-            "sample": ParamVocabSnapshot(
-                param_type="single-pick-vocabulary",
-                required=True,
-                allowed_values=[
-                    VocabOption(value="gametocyte", display="gametocyte"),
-                    VocabOption(
-                        value="asexual blood stage",
-                        display="asexual blood stage",
-                    ),
-                ],
-            ),
-        },
+        ],
+        structure=SpecStructure(root=StructureNode(kind="leaf", criterion_id="c1")),
     )
 
 
 def test_no_state_yields_empty_ledger() -> None:
     ledger = derive_ledger(_state(), None)
-    assert ledger.frame.frame is None
-    assert ledger.frame.needed is True
-    assert ledger.discovery.selected_count == 0
-    assert ledger.plan.plan is None
+    assert ledger.frame.spec is None
+    assert ledger.frame.present is False
+    assert ledger.frame.criteria_count == 0
     assert ledger.build.outcome is None
     assert ledger.verification.digest is None
 
 
-def test_frame_present_continuation_intent_matches() -> None:
-    frame = ProblemFrame(user_goal="X", interpreted_goal="X")
-    state = _state(problem_frame=frame)
-    intent = UserIntent(
-        raw_text="approve",
-        classification=IntentClassification.APPROVAL,
-        inferred_goal="approve",
+def test_frame_present_with_bound_spec_is_ready_to_build() -> None:
+    ledger = derive_ledger(_state(operational_spec=_bound_spec()), None)
+    assert ledger.frame.present is True
+    assert ledger.frame.criteria_count == 1
+    assert ledger.frame.bound_count == 1
+    assert ledger.frame.open_slot_count == 0
+    assert ledger.frame.needs_user is False
+    assert ledger.frame.ready_to_build is True
+
+
+def test_frame_open_param_slot_needs_user() -> None:
+    spec = _bound_spec()
+    spec.criteria[0].open_params = [
+        OpenSlot(criterion_id="c1", param_name="dataset", question="Which dataset?"),
+    ]
+    ledger = derive_ledger(_state(operational_spec=spec), None)
+    assert ledger.frame.open_slot_count == 1
+    assert ledger.frame.needs_user is True
+    assert ledger.frame.ready_to_build is False
+
+
+def test_frame_unbound_criterion_is_not_ready() -> None:
+    spec = OperationalSpec(
+        goal="x",
+        criteria=[Criterion(id="c1", text="x", search_name="")],
+        structure=SpecStructure(root=StructureNode(kind="leaf", criterion_id="c1")),
     )
-    ledger = derive_ledger(state, intent)
-    assert ledger.frame.matches_current_intent is True
-    assert ledger.frame.needed is False
+    ledger = derive_ledger(_state(operational_spec=spec), None)
+    assert ledger.frame.criteria_count == 1
+    assert ledger.frame.bound_count == 0
+    assert ledger.frame.ready_to_build is False
 
 
-def test_frame_present_new_strategy_does_not_match_unrelated_goal() -> None:
-    frame = ProblemFrame(
-        user_goal="kinase genes in P. falciparum gametocytes",
-        interpreted_goal="kinase",
-    )
-    state = _state(problem_frame=frame)
-    intent = UserIntent(
-        raw_text="ascorbate biosynthesis pathway in T. cruzi",
-        classification=IntentClassification.NEW_STRATEGY,
-        inferred_goal="ascorbate biosynthesis pathway in T. cruzi",
-    )
-    ledger = derive_ledger(state, intent)
-    assert ledger.frame.matches_current_intent is False
-    assert ledger.frame.needed is True
-
-
-def test_blocking_questions_carried_through() -> None:
-    frame = ProblemFrame(
-        user_goal="X",
-        interpreted_goal="X",
-        blocking_questions=[ClarificationQuestion(question="which strain?")],
-    )
-    state = _state(problem_frame=frame)
-    intent = UserIntent(
-        raw_text="hi",
-        classification=IntentClassification.APPROVAL,
-        inferred_goal="x",
-    )
-    ledger = derive_ledger(state, intent)
-    assert len(ledger.frame.blocking_questions_unanswered) == 1
-    assert ledger.frame.blocked is True
-
-
-def test_intent_satisfied_false_when_only_gametocyte_search() -> None:
-    state = _state(
-        discovered_searches={"GenesByRNASeq_Bartfai": _gametocyte_only_search()},
-    )
-    intent = _intent_diff(("gametocyte", "asexual blood stage"))
-    ledger = derive_ledger(state, intent)
-    assert ledger.discovery.selected_count == 1
-    assert ledger.discovery.intent_satisfied is False
-    assert ledger.discovery.intent_gap is not None
-    assert "asexual" in ledger.discovery.intent_gap
-    assert ledger.discovery.needs_more_discovery is True
-
-
-def test_intent_satisfied_true_when_full_lifecycle_search_added() -> None:
-    state = _state(
-        discovered_searches={
-            "GenesByRNASeq_Bartfai": _gametocyte_only_search(),
-            "GenesByRNASeq_LopezBarragan": _full_lifecycle_search(),
-        },
-    )
-    intent = _intent_diff(("gametocyte", "asexual blood stage"))
-    ledger = derive_ledger(state, intent)
-    assert ledger.discovery.intent_satisfied is True
-    assert ledger.discovery.intent_gap is None
-    assert ledger.discovery.needs_more_discovery is False
-
-
-def test_intent_non_differential_satisfied_when_any_selected() -> None:
-    state = _state(
-        discovered_searches={"GenesByRNASeq_Bartfai": _gametocyte_only_search()},
-    )
-    intent = UserIntent(
-        raw_text="kinase genes",
-        classification=IntentClassification.NEW_STRATEGY,
-        inferred_goal="kinase",
-    )
-    ledger = derive_ledger(state, intent)
-    assert ledger.discovery.intent_satisfied is True
-
-
-def test_discovery_section_render_surfaces_param_help_and_vocab() -> None:
-    """read_ledger_section('discovery') exposes each search's params with
-    help text ('what it does') and enumerated vocab — the observability the
-    Lead needs to catch param mistakes before planning."""
-    state = _state(
-        discovered_searches={"GenesByRNASeq_Bartfai": _gametocyte_only_search()},
-    )
-    ledger = derive_ledger(state, _intent_diff(("gametocyte", "asexual blood stage")))
-    rendered = ledger.render_section("discovery")
-    assert "sample" in rendered
-    assert "Which RNA-seq sample to compare" in rendered
-    assert "male gametocyte" in rendered
-
-
-def _plan_with_user_slot() -> StrategyPlan:
-    return StrategyPlan(
-        title="t",
-        description="d",
-        rationale="r",
-        steps=[
-            PlannedStep(
-                id="s1",
-                search_name="X",
-                display_name="X",
-                step_type=StepType.LEAF,
-                status=StepStatus.READY,
-                parameters=[
-                    PlannedParameter(
-                        name="hard_floor",
-                        display_name="Hard Floor",
-                        param_type="single-pick-vocabulary",
-                        value=None,
-                        status=ParamStatus.NEEDS_USER_INPUT,
-                        required=True,
-                    ),
-                ],
-            ),
-        ],
-        connections=[],
-        questions=[
-            UserQuestion(
-                id="q1",
-                question="Pick a tier",
-                related_step="s1",
-                related_param="hard_floor",
-            ),
-        ],
-    )
-
-
-def test_plan_open_user_input_slots() -> None:
-    state = _state(active_plan=_plan_with_user_slot())
-    ledger = derive_ledger(state, None)
-    assert len(ledger.plan.open_user_input_slots) == 1
-    slot = ledger.plan.open_user_input_slots[0]
-    assert slot.step_id == "s1"
-    assert slot.param_name == "hard_floor"
-    assert slot.question == "Pick a tier"
-    assert ledger.plan.blocked_kind == "needs_user"
-    assert ledger.plan.ready_to_execute is False
-
-
-def test_plan_approved_and_clean_is_ready_to_execute() -> None:
-    plan = _plan_with_user_slot()
-    plan.steps[0].parameters[0].value = "tier_3"
-    plan.steps[0].parameters[0].status = ParamStatus.USER_SET
-    plan.status = PlanStatus.APPROVED
-    state = _state(active_plan=plan)
-    ledger = derive_ledger(state, None)
-    assert ledger.plan.ready_to_execute is True
-    assert ledger.plan.blocked_kind == "none"
-
-
-def test_plan_denial_surfaces_reason_when_unapproved() -> None:
-    plan = _plan_with_user_slot()
-    state = _state(
-        active_plan=plan,
-        approval_responses={
-            "call_1": ToolApprovalResponded(
-                id="call_1",
-                approved=False,
-                reason="Use GO molecular function for kinases, not the InterPro PFAM domain.",
-            ),
-        },
-    )
-    ledger = derive_ledger(state, None)
-    assert ledger.plan.last_denial_message == (
-        "Use GO molecular function for kinases, not the InterPro PFAM domain."
-    )
-
-
-def test_plan_denial_not_surfaced_once_approved() -> None:
-    plan = _plan_with_user_slot()
-    plan.status = PlanStatus.APPROVED
-    state = _state(
-        active_plan=plan,
-        approval_responses={
-            "call_1": ToolApprovalResponded(
-                id="call_1", approved=False, reason="old denial"
-            ),
-            "call_2": ToolApprovalResponded(id="call_2", approved=True, reason=""),
-        },
-    )
-    ledger = derive_ledger(state, None)
-    assert ledger.plan.last_denial_message is None
-
-
-def test_plan_denial_takes_most_recent_denied_response() -> None:
-    plan = _plan_with_user_slot()
-    state = _state(
-        active_plan=plan,
-        approval_responses={
-            "call_1": ToolApprovalResponded(
-                id="call_1", approved=False, reason="first"
-            ),
-            "call_2": ToolApprovalResponded(
-                id="call_2", approved=False, reason="second"
-            ),
-        },
-    )
-    ledger = derive_ledger(state, None)
-    assert ledger.plan.last_denial_message == "second"
-
-
-def test_rescope_requested_forces_frame_needed_but_keeps_frame() -> None:
-    frame = ProblemFrame(user_goal="X", interpreted_goal="X")
-    state = _state(problem_frame=frame, rescope_requested=True)
-    intent = UserIntent(
-        raw_text="approve",
-        classification=IntentClassification.APPROVAL,
-        inferred_goal="X",
-    )
-    ledger = derive_ledger(state, intent)
-    # Without the flag this frame would match (continuation) → needed False.
-    assert ledger.frame.needed is True
-    assert ledger.frame.frame is frame  # frame survives for scoping's memory
-
-
-def test_render_summary_surfaces_denial_message() -> None:
-    plan = _plan_with_user_slot()
-    state = _state(
-        active_plan=plan,
-        approval_responses={
-            "call_1": ToolApprovalResponded(
-                id="call_1", approved=False, reason="Use GO, not InterPro."
-            ),
-        },
-    )
-    summary = derive_ledger(state, None).render_summary()
-    assert "Use GO, not InterPro." in summary
+def test_frame_render_section_surfaces_criteria_and_structure() -> None:
+    ledger = derive_ledger(_state(operational_spec=_bound_spec()), None)
+    rendered = ledger.render_section("frame")
+    assert "GenesByGoTerm" in rendered
+    assert "protein kinases" in rendered
 
 
 def test_build_section_recovery_kind_empty_result() -> None:
@@ -419,3 +166,15 @@ def test_verification_section_present() -> None:
     ledger = derive_ledger(state, None)
     assert ledger.verification.complete is True
     assert ledger.verification.successful is True
+
+
+def test_differential_intent_surfaces_in_summary() -> None:
+    intent = UserIntent(
+        raw_text="X vs Y",
+        classification=IntentClassification.NEW_STRATEGY,
+        inferred_goal="diff",
+        is_differential=True,
+        differential_sides=["gametocyte", "asexual blood stage"],
+    )
+    summary = derive_ledger(_state(), intent).render_summary()
+    assert "differential" in summary

@@ -136,7 +136,6 @@ class RunCapture:
         self._durable_task: tuple[str, str] | None = None
         self._current_phase = ""
         self._ledger_by_phase: dict[str, dict[str, Any]] = {}
-        self._problem_frame: dict[str, Any] | None = None
         self._tokens = 0
         self._cost = 0.0
         self._has_error = False
@@ -163,7 +162,6 @@ class RunCapture:
             "data-sub-agent-step": self._on_step,
             "data-turn-usage": self._on_turn_usage,
             "data-ledger-update": self._on_ledger,
-            "data-problem-frame": self._on_problem_frame,
             "tool-input-available": self._on_tool_input,
             "tool-approval-request": self._on_approval,
             "data-background-task-started": self._on_durable_task,
@@ -238,9 +236,6 @@ class RunCapture:
         if env.data is not None:
             self._ledger_by_phase[self._current_phase or "turn"] = env.data
 
-    def _on_problem_frame(self, env: Chunk) -> None:
-        self._problem_frame = env.data
-
     def _on_tool_input(self, env: Chunk) -> None:
         if env.tool_call_id and env.tool_name:
             self._tool_name_by_call[env.tool_call_id] = env.tool_name
@@ -301,15 +296,6 @@ class RunCapture:
     def tool_args_by_call(self) -> dict[str, dict[str, Any]]:
         return self._tool_args_by_call
 
-    def plan_open_slots(self) -> list[dict[str, Any]]:
-        """Open NEEDS_USER_INPUT plan slots from the latest ledger snapshot."""
-        for ledger in reversed(list(self._ledger_by_phase.values())):
-            plan = (ledger or {}).get("plan") or {}
-            slots = plan.get("openUserInputSlots")
-            if slots:
-                return list(slots)
-        return []
-
     @property
     def has_error(self) -> bool:
         return self._has_error
@@ -329,7 +315,6 @@ class RunCapture:
             PhaseSnapshot(
                 phase=phase,
                 ledger=self._ledger_by_phase.get(phase),
-                problem_frame=self._problem_frame if phase == "scoping" else None,
             )
             for phase in self.phases() or list(self._ledger_by_phase)
         ]

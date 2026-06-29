@@ -42,45 +42,23 @@ def test_summarize_started_args_truncates_long_reason_on_word_boundary() -> None
     assert not out[:-3].endswith(" ")
 
 
-def test_summarize_frame_with_open_questions_is_human_readable() -> None:
+def test_summarize_frame_result_needs_user_counts_questions() -> None:
     out = _summarize_delta_dict(
-        {"frame": {"ready_for_wdk_discovery": False, "blocking_questions": [1, 2, 3]}}
+        {"disposition": "needs_user", "open_questions": [1, 2, 3]}
     )
     assert out == "3 open questions"
 
 
-def test_summarize_frame_single_question_uses_singular() -> None:
+def test_summarize_frame_result_spec_ready_uses_summary() -> None:
     out = _summarize_delta_dict(
-        {"frame": {"ready_for_wdk_discovery": False, "blocking_questions": [1]}}
+        {"disposition": "spec_ready", "summary": "Framed 3 criteria"}
     )
-    assert out == "1 open question"
+    assert out == "Framed 3 criteria"
 
 
-def test_summarize_frame_ready_no_questions() -> None:
-    out = _summarize_delta_dict(
-        {"frame": {"ready_for_wdk_discovery": True, "blocking_questions": []}}
-    )
-    assert out == "Ready for discovery"
-
-
-def test_summarize_frame_not_ready_no_questions() -> None:
-    out = _summarize_delta_dict(
-        {"frame": {"ready_for_wdk_discovery": False, "blocking_questions": []}}
-    )
-    assert out == "Problem framed"
-
-
-def test_summarize_selections_pluralizes_searches() -> None:
-    assert (
-        _summarize_delta_dict({"selections": {"a": 1, "b": 2}}) == "Selected 2 searches"
-    )
-    assert _summarize_delta_dict({"selections": {"a": 1}}) == "Selected 1 search"
-
-
-def test_summarize_plan_steps() -> None:
-    assert (
-        _summarize_delta_dict({"plan": {"steps": [1, 2]}}) == "Drafted a 2 steps plan"
-    )
+def test_summarize_recovery_counts_actions() -> None:
+    assert _summarize_delta_dict({"actions_taken": ["a", "b"]}) == "2 recovery actions"
+    assert _summarize_delta_dict({"actions_taken": ["a"]}) == "1 recovery action"
 
 
 def test_summarize_outcome_with_failures() -> None:

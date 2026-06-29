@@ -12,7 +12,6 @@ from uuid import uuid4
 from pydantic_ai.ui.vercel_ai.request_types import DataUIPart, UIMessage
 
 from pathfinder.ai.conversation._turn_helpers import (
-    _extract_plan_slot_answers,
     _extract_user_question_answers,
 )
 from pathfinder.ai.conversation.request_body import ChatRequestBody
@@ -63,25 +62,3 @@ def test_no_answers_part_yields_empty() -> None:
         ],
     )
     assert _extract_user_question_answers(body) == {}
-
-
-def test_plan_slot_answers_also_round_trip_camelcase() -> None:
-    # Same camelCase bug class as consult answers — slot fills posted by the
-    # plan carousel must round-trip too.
-    part = DataUIPart(
-        type="data-plan-slot-answers",
-        data={
-            "toolCallId": "call_7",
-            "answers": [
-                {"stepId": "s1", "paramName": "fold_change", "value": "2"},
-            ],
-        },
-    )
-    body = ChatRequestBody(
-        conversation_id=uuid4(),
-        messages=[UIMessage(id="m1", role="assistant", parts=[part])],
-    )
-    out = _extract_plan_slot_answers(body)
-    assert set(out) == {"call_7"}
-    assert out["call_7"][0].step_id == "s1"
-    assert out["call_7"][0].param_name == "fold_change"

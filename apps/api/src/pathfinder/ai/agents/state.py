@@ -5,7 +5,12 @@ from pydantic import BaseModel, Field
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
-from pathfinder.domain.strategy.plan import StrategyPlan
+from pathfinder.domain.strategy.operational_spec import (
+    Criterion,
+    DroppedCriterion,
+    OperationalSpec,
+    SpecStructure,
+)
 
 SearchSelectionStatus = Literal["candidate", "selected", "rejected"]
 
@@ -50,9 +55,29 @@ class SearchOverview(BaseModel):
 class AgentToolState:
     discovered_searches: dict[str, SearchOverview] = field(default_factory=dict)
     catalog_search_names: set[str] = field(default_factory=set)
-    active_plan: StrategyPlan | None = None
-    plan_history: list[StrategyPlan] = field(default_factory=list)
     read_param_options: set[str] = field(default_factory=set)
+    operational_spec_draft: OperationalSpec = field(default_factory=OperationalSpec)
+
+    def frame_set_criterion(self, criterion: Criterion) -> None:
+        spec = self.operational_spec_draft
+        spec.criteria = [c for c in spec.criteria if c.id != criterion.id]
+        spec.criteria.append(criterion)
+
+    def frame_set_structure(self, structure: SpecStructure) -> None:
+        self.operational_spec_draft.structure = structure
+
+    def frame_drop_criterion(self, criterion_id: str, reason: str) -> bool:
+        """Remove a criterion from the draft (keyed by id, like
+        ``frame_set_criterion``) and record it in ``dropped``. Returns False if
+        no criterion has that id — so a dropped criterion's open params can no
+        longer keep ``ready_to_build`` False. Returns True when one was removed."""
+        spec = self.operational_spec_draft
+        match = next((c for c in spec.criteria if c.id == criterion_id), None)
+        if match is None:
+            return False
+        spec.criteria = [c for c in spec.criteria if c.id != criterion_id]
+        spec.dropped.append(DroppedCriterion(text=match.text, reason=reason))
+        return True
 
     @staticmethod
     def param_read_key(
@@ -123,13 +148,6 @@ class AgentToolState:
             return set()
         return set(ov.parameter_names)
 
-    def set_plan(self, plan: StrategyPlan) -> None:
-        if self.active_plan is not None:
-            self.plan_history.append(self.active_plan)
-        self.active_plan = plan
-
     def clear(self) -> None:
         self.discovered_searches.clear()
         self.catalog_search_names.clear()
-        self.active_plan = None
-        self.plan_history.clear()

@@ -23,7 +23,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useSessionStore } from "@/state/useSessionStore";
-import { usePlanStore } from "@/state/usePlanStore";
 import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversationSidebarData";
 import { useConversationSidebarActions } from "@/features/sidebar/hooks/useConversationSidebarActions";
 import { ConversationList } from "@/features/sidebar/components/ConversationList";
@@ -35,8 +34,6 @@ interface ConversationSidebarProps {
 
 export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
-  const currentPhase = usePlanStore((s) => s.currentPhase);
-  const phaseStatus = usePlanStore((s) => s.phaseStatus);
 
   const reportError = (message: string) => toast.error(message);
 
@@ -106,8 +103,6 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
         renamingId={actions.renamingId}
         renameValue={actions.renameValue}
         chatIsStreaming={chatIsStreaming}
-        currentPhase={currentPhase}
-        phaseStatus={phaseStatus}
         onRenameValueChange={actions.setRenameValue}
         onCommitRename={(target) => void actions.commitRename(target)}
         onCancelRename={actions.cancelRename}

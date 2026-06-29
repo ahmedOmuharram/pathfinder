@@ -73,7 +73,7 @@ def _collect_candidates(
     """Synchronous part of candidate enumeration (strategies + gene sets +
     verification-authored knowledge entries)."""
     candidates: list[tuple[MemoryValue, str]] = []
-    if state.active_plan is not None:
+    if state.operational_spec is not None and state.operational_spec.criteria:
         candidates.append(
             (
                 _build_strategy_value(state),
@@ -96,23 +96,18 @@ def _collect_candidates(
 
 
 def _build_strategy_value(state: PipelineState) -> MemoryValue:
-    plan = state.active_plan
-    if plan is None:
-        msg = "_build_strategy_value requires state.active_plan to be set"
+    spec = state.operational_spec
+    if spec is None:
+        msg = "_build_strategy_value requires state.operational_spec to be set"
         raise ValueError(msg)
     return MemoryValue(
         kind="strategy",
         name=f"chat-{state.conversation_id.hex[:8]}",
-        summary=_summarize_plan(state),
-        tags=_plan_tags(state),
+        summary=_summarize_spec(state),
+        tags=_spec_tags(state),
         site_id=state.site_id,
         content={
-            "plan": plan.model_dump(mode="json"),
-            "problem_frame": (
-                state.problem_frame.model_dump(mode="json")
-                if state.problem_frame
-                else None
-            ),
+            "spec": spec.model_dump(mode="json"),
             "user_prompt": state.user_prompt,
         },
         source_conversation_id=state.conversation_id,
@@ -209,14 +204,18 @@ async def _check_verifications_threshold(
     return bool(result.scalar())
 
 
-def _summarize_plan(state: PipelineState) -> str:
-    if state.problem_frame:
-        return state.problem_frame.interpreted_goal[:120]
+def _summarize_spec(state: PipelineState) -> str:
+    spec = state.operational_spec
+    if spec and spec.interpreted_goal:
+        return spec.interpreted_goal[:120]
+    if spec and spec.goal:
+        return spec.goal[:120]
     return state.user_prompt[:120]
 
 
-def _plan_tags(state: PipelineState) -> list[str]:
+def _spec_tags(state: PipelineState) -> list[str]:
     tags = [state.site_id] if state.site_id else []
-    if state.problem_frame and state.problem_frame.organism_scope:
-        tags.append(state.problem_frame.organism_scope)
+    spec = state.operational_spec
+    if spec and spec.organism_scope:
+        tags.append(spec.organism_scope)
     return tags

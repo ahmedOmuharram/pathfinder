@@ -11,7 +11,6 @@ import type {
   BackgroundTaskStarted,
   BootstrapResultResponse,
   CheckpointEvent,
-  ClarificationQuestion,
   ColocationParams,
   ConfidenceIntervalResponse,
   ConfusionMatrixResponse,
@@ -64,17 +63,10 @@ import type {
   ParamSpecResponse,
   ParameterSensitivityResponse,
   ParameterSweepPointResponse,
-  PlanArtifact,
   VariantComparison,
   ScoredComparison,
-  PlannedStep,
-  PlanSlotForm,
-  PlanSlotOption,
-  PlanUpdate,
-  ProblemFrame,
   RankMetricsResponse,
   RecordTypeResponse,
-  ResearchNote,
   ResolvedGeneResponse,
   SearchResponse,
   StepAnalysisProgressDataResponse,
@@ -338,21 +330,14 @@ export interface PipelinePhaseConfig {
 }
 
 export interface PipelineConfig {
-  scoping: PipelinePhaseConfig;
-  discovery: PipelinePhaseConfig;
-  planning: PipelinePhaseConfig;
+  frame: PipelinePhaseConfig;
   execution: PipelinePhaseConfig;
   verification: PipelinePhaseConfig;
 }
 
 export type TierName = "quality" | "balanced" | "fast" | "custom";
 
-export type PipelinePhase =
-  | "scoping"
-  | "discovery"
-  | "planning"
-  | "execution"
-  | "verification";
+export type PipelinePhase = "frame" | "build" | "execution" | "verification";
 
 export type PhaseStatus =
   | "started"
@@ -360,8 +345,6 @@ export type PhaseStatus =
   | "failed"
   | "awaiting_approval"
   | "awaiting_input";
-
-export type { ClarificationQuestion, ResearchNote };
 
 export type StepKind = "search" | "transform" | "combine";
 
@@ -416,20 +399,14 @@ export type {
   GraphCleared,
   StrategyMeta,
   StrategyLink,
-  PlanArtifact,
   VariantComparison,
   ScoredComparison,
-  PlannedStep,
-  PlanSlotForm,
-  PlanSlotOption,
-  PlanUpdate,
   OptimizationSnapshot,
   BackgroundTaskStarted,
   TaskCompleted,
   TurnUsage,
   EnrichmentResultsChunk,
 };
-export type ProblemFramePart = ProblemFrame;
 export type GeneSetPart = GeneSetStreamPart;
 export type TaskProgressChunk = TaskProgressStreamPart;
 
@@ -450,41 +427,37 @@ export interface LedgerIntentPayload {
   differentialSides: string[];
 }
 
-export interface LedgerFramePayload {
-  needed: boolean;
-  blocked: boolean;
-  matchesCurrentIntent: boolean;
-  blockingQuestionsUnanswered: { question: string; context?: string }[];
-  frame: Record<string, unknown> | null;
-}
-
-export interface LedgerSearchFitReport {
+export interface LedgerCriterionPayload {
+  id: string;
+  text: string;
   searchName: string;
-  displayName: string;
-  selectionStatus: "selected" | "candidate" | "rejected";
-  intentSidesCovered: Record<string, boolean>;
-  intentSidesUnmatched: string[];
+  role: string;
+  resolvedParams: Record<string, unknown>;
+  openParams: { criterionId: string; paramName: string; question: string }[];
   confidence: number;
-  rationale: string;
-  selectionReason: string;
 }
 
-export interface LedgerDiscoveryPayload {
-  selectedCount: number;
-  rejectedCount: number;
-  intentSatisfied: boolean;
-  intentGap: string | null;
-  needsMoreDiscovery: boolean;
-  fitReports: LedgerSearchFitReport[];
+export interface LedgerSpecPayload {
+  goal: string;
+  interpretedGoal: string;
+  recordType: string;
+  organismScope: string | null;
+  title: string;
+  criteria: LedgerCriterionPayload[];
+  dropped: { text: string; reason: string }[];
+  openSlots: { criterionId: string; paramName: string; question: string }[];
+  readyToBuild: boolean;
 }
 
-export interface LedgerPlanPayload {
-  approved: boolean;
-  openUserInputSlots: { stepId: string; paramName: string; question: string }[];
-  openDiscoverySlots: { stepId: string; paramName: string }[];
-  blockedKind: "none" | "needs_discovery" | "needs_user" | "needs_approval";
-  readyToExecute: boolean;
-  plan: Record<string, unknown> | null;
+export interface LedgerFramePayload {
+  present: boolean;
+  criteriaCount: number;
+  boundCount: number;
+  openSlotCount: number;
+  droppedCount: number;
+  readyToBuild: boolean;
+  needsUser: boolean;
+  spec: LedgerSpecPayload | null;
 }
 
 export interface LedgerBuildPayload {
@@ -530,8 +503,6 @@ export interface LedgerConstraintsPayload {
 export interface DataLedgerUpdatePayload {
   userIntent: LedgerIntentPayload | null;
   frame: LedgerFramePayload;
-  discovery: LedgerDiscoveryPayload;
-  plan: LedgerPlanPayload;
   build: LedgerBuildPayload;
   verification: LedgerVerificationPayload;
   constraints: LedgerConstraintsPayload;
@@ -583,8 +554,6 @@ export type DataPartKind =
   | "data-strategy-meta"
   | "data-graph-snapshot"
   | "data-graph-cleared"
-  | "data-problem-frame"
-  | "data-plan-artifact"
   | "data-variant-comparison"
   | "data-scored-comparison"
   | "data-tool-approval-request"
@@ -611,8 +580,6 @@ export interface DataPartPayloadMap {
   "data-strategy-meta": StrategyMeta;
   "data-graph-snapshot": GraphSnapshot;
   "data-graph-cleared": GraphCleared;
-  "data-problem-frame": ProblemFrame;
-  "data-plan-artifact": PlanArtifact;
   "data-variant-comparison": VariantComparison;
   "data-scored-comparison": ScoredComparison;
   "data-tool-approval-request": DataToolApprovalRequestPayload;

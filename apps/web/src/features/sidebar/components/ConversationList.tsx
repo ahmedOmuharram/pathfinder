@@ -15,8 +15,6 @@ interface ConversationListProps {
   renamingId: string | null;
   renameValue: string;
   chatIsStreaming: boolean;
-  currentPhase: string | null;
-  phaseStatus: string | null;
   onRenameValueChange: (v: string) => void;
   onCommitRename: (item: ConversationItem) => void;
   onCancelRename: () => void;
@@ -34,8 +32,6 @@ export function ConversationList({
   renamingId,
   renameValue,
   chatIsStreaming,
-  currentPhase,
-  phaseStatus,
   onRenameValueChange,
   onCommitRename,
   onCancelRename,
@@ -72,8 +68,6 @@ export function ConversationList({
                 isRenaming={renamingId === root.item.id}
                 renameValue={renameValue}
                 isActiveStreaming={chatIsStreaming && activeId === root.item.id}
-                activePhase={currentPhase}
-                activePhaseStatus={phaseStatus}
                 onRenameValueChange={onRenameValueChange}
                 onCommitRename={onCommitRename}
                 onCancelRename={onCancelRename}

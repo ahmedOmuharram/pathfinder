@@ -7471,9 +7471,7 @@
             "propertyNames": {
               "enum": [
                 "lead",
-                "scoping",
-                "discovery",
-                "planning",
+                "frame",
                 "execution",
                 "verification"
               ]
@@ -7494,9 +7492,7 @@
             "propertyNames": {
               "enum": [
                 "lead",
-                "scoping",
-                "discovery",
-                "planning",
+                "frame",
                 "execution",
                 "verification"
               ]
@@ -7563,51 +7559,6 @@
           "createdAt"
         ],
         "title": "CheckpointEvent"
-      },
-      "ClarificationQuestion": {
-        "properties": {
-          "question": {
-            "type": "string",
-            "title": "Question"
-          },
-          "context": {
-            "type": "string",
-            "title": "Context",
-            "default": ""
-          },
-          "field": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Field"
-          },
-          "priority": {
-            "type": "string",
-            "enum": [
-              "blocking",
-              "optional"
-            ],
-            "title": "Priority",
-            "default": "blocking"
-          },
-          "options": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Options"
-          }
-        },
-        "type": "object",
-        "required": [
-          "question"
-        ],
-        "title": "ClarificationQuestion"
       },
       "ClassifiedRecord": {
         "properties": {
@@ -11845,17 +11796,31 @@
             "type": "string",
             "title": "Field"
           },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "string"
+          },
+          "isRange": {
+            "type": "boolean",
+            "title": "Isrange",
+            "default": false
+          },
+          "includeUnknown": {
+            "type": "boolean",
+            "title": "Includeunknown",
+            "default": false
+          },
           "value": {
             "$ref": "#/components/schemas/JsonValue"
           }
         },
-        "additionalProperties": true,
         "type": "object",
         "required": [
-          "field",
-          "value"
+          "field"
         ],
-        "title": "FilterTermClause"
+        "title": "FilterTermClause",
+        "description": "One faceted clause of a WDK filter value. Keys mirror wdk-client's\nauthoritative ``BaseFilter`` (field/type/isRange/includeUnknown/value);\nparsing ignores extra keys (e.g. ``fieldDisplayName``) and emits only these."
       },
       "FilterValue-Input": {
         "properties": {
@@ -13395,9 +13360,7 @@
             "propertyNames": {
               "enum": [
                 "lead",
-                "scoping",
-                "discovery",
-                "planning",
+                "frame",
                 "execution",
                 "verification"
               ]
@@ -14931,9 +14894,8 @@
           "phase": {
             "type": "string",
             "enum": [
-              "scoping",
-              "discovery",
-              "planning",
+              "frame",
+              "build",
               "execution",
               "verification",
               "completed"
@@ -15007,199 +14969,6 @@
         "title": "PhaseTierConfig",
         "description": "Model + reasoning effort for a single pipeline phase."
       },
-      "PlanArtifact": {
-        "properties": {
-          "planId": {
-            "type": "string",
-            "title": "Planid"
-          },
-          "steps": {
-            "items": {
-              "$ref": "#/components/schemas/PlannedStep"
-            },
-            "type": "array",
-            "title": "Steps"
-          },
-          "rationale": {
-            "type": "string",
-            "title": "Rationale"
-          },
-          "slots": {
-            "items": {
-              "$ref": "#/components/schemas/PlanSlotForm"
-            },
-            "type": "array",
-            "title": "Slots"
-          }
-        },
-        "type": "object",
-        "required": [
-          "planId",
-          "steps",
-          "rationale"
-        ],
-        "title": "PlanArtifact",
-        "description": "A proposed plan (not yet applied)."
-      },
-      "PlanSlotForm": {
-        "properties": {
-          "stepId": {
-            "type": "string",
-            "title": "Stepid"
-          },
-          "paramName": {
-            "type": "string",
-            "title": "Paramname"
-          },
-          "paramType": {
-            "type": "string",
-            "title": "Paramtype"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "set",
-              "default",
-              "needs_discovery",
-              "needs_user_input",
-              "user_set"
-            ],
-            "title": "Status"
-          },
-          "required": {
-            "type": "boolean",
-            "title": "Required",
-            "default": false
-          },
-          "question": {
-            "type": "string",
-            "title": "Question"
-          },
-          "context": {
-            "type": "string",
-            "title": "Context",
-            "default": ""
-          },
-          "options": {
-            "items": {
-              "$ref": "#/components/schemas/PlanSlotOption"
-            },
-            "type": "array",
-            "title": "Options"
-          }
-        },
-        "type": "object",
-        "required": [
-          "stepId",
-          "paramName",
-          "paramType",
-          "status",
-          "question"
-        ],
-        "title": "PlanSlotForm",
-        "description": "A NEEDS_USER_INPUT slot the submit_plan card must render as a form field.\n\nCarries everything the React component needs: the param's WDK type\n(so it picks the right widget), the question text, optional select\noptions, and the step+param keys used when posting the answer back\nvia ``data-plan-slot-answers``."
-      },
-      "PlanSlotOption": {
-        "properties": {
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "value": {
-            "$ref": "#/components/schemas/JsonValue"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description",
-            "default": ""
-          },
-          "recommended": {
-            "type": "boolean",
-            "title": "Recommended",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "label",
-          "value"
-        ],
-        "title": "PlanSlotOption",
-        "description": "One option presented inside a NEEDS_USER_INPUT slot's question."
-      },
-      "PlanUpdate": {
-        "properties": {
-          "planId": {
-            "type": "string",
-            "title": "Planid"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "proposed",
-              "revised",
-              "applied",
-              "rejected"
-            ],
-            "title": "Status"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          }
-        },
-        "type": "object",
-        "required": [
-          "planId",
-          "status"
-        ],
-        "title": "PlanUpdate",
-        "description": "Update to an existing plan."
-      },
-      "PlannedStep": {
-        "properties": {
-          "order": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Order"
-          },
-          "searchName": {
-            "type": "string",
-            "title": "Searchname"
-          },
-          "rationale": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rationale"
-          },
-          "parameters": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/JsonValue"
-            },
-            "type": "object",
-            "title": "Parameters"
-          }
-        },
-        "type": "object",
-        "required": [
-          "order",
-          "searchName"
-        ],
-        "title": "PlannedStep"
-      },
       "PrimaryKeyPart": {
         "properties": {
           "name": {
@@ -15218,124 +14987,6 @@
         ],
         "title": "PrimaryKeyPart",
         "description": "A single part of a composite WDK primary key."
-      },
-      "ProblemFrame": {
-        "properties": {
-          "siteId": {
-            "type": "string",
-            "title": "Siteid"
-          },
-          "userGoal": {
-            "type": "string",
-            "title": "Usergoal"
-          },
-          "interpretedGoal": {
-            "type": "string",
-            "title": "Interpretedgoal"
-          },
-          "organismScope": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Organismscope"
-          },
-          "recordType": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Recordtype"
-          },
-          "biologicalEntities": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Biologicalentities"
-          },
-          "inclusionCriteria": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Inclusioncriteria"
-          },
-          "exclusionCriteria": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Exclusioncriteria"
-          },
-          "likelyDataSources": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Likelydatasources"
-          },
-          "successCriteria": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Successcriteria"
-          },
-          "assumptions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Assumptions"
-          },
-          "blockingQuestions": {
-            "items": {
-              "$ref": "#/components/schemas/ClarificationQuestion"
-            },
-            "type": "array",
-            "title": "Blockingquestions"
-          },
-          "optionalQuestions": {
-            "items": {
-              "$ref": "#/components/schemas/ClarificationQuestion"
-            },
-            "type": "array",
-            "title": "Optionalquestions"
-          },
-          "researchNotes": {
-            "items": {
-              "$ref": "#/components/schemas/ResearchNote"
-            },
-            "type": "array",
-            "title": "Researchnotes"
-          },
-          "readyForWdkDiscovery": {
-            "type": "boolean",
-            "title": "Readyforwdkdiscovery",
-            "default": false
-          },
-          "confidence": {
-            "type": "number",
-            "title": "Confidence",
-            "default": 0.0
-          }
-        },
-        "type": "object",
-        "required": [
-          "siteId",
-          "userGoal",
-          "interpretedGoal"
-        ],
-        "title": "ProblemFrame"
       },
       "ProductActionRequest": {
         "properties": {
@@ -16096,46 +15747,6 @@
           "subtree"
         ],
         "title": "ReplaceSubtreeOp"
-      },
-      "ResearchNote": {
-        "properties": {
-          "source": {
-            "type": "string",
-            "title": "Source"
-          },
-          "finding": {
-            "type": "string",
-            "title": "Finding"
-          },
-          "url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Url"
-          },
-          "citationId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Citationid"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source",
-          "finding"
-        ],
-        "title": "ResearchNote"
       },
       "ResolvedGeneResponse": {
         "properties": {
@@ -18379,26 +17990,6 @@
               }
             ]
           },
-          "planArtifact": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlanArtifact"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "planUpdate": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlanUpdate"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "consultQuestion": {
             "anyOf": [
               {
@@ -18433,16 +18024,6 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ScoredComparison"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "problemFrame": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProblemFrame"
               },
               {
                 "type": "null"

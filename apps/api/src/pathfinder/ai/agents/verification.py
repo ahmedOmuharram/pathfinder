@@ -110,8 +110,8 @@ Return exactly one ``VerificationDelta`` wrapping a ``VerificationDigest``:
 
 - ``digest.disposition``: ``done`` when verification passed; ``handoff`` \
   when something needs another phase.
-- ``digest.handoff_to`` (optional): ``execution`` / ``planning`` / \
-  ``discovery``.
+- ``digest.handoff_to`` (optional): ``build`` (rebuild / recover failed \
+  steps) or ``frame`` (re-frame: a criterion needs a different search).
 - ``digest.success`` (required): True if the strategy answered the \
   user's question; False if verification surfaced a real problem.
 - ``digest.prose`` (required): factual completion summary — counts, \

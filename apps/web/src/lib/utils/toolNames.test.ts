@@ -4,10 +4,10 @@ import { humanizeToolName } from "./toolNames";
 
 describe("humanizeToolName", () => {
   it("maps known tools to friendly labels", () => {
-    expect(humanizeToolName("create_plan")).toBe("Build plan");
-    expect(humanizeToolName("update_search_decision")).toBe("Search decision");
+    expect(humanizeToolName("frame_problem")).toBe("Frame problem");
+    expect(humanizeToolName("set_criterion")).toBe("Set criterion");
     expect(humanizeToolName("run_control_tests_on_step")).toBe("Run control tests");
-    expect(humanizeToolName("submit_plan_for_approval")).toBe("Submit plan");
+    expect(humanizeToolName("build_strategy")).toBe("Build strategy");
     expect(humanizeToolName("compare_variants_scored")).toBe("Score variants");
     expect(humanizeToolName("build_control_set")).toBe("Build control set");
     expect(humanizeToolName("consult_user")).toBe("Ask the user");

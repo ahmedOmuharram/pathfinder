@@ -1,24 +1,26 @@
 from __future__ import annotations
 
-from pathfinder.domain.parameters.values import NumberValue
 from pathfinder.domain.strategy.constraints import (
     Constraint,
     ConstraintKind,
     ConstraintSource,
     ConstraintStatus,
     GroundedConstraint,
-    ground_against_plan,
+    ground_constraints,
     is_blocking,
     merge_constraints,
     provisional_constraints,
 )
-from pathfinder.domain.strategy.plan import (
-    PlannedParameter,
-    PlannedStep,
-    StepStatus,
-    StepType,
-    StrategyPlan,
+
+# Realized facts of a single microarray fold-change leaf — the criteria's bound
+# search name + the union of its parameter names.
+_MICROARRAY_SEARCH = (
+    "GenesByMicroarrayaaegLVP_AGWG_microarrayExpression_GSE22339_male_vs_female_RSRC"
 )
+_MICROARRAY_FACTS: dict[str, list[str] | set[str]] = {
+    "search_names": [_MICROARRAY_SEARCH],
+    "param_names": {"fold_change"},
+}
 
 
 def test_constraint_defaults_to_assumed() -> None:
@@ -74,29 +76,6 @@ def test_soft_user_explicit_constraint_does_not_block() -> None:
     assert is_blocking(substituted) is False
 
 
-def _microarray_plan() -> StrategyPlan:
-    step = PlannedStep(
-        id="s2",
-        search_name="GenesByMicroarrayaaegLVP_AGWG_microarrayExpression_GSE22339_male_vs_female_RSRC",
-        display_name="microarray fc",
-        step_type=StepType.LEAF,
-        status=StepStatus.READY,
-        parameters=[
-            PlannedParameter(
-                name="fold_change",
-                display_name="Fold change",
-                param_type="number",
-                value=NumberValue(value=2.0),
-                status="set",
-                required=True,
-            )
-        ],
-    )
-    return StrategyPlan(
-        title="t", description="d", rationale="r", steps=[step], connections=[]
-    )
-
-
 def test_rnaseq_requested_but_microarray_used_is_substituted() -> None:
     c = Constraint(
         kind=ConstraintKind.DATA_TYPE,
@@ -104,7 +83,7 @@ def test_rnaseq_requested_but_microarray_used_is_substituted() -> None:
         source=ConstraintSource.USER_EXPLICIT,
         label="data type",
     )
-    [g] = ground_against_plan([c], _microarray_plan())
+    [g] = ground_constraints([c], **_MICROARRAY_FACTS)
     assert g.status is ConstraintStatus.SUBSTITUTED
     assert g.realized_value == "microarray"
 
@@ -116,7 +95,7 @@ def test_pvalue_threshold_with_no_significance_param_is_ungroundable() -> None:
         source=ConstraintSource.USER_EXPLICIT,
         label="significance",
     )
-    [g] = ground_against_plan([c], _microarray_plan())
+    [g] = ground_constraints([c], **_MICROARRAY_FACTS)
     assert g.status is ConstraintStatus.UNGROUNDABLE
     assert g.realized_value is None
 
@@ -125,7 +104,7 @@ def test_fold_change_present_is_grounded() -> None:
     c = Constraint(
         kind=ConstraintKind.FOLD_CHANGE, requested_value="2", label="fold change"
     )
-    [g] = ground_against_plan([c], _microarray_plan())
+    [g] = ground_constraints([c], **_MICROARRAY_FACTS)
     assert g.status is ConstraintStatus.GROUNDED
 
 

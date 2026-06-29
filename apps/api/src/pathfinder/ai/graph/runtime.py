@@ -12,11 +12,7 @@ from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.capabilities.repetition_guard import ToolRepetitionGuard
 from pathfinder.ai.capabilities.service_outage import ServiceOutageMemory
-from pathfinder.ai.graph.state import (
-    PipelineState,
-    PlanSlotAnswer,
-    ProblemFrame,
-)
+from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.db import DBSessionFactory
@@ -57,8 +53,6 @@ class AgentDeps(BaseModel):
     web_search_service: SkipValidation[WebSearchService] | None = None
     literature_search_service: SkipValidation[LiteratureSearchService] | None = None
     agent_state: AgentToolState = Field(default_factory=AgentToolState)
-    problem_frame: ProblemFrame | None = None
-    problem_frame_set_this_run: bool = False
     ledger_summary: str = ""
     service_outage: ServiceOutageMemory = Field(default_factory=ServiceOutageMemory)
     tool_repetition_guard: ToolRepetitionGuard = Field(
@@ -71,7 +65,6 @@ class AgentDeps(BaseModel):
     conversation_id: UUID | None = None
     db_session_factory: SkipValidation[DBSessionFactory] | None = None
     writer: SkipValidation[Any] = None
-    plan_slot_answers: list[PlanSlotAnswer] = Field(default_factory=list)
 
     def to_strategy_context(self) -> StrategyMutationContext:
         """Narrow this container down to what strategy-mutation services need."""
@@ -91,15 +84,6 @@ def build_node_deps(
 ) -> AgentDeps:
     agent_state = AgentToolState(
         discovered_searches=dict(state.discovered_searches),
-        active_plan=state.active_plan,
-    )
-    pending_id = (
-        state.pending_approval.tool_call_id
-        if state.pending_approval is not None
-        else None
-    )
-    slot_answers = (
-        state.plan_slot_answers.get(pending_id, []) if pending_id is not None else []
     )
     return AgentDeps(
         site_id=context.site_id,
@@ -108,20 +92,10 @@ def build_node_deps(
         web_search_service=context.web_search_service,
         literature_search_service=context.literature_search_service,
         agent_state=agent_state,
-        problem_frame=state.problem_frame,
         experiment_id=context.experiment_id,
         cancel_event=context.cancel_event,
         memory_store=context.memory_store,
         retrieved_memories=memories or [],
         conversation_id=state.conversation_id,
         db_session_factory=context.db_session_factory,
-        plan_slot_answers=list(slot_answers),
     )
-
-
-def extract_state_delta(deps: AgentDeps) -> dict[str, Any]:
-    return {
-        "problem_frame": deps.problem_frame,
-        "discovered_searches": dict(deps.agent_state.discovered_searches),
-        "active_plan": deps.agent_state.active_plan,
-    }

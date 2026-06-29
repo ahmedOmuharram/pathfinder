@@ -21,11 +21,6 @@ from shared_py.stream_parts.graph import (
 )
 from shared_py.stream_parts.optimization import OptimizationSnapshot
 from shared_py.stream_parts.phase import PhaseChange
-from shared_py.stream_parts.plan import (
-    PlanArtifact,
-    PlanUpdate,
-)
-from shared_py.stream_parts.problem_frame import ProblemFrame
 from shared_py.stream_parts.strategy import (
     StrategyLink,
     StrategyMeta,
@@ -58,13 +53,10 @@ class StreamPartsSchemaIndex(CamelModel):
     strategy_patch: StrategyPatch | None = None
     strategy_meta: StrategyMeta | None = None
     strategy_link: StrategyLink | None = None
-    plan_artifact: PlanArtifact | None = None
-    plan_update: PlanUpdate | None = None
     consult_question: ConsultQuestion | None = None
     user_question_answer: UserQuestionAnswer | None = None
     variant_comparison: VariantComparison | None = None
     scored_comparison: ScoredComparison | None = None
-    problem_frame: ProblemFrame | None = None
     gene_set: GeneSet | None = None
     optimization_snapshot: OptimizationSnapshot | None = None
     phase_change: PhaseChange | None = None

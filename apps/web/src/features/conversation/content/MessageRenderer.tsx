@@ -57,7 +57,6 @@ import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
 import { DataPartRenderer } from "./DataPartRenderer";
 import { ModelBadge } from "./ModelBadge";
 import { ConsultCarousel } from "./parts/ConsultCarousel";
-import { PlanCarousel } from "./parts/PlanCarousel";
 import { StoppedNotice } from "./StoppedNotice";
 import { dataPartComponents } from "./contentComponents";
 import { ToolThink } from "./parts/ToolThink";
@@ -284,7 +283,6 @@ export function AssistantMessage() {
           <ModelBadge />
           <MessagePrimitive.Content components={contentComponents} />
           <ConsultCarousel />
-          <PlanCarousel />
           <AssistantThinkingPlaceholder />
           <AssistantErrorCard />
           <AssistantStoppedNotice />
