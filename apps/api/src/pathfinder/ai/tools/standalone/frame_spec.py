@@ -6,6 +6,8 @@ from pydantic_ai import ModelRetry, RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.memory.embedding import embed_text
+from pathfinder.ai.tools.standalone._validation_helpers import validation_model_retry
+from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
     OpenSlot,
@@ -13,8 +15,11 @@ from pathfinder.domain.strategy.operational_spec import (
     StructureNode,
 )
 from pathfinder.domain.strategy.ops import CombineOp
+from pathfinder.platform.errors import ValidationError
 from pathfinder.services.catalog.param_dag import resolve_search_params
 from pathfinder.services.catalog.param_intent import ParamIntent
+from pathfinder.services.catalog.param_validation import validate_parameters
+from pathfinder.services.catalog.validation_callbacks import make_validation_callbacks
 
 CriterionRole = Literal["seed", "filter", "transform", "exclude"]
 
@@ -46,14 +51,31 @@ async def set_criterion(
     intent = ParamIntent(
         organism_scope=organism_scope, text=text, direction_hint=direction
     )
+    record_type = _record_type(ctx)
     resolved = await resolve_search_params(
         site_id=ctx.deps.site_id,
-        record_type=_record_type(ctx),
+        record_type=record_type,
         search_name=search_name,
         intent=intent,
         embed=embed_text,
         overrides=param_overrides,
     )
+    # Validate the resolved values against WDK NOW (not at build time) — but only
+    # once the spec is complete: an open slot means a required param is still
+    # unresolved, which would falsely trip the "missing required" check. A value
+    # error (e.g. an invalid vocab/multi-pick value) surfaces here as a
+    # did-you-mean retry instead of failing the build and looping recovery.
+    if not resolved.open_slots:
+        try:
+            await validate_parameters(
+                SearchContext(ctx.deps.site_id, record_type, search_name),
+                parameters=dict(resolved.params),
+                callbacks=make_validation_callbacks(ctx.deps.site_id),
+            )
+        except ValidationError as exc:
+            raise validation_model_retry(
+                exc, recordType=record_type, searchName=search_name
+            ) from exc
     open_params = [
         OpenSlot(
             criterion_id=criterion_id,

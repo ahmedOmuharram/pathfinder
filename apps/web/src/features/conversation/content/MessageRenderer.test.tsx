@@ -16,8 +16,8 @@ describe("DataPartRenderer dispatch", () => {
       <DataPartRenderer
         kind="data-sub-agent-call"
         data={{
-          subAgent: "scope_problem",
-          phase: "scoping",
+          subAgent: "frame_problem",
+          phase: "frame",
           state: "started",
           summary: "Framing the problem",
           succeeded: null,

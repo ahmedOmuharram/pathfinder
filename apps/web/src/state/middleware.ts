@@ -10,8 +10,8 @@ import { devtools, persist, subscribeWithSelector } from "zustand/middleware";
 import type { StateCreator } from "zustand";
 import type {} from "@redux-devtools/extension";
 
-const PERSIST_STORAGE_EPOCH = "20260410";
-const LOCAL_BROWSER_RESET_MARKER = "pf-local-reset-20260410";
+const PERSIST_STORAGE_EPOCH = "20260625";
+const LOCAL_BROWSER_RESET_MARKER = "pf-local-reset-20260625";
 
 function clearOldPathfinderLocalStorage(): void {
   if (typeof window === "undefined") return;

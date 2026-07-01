@@ -68,12 +68,12 @@ describe("buildChatRequestBody", () => {
       trigger: "submit-message",
       messages: [],
       baseBody: undefined,
-      phaseModels: { lead: "openai:gpt-5.4", discovery: "anthropic:claude-sonnet-4-6" },
+      phaseModels: { lead: "openai:gpt-5.4", frame: "anthropic:claude-sonnet-4-6" },
       phaseReasoning: { lead: "high" },
     });
     expect(out["phaseModels"]).toEqual({
       lead: "openai:gpt-5.4",
-      discovery: "anthropic:claude-sonnet-4-6",
+      frame: "anthropic:claude-sonnet-4-6",
     });
     expect(out["phaseReasoning"]).toEqual({ lead: "high" });
   });

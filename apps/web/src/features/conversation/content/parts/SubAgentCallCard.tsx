@@ -28,9 +28,8 @@ import { humanizeToolName } from "@/lib/utils/toolNames";
 import { useChatHelpersOptional } from "../../runtime/chatHelpersContext";
 
 const PHASE_LABELS: Record<string, string> = {
-  scoping: "Scoping",
-  discovery: "Discovery",
-  planning: "Planning",
+  lead: "Lead",
+  frame: "Frame",
   execution: "Execution",
   verification: "Verification",
   recover_failed_steps: "Recovery",

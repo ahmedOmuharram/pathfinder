@@ -32,7 +32,7 @@ function mkMessage(id: string, traceId: string | null): AssistantMsg {
     content.push({
       type: "data",
       name: "phase-start",
-      data: { traceId, phase: "scoping", model: "gpt" },
+      data: { traceId, phase: "frame", model: "gpt" },
     });
   }
   content.push({ type: "text", text: "ok" });

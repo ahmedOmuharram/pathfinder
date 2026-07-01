@@ -6,11 +6,17 @@ import pytest
 from pydantic_ai import ModelRetry
 
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.tools.standalone.frame_spec import drop_criterion, set_structure
+from pathfinder.ai.tools.standalone import frame_spec
+from pathfinder.ai.tools.standalone.frame_spec import (
+    drop_criterion,
+    set_criterion,
+    set_structure,
+)
 from pathfinder.ai.tools.toolsets.frame import (
     _frame_enum_overrides,
     build_toolset,
 )
+from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
     OpenSlot,
@@ -18,6 +24,8 @@ from pathfinder.domain.strategy.operational_spec import (
     StructureNode,
 )
 from pathfinder.domain.strategy.ops import CombineOp
+from pathfinder.platform.errors import ValidationError
+from pathfinder.services.catalog.param_dag import ResolvedParams
 
 
 def _ctx(state: AgentToolState) -> MagicMock:
@@ -128,3 +136,108 @@ def test_drop_criterion_unknown_id_raises_model_retry() -> None:
     st.frame_set_criterion(Criterion(id="c1", text="a", search_name="S1"))
     with pytest.raises(ModelRetry):
         drop_criterion(_ctx(st), criterion_id="nope", reason="x")
+
+
+def _frame_ctx(state: AgentToolState) -> MagicMock:
+    ctx = MagicMock()
+    ctx.deps.agent_state = state
+    ctx.deps.site_id = "plasmodb"
+    ctx.deps.strategy_session.get_graph.return_value = None  # -> "transcript"
+    return ctx
+
+
+@pytest.mark.asyncio
+async def test_set_criterion_retries_on_invalid_resolved_param(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A complete (no open slots) binding whose resolved values WDK rejects must
+    # surface a did-you-mean retry at FRAME — not slip through to fail the build.
+    st = AgentToolState()
+
+    async def _resolve(**_kw: object) -> ResolvedParams:
+        return ResolvedParams(
+            params={"text_fields": MultiPickValue(values=["product,Notes"])},
+            open_slots=[],
+            unresolved_required=[],
+        )
+
+    async def _validate(_ctx: object, **_kw: object) -> dict[str, object]:
+        raise ValidationError(
+            title="Invalid parameter value: Parameter 'text_fields' does not "
+            "accept 'product,Notes'."
+        )
+
+    monkeypatch.setattr(frame_spec, "resolve_search_params", _resolve)
+    monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
+
+    with pytest.raises(ModelRetry) as exc:
+        await set_criterion(
+            _frame_ctx(st),
+            criterion_id="c1",
+            text="annotated male gametocyte",
+            search_name="GenesByText",
+            param_overrides={"text_fields": "product,Notes"},
+        )
+    assert "text_fields" in str(exc.value)
+    assert st.operational_spec_draft.criteria == []  # not bound with the bad value
+
+
+@pytest.mark.asyncio
+async def test_set_criterion_skips_validation_when_open_slots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Open slots = a required param still unresolved; validating now would falsely
+    # trip "missing required", so the gate must NOT run until the spec is complete.
+    st = AgentToolState()
+    validated = False
+
+    async def _resolve(**_kw: object) -> ResolvedParams:
+        return ResolvedParams(
+            params={"organism": MultiPickValue(values=["Pf3D7"])},
+            open_slots=[OpenSlot(param_name="samples", question="pick")],
+            unresolved_required=["samples"],
+        )
+
+    async def _validate(_ctx: object, **_kw: object) -> dict[str, object]:
+        nonlocal validated
+        validated = True
+        return {}
+
+    monkeypatch.setattr(frame_spec, "resolve_search_params", _resolve)
+    monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
+
+    note = await set_criterion(
+        _frame_ctx(st), criterion_id="c1", text="x", search_name="GenesByRNASeq"
+    )
+    assert validated is False
+    assert "needs user input" in note
+    assert st.operational_spec_draft.criteria[0].id == "c1"
+
+
+@pytest.mark.asyncio
+async def test_set_criterion_binds_when_resolved_params_valid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    st = AgentToolState()
+
+    async def _resolve(**_kw: object) -> ResolvedParams:
+        return ResolvedParams(
+            params={"organism": MultiPickValue(values=["Pf3D7"])},
+            open_slots=[],
+            unresolved_required=[],
+        )
+
+    async def _validate(_ctx: object, **_kw: object) -> dict[str, object]:
+        return {"organism": MultiPickValue(values=["Pf3D7"])}
+
+    monkeypatch.setattr(frame_spec, "resolve_search_params", _resolve)
+    monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
+
+    note = await set_criterion(
+        _frame_ctx(st),
+        criterion_id="c1",
+        text="x",
+        search_name="GenesWithSignalPeptide",
+    )
+    assert "bound c1" in note
+    assert st.operational_spec_draft.criteria[0].id == "c1"

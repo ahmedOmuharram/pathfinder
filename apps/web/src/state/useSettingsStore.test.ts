@@ -35,16 +35,14 @@ describe("state/useSettingsStore", () => {
     expect(useSettingsStore.getState().phaseModels).toEqual({
       lead: "openai:gpt-5.4",
     });
-    useSettingsStore
-      .getState()
-      .setPhaseModel("discovery", "anthropic:claude-sonnet-4-6");
+    useSettingsStore.getState().setPhaseModel("frame", "anthropic:claude-sonnet-4-6");
     expect(useSettingsStore.getState().phaseModels).toEqual({
       lead: "openai:gpt-5.4",
-      discovery: "anthropic:claude-sonnet-4-6",
+      frame: "anthropic:claude-sonnet-4-6",
     });
     useSettingsStore.getState().setPhaseModel("lead", null);
     expect(useSettingsStore.getState().phaseModels).toEqual({
-      discovery: "anthropic:claude-sonnet-4-6",
+      frame: "anthropic:claude-sonnet-4-6",
     });
   });
 
@@ -59,7 +57,7 @@ describe("state/useSettingsStore", () => {
     const store = useSettingsStore;
     store.getState().setShowRawToolCalls(true);
     store.getState().setPhaseModel("lead", "openai:gpt-5");
-    store.getState().setPhaseReasoning("planning", "low");
+    store.getState().setPhaseReasoning("verification", "low");
     store.getState().resetToDefaults();
     const s = store.getState();
     expect(s.showRawToolCalls).toBe(false);
