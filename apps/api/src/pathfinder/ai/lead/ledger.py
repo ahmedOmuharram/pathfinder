@@ -6,7 +6,7 @@ from pydantic import Field, computed_field
 
 from pathfinder.ai.graph.state import VerificationDigest
 from pathfinder.ai.lead.intent import UserIntent
-from pathfinder.domain.strategy.build_outcome import BuildOutcome
+from pathfinder.domain.strategy.build_outcome import BuildOutcome, NodeResult
 from pathfinder.domain.strategy.constraints import GroundedConstraint, is_blocking
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
@@ -76,6 +76,14 @@ class FrameSection(CamelModel):
             c.open_params for c in self.spec.criteria
         )
 
+    @computed_field
+    def structure_render(self) -> str | None:
+        """Compact combine-tree string (e.g. ``(GenesByText INTERSECT
+        GenesByTaxon)``) for the UI's Frame tab."""
+        if self.spec is None or self.spec.structure is None:
+            return None
+        return _render_structure(self.spec.structure.root, self.spec)
+
 
 class BuildSection(CamelModel):
     outcome: BuildOutcome | None = None
@@ -94,6 +102,20 @@ class BuildSection(CamelModel):
             and self.skipped_count == 0
             and not self.zero_result_steps
         )
+
+    @computed_field
+    def node_results(self) -> list[NodeResult]:
+        """Per-node build detail (search, gene count, status, error) for the UI's
+        Build tab — clean camelCase, not the raw snake_case BuildOutcome."""
+        return list(self.outcome.node_results) if self.outcome else []
+
+    @computed_field
+    def wdk_strategy_id(self) -> int | None:
+        return self.outcome.wdk_strategy_id if self.outcome else None
+
+    @computed_field
+    def wdk_url(self) -> str | None:
+        return self.outcome.wdk_url if self.outcome else None
 
 
 class VerificationSection(CamelModel):

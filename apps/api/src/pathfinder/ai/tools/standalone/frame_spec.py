@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import Field
 from pydantic_ai import ModelRetry, RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -16,12 +17,35 @@ from pathfinder.domain.strategy.operational_spec import (
 )
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.platform.errors import ValidationError
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_dag import resolve_search_params
 from pathfinder.services.catalog.param_intent import ParamIntent
 from pathfinder.services.catalog.param_validation import validate_parameters
 from pathfinder.services.catalog.validation_callbacks import make_validation_callbacks
 
 CriterionRole = Literal["seed", "filter", "transform", "exclude"]
+
+
+class SetCriterionResult(CamelModel):
+    """Result of binding a criterion to a WDK search and resolving its params."""
+
+    criterion_id: str
+    search_name: str
+    resolved_params: list[str] = Field(default_factory=list)
+    open_slots: list[OpenSlot] = Field(default_factory=list)
+
+
+class SetStructureResult(CamelModel):
+    """Result of folding the bound criteria into the strategy structure."""
+
+    criteria_combined: int
+
+
+class DropCriterionResult(CamelModel):
+    """Result of dropping a criterion from the spec."""
+
+    criterion_id: str
+    reason: str
 
 
 def _record_type(ctx: RunContext[AgentDeps]) -> str:
@@ -39,7 +63,7 @@ async def set_criterion(
     organism_scope: str | None = None,
     direction: Literal["up", "down"] | None = None,
     param_overrides: dict[str, str] | None = None,
-) -> str:
+) -> SetCriterionResult:
     """Bind a criterion to a real WDK search and auto-resolve its params
     (Tier-1 auto + Tier-2 intent). Required params that stay unresolved become
     open slots for the user. ``organism_scope`` e.g. "Plasmodium falciparum";
@@ -95,12 +119,12 @@ async def set_criterion(
             open_params=open_params,
         )
     )
-    note = (
-        f"bound {criterion_id} -> {search_name}: {len(resolved.params)} params resolved"
+    return SetCriterionResult(
+        criterion_id=criterion_id,
+        search_name=search_name,
+        resolved_params=list(resolved.params),
+        open_slots=open_params,
     )
-    if open_params:
-        note += f"; needs user input: {[s.param_name for s in open_params]}"
-    return note
 
 
 async def set_structure(
@@ -108,7 +132,7 @@ async def set_structure(
     *,
     criterion_ids: list[str],
     operators: list[str],
-) -> str:
+) -> SetStructureResult:
     """Combine the bound criteria into the strategy tree (left-fold).
     ``operators`` has ``len(criterion_ids) - 1`` entries, each INTERSECT | UNION
     | MINUS | TRANSFORM. Use TRANSFORM when the next criterion's search MAPS the
@@ -117,7 +141,7 @@ async def set_structure(
     returns their orthologs. A TRANSFORM step is wired to that input, not run
     standalone."""
     if not criterion_ids:
-        return "no criteria to combine"
+        return SetStructureResult(criteria_combined=0)
     valid = {o.value for o in CombineOp}
     nodes = [StructureNode(kind="leaf", criterion_id=cid) for cid in criterion_ids]
     root = nodes[0]
@@ -131,12 +155,12 @@ async def set_structure(
         op = CombineOp(raw if raw in valid else "INTERSECT")
         root = StructureNode(kind="combine", operator=op, inputs=[root, node])
     ctx.deps.agent_state.frame_set_structure(SpecStructure(root=root))
-    return f"structure set over {len(criterion_ids)} criteria"
+    return SetStructureResult(criteria_combined=len(criterion_ids))
 
 
 def drop_criterion(
     ctx: RunContext[AgentDeps], *, criterion_id: str, reason: str
-) -> str:
+) -> DropCriterionResult:
     """Remove a criterion (by the ``criterion_id`` you set in ``set_criterion``)
     from the spec — e.g. when its WDK search is unavailable or has no realizable
     binding. The criterion and its open params are removed (so it no longer
@@ -149,4 +173,4 @@ def drop_criterion(
             f"criterion_id from set_criterion. Current criteria: {ids}."
         )
         raise ModelRetry(msg)
-    return f"dropped criterion: {criterion_id} ({reason})"
+    return DropCriterionResult(criterion_id=criterion_id, reason=reason)

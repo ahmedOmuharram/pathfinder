@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
 
 vi.mock("@/state/strategy/useStepSnapshot", () => ({
@@ -70,8 +70,10 @@ const COMBINE_STRATEGY: Strategy = {
     {
       id: "step_c",
       kind: "combine",
-      displayName: "Intersect",
-      searchName: "",
+      // combines arrive with the internal "__combine__" sentinel (backend
+      // falls back displayName -> searchName) — must never reach the UI.
+      displayName: "__combine__",
+      searchName: "__combine__",
       recordType: "gene",
       parameters: {},
       operator: "INTERSECT",
@@ -102,9 +104,23 @@ describe("CompactStrategyView (vertical layout)", () => {
     expect(screen.getByText("Genes by taxon")).toBeTruthy();
   });
 
-  it("renders combine label between secondary input and result rows", () => {
+  it("renders the combine as one operator-labelled result row", () => {
     render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
-    expect(screen.getByText(/Combine \(A ∩ B\)/i)).toBeTruthy();
+    const row = screen.getByTestId("compact-step-row-step_c");
+    expect(within(row).getByText(/Combine \(A ∩ B\)/i)).toBeTruthy();
+    expect(within(row).getByText("42")).toBeTruthy();
+  });
+
+  it("never surfaces the internal __combine__ sentinel", () => {
+    render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
+    expect(screen.queryByText("__combine__")).toBeNull();
+  });
+
+  it("clicking the combine result row fires onStepClick with its id", () => {
+    const onClick = vi.fn();
+    render(<CompactStrategyView strategy={COMBINE_STRATEGY} onStepClick={onClick} />);
+    fireEvent.click(screen.getByTestId("compact-step-row-step_c"));
+    expect(onClick).toHaveBeenCalledWith("step_c");
   });
 
   it("clicking a row fires onStepClick with the step id", () => {

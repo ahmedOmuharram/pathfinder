@@ -155,20 +155,20 @@ function LedgerTabContent({
     return (
       <div className="divide-y divide-border">
         <IntentSection intent={ledger.userIntent} />
-        <FrameSection frame={ledger.frame} />
+        <FrameSection frame={ledger.frame} detail />
       </div>
     );
   }
   if (tab === "build") {
     return (
       <div className="divide-y divide-border">
-        <BuildSection build={ledger.build} />
+        <BuildSection build={ledger.build} detail />
       </div>
     );
   }
   return (
     <div className="divide-y divide-border">
-      <VerificationSection verification={ledger.verification} />
+      <VerificationSection verification={ledger.verification} detail />
       <ConstraintsSection constraints={ledger.constraints} />
     </div>
   );

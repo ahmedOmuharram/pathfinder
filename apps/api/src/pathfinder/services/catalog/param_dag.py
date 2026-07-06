@@ -380,22 +380,27 @@ async def _resolve_one(
     return await map_intent_to_value(info, intent, embed=embed)
 
 
-def _scalar_default(
-    info: ParameterInfo, used_by_vocab: dict[str, set[str]]
-) -> str | None:
-    """The param's default — UNLESS it would duplicate a value already chosen
-    for a sibling drawn from the identical vocabulary. Two same-vocab selectors
-    defaulting to the same value form a degenerate pair (e.g. a DESeq
-    ref-vs-comp contrast comparing a group to itself → zero results); leave the
-    second one unresolved so it surfaces as a user choice instead."""
+def _scalar_default(info: ParameterInfo) -> str | None:
+    """The param's default value, when it is a defaultable scalar/vocab kind.
+    The degenerate-pair dedup is applied by the caller so it covers
+    intent-resolved values too, not just defaults."""
     if not info.default_value or info.param_kind not in _SCALAR_DEFAULTABLE:
         return None
-    signature = _vocab_signature(info)
-    if signature is not None and info.default_value in used_by_vocab.get(
-        signature, set()
-    ):
-        return None
     return info.default_value
+
+
+def _duplicates_sibling(
+    info: ParameterInfo, value: str, used_by_vocab: dict[str, set[str]]
+) -> bool:
+    """Whether ``value`` was already chosen for a sibling param drawn from the
+    IDENTICAL vocabulary. Two same-vocab selectors sharing a value form a
+    degenerate pair (e.g. a DESeq ref-vs-comp contrast comparing a group to
+    itself → zero results), so the duplicate must surface as a user choice
+    rather than silently bind — whether it came from Tier-2 intent or the
+    scalar default (the intent matcher is slot-agnostic, so a ref/comp pair
+    routinely matches the same value)."""
+    signature = _vocab_signature(info)
+    return signature is not None and value in used_by_vocab.get(signature, set())
 
 
 def _open_slot(info: ParameterInfo) -> OpenSlot:
@@ -418,7 +423,9 @@ async def _resolve_nonfilter(
     same-vocab sibling won't degenerately reuse it. ``None`` = optional + unset."""
     value = await _resolve_one(info, intent, embed, overrides)
     if value is None:
-        value = _scalar_default(info, used_by_vocab)
+        value = _scalar_default(info)
+    if value is not None and _duplicates_sibling(info, value, used_by_vocab):
+        value = None
     resolved = _build_value(info, value)
     if resolved is not None and value is not None:
         signature = _vocab_signature(info)

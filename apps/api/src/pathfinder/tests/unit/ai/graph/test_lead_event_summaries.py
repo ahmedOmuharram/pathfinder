@@ -1,7 +1,15 @@
+from pydantic_ai.ui.vercel_ai.response_types import (
+    ToolInputAvailableChunk,
+    ToolInputDeltaChunk,
+    ToolInputStartChunk,
+    ToolOutputAvailableChunk,
+)
+
 from pathfinder.ai.graph._lead_events import (
     _summarize_delta_dict,
     _summarize_sub_agent_call_args,
     _truncate_summary,
+    is_suppressed_sub_agent_chunk,
 )
 
 
@@ -80,3 +88,54 @@ def test_summarize_verification_digest() -> None:
         _summarize_delta_dict({"digest": {"success": True}}) == "Verified successfully"
     )
     assert _summarize_delta_dict({"digest": {"success": False}}) == "Issues found"
+
+
+def test_suppresses_dispatch_input_start_before_call_event_records_id() -> None:
+    # The raw tool-input-start chunk for a sub-agent dispatch is emitted from
+    # the model's part events, BEFORE the FunctionToolCallEvent that records
+    # the id — so the id-set is still empty. It must be classified and
+    # suppressed by tool_name, otherwise the raw "· Running" tool card leaks
+    # alongside the data-sub-agent-call card.
+    calls: dict[str, str] = {}
+    start = ToolInputStartChunk(tool_call_id="c1", tool_name="frame_problem")
+    assert is_suppressed_sub_agent_chunk(start, calls) is True
+    # Priming: the follow-on chunks carry no tool_name but share the id, so
+    # they are suppressed via the id recorded from the start chunk.
+    delta = ToolInputDeltaChunk(tool_call_id="c1", input_text_delta="{}")
+    assert is_suppressed_sub_agent_chunk(delta, calls) is True
+    output = ToolOutputAvailableChunk(tool_call_id="c1", output={"ok": True})
+    assert is_suppressed_sub_agent_chunk(output, calls) is True
+
+
+def test_suppresses_every_dispatch_tool() -> None:
+    for name in (
+        "frame_problem",
+        "build_strategy",
+        "recover_failed_steps",
+        "verify_strategy",
+    ):
+        calls: dict[str, str] = {}
+        start = ToolInputStartChunk(tool_call_id="x", tool_name=name)
+        assert is_suppressed_sub_agent_chunk(start, calls) is True
+
+
+def test_does_not_suppress_lead_own_tool_chunks() -> None:
+    calls: dict[str, str] = {}
+    start = ToolInputStartChunk(tool_call_id="c2", tool_name="web_search")
+    assert is_suppressed_sub_agent_chunk(start, calls) is False
+    delta = ToolInputDeltaChunk(tool_call_id="c2", input_text_delta="{}")
+    assert is_suppressed_sub_agent_chunk(delta, calls) is False
+    output = ToolOutputAvailableChunk(tool_call_id="c2", output={"ok": True})
+    assert is_suppressed_sub_agent_chunk(output, calls) is False
+
+
+def test_input_available_also_classifies_dispatch_by_name() -> None:
+    # Robustness: tool-input-available also carries tool_name, so a dispatch
+    # is caught even if a start chunk were ever missed.
+    calls: dict[str, str] = {}
+    avail = ToolInputAvailableChunk(
+        tool_call_id="c3", tool_name="verify_strategy", input={}
+    )
+    assert is_suppressed_sub_agent_chunk(avail, calls) is True
+    output = ToolOutputAvailableChunk(tool_call_id="c3", output=None)
+    assert is_suppressed_sub_agent_chunk(output, calls) is True

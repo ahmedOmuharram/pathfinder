@@ -66,32 +66,45 @@ async def _validate_leaf_or_transform(
             rt, site_id, search_name
         )
 
-    # Leaf-specific: fold-change searches with identical ref and comp samples
-    # produce meaningless results.
-    return canonical, _validate_fold_change_samples(search_name, canonical)
+    # Leaf-specific: a differential search whose reference and comparison
+    # sample groups are identical compares a group to itself → 0 results.
+    return canonical, _validate_contrast_samples(search_name, canonical)
 
 
-def _validate_fold_change_samples(
+def _validate_contrast_samples(
     search_name: str,
     parameters: dict[str, ParamValue],
 ) -> ToolErrorPayload | None:
-    """Guard against identical ref/comp samples in fold-change searches."""
+    """Guard against identical reference/comparison samples in a differential
+    search. Covers any ``*_ref_*`` / ``*_comp_*`` sample pair (fold-change
+    ``samples_fc_*``, DESeq ``samples_de_*``, …) plus the percentile-vs-comp
+    variant. A contrast of a group against itself yields zero results."""
     decoded = to_decoded_map(parameters)
-    ref = decoded.get("samples_fc_ref_generic") or decoded.get(
-        "samples_percentile_generic"
-    )
+    for ref_name, ref_value in decoded.items():
+        if "_ref_" not in ref_name:
+            continue
+        comp_value = decoded.get(ref_name.replace("_ref_", "_comp_"))
+        if ref_value and comp_value and str(ref_value) == str(comp_value):
+            return _identical_samples_error(search_name, ref_value, comp_value)
+    percentile = decoded.get("samples_percentile_generic")
     comp = decoded.get("samples_fc_comp_generic")
-    if ref and comp and str(ref) == str(comp):
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "Reference and comparison samples are identical — this "
-            "will produce meaningless fold-change results. Set "
-            "different samples for reference vs comparison.",
-            searchName=search_name,
-            ref=ref,
-            comp=comp,
-        )
+    if percentile and comp and str(percentile) == str(comp):
+        return _identical_samples_error(search_name, percentile, comp)
     return None
+
+
+def _identical_samples_error(
+    search_name: str, ref: JsonValue, comp: JsonValue
+) -> ToolErrorPayload:
+    return tool_error(
+        ErrorCode.VALIDATION_ERROR,
+        "Reference and comparison samples are identical — this will produce "
+        "meaningless differential-expression results. Set different samples "
+        "for reference vs comparison.",
+        searchName=search_name,
+        ref=ref,
+        comp=comp,
+    )
 
 
 async def _validate_transform_input_param(

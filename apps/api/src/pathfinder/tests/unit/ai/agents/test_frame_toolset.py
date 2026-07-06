@@ -8,6 +8,7 @@ from pydantic_ai import ModelRetry
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.tools.standalone import frame_spec
 from pathfinder.ai.tools.standalone.frame_spec import (
+    SetCriterionResult,
     drop_criterion,
     set_criterion,
     set_structure,
@@ -206,11 +207,11 @@ async def test_set_criterion_skips_validation_when_open_slots(
     monkeypatch.setattr(frame_spec, "resolve_search_params", _resolve)
     monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
 
-    note = await set_criterion(
+    result = await set_criterion(
         _frame_ctx(st), criterion_id="c1", text="x", search_name="GenesByRNASeq"
     )
     assert validated is False
-    assert "needs user input" in note
+    assert any(s.param_name == "samples" for s in result.open_slots)
     assert st.operational_spec_draft.criteria[0].id == "c1"
 
 
@@ -233,11 +234,15 @@ async def test_set_criterion_binds_when_resolved_params_valid(
     monkeypatch.setattr(frame_spec, "resolve_search_params", _resolve)
     monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
 
-    note = await set_criterion(
+    result = await set_criterion(
         _frame_ctx(st),
         criterion_id="c1",
         text="x",
         search_name="GenesWithSignalPeptide",
     )
-    assert "bound c1" in note
+    assert isinstance(result, SetCriterionResult)
+    assert result.criterion_id == "c1"
+    assert result.search_name == "GenesWithSignalPeptide"
+    assert result.resolved_params == ["organism"]
+    assert result.open_slots == []
     assert st.operational_spec_draft.criteria[0].id == "c1"

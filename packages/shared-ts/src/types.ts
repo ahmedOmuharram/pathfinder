@@ -458,6 +458,18 @@ export interface LedgerFramePayload {
   readyToBuild: boolean;
   needsUser: boolean;
   spec: LedgerSpecPayload | null;
+  /** Compact combine-tree string, e.g. "(GenesByText INTERSECT GenesByTaxon)".
+   * Absent (exclude_none) until a structure is set. */
+  structureRender?: string | null;
+}
+
+export interface LedgerNodeResultPayload {
+  nodeId: string;
+  searchName: string;
+  wdkStepId?: number | null;
+  count?: number | null;
+  status: "ok" | "zero" | "failed";
+  error?: string | null;
 }
 
 export interface LedgerBuildPayload {
@@ -474,11 +486,26 @@ export interface LedgerBuildPayload {
     | "user_clarify"
     | "empty_result_review";
   succeeded: boolean;
+  /** Per-node build detail: which search returned how many genes, plus failures.
+   * Optional: absent on ledger snapshots persisted before this field existed. */
+  nodeResults?: LedgerNodeResultPayload[];
+  wdkStrategyId?: number | null;
+  wdkUrl?: string | null;
+}
+
+export interface LedgerVerificationDigestPayload {
+  prose: string;
+  reason: string;
+  success: boolean;
+  keyFindings: string[];
+  caveats: string[];
 }
 
 export interface LedgerVerificationPayload {
   complete: boolean;
   successful: boolean;
+  /** Full verification digest — absent (exclude_none) until verification runs. */
+  digest?: LedgerVerificationDigestPayload | null;
 }
 
 export interface LedgerConstraintPayload {

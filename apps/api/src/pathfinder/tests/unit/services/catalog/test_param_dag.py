@@ -15,6 +15,7 @@ from pathfinder.domain.parameters.values import (
     SinglePickValue,
 )
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
+from pathfinder.integrations.embeddings.prefixes import SEARCH_QUERY_PREFIX
 from pathfinder.services.catalog import param_dag
 from pathfinder.services.catalog.param_dag import (
     AutoResolved,
@@ -89,6 +90,17 @@ def _p(
 
 async def _embed_orthogonal(texts: Sequence[str]) -> list[list[float]]:
     return [[1.0, 0.0]] + [[0.0, 1.0]] * (len(texts) - 1)
+
+
+async def _embed_prefers_group1(texts: Sequence[str]) -> list[list[float]]:
+    # Align the query with "Group 1" (cosine 1.0 >= floor) and leave "Group 2"
+    # orthogonal, so the slot-agnostic semantic matcher picks g1 for BOTH params.
+    return [
+        [1.0, 0.0]
+        if t.startswith(SEARCH_QUERY_PREFIX) or "Group 1" in t
+        else [0.0, 1.0]
+        for t in texts
+    ]
 
 
 def test_apply_override_snaps_to_tree_box_leaf() -> None:
@@ -401,6 +413,40 @@ async def test_same_vocab_default_not_duplicated_into_degenerate_pair() -> None:
     assert rp.params["samples_de_ref"].value == "g1"
     assert "samples_de_comp" not in rp.params
     assert any(s.param_name == "samples_de_comp" for s in rp.open_slots)
+
+
+@pytest.mark.asyncio
+async def test_same_vocab_intent_match_not_duplicated_into_degenerate_pair() -> None:
+    # The degenerate-pair guard must also cover values chosen via Tier-2 INTENT,
+    # not just defaults. The matcher is slot-agnostic (same text + same vocab ->
+    # same value), so a DESeq ref/comp pair both match "Group 1" from the intent.
+    # The second must surface as a user choice, not silently bind a self-contrast.
+    groups = [
+        VocabOption(value="g1", display="Group 1"),
+        VocabOption(value="g2", display="Group 2"),
+    ]
+
+    async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
+        del context
+        return [
+            _p(
+                "samples_de_ref_generic_deseq", "single-pick-vocabulary", allowed=groups
+            ),
+            _p(
+                "samples_de_comp_generic_deseq",
+                "single-pick-vocabulary",
+                allowed=groups,
+            ),
+        ]
+
+    intent = ParamIntent(organism_scope=None, text="group 1 gametocytes")
+    rp = await resolve_params_with_intent(
+        fetch_at=fetch_at, intent=intent, embed=_embed_prefers_group1
+    )
+    assert isinstance(rp.params["samples_de_ref_generic_deseq"], SinglePickValue)
+    assert rp.params["samples_de_ref_generic_deseq"].value == "g1"
+    assert "samples_de_comp_generic_deseq" not in rp.params
+    assert any(s.param_name == "samples_de_comp_generic_deseq" for s in rp.open_slots)
 
 
 @pytest.mark.asyncio

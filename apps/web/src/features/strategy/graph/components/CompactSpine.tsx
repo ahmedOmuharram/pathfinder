@@ -187,13 +187,10 @@ function CombineRow({
           )}
         </div>
       )}
-      <div className="ml-4 flex items-center gap-2 px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-        <VennIcon operator={operator} />
-        <span>Combine ({combineOperatorLabel(operator)})</span>
-      </div>
       <div className="flex items-center gap-1">
-        <StepRowButton
+        <CombineResultButton
           step={step}
+          operator={operator}
           selectedStepId={selectedStepId}
           {...(onStepClick !== undefined && { onStepClick })}
         />
@@ -206,6 +203,40 @@ function CombineRow({
         )}
       </div>
     </li>
+  );
+}
+
+function CombineResultButton({
+  step,
+  operator,
+  onStepClick,
+  selectedStepId = null,
+}: {
+  step: CompactStep;
+  operator: string;
+} & Pick<RowActions, "onStepClick" | "selectedStepId">) {
+  const snapshot = useStepSnapshot(step);
+  const liveCount = snapshot.estimatedSize;
+  const isSelected = step.id === selectedStepId;
+  return (
+    <button
+      type="button"
+      onClick={() => onStepClick?.(step.id)}
+      data-testid={`compact-step-row-${step.id}`}
+      aria-current={isSelected ? "true" : undefined}
+      className={cn(
+        isSelected && "bg-accent ring-1 ring-primary/50",
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent",
+      )}
+    >
+      <VennIcon operator={operator} />
+      <span className="flex-1 truncate text-xs font-medium text-foreground">
+        Combine ({combineOperatorLabel(operator)})
+      </span>
+      <span className="text-[10px] tabular-nums text-muted-foreground">
+        {typeof liveCount === "number" ? liveCount.toLocaleString() : "..."}
+      </span>
+    </button>
   );
 }
 

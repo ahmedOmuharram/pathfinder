@@ -313,6 +313,32 @@ def test_combine_default_search_name_is_injected() -> None:
     assert node.search_name == COMBINE_SEARCH_NAME
 
 
+def test_display_label_combine_never_leaks_sentinel() -> None:
+    combine = StrategyStepNode(
+        primary_input=StrategyStepNode(search_name="a"),
+        secondary_input=StrategyStepNode(search_name="b"),
+        operator=CombineOp.INTERSECT,
+    )
+    assert combine.search_name == COMBINE_SEARCH_NAME
+    assert combine.display_label == "Combine"
+
+
+def test_display_label_prefers_explicit_display_name() -> None:
+    combine = StrategyStepNode(
+        primary_input=StrategyStepNode(search_name="a"),
+        secondary_input=StrategyStepNode(search_name="b"),
+        operator=CombineOp.UNION,
+        display_name="My combine",
+    )
+    assert combine.display_label == "My combine"
+
+
+def test_display_label_search_falls_back_to_search_name() -> None:
+    assert StrategyStepNode(search_name="GenesByText").display_label == "GenesByText"
+    labelled = StrategyStepNode(search_name="GenesByText", display_name="Text search")
+    assert labelled.display_label == "Text search"
+
+
 def test_strategy_ast_rejects_duplicate_ids_across_tree() -> None:
     leaf_x = StrategyStepNode(search_name="a", id="dup")
     leaf_y = StrategyStepNode(search_name="b", id="dup")

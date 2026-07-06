@@ -584,6 +584,10 @@ class TestOnToolExecuteError:
         assert isinstance(result, str)
         assert "GenesByRNASeqFoo" in result
         assert "different search" in result.lower()
+        # the error was classified TRANSIENT; do not report it to the agent as
+        # a permanent failure (it caused valid searches to be abandoned).
+        assert "down, not transient" not in result.lower()
+        assert "may recover" in result.lower()
 
     @pytest.mark.asyncio
     async def test_persistent_5xx_tracks_searches_independently(self) -> None:

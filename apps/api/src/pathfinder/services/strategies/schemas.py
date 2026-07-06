@@ -53,7 +53,7 @@ def step_response_from_strategy_ast(
     return StepResponse(
         id=step.id,
         kind=step.infer_kind(),
-        display_name=step.display_name or step.search_name,
+        display_name=step.display_label,
         search_name=step.search_name,
         record_type=payload.record_type,
         parameters=step.parameters,

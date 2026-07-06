@@ -7,6 +7,7 @@ from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.platform.text import strip_html_tags
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.wdk import StrategyAPI, TemporaryResultsAPI, WDKAnswer
@@ -37,6 +38,21 @@ class SampleRecordsResult(CamelModel):
 
 
 _MAX_SAMPLE_LIMIT = 100
+
+# Gene attributes that enrich a sample record beyond its id: the readable
+# product name, the gene symbol, and the organism.
+_SAMPLE_ATTRIBUTES = ("gene_product", "gene_name", "organism")
+_GENE_RECORD_TYPES = frozenset({"transcript", "gene"})
+
+
+def _sample_attributes(record_type: str | None) -> list[str] | None:
+    """The gene attributes to request for a step's records, or ``None`` for a
+    record class that doesn't have them (so the preview stays id-only). The
+    app's steps are transcript/gene, so an absent record type defaults to
+    requesting them."""
+    if (record_type or "transcript") in _GENE_RECORD_TYPES:
+        return list(_SAMPLE_ATTRIBUTES)
+    return None
 
 
 def _validate_download_url_inputs(
@@ -98,13 +114,20 @@ async def _fetch_step_preview(
     strategy_api: StrategyAPI,
     wdk_step_id: int,
     limit: int,
+    attributes: list[str] | None = None,
 ) -> WDKAnswer | ToolErrorPayload:
-    """Fetch a step preview from the strategy API."""
+    """Fetch a step preview. When ``attributes`` are requested but the record
+    class rejects them, fall back to an id-only preview instead of failing."""
+    pagination = {"offset": 0, "numRecords": limit}
+    if attributes:
+        try:
+            return await strategy_api.get_step_answer(
+                wdk_step_id, attributes=attributes, pagination=pagination
+            )
+        except AppError, OSError:
+            pass  # record class lacks these attributes -> id-only below
     try:
-        return await strategy_api.get_step_answer(
-            wdk_step_id,
-            pagination={"offset": 0, "numRecords": limit},
-        )
+        return await strategy_api.get_step_answer(wdk_step_id, pagination=pagination)
     except (AppError, OSError) as e:
         return tool_error(ErrorCode.WDK_ERROR, str(e))
 
@@ -120,7 +143,9 @@ def _extract_sample_response(
     for rec in answer.records:
         row: JSONObject = {"id": rec.display_name}
         for attr_name, attr_val in rec.attributes.items():
-            row[attr_name] = attr_val
+            row[attr_name] = (
+                strip_html_tags(attr_val) if isinstance(attr_val, str) else attr_val
+            )
         records.append(row)
 
     return SampleRecordsResult(

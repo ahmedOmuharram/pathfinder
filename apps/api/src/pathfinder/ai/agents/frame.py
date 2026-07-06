@@ -58,8 +58,8 @@ Procedure:
 5. Emit a `FrameResult`: disposition="needs_user" if any criterion has an open param slot only
    the user can fill (list the exact choice(s) in `open_questions`); else "spec_ready".
 
-Open slots: when `set_criterion` reports "needs user input: [param]", that required param could not
-be auto-resolved (e.g. which two sample groups a differential search compares). Surface the choice
+Open slots: when `set_criterion` returns `open_slots` (required params it could not auto-resolve —
+e.g. which two sample groups a differential search compares), surface the choice
 to the user. When the user has answered (their reply is in the work order / pinned context),
 RE-CALL `set_criterion` for that criterion with `param_overrides={param_name: chosen_value}` — the
 override fills the slot. NEVER claim a param needs a web UI / wizard / interactive confirmation;

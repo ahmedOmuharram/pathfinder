@@ -14,6 +14,7 @@ from pathfinder.ai.tools.standalone._result_models import (
     _extract_sample_response,
     _fetch_download_url,
     _fetch_step_preview,
+    _sample_attributes,
     _validate_download_url_inputs,
     _validate_sample_inputs,
 )
@@ -72,8 +73,9 @@ async def get_sample_records(
 ) -> SampleRecordsResult | ToolErrorPayload:
     """Get a sample of records from an executed step.
 
-    The step must already be built in WDK. Returns the first N records
-    to show the user what data is available.
+    The step must already be built in WDK. Returns the first N records — each
+    with its id plus, for gene/transcript steps, the product description, gene
+    symbol, and organism — to show the user what data is available.
 
     Args:
         wdk_step_id: WDK step ID. The step must be built in WDK first.
@@ -81,11 +83,14 @@ async def get_sample_records(
     """
     _validate_sample_inputs(wdk_step_id, limit)
 
-    site_id = ctx.deps.strategy_session.site_id
+    session = ctx.deps.strategy_session
+    graph = session.get_graph(None)
+    record_type = graph.record_type if graph is not None else None
     preview_or_error = await _fetch_step_preview(
-        get_strategy_api(site_id),
+        get_strategy_api(session.site_id),
         wdk_step_id,
         limit,
+        _sample_attributes(record_type),
     )
     if isinstance(preview_or_error, ToolErrorPayload):
         return preview_or_error

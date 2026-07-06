@@ -124,6 +124,19 @@ Return exactly one ``VerificationDelta`` wrapping a ``VerificationDigest``:
   autowrite. Only stable, reusable facts. Each needs ``name``, \
   ``summary``, ``content``, optional ``tags``.
 
+### Formatting — write readable GitHub-flavored Markdown
+
+``prose``, ``key_findings`` and ``caveats`` are rendered as Markdown in the \
+UI. Make them scannable:
+- Wrap every literal identifier in backticks: search names \
+  (`` `GenesByText` ``), gene/transcript IDs (`` `PF3D7_1133400` ``), \
+  parameter names and values (`` `text_fields=product` ``), step IDs, and \
+  organism abbreviations.
+- **Bold** the key number in a finding (e.g. ``**61** genes``).
+- Keep each ``key_finding`` / ``caveat`` to one line; no trailing period-only \
+  fragments. Do NOT prefix them with ``-`` or ``*`` — the UI adds bullets.
+- ``prose`` may use short paragraphs; do not dump raw JSON or unlabeled counts.
+
 You do NOT decide whether the turn ends — the Lead does, based on the \
 Ledger.
 """

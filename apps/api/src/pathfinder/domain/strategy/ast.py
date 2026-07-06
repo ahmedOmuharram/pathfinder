@@ -233,6 +233,16 @@ class StrategyStepNode(CamelModel):
             return "transform"
         return "search"
 
+    @property
+    def display_label(self) -> str:
+        """User-facing label. Never surfaces the ``__combine__`` sentinel: a
+        combine with no explicit name renders as ``Combine``."""
+        if self.display_name:
+            return self.display_name
+        if self.search_name == COMBINE_SEARCH_NAME:
+            return "Combine"
+        return self.search_name
+
 
 def walk_step_tree(root: StrategyStepNode) -> list[StrategyStepNode]:
     """Depth-first traversal of a StrategyStepNode tree.

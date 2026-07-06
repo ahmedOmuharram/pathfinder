@@ -16,7 +16,14 @@ from pydantic_ai.messages import (
     RetryPromptPart,
     ToolReturnPart,
 )
-from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
+from pydantic_ai.ui.vercel_ai.response_types import (
+    BaseChunk,
+    ToolInputAvailableChunk,
+    ToolInputDeltaChunk,
+    ToolInputErrorChunk,
+    ToolInputStartChunk,
+    ToolOutputAvailableChunk,
+)
 
 from pathfinder.ai.graph._lead_capture import _emit_chunk
 from pathfinder.ai.graph.stream_events import (
@@ -35,14 +42,17 @@ _SUB_AGENT_TOOL_TO_PHASE: dict[str, str] = {
 }
 _SUB_AGENT_TOOL_NAMES = frozenset(_SUB_AGENT_TOOL_TO_PHASE.keys())
 
-_SUPPRESSED_SUB_AGENT_CHUNK_TYPES = frozenset(
-    {
-        "tool-input-start",
-        "tool-input-delta",
-        "tool-input-available",
-        "tool-output-available",
-        "tool-input-error",
-    }
+_SUPPRESSED_SUB_AGENT_CHUNKS = (
+    ToolInputStartChunk,
+    ToolInputDeltaChunk,
+    ToolInputAvailableChunk,
+    ToolInputErrorChunk,
+    ToolOutputAvailableChunk,
+)
+_NAMED_SUB_AGENT_CHUNKS = (
+    ToolInputStartChunk,
+    ToolInputAvailableChunk,
+    ToolInputErrorChunk,
 )
 
 
@@ -50,15 +60,24 @@ def is_suppressed_sub_agent_chunk(
     chunk: BaseChunk,
     sub_agent_tool_calls: dict[str, str],
 ) -> bool:
-    """Hide the default tool-input/output chunks for sub-agent calls so
-    the rich ``data-sub-agent-call`` card is the only inline rendering."""
-    chunk_type = getattr(chunk, "type", None)
-    if chunk_type not in _SUPPRESSED_SUB_AGENT_CHUNK_TYPES:
+    """Hide the default tool-input/output chunks for a sub-agent dispatch so
+    the rich ``data-sub-agent-call`` card is the only inline rendering.
+
+    Classifies a dispatch from ``tool_name`` on its first chunk and primes
+    ``sub_agent_tool_calls``. The raw input chunks stream from the model's
+    part events *before* ``FunctionToolCallEvent`` records the id, so keying
+    only off the recorded id leaks them — the raw tool card renders and hangs
+    on "Running" because its later output chunk *is* suppressed.
+    """
+    if not isinstance(chunk, _SUPPRESSED_SUB_AGENT_CHUNKS):
         return False
-    tool_call_id = getattr(chunk, "tool_call_id", None)
-    if not isinstance(tool_call_id, str):
-        return False
-    return tool_call_id in sub_agent_tool_calls
+    if (
+        isinstance(chunk, _NAMED_SUB_AGENT_CHUNKS)
+        and chunk.tool_name in _SUB_AGENT_TOOL_NAMES
+    ):
+        sub_agent_tool_calls[chunk.tool_call_id] = chunk.tool_name
+        return True
+    return chunk.tool_call_id in sub_agent_tool_calls
 
 
 def _truncate_summary(text: str, limit: int = 280) -> str:

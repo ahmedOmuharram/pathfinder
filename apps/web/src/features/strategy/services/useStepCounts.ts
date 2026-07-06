@@ -38,6 +38,10 @@ export function useStepCounts(args: {
   const countsKey = JSON.stringify(data?.counts ?? {}) + "|" + stepIds.join(",");
   const validKey = `${planValid}|${stepIds.join(",")}`;
 
+  // The local prev-key adjustments below are the React-sanctioned "derive during
+  // render" pattern, but applyStepCounts writes an external Zustand store that
+  // other mounted nodes subscribe to — doing that synchronously updates them
+  // mid-render. Defer the store write to a microtask so it lands after commit.
   const [prevCountsKey, setPrevCountsKey] = useState(countsKey);
   if (countsKey !== prevCountsKey) {
     setPrevCountsKey(countsKey);
@@ -46,7 +50,7 @@ export function useStepCounts(args: {
     for (const stepId of stepIds) {
       next[stepId] = counts[stepId] ?? null;
     }
-    applyStepCounts(next);
+    queueMicrotask(() => applyStepCounts(next));
   }
 
   const [prevValidKey, setPrevValidKey] = useState(validKey);
@@ -55,7 +59,7 @@ export function useStepCounts(args: {
     if (!planValid && stepIds.length > 0) {
       const next: Record<string, number | null> = {};
       for (const stepId of stepIds) next[stepId] = null;
-      applyStepCounts(next);
+      queueMicrotask(() => applyStepCounts(next));
     }
   }
 }

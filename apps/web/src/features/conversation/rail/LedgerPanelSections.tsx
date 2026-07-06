@@ -9,6 +9,7 @@ import type {
 
 import { type Tone } from "@/lib/utils/statusTone";
 
+import { BuildDetail, FrameDetail, VerificationDetail } from "./LedgerPanelDetail";
 import {
   BoolBadge,
   CountChip,
@@ -55,7 +56,13 @@ export function IntentSection({
   );
 }
 
-export function FrameSection({ frame }: { frame: LedgerFramePayload }) {
+export function FrameSection({
+  frame,
+  detail = false,
+}: {
+  frame: LedgerFramePayload;
+  detail?: boolean;
+}) {
   return (
     <LedgerSection title="Frame">
       <LedgerRow label="present" value={<BoolBadge value={frame.present} />} />
@@ -92,11 +99,18 @@ export function FrameSection({ frame }: { frame: LedgerFramePayload }) {
         label="ready to build"
         value={<BoolBadge value={frame.readyToBuild} />}
       />
+      {detail && <FrameDetail frame={frame} />}
     </LedgerSection>
   );
 }
 
-export function BuildSection({ build }: { build: LedgerBuildPayload }) {
+export function BuildSection({
+  build,
+  detail = false,
+}: {
+  build: LedgerBuildPayload;
+  detail?: boolean;
+}) {
   const recoveryTone: Tone =
     build.recoveryKind === "none"
       ? "neutral"
@@ -150,14 +164,17 @@ export function BuildSection({ build }: { build: LedgerBuildPayload }) {
         value={<StatusPill text={build.recoveryKind} tone={recoveryTone} />}
       />
       <LedgerRow label="succeeded" value={<BoolBadge value={build.succeeded} />} />
+      {detail && <BuildDetail build={build} />}
     </LedgerSection>
   );
 }
 
 export function VerificationSection({
   verification,
+  detail = false,
 }: {
   verification: LedgerVerificationPayload;
+  detail?: boolean;
 }) {
   return (
     <LedgerSection title="Verification">
@@ -166,6 +183,7 @@ export function VerificationSection({
         label="successful"
         value={<BoolBadge value={verification.successful} />}
       />
+      {detail && <VerificationDetail verification={verification} />}
     </LedgerSection>
   );
 }

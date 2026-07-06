@@ -24,7 +24,7 @@ from pathfinder.ai.lead.ledger import (
     SubAgentCallRecord,
     VerificationSection,
 )
-from pathfinder.domain.strategy.build_outcome import BuildOutcome
+from pathfinder.domain.strategy.build_outcome import BuildOutcome, NodeResult
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
     OpenSlot,
@@ -32,6 +32,7 @@ from pathfinder.domain.strategy.operational_spec import (
     SpecStructure,
     StructureNode,
 )
+from pathfinder.domain.strategy.ops import CombineOp
 
 
 def test_user_intent_default_non_differential() -> None:
@@ -159,6 +160,80 @@ def test_verification_section_successful_only_when_digest_success() -> None:
     assert section_ok.successful is True
     section_pending = VerificationSection()
     assert section_pending.successful is False
+
+
+def test_build_section_surfaces_node_results_and_strategy_link() -> None:
+    # The Ledger UI's Build tab needs per-node detail (which search returned how
+    # many genes, and failures) plus the strategy link — surfaced as clean
+    # camelCase fields, not the raw snake_case BuildOutcome dataclass.
+    outcome = BuildOutcome(
+        pushed_step_ids=["s1", "s2"],
+        wdk_strategy_id=42,
+        wdk_url="https://plasmodb.org/s/42",
+        root_count=10,
+        node_results=[
+            NodeResult(
+                node_id="n1",
+                search_name="GenesByText",
+                wdk_step_id=1,
+                count=10,
+                status="ok",
+            ),
+            NodeResult(
+                node_id="n2",
+                search_name="GenesByOrthologs",
+                count=None,
+                status="failed",
+                error="Answer Params must be null",
+            ),
+        ],
+    )
+    section = BuildSection(outcome=outcome, pushed_count=2)
+    dumped = section.model_dump(by_alias=True, mode="json", exclude_none=True)
+    assert dumped["wdkStrategyId"] == 42
+    assert dumped["wdkUrl"] == "https://plasmodb.org/s/42"
+    assert [n["searchName"] for n in dumped["nodeResults"]] == [
+        "GenesByText",
+        "GenesByOrthologs",
+    ]
+    assert dumped["nodeResults"][1]["status"] == "failed"
+    assert dumped["nodeResults"][1]["error"] == "Answer Params must be null"
+
+
+def test_build_section_node_results_empty_without_outcome() -> None:
+    dumped = BuildSection().model_dump(by_alias=True, mode="json", exclude_none=True)
+    assert dumped["nodeResults"] == []
+    assert "wdkStrategyId" not in dumped  # None dropped by exclude_none
+
+
+def test_frame_section_surfaces_structure_render() -> None:
+    spec = OperationalSpec(
+        goal="g",
+        criteria=[
+            Criterion(id="c1", text="a", search_name="GenesByText"),
+            Criterion(id="c2", text="b", search_name="GenesByTaxon"),
+        ],
+        structure=SpecStructure(
+            root=StructureNode(
+                kind="combine",
+                operator=CombineOp.INTERSECT,
+                inputs=[
+                    StructureNode(kind="leaf", criterion_id="c1"),
+                    StructureNode(kind="leaf", criterion_id="c2"),
+                ],
+            )
+        ),
+    )
+    dumped = FrameSection(spec=spec).model_dump(
+        by_alias=True, mode="json", exclude_none=True
+    )
+    assert dumped["structureRender"] == "(GenesByText INTERSECT GenesByTaxon)"
+
+
+def test_frame_section_structure_render_absent_without_structure() -> None:
+    section = FrameSection(spec=OperationalSpec(goal="g"))
+    dumped = section.model_dump(by_alias=True, mode="json", exclude_none=True)
+    assert "structureRender" not in dumped
 
 
 def test_investigation_ledger_compose() -> None:

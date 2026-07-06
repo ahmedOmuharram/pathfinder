@@ -39,6 +39,7 @@ function makeLedger(
       needsRecovery: false,
       recoveryKind: "none",
       succeeded: true,
+      nodeResults: [],
     },
     verification: { complete: false, successful: false },
     constraints: { grounded: [], unmetCount: 0, blocking: false },
@@ -76,6 +77,7 @@ describe("ledgerTabSignatures", () => {
           needsRecovery: false,
           recoveryKind: "none",
           succeeded: true,
+          nodeResults: [],
         },
       }),
     );

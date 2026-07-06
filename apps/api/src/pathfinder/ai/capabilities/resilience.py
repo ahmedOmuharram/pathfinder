@@ -264,8 +264,9 @@ def _semantic_directive(
 _OUTAGE_GIVE_UP_THRESHOLD = 2
 
 _NEXT_ACTIONS_OUTAGE = [
-    "Choose a DIFFERENT search that covers the same intent",
-    "If no alternative search fits, report the outage to the user instead of retrying",
+    "Prefer a DIFFERENT search that covers the same intent for now",
+    "If no equivalent search fits, tell the user this search is temporarily "
+    "unavailable and they can retry shortly; do not drop it as invalid",
 ]
 
 
@@ -281,11 +282,16 @@ def _outage_directive(tool_name: str, search_name: str, error: Exception) -> str
         tool_name=tool_name,
         tool_args={"search_name": search_name},
         detail=(
-            f"'{search_name}' returned repeated server errors and is persistently "
-            f"unavailable this turn: {error}"
+            f"'{search_name}' returned repeated transient server errors and did "
+            f"not recover within this turn's retries: {error}. The search itself "
+            f"is valid; this is a temporary VEuPathDB outage, not a bad call."
         ),
         next_actions=_NEXT_ACTIONS_OUTAGE,
-        do_not=f"Do not call {tool_name} on '{search_name}' again — it is down, not transient",
+        do_not=(
+            f"Do not keep retrying '{search_name}' this turn; the outage is not "
+            f"clearing right now. But do NOT treat it as permanently broken or "
+            f"drop it as invalid; it is a transient server error that may recover."
+        ),
     )
 
 

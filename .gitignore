@@ -46,6 +46,7 @@ env/
 .superpowers/
 .hypothesis/
 docs/superpowers/
+docs/assessment/
 CLAUDE.md
 *.swp
 *.swo
