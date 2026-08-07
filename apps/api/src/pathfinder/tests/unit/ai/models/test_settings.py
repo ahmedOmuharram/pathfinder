@@ -1,8 +1,8 @@
-from pathfinder.ai.models.settings import (
-    build_model_settings,
-    model_provider,
-    to_pydantic_ai_model_name,
-)
+import pytest
+from pydantic_ai.models import infer_model
+from pydantic_ai.models.openai import OpenAIResponsesModel
+
+from pathfinder.ai.models.settings import build_model_settings, model_provider
 
 
 class TestModelProvider:
@@ -16,45 +16,24 @@ class TestModelProvider:
         assert model_provider("google:gemini-2.5-pro") == "google"
 
 
-class TestToPydanticAiModelName:
-    """v1-only shim: bare ``openai:`` resolves to Chat Completions in
-    pydantic-ai v1, so we rewrite it to ``openai-responses:``. In v2 bare
-    ``openai:`` resolves to Responses by default and this rewrite MUST be
-    deleted (see the function docstring)."""
+class TestOpenAIIdsResolveToResponsesApi:
+    """We hand pydantic-ai our stable ``openai:`` ids unchanged. That is only
+    correct because pydantic-ai v2 resolves a bare ``openai:`` prefix to the
+    Responses API (v1 resolved it to Chat Completions, which is why a rewrite
+    shim used to exist here). Pin the assumption so a regression is loud."""
 
-    def test_openai_rewritten_to_responses(self) -> None:
-        assert to_pydantic_ai_model_name("openai:gpt-4.1") == "openai-responses:gpt-4.1"
+    def test_bare_openai_prefix_is_the_responses_api(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        assert isinstance(infer_model("openai:gpt-5-mini"), OpenAIResponsesModel)
 
-    def test_openai_preserves_model_segment(self) -> None:
-        for model in ("gpt-4.1-mini", "gpt-4o-mini", "gpt-5.4", "o3", "o4-mini"):
-            assert (
-                to_pydantic_ai_model_name(f"openai:{model}")
-                == f"openai-responses:{model}"
-            )
-
-    def test_anthropic_unchanged(self) -> None:
-        assert (
-            to_pydantic_ai_model_name("anthropic:claude-opus-4-6")
-            == "anthropic:claude-opus-4-6"
-        )
-
-    def test_google_unchanged(self) -> None:
-        assert (
-            to_pydantic_ai_model_name("google:gemini-2.5-pro")
-            == "google:gemini-2.5-pro"
-        )
-
-    def test_mock_unchanged(self) -> None:
-        assert to_pydantic_ai_model_name("mock:lead") == "mock:lead"
-
-    def test_idempotent_on_responses(self) -> None:
-        assert (
-            to_pydantic_ai_model_name("openai-responses:gpt-4.1")
-            == "openai-responses:gpt-4.1"
-        )
-
-    def test_bare_string_unchanged(self) -> None:
-        assert to_pydantic_ai_model_name("gpt-4.1") == "gpt-4.1"
+    def test_holds_across_the_catalog_openai_families(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        for model in ("gpt-4.1", "gpt-5", "gpt-5.4", "o3", "o4-mini"):
+            assert isinstance(infer_model(f"openai:{model}"), OpenAIResponsesModel)
 
 
 class TestBuildModelSettings:

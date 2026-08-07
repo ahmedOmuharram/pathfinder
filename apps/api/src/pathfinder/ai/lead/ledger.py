@@ -6,6 +6,12 @@ from pydantic import Field, computed_field
 
 from pathfinder.ai.graph.state import VerificationDigest
 from pathfinder.ai.lead.intent import UserIntent
+from pathfinder.domain.parameters.values import (
+    MultiPickValue,
+    ParamValue,
+    SinglePickValue,
+    to_wire,
+)
 from pathfinder.domain.strategy.build_outcome import BuildOutcome, NodeResult
 from pathfinder.domain.strategy.constraints import GroundedConstraint, is_blocking
 from pathfinder.domain.strategy.operational_spec import (
@@ -13,7 +19,12 @@ from pathfinder.domain.strategy.operational_spec import (
     OperationalSpec,
     StructureNode,
 )
+from pathfinder.domain.strategy.staleness import StaleBuild
 from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.services.catalog.param_intent import (
+    contrast_role_of,
+    is_direction_param,
+)
 
 RecoveryKind = Literal[
     "none",
@@ -31,6 +42,59 @@ SubAgentName = Literal[
     "validate",
     "research",
 ]
+
+
+class ContrastSummary(CamelModel):
+    """Which way a differential criterion points.
+
+    WDK computes fold change as comparator-vs-reference, so swapping the two
+    inverts the biology while still returning a full, plausible gene set. That
+    failure is silent unless the direction is shown, so the ledger states it in
+    the order a biologist would: "up-regulated in female vs male".
+    """
+
+    criterion_id: str
+    comparator: str | None = None
+    reference: str | None = None
+    direction: str | None = None
+
+    @computed_field
+    def summary(self) -> str:
+        subject = self.comparator or "(unset)"
+        baseline = self.reference or "(unset)"
+        lead = f"{self.direction} in " if self.direction else ""
+        return f"{lead}{subject} vs {baseline}"
+
+
+def _contrast_for(crit: Criterion) -> ContrastSummary | None:
+    comparator: str | None = None
+    reference: str | None = None
+    direction: str | None = None
+    for name, value in crit.resolved_params.items():
+        role = contrast_role_of(name)
+        if role == "comparison":
+            comparator = _plain_value(value)
+        elif role == "reference":
+            reference = _plain_value(value)
+        elif is_direction_param(name):
+            direction = _plain_value(value)
+    if comparator is None and reference is None:
+        return None
+    return ContrastSummary(
+        criterion_id=crit.id,
+        comparator=comparator,
+        reference=reference,
+        direction=direction,
+    )
+
+
+def _plain_value(value: ParamValue) -> str:
+    """A vocabulary term as a human would read it, not its JSON wire form."""
+    if isinstance(value, MultiPickValue):
+        return ", ".join(value.values)
+    if isinstance(value, SinglePickValue):
+        return value.value
+    return to_wire(value)
 
 
 class FrameSection(CamelModel):
@@ -77,6 +141,14 @@ class FrameSection(CamelModel):
         )
 
     @computed_field
+    def contrasts(self) -> list[ContrastSummary]:
+        """One entry per criterion that contrasts two sample groups."""
+        if self.spec is None:
+            return []
+        found = (_contrast_for(c) for c in self.spec.criteria)
+        return [c for c in found if c is not None]
+
+    @computed_field
     def structure_render(self) -> str | None:
         """Compact combine-tree string (e.g. ``(GenesByText INTERSECT
         GenesByTaxon)``) for the UI's Frame tab."""
@@ -87,6 +159,9 @@ class FrameSection(CamelModel):
 
 class BuildSection(CamelModel):
     outcome: BuildOutcome | None = None
+    # Set when a live read shows the strategy changed since this build —
+    # e.g. the user edited a parameter in the graph editor.
+    stale_build: StaleBuild | None = None
     pushed_count: int = 0
     failed_count: int = 0
     skipped_count: int = 0
@@ -206,6 +281,11 @@ class InvestigationLedger(CamelModel):
                 f"- ready_to_build: {self.frame.ready_to_build}",
                 "",
                 "## Build",
+                *(
+                    [self.build.stale_build.render()]
+                    if self.build.stale_build is not None
+                    else []
+                ),
                 f"- pushed: {self.build.pushed_count}",
                 f"- failed: {self.build.failed_count}",
                 f"- skipped: {self.build.skipped_count}",

@@ -112,9 +112,7 @@ export function useStrategyKeyboardShortcuts({
       }
       case "o": {
         event.preventDefault();
-        if (ctx.selectedNodeIds.length === 1) {
-          ctx.setOrthologModalOpen(true);
-        }
+        ctx.handleStartOrthologTransformFromSelection();
         return;
       }
       case "@": {

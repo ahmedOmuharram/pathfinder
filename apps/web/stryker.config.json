@@ -4,6 +4,9 @@
   "packageManager": "yarn",
   "testRunner": "vitest",
   "testRunner_comment": "vitest runner spawns one workspace-aware vitest run per mutant.",
+  "vitest": {
+    "configFile": "vitest.mutation.config.ts"
+  },
   "coverageAnalysis": "perTest",
   "mutate": [
     "src/state/strategy/**/*.ts",

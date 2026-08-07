@@ -1,6 +1,8 @@
 """Conversations router (composed by responsibility)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from pathfinder.transport.http.deps import with_wdk_identity
 
 from . import (
     cancel,
@@ -17,7 +19,9 @@ from . import (
     wdk_import,
 )
 
-router = APIRouter()
+# Every subroute reads or mutates WDK-owned resources (strategies, steps),
+# so pin the request to a durable WDK identity before any WDK call.
+router = APIRouter(dependencies=[Depends(with_wdk_identity)])
 router.include_router(crud.router)
 router.include_router(counts.router)
 router.include_router(events.router)

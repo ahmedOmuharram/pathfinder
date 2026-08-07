@@ -63,13 +63,13 @@ from pathfinder.ai.graph.stream_events import (
 )
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.lead_agent import LeadResponse, lead_agent
+from pathfinder.ai.lead.live_state import live_step_counts
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.ai.models.mock import get_mock_model
-from pathfinder.ai.models.settings import (
-    build_model_settings,
-    to_pydantic_ai_model_name,
-)
+from pathfinder.ai.models.settings import build_model_settings
+from pathfinder.ai.models.tiers import resolve_phase_tier_config
+from pathfinder.domain.strategy.staleness import detect_build_staleness
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import ReasoningEffort
@@ -185,13 +185,19 @@ def _resolve_lead_model_context(
             return contextlib.nullcontext(), "mock:lead"
         return lead_agent.override(model=get_mock_model()), "mock:lead"
 
-    effective_model = model_override or _model_id(lead_agent)
+    settings = get_settings()
+    tier_cfg = resolve_phase_tier_config(
+        settings.default_provider, settings.default_tier, "lead"
+    )
+    tier_model = tier_cfg.model_id if tier_cfg is not None else None
+    effective_model = model_override or tier_model or _model_id(lead_agent)
+    effort = reasoning_effort or (
+        tier_cfg.reasoning_effort if tier_cfg is not None else None
+    )
     return (
         lead_agent.override(
-            model=maybe_wrap_model(to_pydantic_ai_model_name(effective_model), "lead"),
-            model_settings=build_model_settings(
-                effective_model, thinking=reasoning_effort
-            ),
+            model=maybe_wrap_model(effective_model, "lead"),
+            model_settings=build_model_settings(effective_model, thinking=effort),
         ),
         effective_model,
     )
@@ -230,33 +236,34 @@ async def _drive_lead_stream(
     async def _agent_events() -> AsyncGenerator[
         AgentStreamEvent | AgentRunResultEvent[Any]
     ]:
-        async for event in lead_agent.run_stream_events(
+        async with lead_agent.run_stream_events(
             resume_prompt,
             deps=deps,
             message_history=resume_history,
             deferred_tool_results=deferred_results,
             usage_limits=LEAD_USAGE_LIMITS,
             usage=usage_acc,
-        ):
-            if isinstance(event, AgentRunResultEvent):
-                _absorb_run_result(event, capture)
-            else:
-                handle_sub_agent_event(
-                    deps,
+        ) as events:
+            async for event in events:
+                if isinstance(event, AgentRunResultEvent):
+                    _absorb_run_result(event, capture)
+                else:
+                    handle_sub_agent_event(
+                        deps,
+                        writer,
+                        event,
+                        sub_agent_tool_calls,
+                        capture.sub_agent_usage_by_call,
+                    )
+                await _charge_token_delta(
+                    runtime.context,
+                    state,
+                    capture,
+                    usage_acc,
                     writer,
-                    event,
-                    sub_agent_tool_calls,
-                    capture.sub_agent_usage_by_call,
+                    agent_model,
                 )
-            await _charge_token_delta(
-                runtime.context,
-                state,
-                capture,
-                usage_acc,
-                writer,
-                agent_model,
-            )
-            yield event
+                yield event
 
     try:
         with override_ctx:
@@ -355,6 +362,12 @@ async def lead_node(
         emit_turn_usage(writer, total_tokens, cost_usd)
 
     working_state = state.model_copy(deep=True)
+    # The user can edit the strategy between turns; the Ledger's counts come
+    # from the last build and would be quoted as current fact otherwise.
+    working_state.stale_build = detect_build_staleness(
+        working_state.last_build_outcome,
+        live_step_counts(runtime.context.strategy_session),
+    )
     deps = LeadDeps(
         state=working_state,
         intent=state.user_intent,

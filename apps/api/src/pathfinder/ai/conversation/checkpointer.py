@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy.engine import make_url
 
+from pathfinder.ai.conversation.serde import build_checkpoint_serde
+
 
 def to_psycopg_url(database_url: str) -> str:
     """Strip ``+asyncpg`` from a SQLAlchemy URL for psycopg.
@@ -30,6 +32,8 @@ async def lifespan_checkpointer(
     Use as: ``async with lifespan_checkpointer(url) as saver: ...``.
     """
     psycopg_url = to_psycopg_url(database_url)
-    async with AsyncPostgresSaver.from_conn_string(psycopg_url) as saver:
+    async with AsyncPostgresSaver.from_conn_string(
+        psycopg_url, serde=build_checkpoint_serde()
+    ) as saver:
         await saver.setup()
         yield saver

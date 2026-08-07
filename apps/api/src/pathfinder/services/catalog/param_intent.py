@@ -65,6 +65,80 @@ def _named_in_text(options: list[VocabOption], text: str) -> str | None:
     return max(named, key=len) if named else None
 
 
+_REFERENCE_MARKERS = ("_ref_", "_ref", "reference")
+_COMPARISON_MARKERS = ("_comp_", "_comp", "comparison", "comparator")
+
+
+# A contrast is between SAMPLE GROUPS. WDK also names an "operation" pair with
+# the same ref/comp markers (``min_max_avg_ref`` / ``_comp``: mean, median, min,
+# max applied to each side) -- there, both sides taking "average" is normal and
+# correct, so those must not be treated as a contrast at all.
+_CONTRAST_SUBJECT_MARKERS = ("sample", "group")
+# ...but WDK labels the operation pair "Operation Applied to Reference Samples",
+# which mentions samples without selecting any. Exclude aggregation selectors
+# explicitly: choosing "average" for both sides of a contrast is correct.
+_AGGREGATION_MARKERS = ("operation", "min_max_avg")
+
+
+def is_aggregation_param(name: str) -> bool:
+    """Whether a param selects HOW to aggregate a side (mean/median/min/max)
+    rather than WHICH samples that side contains. Both sides of a contrast
+    legitimately use the same operation, so the degenerate-pair rule -- which
+    exists to stop a group being compared against itself -- must not apply."""
+    return any(m in name.lower() for m in _AGGREGATION_MARKERS)
+
+
+def contrast_role_of(name: str) -> Literal["reference", "comparison"] | None:
+    """Contrast role from a param name/label alone (no ``ParameterInfo``), for
+    callers that only hold resolved param names -- e.g. the ledger view."""
+    haystack = name.lower()
+    if any(m in haystack for m in _AGGREGATION_MARKERS):
+        return None
+    if not any(m in haystack for m in _CONTRAST_SUBJECT_MARKERS):
+        return None
+    if any(m in haystack for m in _COMPARISON_MARKERS):
+        return "comparison"
+    if any(m in haystack for m in _REFERENCE_MARKERS):
+        return "reference"
+    return None
+
+
+def is_direction_param(name: str) -> bool:
+    low = name.lower()
+    return "regulated_dir" in low or low.endswith("_dir") or "direction" in low
+
+
+_ROLE_SLOT = "\x00"
+
+
+def contrast_pair_key(name: str) -> str:
+    """A key shared by the two halves of ONE contrast pair.
+
+    ``samples_fc_comp_generic`` and ``samples_fc_ref_generic`` both reduce to
+    ``samples_fc_\x00_generic``; ``min_max_avg_comp``/``_ref`` reduce to their
+    own stem. Pairing on the stem keeps unrelated pairs independent, which a
+    bare role match does not -- and unlike a vocabulary signature it survives a
+    dependent param still carrying its pre-parent option set.
+    """
+    low = name.lower()
+    for marker in (*_COMPARISON_MARKERS, *_REFERENCE_MARKERS):
+        if marker in low:
+            return low.replace(marker, _ROLE_SLOT, 1)
+    return low
+
+
+def contrast_role(pi: ParameterInfo) -> Literal["reference", "comparison"] | None:
+    """Which side of a differential contrast this sample selector fills.
+
+    WDK computes fold change as comparator-vs-reference, so the two are NOT
+    interchangeable: the group the user wants enriched belongs in the
+    comparator, and the baseline in the reference. Read from the param name and
+    its display label ("Reference Samples" / "Comparison Samples"), both of
+    which WDK supplies consistently across the DESeq and fold-change families.
+    """
+    return contrast_role_of(f"{pi.name} {pi.display_name}")
+
+
 def _rule_value(pi: ParameterInfo, intent: ParamIntent) -> str | None:
     low = pi.name.lower()
     opts = pi.allowed_values or []
@@ -79,11 +153,23 @@ def _rule_value(pi: ParameterInfo, intent: ParamIntent) -> str | None:
             if key in scope:
                 return match_option(opts, term) or term
         return None
+    if contrast_role(pi) == "comparison":
+        # The group named literally in the criterion text is the subject of the
+        # contrast. A verbatim vocabulary term is much stronger evidence than a
+        # similarity score -- real embeddings score both "male" and "female"
+        # below the floor here, leaving the contrast unresolvable when the
+        # answer is right there in the text.
+        named = _named_in_text(opts, intent.text)
+        if named is not None:
+            return named
     if "regulated_dir" in low or low.endswith("_dir") or "direction" in low:
         want = intent.direction_hint or _direction_from_text(intent.text)
         if want is not None:
+            # Match the FULL label before the bare token: "up" is a substring of
+            # "up or down regulated", so the token alone silently selects the
+            # both-directions option and drops the directional filter entirely.
             label = "up-regulated" if want == "up" else "down-regulated"
-            return match_option(opts, want) or match_option(opts, label)
+            return match_option(opts, label) or match_option(opts, want)
     return None
 
 
@@ -118,4 +204,10 @@ async def map_intent_to_value(
     rule = _rule_value(pi, intent)
     if rule is not None:
         return rule
+    if contrast_role(pi) == "reference":
+        # The criterion text names what the user wants ENRICHED, which is the
+        # comparator. Semantic-matching it into the reference slot inverts the
+        # contrast. Leave the baseline to be deduced from the remaining option
+        # (or asked about) once the comparator has taken the subject.
+        return None
     return await _semantic_value(pi.allowed_values or [], intent.text, embed)

@@ -170,6 +170,7 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     <div className="space-y-3">
       <ResultsTableHeader
         totalCount={totalCount}
+        recordType={fetchedAttributes?.recordType ?? null}
         table={table}
         attributes={attributes}
       />

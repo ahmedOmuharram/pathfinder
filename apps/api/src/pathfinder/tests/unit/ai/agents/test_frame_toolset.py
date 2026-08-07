@@ -50,6 +50,9 @@ def test_frame_enum_overrides_guards_get_parameter_options_search_name() -> None
     ctx = MagicMock()
     ctx.deps.agent_state.candidate_search_names.return_value = ["GenesByOrthologs"]
     ctx.deps.agent_state.discovered_search_names.return_value = []
+    # No search has been abandoned this turn; a bare MagicMock here would stand
+    # in for the outage set and silently swallow every candidate.
+    ctx.deps.service_outage.unavailable_searches.return_value = frozenset()
     overrides = _frame_enum_overrides(ctx)
     assert "GenesByOrthologs" in overrides[("get_parameter_options", "search_name")]
 
@@ -243,6 +246,9 @@ async def test_set_criterion_binds_when_resolved_params_valid(
     assert isinstance(result, SetCriterionResult)
     assert result.criterion_id == "c1"
     assert result.search_name == "GenesWithSignalPeptide"
-    assert result.resolved_params == ["organism"]
+    # Report the bound VALUE, not just the name: a silently wrong binding (the
+    # GenesByText run bound `text_expression` to WDK's `*reductase` example and
+    # still reported "resolved") is invisible when only names come back.
+    assert result.resolved_params == {"organism": '["Pf3D7"]'}
     assert result.open_slots == []
     assert st.operational_spec_draft.criteria[0].id == "c1"

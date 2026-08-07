@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import graphlib
+import json
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Literal
 
@@ -32,6 +33,9 @@ from pathfinder.services.catalog.param_formatting import (
 from pathfinder.services.catalog.param_intent import (
     EmbedFn,
     ParamIntent,
+    contrast_pair_key,
+    contrast_role,
+    is_aggregation_param,
     map_intent_to_value,
     match_option,
 )
@@ -42,6 +46,9 @@ _SCALAR_DEFAULTABLE: frozenset[str] = frozenset(
 )
 _MAX_RESOLVE_DEPTH = 6
 _MAX_SLOT_OPTIONS = 20
+# A vocabulary needs at least two options before a shared value can be a
+# *choice* the user could have made differently.
+_MIN_VOCAB_SIZE_FOR_DEGENERACY = 2
 
 
 def _vocab_signature(info: ParameterInfo) -> str | None:
@@ -380,34 +387,162 @@ async def _resolve_one(
     return await map_intent_to_value(info, intent, embed=embed)
 
 
+def _is_free_text_query(info: ParameterInfo) -> bool:
+    """A visible, required, vocabulary-less string param: the search's own text
+    query. WDK ships an *example* in ``default_value`` for these (GenesByText
+    offers ``*reductase``), so inheriting it silently rewrites the question --
+    an odorant-binding-protein search becomes a reductase search. Hidden string
+    params are internal switches whose defaults ARE correct (``document_type``
+    is required with a ``gene`` default), so visibility is the discriminator.
+    """
+    return (
+        info.param_kind == "string"
+        and info.is_visible
+        and info.required
+        and not info.allowed_values
+        and not info.vocab_leaves
+    )
+
+
 def _scalar_default(info: ParameterInfo) -> str | None:
     """The param's default value, when it is a defaultable scalar/vocab kind.
     The degenerate-pair dedup is applied by the caller so it covers
     intent-resolved values too, not just defaults."""
     if not info.default_value or info.param_kind not in _SCALAR_DEFAULTABLE:
         return None
+    if _is_free_text_query(info):
+        return None
     return info.default_value
 
 
-def _duplicates_sibling(
-    info: ParameterInfo, value: str, used_by_vocab: dict[str, set[str]]
-) -> bool:
-    """Whether ``value`` was already chosen for a sibling param drawn from the
-    IDENTICAL vocabulary. Two same-vocab selectors sharing a value form a
-    degenerate pair (e.g. a DESeq ref-vs-comp contrast comparing a group to
-    itself → zero results), so the duplicate must surface as a user choice
-    rather than silently bind — whether it came from Tier-2 intent or the
-    scalar default (the intent matcher is slot-agnostic, so a ref/comp pair
-    routinely matches the same value)."""
-    signature = _vocab_signature(info)
-    return signature is not None and value in used_by_vocab.get(signature, set())
+def _curated_multi_default(info: ParameterInfo) -> list[str] | None:
+    """A multi-pick param's non-empty list default -- WDK's curated selection.
+
+    ``text_fields`` defaults to all 25 searchable fields ("look everywhere").
+    A slot-agnostic intent match would replace that with a single option, and
+    the same query returns 0 against one field where it returns thousands
+    against the full list. Params whose default is ``[]`` (the sample selectors)
+    return ``None`` so intent matching still drives them.
+    """
+    if info.param_kind != "multi-pick-vocabulary" or not info.default_value:
+        return None
+    try:
+        parsed = json.loads(info.default_value)
+    except TypeError, ValueError:
+        return None
+    if not isinstance(parsed, list) or not parsed:
+        return None
+    return [str(v) for v in parsed]
+
+
+class _VocabLedger(CamelModel):
+    """Which vocabulary values same-vocab siblings have already taken.
+
+    Params drawn from an identical option set (a ref-vs-comp contrast) must not
+    land on the same value -- that compares a group to itself and returns zero
+    rows. This tracks who took what, and whether they *chose* it (an explicit
+    override) or merely *guessed* it (a default or an intent match), because the
+    two rank differently when they collide.
+    """
+
+    taken: dict[str, set[str]] = Field(default_factory=dict)
+    pinned: dict[str, set[str]] = Field(default_factory=dict)
+    claimant: dict[str, dict[str, str]] = Field(default_factory=dict)
+
+    def claim(self, signature: str, value: str, name: str, *, pinned: bool) -> None:
+        self.taken.setdefault(signature, set()).add(value)
+        self.claimant.setdefault(signature, {})[value] = name
+        if pinned:
+            self.pinned.setdefault(signature, set()).add(value)
+
+    def duplicates_sibling(self, info: ParameterInfo, value: str) -> bool:
+        """Whether a sibling from the IDENTICAL vocabulary already took ``value``.
+
+        A single-option vocabulary is exempt: there is no other value the sibling
+        could take, so the "choice" this would surface has exactly one answer
+        (the one just rejected) and the slot could never be closed.
+        """
+        if is_aggregation_param(f"{info.name} {info.display_name}"):
+            # Aggregation selectors are not a contrast: applying "average" to
+            # both the reference and the comparison group is the normal, correct
+            # configuration, not a group compared against itself.
+            return False
+        if len(info.allowed_values or []) < _MIN_VOCAB_SIZE_FOR_DEGENERACY:
+            return False
+        signature = _vocab_signature(info)
+        return signature is not None and value in self.taken.get(signature, set())
+
+    def sole_remaining_option(
+        self, info: ParameterInfo, taken_value: str
+    ) -> str | None:
+        """The single option left once siblings have taken theirs.
+
+        Only applies when the colliding value was **pinned by an explicit
+        override**: then the remainder is forced and picking it is deduction.
+        When the sibling merely guessed, choosing the leftover would itself be a
+        guess about contrast direction -- and getting ref-vs-comp backwards
+        inverts the result -- so return ``None`` and ask the user.
+        """
+        signature = _vocab_signature(info)
+        if signature is None or taken_value not in self.pinned.get(signature, set()):
+            return None
+        taken = self.taken.get(signature, set())
+        remaining = [
+            o.value for o in (info.allowed_values or []) if o.value not in taken
+        ]
+        return remaining[0] if len(remaining) == 1 else None
+
+    def sole_remaining_after_authoritative(self, info: ParameterInfo) -> str | None:
+        """The one option left once an authoritative sibling has taken its own.
+
+        A reference slot is defined negatively -- it is whatever the comparator
+        is contrasted against -- so it has no candidate of its own to offer. If
+        exactly one option remains after an override or a comparator has
+        claimed, that remainder is forced and deducing it beats asking.
+        """
+        signature = _vocab_signature(info)
+        if signature is None or not self.pinned.get(signature):
+            return None
+        taken = self.taken.get(signature, set())
+        remaining = [
+            o.value for o in (info.allowed_values or []) if o.value not in taken
+        ]
+        return remaining[0] if len(remaining) == 1 else None
+
+    def release_guess_holding(
+        self, info: ParameterInfo, wanted: str, overrides: dict[str, str]
+    ) -> str | None:
+        """Free ``wanted`` from a *guessed* claimant so this override can take it.
+
+        An override is authoritative; a default or intent match is not. If the
+        guess keeps the value, the override lands on top of it and the pair is
+        degenerate. Returns the evicted param's name so the caller can unbind and
+        re-resolve it (where the now-pinned value is excluded and the sole
+        remaining option is deduced). Ordering alone cannot cover this: a param
+        with ``vocab_depends_on`` is deferred to a later pass, by which point the
+        guess is already bound.
+        """
+        signature = _vocab_signature(info)
+        if signature is None:
+            return None
+        holder = self.claimant.get(signature, {}).get(wanted)
+        if holder is None or holder == info.name or holder in overrides:
+            return None
+        self.taken.get(signature, set()).discard(wanted)
+        self.claimant.get(signature, {}).pop(wanted, None)
+        self.pinned.setdefault(signature, set()).add(wanted)
+        return holder
 
 
 def _open_slot(info: ParameterInfo) -> OpenSlot:
+    """A question for the user. Tree-box params keep their real values in
+    ``vocab_leaves`` (``allowed_values`` is empty), so fall back to those rather
+    than asking "choose a value" while offering none."""
+    options = info.allowed_values or info.vocab_leaves
     return OpenSlot(
         param_name=info.name,
         question=f"Choose a value for {info.display_name}",
-        options=[o.value for o in (info.allowed_values or [])][:_MAX_SLOT_OPTIONS],
+        options=[o.value for o in options][:_MAX_SLOT_OPTIONS],
     )
 
 
@@ -416,25 +551,138 @@ async def _resolve_nonfilter(
     intent: ParamIntent,
     embed: EmbedFn,
     overrides: dict[str, str],
-    used_by_vocab: dict[str, set[str]],
+    ledger: _VocabLedger,
 ) -> ParamValue | OpenSlot | None:
     """Resolve a non-filter param: Tier-0 override → Tier-1/2 intent → scalar
     default → Tier-3 slot. Records the chosen value against its vocabulary so a
-    same-vocab sibling won't degenerately reuse it. ``None`` = optional + unset."""
+    same-vocab sibling won't degenerately reuse it. ``None`` = optional + unset.
+
+    Tier-0 outranks the degenerate-pair guard: an override is the user answering
+    an open slot, so re-applying the guard to it would re-open the very slot they
+    just closed and the turn could never proceed."""
+    is_user_choice = info.name in overrides
+    if not is_user_choice:
+        curated = _curated_multi_default(info)
+        if curated is not None:
+            return param_value_for(info, curated)
     value = await _resolve_one(info, intent, embed, overrides)
+    from_intent = value is not None
     if value is None:
         value = _scalar_default(info)
-    if value is not None and _duplicates_sibling(info, value, used_by_vocab):
-        value = None
+    if value is None and contrast_role(info) == "reference":
+        value = ledger.sole_remaining_after_authoritative(info)
+    if (
+        value is not None
+        and not is_user_choice
+        and ledger.duplicates_sibling(info, value)
+    ):
+        # The sibling already took this value. If a user pinned it and exactly
+        # one option is left, that remainder is forced -- take it rather than
+        # asking a question with a single possible answer.
+        value = ledger.sole_remaining_option(info, value)
     resolved = _build_value(info, value)
     if resolved is not None and value is not None:
         signature = _vocab_signature(info)
         if signature is not None:
-            used_by_vocab.setdefault(signature, set()).add(value)
+            # A comparator bound from the criterion's own subject is a grounded
+            # choice, not a slot-agnostic guess, so it is authoritative enough
+            # for the reference sibling to deduce the remaining option instead
+            # of asking a question whose answer is already determined.
+            # Grounded in what the user asked for -- an override, or a
+            # comparator matched from the criterion's own subject. A scalar
+            # DEFAULT is not grounded, so it must not license the reference
+            # sibling to deduce a direction nobody chose.
+            authoritative = is_user_choice or (
+                from_intent and contrast_role(info) == "comparison"
+            )
+            ledger.claim(signature, value, info.name, pinned=authoritative)
         return resolved
     if info.required:
         return _open_slot(info)
     return None
+
+
+def _awaits_comparator(
+    info: ParameterInfo, infos: list[ParameterInfo], resolved: set[str]
+) -> bool:
+    """Whether a reference slot must wait for its comparator sibling.
+
+    The baseline is whatever the comparator is contrasted against, so resolving
+    it first either grabs the subject (inverting the contrast) or strands it as
+    an unanswerable slot that never revisits once the comparator lands.
+    """
+    if contrast_role(info) != "reference":
+        return False
+    # Pair on the NAME STEM. A vocabulary signature would not match while the
+    # comparator still carries its pre-parent option set, and a bare role match
+    # would couple unrelated pairs (the min/max/average operation selectors
+    # would wait on the sample selectors and never resolve).
+    key = contrast_pair_key(info.name)
+    return any(
+        other.name not in resolved
+        and other.name != info.name
+        and contrast_role(other) == "comparison"
+        and contrast_pair_key(other.name) == key
+        for other in infos
+    )
+
+
+def _evict_for_override(
+    info: ParameterInfo,
+    overrides: dict[str, str],
+    *,
+    ledger: _VocabLedger,
+    params: dict[str, ParamValue],
+    context: dict[str, str],
+    seen: set[str],
+) -> None:
+    """Unbind a guessed param holding the value this override wants, so the
+    guess re-resolves against the now-claimed vocabulary."""
+    if info.name not in overrides:
+        return
+    evicted = ledger.release_guess_holding(
+        info, _apply_override(info, overrides[info.name]), overrides
+    )
+    if evicted is None:
+        return
+    params.pop(evicted, None)
+    context.pop(evicted, None)
+    seen.discard(evicted)
+
+
+def _resolution_rank(info: ParameterInfo, overrides: dict[str, str]) -> tuple[int, int]:
+    """Resolution order within a pass: authoritative values claim their
+    vocabulary slot before anything guesses onto it.
+
+    Overrides first (the user has spoken), then comparators (bound from the
+    criterion's own subject), then everything else, and references LAST -- a
+    reference is the baseline, defined by what the comparator did not take, so
+    resolving it first would let it grab the subject and invert the contrast.
+    """
+    role = contrast_role(info)
+    role_rank = {"comparison": 0, "reference": 2}.get(role or "", 1)
+    return (0 if info.name in overrides else 1, role_rank)
+
+
+def _defer_to_next_pass(
+    info: ParameterInfo,
+    *,
+    context: dict[str, str],
+    resolved_this_pass: set[str],
+) -> bool:
+    """Whether to skip ``info`` until the walk re-fetches under a new context.
+
+    Two reasons. Its vocabulary parent may be unresolved, so the param has no
+    meaningful option set yet. Or the parent resolved *during this pass*, in
+    which case ``infos`` -- fetched once, before that -- still carries the
+    PRE-parent vocabulary. That stale option set is often narrower and sometimes
+    a single value, so binding from it can silently take a value a sibling
+    already holds. The next pass re-fetches and sees the real vocabulary.
+    """
+    depends_on = set(info.vocab_depends_on or [])
+    if depends_on - context.keys():
+        return True
+    return bool(depends_on & resolved_this_pass)
 
 
 async def resolve_params_with_intent(
@@ -453,19 +701,37 @@ async def resolve_params_with_intent(
     open_slots: list[OpenSlot] = []
     unresolved: list[str] = []
     seen: set[str] = set()
-    used_by_vocab: dict[str, set[str]] = {}
+    ledger = _VocabLedger()
     for _ in range(_MAX_RESOLVE_DEPTH):
         infos = await fetch_at(context)
         progressed = False
-        for info in infos:
-            if info.name in seen or (set(info.vocab_depends_on or []) - context.keys()):
+        # Overridden params first so an authoritative value claims its vocabulary
+        # slot before a sibling guesses onto it. Ordering alone is not enough --
+        # a dependent param (``vocab_depends_on``) is deferred to a later pass,
+        # by which time the guess is already bound -- so _evict_guessed_claimer
+        # also unwinds a guess that took an override's value.
+        resolved_this_pass: set[str] = set()
+        for info in sorted(infos, key=lambda i: _resolution_rank(i, overrides)):
+            _evict_for_override(
+                info,
+                overrides,
+                ledger=ledger,
+                params=params,
+                context=context,
+                seen=seen,
+            )
+            if info.name in seen or _defer_to_next_pass(
+                info, context=context, resolved_this_pass=resolved_this_pass
+            ):
+                continue
+            if _awaits_comparator(info, infos, set(params) | set(unresolved)):
                 continue
             outcome: ParamValue | OpenSlot | None
             if info.param_kind == "filter":
                 outcome = _resolve_filter_param(info, infos, overrides)
             else:
                 outcome = await _resolve_nonfilter(
-                    info, intent, embed, overrides, used_by_vocab
+                    info, intent, embed, overrides, ledger
                 )
             if isinstance(outcome, OpenSlot):
                 open_slots.append(outcome)
@@ -473,6 +739,7 @@ async def resolve_params_with_intent(
             elif outcome is not None:
                 params[info.name] = outcome
                 context[info.name] = to_wire(outcome)
+                resolved_this_pass.add(info.name)
             seen.add(info.name)
             progressed = True
         if not progressed:

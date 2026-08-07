@@ -15,10 +15,10 @@ from pathfinder.ai.models.catalog import (
 from pathfinder.platform.types import ModelProvider
 
 
-def test_opus_4_7_present_with_prices_verified_against_genai_prices() -> None:
-    # Prices verified against genai-prices 0.0.62 (anthropic/claude-opus-4-7
+def test_opus_5_present_with_prices_verified_against_genai_prices() -> None:
+    # Prices verified against the genai-prices snapshot (anthropic/claude-opus-5
     # base tier): $5/input, $0.50/cache-read, $25/output per MTok.
-    entry = get_model_entry("anthropic:claude-opus-4-7")
+    entry = get_model_entry("anthropic:claude-opus-5")
     assert entry is not None
     assert entry.input_price == 5.00
     assert entry.cached_input_price == 0.50
@@ -65,13 +65,22 @@ def test_get_smallest_model_raises_for_unknown_provider() -> None:
         get_smallest_model(bogus_provider)
 
 
-def test_openai_smallest_is_gpt_4_1_nano() -> None:
-    assert get_smallest_model("openai").id == "openai:gpt-4.1-nano"
+def test_openai_smallest_is_luna() -> None:
+    # The utility floor: titles, compaction, and other short non-reasoning calls.
+    # gpt-5-nano (2025-08 snapshot) retires from the OpenAI API Dec 2026, and
+    # no newer nano beats Luna on price ($0.20/$1.20 vs 5.4-nano's $0.20/$1.25).
+    assert get_smallest_model("openai").id == "openai:gpt-5.6-luna"
+
+
+def test_no_retired_gpt5_family_entries() -> None:
+    # The 2025-era gpt-5 snapshots are removed from the OpenAI API Dec 2026.
+    for entry in get_model_catalog():
+        assert not entry.id.startswith("openai:gpt-5-")
 
 
 def test_anthropic_smallest_is_haiku() -> None:
     assert get_smallest_model("anthropic").id == "anthropic:claude-haiku-4-5"
 
 
-def test_google_smallest_is_gemini_2_5_flash() -> None:
-    assert get_smallest_model("google").id == "google:gemini-2.5-flash"
+def test_google_smallest_is_gemini_3_5_flash_lite() -> None:
+    assert get_smallest_model("google").id == "google:gemini-3.5-flash-lite"

@@ -78,7 +78,7 @@ function makeWrapper(overrides: CtxOverrides = {}) {
     setSelectedStep: overrides.setSelectedStep ?? vi.fn(),
     edgeMenu: null,
     setEdgeMenu: vi.fn(),
-    orthologModalOpen: false,
+    orthologTargetId: null,
     setOrthologModalOpen: overrides.setOrthologModalOpen ?? vi.fn(),
     syncStatus: "idle" as const,
     selectedNodeIds: overrides.selectedNodeIds ?? [],

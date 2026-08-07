@@ -33,11 +33,15 @@ from pathfinder.ai.tools.toolsets._dynamic import (
 
 def _frame_enum_overrides(ctx: RunContext[AgentDeps]) -> EnumOverrides:
     state = ctx.deps.agent_state
-    candidates = sorted(
-        set(state.candidate_search_names()) | set(state.discovered_search_names())
-    )
+    known = set(state.candidate_search_names()) | set(state.discovered_search_names())
+    # Withdraw searches already given up on this turn so the model cannot keep
+    # re-selecting something VEuPathDB is 500ing on. If that would leave nothing
+    # to choose from, keep the full set: an empty enum invalidates every call and
+    # removes the model's ability to route around the outage at all.
+    reachable = known - ctx.deps.service_outage.unavailable_searches()
+    candidates = sorted(reachable or known)
     overrides: EnumOverrides = {}
-    if candidates:
+    if reachable:
         overrides[("get_search_overview", "search_name")] = candidates
         overrides[("set_criterion", "search_name")] = candidates
         overrides[("get_parameter_options", "search_name")] = candidates

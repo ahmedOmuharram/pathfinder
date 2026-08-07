@@ -44,7 +44,7 @@ from pathfinder.services.wdk.step_results_models import (
     AttributesResponse,
     RecordDetailResponse,
 )
-from pathfinder.transport.http.deps import CurrentUser, SiteIdQuery
+from pathfinder.transport.http.deps import CurrentUser, SiteIdQuery, with_wdk_identity
 from pathfinder.transport.http.schemas.gene_sets import (
     CreateGeneSetRequest,
     EnsembleScoringRequest,
@@ -65,7 +65,13 @@ from pathfinder.transport.http.schemas.step_results import (
 )
 from pathfinder.transport.http.schemas.steps import RecordDetailRequest
 
-router = APIRouter(prefix="/api/v1/gene-sets", tags=["gene-sets"])
+# Gene sets materialize as WDK datasets — pin the durable WDK identity so
+# datasets created here are usable by worker-built strategies (and vice versa).
+router = APIRouter(
+    prefix="/api/v1/gene-sets",
+    tags=["gene-sets"],
+    dependencies=[Depends(with_wdk_identity)],
+)
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------

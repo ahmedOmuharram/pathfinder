@@ -8,6 +8,7 @@ from pydantic_ai import ModelRetry, RunContext
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.memory.embedding import embed_text
 from pathfinder.ai.tools.standalone._validation_helpers import validation_model_retry
+from pathfinder.domain.parameters.values import to_wire
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
@@ -31,7 +32,11 @@ class SetCriterionResult(CamelModel):
 
     criterion_id: str
     search_name: str
-    resolved_params: list[str] = Field(default_factory=list)
+    # Name -> bound value, not just the names. A binding can be syntactically
+    # "resolved" and semantically wrong (WDK ships `*reductase` as GenesByText's
+    # example default), and reporting only names makes that invisible to the
+    # model, the ledger, and the user until the step silently returns zero rows.
+    resolved_params: dict[str, str] = Field(default_factory=dict)
     open_slots: list[OpenSlot] = Field(default_factory=list)
 
 
@@ -122,7 +127,9 @@ async def set_criterion(
     return SetCriterionResult(
         criterion_id=criterion_id,
         search_name=search_name,
-        resolved_params=list(resolved.params),
+        resolved_params={
+            name: to_wire(value) for name, value in resolved.params.items()
+        },
         open_slots=open_params,
     )
 

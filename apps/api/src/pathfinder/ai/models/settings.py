@@ -1,14 +1,12 @@
-"""Model-name + per-provider settings resolution.
+"""Per-provider model settings resolution.
 
-Two concerns share one stable id (``provider:model``):
+The stable ``provider:model`` id is what pydantic-ai infers from directly:
+since pydantic-ai v2 a bare ``openai:`` prefix already means the Responses API,
+so no name rewriting happens anywhere.
 
-1. ``to_pydantic_ai_model_name`` — the name handed to pydantic-ai for
-   inference. Everything else (catalog, pricing, persisted user prefs, the
-   ``agent.model`` readback used for cost attribution) keeps the stable
-   ``openai:`` id.
-2. ``build_model_settings`` — the provider-correct ``ModelSettings`` (prompt
-   caching + reasoning effort), composed so caching is never clobbered by the
-   per-request thinking effort.
+``build_model_settings`` returns the provider-correct ``ModelSettings`` (prompt
+caching + reasoning effort), composed so caching is never clobbered by the
+per-request thinking effort.
 """
 
 from pydantic_ai.models.anthropic import AnthropicModelSettings
@@ -18,27 +16,12 @@ from pathfinder.platform.types import ReasoningEffort
 
 
 def model_provider(model_id: str) -> str:
-    """``"openai:gpt-5-mini"`` → ``"openai"``."""
+    """``"openai:gpt-5.6-luna"`` -> ``"openai"``."""
     provider, sep, _ = model_id.partition(":")
     if not sep or not provider:
         msg = f"Model id {model_id!r} is not in 'provider:model' form"
         raise ValueError(msg)
     return provider
-
-
-def to_pydantic_ai_model_name(model_id: str) -> str:
-    """Translate our stable id to the name pydantic-ai should infer.
-
-    REVERT IN v2: in pydantic-ai v1, bare ``openai:`` resolves to the Chat
-    Completions API; v2 flips it to the Responses API by default. Until then
-    we rewrite ``openai:`` → ``openai-responses:`` so OpenAI runs use the
-    Responses API. When upgrading to v2, delete this rewrite (bare ``openai:``
-    will already mean Responses) and pass model ids through unchanged.
-    """
-    provider, _, rest = model_id.partition(":")
-    if provider == "openai":
-        return f"openai-responses:{rest}"
-    return model_id
 
 
 def build_model_settings(

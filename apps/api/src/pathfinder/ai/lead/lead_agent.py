@@ -52,6 +52,7 @@ from pathfinder.ai.graph.state import ConsultQuestion, UserQuestionAnswer
 from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.intent import UserIntent
+from pathfinder.ai.lead.live_state import LiveStrategyState, read_live_state
 from pathfinder.ai.lead.sub_agent_dispatch import (
     build_strategy,
     frame_problem,
@@ -185,6 +186,19 @@ def classify_user_intent(
     return intent
 
 
+def get_live_strategy_state(ctx: RunContext[LeadDeps]) -> LiveStrategyState:
+    """Read the strategy as it exists RIGHT NOW, bypassing the Ledger's cache.
+
+    The Ledger's build counts describe the last build this conversation ran.
+    The user can change the strategy between turns (graph editor, WDK web
+    UI), which leaves those counts wrong. Call this before stating any
+    result count, parameter value, or step list as current fact — and always
+    when the Ledger shows a STALE marker or the user asks what the strategy
+    does "now".
+    """
+    return read_live_state(ctx.deps.runtime.strategy_session)
+
+
 def read_ledger_section(
     ctx: RunContext[LeadDeps],
     section: LedgerSectionName,
@@ -257,13 +271,14 @@ _consult_user_tool: Tool[LeadDeps] = Tool(
 
 
 lead_agent: Agent[LeadDeps, LeadResponse | DeferredToolRequests] = Agent(
-    "openai:gpt-5-mini",
+    "openai:gpt-5.6-luna",
     output_type=[LeadResponse, DeferredToolRequests],
     deps_type=LeadDeps,
     instructions=LEAD_INSTRUCTIONS,
     tools=[
         Tool(classify_user_intent),
         Tool(read_ledger_section),
+        Tool(get_live_strategy_state),
         Tool(frame_problem),
         Tool(build_strategy),
         Tool(recover_failed_steps),

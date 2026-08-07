@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import type { ParamSpec } from "@pathfinder/shared";
 import type { StepParameters } from "@/lib/strategyGraph/types";
@@ -93,8 +93,13 @@ function extractDefaults(
 
 export { extractDefaults };
 
-function useParamFormInternal(specs: ParamSpec[], override?: StepParameters) {
+function useParamFormInternal(
+  formId: string,
+  specs: ParamSpec[],
+  override?: StepParameters,
+) {
   return useForm({
+    formId,
     defaultValues: extractDefaults(specs, override),
     onSubmit: () => {
       // submission handled externally via mutations
@@ -120,29 +125,28 @@ export interface UseParamFormResult {
 /**
  * Form bound to the current `paramSpecs`. When `paramSpecs` identity OR the
  * `override` identity changes (e.g. user picks a different searchName, or a
- * step's persisted `parameters` arrive), the form resets to the new defaults
- * via the render-time prevValue pattern (no `useEffect`).
- *
- * `hydrated` is `false` on first mount (defaults built from current inputs)
- * only when there are zero specs, but otherwise `true` after the synchronous
- * reset that follows any input change.
+ * step's persisted `parameters` arrive), the form is REPLACED with a fresh
+ * instance seeded from the new defaults, by rotating `formId` via the
+ * render-time prevValue pattern. `useForm` swaps in a new `FormApi` when
+ * `formId` changes, so no external store is written during render — a
+ * render-phase `form.reset()` here would notify subscribers mid-render
+ * ("Cannot update a component while rendering a different component").
  */
 export function useParamForm(
   specs: ParamSpec[],
   override?: StepParameters,
 ): UseParamFormResult {
-  const form = useParamFormInternal(specs, override);
-
+  const idPrefix = useId();
   const [prevSpecs, setPrevSpecs] = useState(specs);
   const [prevOverride, setPrevOverride] = useState(override);
-  const [hydrated, setHydrated] = useState(specs.length > 0);
+  const [generation, setGeneration] = useState(0);
 
   if (specs !== prevSpecs || override !== prevOverride) {
     setPrevSpecs(specs);
     setPrevOverride(override);
-    form.reset(extractDefaults(specs, override));
-    setHydrated(specs.length > 0);
+    setGeneration(generation + 1);
   }
 
-  return { form, hydrated };
+  const form = useParamFormInternal(`${idPrefix}${generation}`, specs, override);
+  return { form, hydrated: specs.length > 0 };
 }

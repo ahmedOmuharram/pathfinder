@@ -28,14 +28,18 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [selectedStep, setSelectedStepInternal] = useState<Step | null>(null);
+  // Hold only the id: the step itself is derived from the live strategy
+  // below, so a saved edit is reflected immediately. Storing the object
+  // froze it at selection time and left the editor footer reporting
+  // "Edited: N changes" against values that had already been saved.
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
 
   // Keep React Flow's per-node `selected` flag in sync with the
   // app-level `selectedStep` so programmatic selection (URL focus,
   // rail click, keyboard shortcut) lights up the visual selected ring
   // — not just opens the editor sheet.
   const setSelectedStep = (step: Step | null): void => {
-    setSelectedStepInternal(step);
+    setSelectedStepId(step?.id ?? null);
     const targetId = step?.id ?? null;
     setNodes((current) =>
       current.map((n) =>
@@ -56,6 +60,9 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   );
 
   const editableSteps = strategy?.steps ?? [];
+  // Derived, never stored: a step deleted elsewhere deselects itself, and an
+  // edited step is seen with its new values on the very next render.
+  const selectedStep = editableSteps.find((step) => step.id === selectedStepId) ?? null;
 
   const buildStepSignature = (step: Step) => {
     const kind = inferStepKind(step);

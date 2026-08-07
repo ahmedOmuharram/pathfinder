@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { createElement, type ReactElement } from "react";
+import { render, renderHook } from "@testing-library/react";
+import { useStore } from "@tanstack/react-form";
 import type { ParamSpec } from "@pathfinder/shared";
-import { extractDefaults, useParamForm } from "./useParamForm";
+import { extractDefaults, useParamForm, type ParamForm } from "./useParamForm";
 
 function makeSpecs(): ParamSpec[] {
   return [
@@ -323,6 +325,43 @@ describe("extractDefaults override", () => {
       { orgs: ["Pf3D7", "PvP01"] },
     );
     expect(result["orgs"]).toEqual(["Pf3D7", "PvP01"]);
+  });
+});
+
+describe("useParamForm — no store writes during render", () => {
+  function StoreSubscriber({ form }: { form: ParamForm }): null {
+    useStore(form.store, (s) => s.values);
+    return null;
+  }
+
+  function Probe({ specs }: { specs: ParamSpec[] }): ReactElement {
+    const { form } = useParamForm(specs);
+    useStore(form.store, (s) => s.values);
+    return createElement(StoreSubscriber, { form });
+  }
+
+  it("changing specs identity does not update subscribers mid-render", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rerender } = render(createElement(Probe, { specs: makeSpecs() }));
+    rerender(createElement(Probe, { specs: makeSpecs() }));
+    const offending = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("Cannot update a component"),
+    );
+    errorSpy.mockRestore();
+    expect(offending).toEqual([]);
+  });
+
+  it("still resets values to the new defaults after a specs change", () => {
+    const specsA = makeSpecs();
+    const specsB = makeSpecs();
+    specsB[0] = { ...specsB[0], initialDisplayValue: "P. vivax P01" } as ParamSpec;
+    const { result, rerender } = renderHook(
+      ({ specs }: { specs: ParamSpec[] }) => useParamForm(specs),
+      { initialProps: { specs: specsA } },
+    );
+    expect(result.current.form.state.values["organism"]).toBe("P. falciparum 3D7");
+    rerender({ specs: specsB });
+    expect(result.current.form.state.values["organism"]).toBe("P. vivax P01");
   });
 });
 

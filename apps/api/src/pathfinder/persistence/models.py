@@ -89,6 +89,10 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     monthly_cost_limit_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Durable WDK guest identity used when no browser-supplied Authorization
+    # token exists (dev login / expired session). Shared by api + worker so
+    # WDK strategies stay owned by ONE guest user across containers/restarts.
+    wdk_guest_token: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     conversations: Mapped[list[Conversation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

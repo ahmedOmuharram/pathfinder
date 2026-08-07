@@ -1742,7 +1742,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
       }
     },
     "/api/v1/conversations/{strategyId}/operations": {
@@ -5773,7 +5778,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
       }
     },
     "/api/v1/exports/{export_id}": {
@@ -13266,11 +13276,6 @@
             "title": "Contextsize",
             "default": 0
           },
-          "defaultReasoningBudget": {
-            "type": "integer",
-            "title": "Defaultreasoningbudget",
-            "default": 0
-          },
           "inputPrice": {
             "type": "number",
             "title": "Inputprice",
@@ -18959,13 +18964,10 @@
       },
       "TierPreset": {
         "properties": {
-          "scoping": {
+          "lead": {
             "$ref": "#/components/schemas/PhaseTierConfig"
           },
-          "discovery": {
-            "$ref": "#/components/schemas/PhaseTierConfig"
-          },
-          "planning": {
+          "frame": {
             "$ref": "#/components/schemas/PhaseTierConfig"
           },
           "execution": {
@@ -18977,14 +18979,13 @@
         },
         "type": "object",
         "required": [
-          "scoping",
-          "discovery",
-          "planning",
+          "lead",
+          "frame",
           "execution",
           "verification"
         ],
         "title": "TierPreset",
-        "description": "Per-phase configuration for all five pipeline phases."
+        "description": "Per-phase configuration for every pipeline phase."
       },
       "TimestampValue": {
         "properties": {

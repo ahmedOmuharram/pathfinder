@@ -145,7 +145,7 @@ verification_agent: Agent[
     AgentDeps,
     VerificationDelta | DeferredToolRequests,
 ] = Agent(
-    "openai:gpt-5-mini",
+    "openai:gpt-5.6-luna",
     output_type=[VerificationDelta, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_VERIFICATION_INSTRUCTIONS,

@@ -16,6 +16,7 @@ from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
+from pathfinder.domain.strategy.staleness import StaleBuild
 from pathfinder.platform.pydantic_base import CamelModel
 
 PhaseName = Literal[
@@ -168,6 +169,10 @@ class PipelineState(BaseModel):
     discovered_searches: dict[str, SearchOverview] = Field(default_factory=dict)
     verification_digest: VerificationDigest | None = None
     last_build_outcome: BuildOutcome | None = None
+    # Recomputed at the start of every Lead turn by comparing the live
+    # strategy against ``last_build_outcome``. Never persisted: an edit that
+    # was stale last turn is not stale after the next build.
+    stale_build: StaleBuild | None = None
     pending_approval: PendingApproval | None = None
     approval_responses: dict[str, ToolApprovalResponded] = Field(
         default_factory=dict,

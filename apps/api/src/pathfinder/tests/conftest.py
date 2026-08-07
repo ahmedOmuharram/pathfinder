@@ -418,6 +418,24 @@ async def app_memory_store(
 
 
 @pytest.fixture(autouse=True)
+def _no_wdk_guest_minting(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the guest-identity seam inert in tests by default.
+
+    ``with_wdk_identity`` runs on every conversations/chat/gene-sets request;
+    without this, each fresh test user would trigger a live WDK mint call.
+    Returning None fails open (ctx stays unset — the pre-seam behavior).
+    Tests that exercise minting monkeypatch ``mint_guest_token`` themselves.
+    """
+    from pathfinder.services import wdk_identity  # noqa: PLC0415
+
+    async def _no_mint(site_id: str) -> str | None:
+        del site_id
+        return None
+
+    monkeypatch.setattr(wdk_identity, "mint_guest_token", _no_mint)
+
+
+@pytest.fixture(autouse=True)
 async def _close_wdk_clients_after_test() -> AsyncGenerator[None]:
     """Close shared WDK clients and clear discovery cache after each test.
 

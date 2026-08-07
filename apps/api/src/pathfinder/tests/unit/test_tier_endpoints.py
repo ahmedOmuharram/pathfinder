@@ -12,19 +12,28 @@ import pytest
 from pydantic import ValidationError
 
 from pathfinder.ai.models.catalog import get_model_entry
-from pathfinder.ai.models.tiers import TIER_PRESETS, PhaseTierConfig
+from pathfinder.ai.models.tiers import TIER_PRESETS, PhaseTierConfig, TierPreset
 from pathfinder.transport.http.routers.tiers import TierListResponse, list_tiers
 
 EXPECTED_PROVIDERS: frozenset[str] = frozenset({"anthropic", "openai", "google"})
 EXPECTED_TIERS: frozenset[str] = frozenset({"default", "quality", "balanced", "fast"})
 EXPECTED_PHASES: tuple[str, ...] = (
-    "scoping",
-    "discovery",
-    "planning",
+    "lead",
+    "frame",
     "execution",
     "verification",
 )
 VALID_REASONING_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high"})
+
+
+def _phase_cfg(preset: TierPreset, phase: str) -> PhaseTierConfig:
+    by_phase: dict[str, PhaseTierConfig] = {
+        "lead": preset.lead,
+        "frame": preset.frame,
+        "execution": preset.execution,
+        "verification": preset.verification,
+    }
+    return by_phase[phase]
 
 
 async def _list_tiers() -> TierListResponse:
@@ -52,7 +61,7 @@ async def test_endpoint_response_matches_in_process_tier_registry() -> None:
     assert response == expected
 
 
-async def test_each_preset_contains_exactly_five_phases() -> None:
+async def test_each_preset_covers_exactly_the_runtime_phases() -> None:
     response = await _list_tiers()
     expected_phase_set = set(EXPECTED_PHASES)
     for provider, tiers in response.presets.items():
@@ -69,7 +78,7 @@ async def test_every_phase_config_is_well_typed() -> None:
     for provider, tiers in response.presets.items():
         for tier_name, preset in tiers.items():
             for phase in EXPECTED_PHASES:
-                cfg = getattr(preset, phase)
+                cfg = _phase_cfg(preset, phase)
                 assert type(cfg) is PhaseTierConfig
                 head, _, tail = cfg.model_id.partition(":")
                 assert head == provider, (
@@ -91,7 +100,7 @@ async def test_every_preset_model_id_resolves_in_catalog() -> None:
     for provider, tiers in TIER_PRESETS.items():
         for tier_name, preset in tiers.items():
             for phase in EXPECTED_PHASES:
-                cfg = getattr(preset, phase)
+                cfg = _phase_cfg(preset, phase)
                 entry = get_model_entry(cfg.model_id)
                 assert entry is not None, (
                     f"{provider}/{tier_name}/{phase}: {cfg.model_id} not in catalog"
@@ -116,7 +125,7 @@ async def test_high_reasoning_effort_only_targets_reasoning_models() -> None:
     for provider, tiers in TIER_PRESETS.items():
         for tier_name, preset in tiers.items():
             for phase in EXPECTED_PHASES:
-                cfg = getattr(preset, phase)
+                cfg = _phase_cfg(preset, phase)
                 if cfg.reasoning_effort != "high":
                     continue
                 entry = get_model_entry(cfg.model_id)
@@ -128,16 +137,16 @@ async def test_high_reasoning_effort_only_targets_reasoning_models() -> None:
                 )
 
 
-async def test_quality_tier_planning_uses_a_reasoning_model_per_provider() -> None:
-    """Planning is the most consequential phase; on the 'quality' tier every
-    provider must wire a reasoning-capable model into it.
+async def test_quality_tier_lead_uses_a_reasoning_model_per_provider() -> None:
+    """Lead drives the whole turn; on the 'quality' tier every provider must
+    wire a reasoning-capable model into it.
     """
     for provider, tiers in TIER_PRESETS.items():
-        cfg = tiers["quality"].planning
+        cfg = tiers["quality"].lead
         entry = get_model_entry(cfg.model_id)
         assert entry is not None
         assert entry.supports_reasoning is True, (
-            f"{provider}/quality/planning: {cfg.model_id} is not a reasoning model"
+            f"{provider}/quality/lead: {cfg.model_id} is not a reasoning model"
         )
 
 
@@ -146,11 +155,11 @@ def test_tier_preset_is_frozen() -> None:
     preset = TIER_PRESETS["anthropic"]["quality"]
     assert preset.model_config.get("frozen") is True
     with pytest.raises(ValidationError):
-        preset.scoping = preset.planning
+        preset.lead = preset.execution
 
 
 def test_phase_tier_config_is_frozen() -> None:
-    cfg = TIER_PRESETS["anthropic"]["quality"].planning
+    cfg = TIER_PRESETS["anthropic"]["quality"].lead
     assert cfg.model_config.get("frozen") is True
     with pytest.raises(ValidationError):
-        cfg.model_id = "openai:gpt-4.1"
+        cfg.model_id = "openai:gpt-5.6-luna"

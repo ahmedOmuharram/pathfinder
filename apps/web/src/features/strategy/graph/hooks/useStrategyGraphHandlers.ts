@@ -45,7 +45,11 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
     x: number;
     y: number;
   } | null>(null);
-  const [orthologModalOpen, setOrthologModalOpen] = useState(false);
+  // The step the ortholog sheet acts on, captured when the sheet opens.
+  // Clicking the toolbar button clears ReactFlow's selection, so anything
+  // that reads live selection at render time finds none and closes the
+  // sheet before it mounts.
+  const [orthologTargetId, setOrthologTargetId] = useState<string | null>(null);
 
   const handleNodesDelete = (deletedNodes: Node[]) => {
     if (isCompact || deletedNodes.length === 0) return;
@@ -73,7 +77,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
   const handleStartOrthologTransformFromSelection = () => {
     if (isCompact) return;
     if (selectedNodeIds.length !== 1) return;
-    setOrthologModalOpen(true);
+    setOrthologTargetId(selectedNodeIds[0] ?? null);
   };
 
   const handleOpenDetails = (stepId: string) => {
@@ -87,7 +91,9 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
     search: Parameters<typeof computeOrthologInsert>[0]["search"],
     options: Parameters<typeof computeOrthologInsert>[0]["options"],
   ) => {
-    const selectedId = selectedNodeIds[0];
+    // Use the captured target, not live selection: opening the sheet
+    // already cleared the node selection.
+    const selectedId = orthologTargetId;
     if (selectedId == null || selectedId === "") return;
     const stepsList = strategy?.steps ?? [];
     const { newStep, downstreamPatch } = computeOrthologInsert({
@@ -107,15 +113,15 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
       });
     }
 
-    setOrthologModalOpen(false);
+    setOrthologTargetId(null);
     setSelectedStep(newStep);
   };
 
   return {
     edgeMenu,
     setEdgeMenu,
-    orthologModalOpen,
-    setOrthologModalOpen,
+    orthologTargetId,
+    setOrthologTargetId,
     handleNodesDelete,
     handleStartCombineFromSelection,
     handleStartOrthologTransformFromSelection,

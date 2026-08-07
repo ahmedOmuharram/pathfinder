@@ -94,13 +94,14 @@ def _derive_constraint_section(
 def _derive_build_section(state: PipelineState) -> BuildSection:
     outcome = state.last_build_outcome
     if outcome is None:
-        return BuildSection()
+        return BuildSection(stale_build=state.stale_build)
     failed_count = len(outcome.failed_steps)
     skipped_count = len(outcome.skipped_step_ids)
     zero_steps = list(outcome.zero_step_ids)
     needs_recovery = bool(failed_count or skipped_count or zero_steps)
     return BuildSection(
         outcome=outcome,
+        stale_build=state.stale_build,
         pushed_count=len(outcome.pushed_step_ids),
         failed_count=failed_count,
         skipped_count=skipped_count,

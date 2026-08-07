@@ -10,6 +10,7 @@ import type {
 import { type Tone } from "@/lib/utils/statusTone";
 
 import { BuildDetail, FrameDetail, VerificationDetail } from "./LedgerPanelDetail";
+import { LedgerContrasts } from "./LedgerContrasts";
 import {
   BoolBadge,
   CountChip,
@@ -99,6 +100,7 @@ export function FrameSection({
         label="ready to build"
         value={<BoolBadge value={frame.readyToBuild} />}
       />
+      <LedgerContrasts contrasts={frame.contrasts} />
       {detail && <FrameDetail frame={frame} />}
     </LedgerSection>
   );

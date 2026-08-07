@@ -1,7 +1,7 @@
 import importlib
 import warnings
 
-from pydantic_ai.capabilities import PydanticAIDeprecationWarning
+from pydantic_ai import PydanticAIDeprecationWarning
 
 _AGENT_MODULES = (
     "pathfinder.ai.agents.frame",

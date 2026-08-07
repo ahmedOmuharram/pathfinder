@@ -144,10 +144,12 @@ function StrategyGraphChrome({
           onClose={() => g.setEdgeMenu(null)}
         />
       )}
-      {g.orthologModalOpen && g.selectedNodeIds.length === 1 && (
+      {g.orthologTargetId !== null && (
         <OrthologSheet
-          open={g.orthologModalOpen}
-          onOpenChange={(next) => g.setOrthologModalOpen(next)}
+          open
+          onOpenChange={(next) => {
+            if (!next) g.setOrthologTargetId(null);
+          }}
           siteId={siteId}
           recordType={strategy.recordType ?? "gene"}
           onChoose={g.handleOrthologChoose}

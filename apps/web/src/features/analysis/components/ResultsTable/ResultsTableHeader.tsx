@@ -5,15 +5,18 @@ import type { Table } from "@tanstack/react-table";
 import { Button } from "@/lib/components/ui/Button";
 import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
+import { recordCountLabel } from "./recordCountLabel";
 
 interface ResultsTableHeaderProps {
   totalCount: number;
+  recordType: string | null;
   table: Table<ClassifiedRecord>;
   attributes: RecordAttribute[];
 }
 
 export function ResultsTableHeader({
   totalCount,
+  recordType,
   table,
   attributes,
 }: ResultsTableHeaderProps) {
@@ -31,7 +34,7 @@ export function ResultsTableHeader({
   return (
     <div className="flex items-center justify-between gap-3">
       <p className="text-xs text-muted-foreground tabular-nums">
-        {totalCount.toLocaleString()} records
+        {recordCountLabel(totalCount, recordType)}
       </p>
 
       <div className="flex items-center gap-2">

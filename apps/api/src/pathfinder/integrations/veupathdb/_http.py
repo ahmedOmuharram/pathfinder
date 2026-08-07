@@ -32,18 +32,27 @@ _HTTP_SERVER_ERROR = 500
 
 
 def _inject_auth_cookie(request: httpx.Request, auth_token: str) -> None:
-    """Append an ``Authorization`` cookie to a built request.
+    """Set the ``Authorization`` cookie on a built request, replacing any
+    jar-held value.
 
     Modifies only the per-request :class:`httpx.Request` object — never the
     shared :class:`httpx.AsyncClient` cookie jar — so concurrent requests
     with different auth tokens cannot interfere with each other.
+
+    WDK sets ``Authorization=<guest jwt>`` on every response (including
+    unauthenticated boot-time warmup calls), and ``build_request`` merges the
+    shared jar into the header BEFORE this runs. Appending would send two
+    ``Authorization`` pairs and Tomcat honors the first — silently acting as
+    the jar's stale guest instead of the injected user.
     """
     existing = request.headers.get("cookie", "")
-    auth_cookie = f"Authorization={auth_token}"
-    if existing:
-        request.headers["cookie"] = f"{existing}; {auth_cookie}"
-    else:
-        request.headers["cookie"] = auth_cookie
+    kept = [
+        pair.strip()
+        for pair in existing.split(";")
+        if pair.strip() and not pair.strip().startswith("Authorization=")
+    ]
+    kept.append(f"Authorization={auth_token}")
+    request.headers["cookie"] = "; ".join(kept)
 
 
 def _convert_params_for_httpx(

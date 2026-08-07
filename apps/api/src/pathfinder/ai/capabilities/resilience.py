@@ -26,6 +26,7 @@ from pathfinder.ai.capabilities.error_classification import (
     build_error_directive,
     classify_error,
 )
+from pathfinder.ai.capabilities.service_outage import OUTAGE_GIVE_UP_THRESHOLD
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.logging import get_logger
@@ -261,8 +262,6 @@ def _semantic_directive(
     )
 
 
-_OUTAGE_GIVE_UP_THRESHOLD = 2
-
 _NEXT_ACTIONS_OUTAGE = [
     "Prefer a DIFFERENT search that covers the same intent for now",
     "If no equivalent search fits, tell the user this search is temporarily "
@@ -351,8 +350,8 @@ class ToolResilience(AbstractCapability[AgentDeps]):
         if category == ErrorCategory.TRANSIENT:
             search_name = _TransientArgs.model_validate(args).search_name
             if search_name is not None:
-                seen = ctx.deps.service_outage.record(f"{tool_name}:{search_name}")
-                if seen >= _OUTAGE_GIVE_UP_THRESHOLD:
+                seen = ctx.deps.service_outage.record_search_failure(search_name)
+                if seen >= OUTAGE_GIVE_UP_THRESHOLD:
                     return _outage_directive(tool_name, search_name, error)
             retry_message = (
                 f"Transient error in {tool_name}: {error}. "

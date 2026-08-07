@@ -54,3 +54,34 @@ async def password_login(
     ) as client:
         response = await client.post("/login", json=payload)
         return extract_auth_cookie(response.headers.get_list("set-cookie"))
+
+
+def extract_any_auth_cookie(set_cookie_headers: list[str]) -> str | None:
+    """Return the first ``Authorization`` cookie value, guest or not."""
+    for header in set_cookie_headers:
+        if not header.startswith("Authorization="):
+            continue
+        value = header.split(";", 1)[0].split("=", 1)[1].strip('"')
+        if value:
+            return value
+    return None
+
+
+async def mint_guest_token(site_id: str) -> str | None:
+    """Create a fresh WDK guest identity and return its ``Authorization`` token.
+
+    An unauthenticated ``GET /users/current`` makes WDK mint a guest user and
+    hand back its long-lived JWT via ``Set-Cookie``. VEuPathDB auth is
+    BRC-central, so a guest token minted on one site is valid on all of them.
+    Returns None when WDK is unreachable or responds without the cookie.
+    """
+    site = get_site(site_id)
+    try:
+        async with httpx.AsyncClient(
+            base_url=site.service_url, follow_redirects=True, timeout=15.0
+        ) as client:
+            response = await client.get("/users/current")
+            response.raise_for_status()
+    except httpx.HTTPError:
+        return None
+    return extract_any_auth_cookie(response.headers.get_list("set-cookie"))

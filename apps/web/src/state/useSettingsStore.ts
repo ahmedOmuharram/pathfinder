@@ -19,6 +19,7 @@ interface SettingsState {
   dismissFirstRunHint: () => void;
   setPhaseModel: (role: PhaseRole, id: string | null) => void;
   setPhaseReasoning: (role: PhaseRole, effort: ReasoningEffort | null) => void;
+  applyPhasePreset: (models: PhaseModelMap, reasoning: PhaseReasoningMap) => void;
   resetToDefaults: () => void;
 }
 
@@ -63,6 +64,10 @@ export const useSettingsStore = createPersistedStore<SettingsState>(
             ? withoutKey(state.phaseReasoning, role)
             : { ...state.phaseReasoning, [role]: effort },
       })),
+    // Replace both maps in one commit: a preset is all-or-nothing, and setting
+    // phases one at a time would render intermediate half-applied states.
+    applyPhasePreset: (models, reasoning) =>
+      set({ phaseModels: { ...models }, phaseReasoning: { ...reasoning } }),
     resetToDefaults: () => set({ ...DEFAULTS, phaseModels: {}, phaseReasoning: {} }),
   }),
   {

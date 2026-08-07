@@ -1,13 +1,19 @@
 """Tier preset registry — maps (provider, tier) to per-phase model configs.
 
-Each cloud provider defines three tiers (quality, balanced, fast) that
-auto-populate the five pipeline phases with appropriate model + reasoning
-effort pairings.  The frontend fetches these via ``GET /api/v1/tiers``
-so it never hardcodes model assignments.
+Each cloud provider defines tiers that auto-populate the pipeline phases with
+appropriate model + reasoning effort pairings. The frontend fetches these via
+``GET /api/v1/tiers`` so it never hardcodes model assignments, and
+``resolve_phase_model`` applies the configured tier at runtime as the fallback
+beneath an explicit per-phase user pick.
+
+Phases are the real runtime roles (``lead``, ``frame``, ``execution``,
+``verification``) defined in :mod:`pathfinder.ai.agents.roles`; a tier that
+omits a role falls back to that agent's compile-time model.
 """
 
 from pydantic import ConfigDict
 
+from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import ModelProvider, ReasoningEffort, TierName
 
@@ -16,6 +22,7 @@ __all__ = [
     "PhaseTierConfig",
     "TierPreset",
     "get_tier_preset",
+    "resolve_phase_tier_config",
 ]
 
 
@@ -29,217 +36,123 @@ class PhaseTierConfig(CamelModel):
 
 
 class TierPreset(CamelModel):
-    """Per-phase configuration for all five pipeline phases."""
+    """Per-phase configuration for every pipeline phase."""
 
     model_config = ConfigDict(frozen=True)
 
-    scoping: PhaseTierConfig
-    discovery: PhaseTierConfig
-    planning: PhaseTierConfig
+    lead: PhaseTierConfig
+    frame: PhaseTierConfig
     execution: PhaseTierConfig
     verification: PhaseTierConfig
 
 
-_ANTHROPIC: dict[TierName, TierPreset] = {
-    "default": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        planning=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        execution=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        verification=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-    ),
-    "quality": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        planning=PhaseTierConfig(
-            model_id="anthropic:claude-opus-4-7", reasoning_effort="high"
-        ),
-        execution=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        verification=PhaseTierConfig(
-            model_id="anthropic:claude-opus-4-7", reasoning_effort="high"
-        ),
-    ),
-    "balanced": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        planning=PhaseTierConfig(
-            model_id="anthropic:claude-opus-4-7", reasoning_effort="high"
-        ),
-        execution=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        verification=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="high"
-        ),
-    ),
-    "fast": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"
-        ),
-        planning=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-        execution=PhaseTierConfig(
-            model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"
-        ),
-        verification=PhaseTierConfig(
-            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
-        ),
-    ),
-}
+def _uniform(model_id: str, effort: ReasoningEffort) -> TierPreset:
+    """A preset that runs every phase on one model at one effort."""
+    cfg = PhaseTierConfig(model_id=model_id, reasoning_effort=effort)
+    return TierPreset(lead=cfg, frame=cfg, execution=cfg, verification=cfg)
+
+
+def _split(
+    *,
+    reasoning_model: str,
+    reasoning_effort: ReasoningEffort,
+    execution_model: str,
+    execution_effort: ReasoningEffort,
+) -> TierPreset:
+    """Spend on the phases that reason (lead, frame, verification) and run the
+    mechanical WDK step-building phase on the cheaper model."""
+    thinker = PhaseTierConfig(
+        model_id=reasoning_model, reasoning_effort=reasoning_effort
+    )
+    worker = PhaseTierConfig(
+        model_id=execution_model, reasoning_effort=execution_effort
+    )
+    return TierPreset(
+        lead=thinker, frame=thinker, execution=worker, verification=thinker
+    )
+
 
 _OPENAI: dict[TierName, TierPreset] = {
-    "quality": TierPreset(
-        scoping=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
-        discovery=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
-        planning=PhaseTierConfig(model_id="openai:gpt-5.4", reasoning_effort="high"),
-        execution=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
-        verification=PhaseTierConfig(
-            model_id="openai:gpt-5.4", reasoning_effort="high"
-        ),
+    "quality": _split(
+        reasoning_model="openai:gpt-5.6-sol",
+        reasoning_effort="high",
+        execution_model="openai:gpt-5.6-terra",
+        execution_effort="medium",
     ),
-    "balanced": TierPreset(
-        scoping=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
-        discovery=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
-        planning=PhaseTierConfig(model_id="openai:gpt-5.4", reasoning_effort="high"),
-        execution=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
-        verification=PhaseTierConfig(
-            model_id="openai:gpt-4.1", reasoning_effort="medium"
-        ),
+    "balanced": _split(
+        reasoning_model="openai:gpt-5.6-terra",
+        reasoning_effort="medium",
+        execution_model="openai:gpt-5.6-luna",
+        execution_effort="medium",
     ),
-    "default": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="openai:gpt-5-mini", reasoning_effort="medium"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="openai:gpt-5-mini", reasoning_effort="medium"
-        ),
-        planning=PhaseTierConfig(
-            model_id="openai:gpt-5-mini", reasoning_effort="medium"
-        ),
-        execution=PhaseTierConfig(
-            model_id="openai:gpt-5-mini", reasoning_effort="medium"
-        ),
-        verification=PhaseTierConfig(
-            model_id="openai:gpt-5-mini", reasoning_effort="medium"
-        ),
+    "default": _uniform("openai:gpt-5.6-luna", "medium"),
+    "fast": _uniform("openai:gpt-5.6-luna", "low"),
+}
+
+_ANTHROPIC: dict[TierName, TierPreset] = {
+    "quality": _split(
+        reasoning_model="anthropic:claude-opus-5",
+        reasoning_effort="high",
+        execution_model="anthropic:claude-sonnet-5",
+        execution_effort="medium",
     ),
-    "fast": TierPreset(
-        scoping=PhaseTierConfig(model_id="openai:gpt-5-mini", reasoning_effort="low"),
-        discovery=PhaseTierConfig(model_id="openai:gpt-5-mini", reasoning_effort="low"),
-        planning=PhaseTierConfig(model_id="openai:gpt-5-mini", reasoning_effort="low"),
-        execution=PhaseTierConfig(model_id="openai:gpt-5-mini", reasoning_effort="low"),
-        verification=PhaseTierConfig(
-            model_id="openai:gpt-5-mini", reasoning_effort="low"
-        ),
+    "balanced": _split(
+        reasoning_model="anthropic:claude-sonnet-5",
+        reasoning_effort="medium",
+        execution_model="anthropic:claude-haiku-4-5",
+        execution_effort="medium",
     ),
+    "default": _uniform("anthropic:claude-sonnet-5", "medium"),
+    "fast": _uniform("anthropic:claude-haiku-4-5", "low"),
 }
 
 _GOOGLE: dict[TierName, TierPreset] = {
-    "default": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        planning=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        execution=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        verification=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
+    "quality": _split(
+        reasoning_model="google:gemini-3.1-pro-preview",
+        reasoning_effort="high",
+        execution_model="google:gemini-3.6-flash",
+        execution_effort="medium",
     ),
-    "quality": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        planning=PhaseTierConfig(
-            model_id="google:gemini-3.1-pro", reasoning_effort="high"
-        ),
-        execution=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        verification=PhaseTierConfig(
-            model_id="google:gemini-3.1-pro", reasoning_effort="high"
-        ),
+    "balanced": _split(
+        reasoning_model="google:gemini-3.6-flash",
+        reasoning_effort="medium",
+        execution_model="google:gemini-3.5-flash-lite",
+        execution_effort="medium",
     ),
-    "balanced": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        planning=PhaseTierConfig(
-            model_id="google:gemini-3.1-pro", reasoning_effort="high"
-        ),
-        execution=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        verification=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="high"
-        ),
-    ),
-    "fast": TierPreset(
-        scoping=PhaseTierConfig(
-            model_id="google:gemini-3-flash", reasoning_effort="low"
-        ),
-        discovery=PhaseTierConfig(
-            model_id="google:gemini-3-flash", reasoning_effort="low"
-        ),
-        planning=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-        execution=PhaseTierConfig(
-            model_id="google:gemini-3-flash", reasoning_effort="low"
-        ),
-        verification=PhaseTierConfig(
-            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
-        ),
-    ),
+    "default": _uniform("google:gemini-3.6-flash", "medium"),
+    "fast": _uniform("google:gemini-3.5-flash-lite", "low"),
 }
 
-
 TIER_PRESETS: dict[ModelProvider, dict[TierName, TierPreset]] = {
-    "anthropic": _ANTHROPIC,
     "openai": _OPENAI,
+    "anthropic": _ANTHROPIC,
     "google": _GOOGLE,
 }
 
 
 def get_tier_preset(provider: ModelProvider, tier: TierName) -> TierPreset | None:
-    """Look up a tier preset by provider and tier name.
+    """The preset for ``(provider, tier)``, or ``None`` when unconfigured.
 
-    Returns ``None`` for providers without presets (e.g. Ollama).
+    ``custom`` is deliberately unconfigured: it means the user pinned models
+    per phase, so there is no preset to apply.
     """
     return TIER_PRESETS.get(provider, {}).get(tier)
+
+
+def resolve_phase_tier_config(
+    provider: ModelProvider,
+    tier: TierName,
+    role: PhaseRole,
+) -> PhaseTierConfig | None:
+    """The configured model + effort for one phase, or ``None`` when the tier
+    does not cover this provider (caller falls back to the agent's own model)."""
+    preset = get_tier_preset(provider, tier)
+    if preset is None:
+        return None
+    by_role: dict[PhaseRole, PhaseTierConfig] = {
+        "lead": preset.lead,
+        "frame": preset.frame,
+        "execution": preset.execution,
+        "verification": preset.verification,
+    }
+    return by_role[role]

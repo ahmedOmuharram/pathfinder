@@ -82,7 +82,7 @@ have assembled so far.
 """
 
 frame_agent: Agent[AgentDeps, FrameResult | DeferredToolRequests] = Agent(
-    "openai:gpt-5-mini",
+    "openai:gpt-5.6-luna",
     output_type=[FrameResult, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_FRAME_INSTRUCTIONS,

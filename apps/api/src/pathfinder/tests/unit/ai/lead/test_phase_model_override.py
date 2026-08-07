@@ -54,36 +54,40 @@ def _ctx(
     )
 
 
-def test_default_phase_model_translated_to_responses() -> None:
+def test_default_phase_model_comes_from_the_configured_tier() -> None:
+    # With nothing pinned per phase, the model is the configured
+    # (default_provider, default_tier) preset -- and the stable
+    # ``provider:model`` id goes to pydantic-ai verbatim, since in v2 a bare
+    # ``openai:`` prefix already means the Responses API.
     kwargs = _phase_override_kwargs(_ctx(), "frame")
-    assert kwargs["model"] == "openai-responses:gpt-5-mini"
+    assert kwargs["model"] == "openai:gpt-5.6-luna"
 
 
 def test_anthropic_pick_enables_caching() -> None:
     kwargs = _phase_override_kwargs(
-        _ctx(phase_models={"frame": "anthropic:claude-opus-4-6"}),
+        _ctx(phase_models={"frame": "anthropic:claude-opus-5"}),
         "frame",
     )
-    assert kwargs["model"] == "anthropic:claude-opus-4-6"
+    assert kwargs["model"] == "anthropic:claude-opus-5"
     settings = kwargs["model_settings"]
     assert settings["anthropic_cache_instructions"] is True
     assert settings["anthropic_cache_tool_definitions"] is True
     assert settings["anthropic_cache_messages"] is True
 
 
-def test_openai_pick_translated_without_anthropic_flags() -> None:
+def test_openai_pick_carries_no_anthropic_flags() -> None:
     kwargs = _phase_override_kwargs(
-        _ctx(phase_models={"execution": "openai:gpt-5.4"}),
+        _ctx(phase_models={"execution": "openai:gpt-5.6-terra"}),
         "execution",
     )
-    assert kwargs["model"] == "openai-responses:gpt-5.4"
+    assert kwargs["model"] == "openai:gpt-5.6-terra"
     assert "anthropic_cache_instructions" not in kwargs["model_settings"]
 
 
 def test_reasoning_effort_composes_with_caching() -> None:
     kwargs = _phase_override_kwargs(
         _ctx(
-            phase_models={"execution": "anthropic:claude-opus-4-6"},
+            phase_models={"execution": "anthropic:claude-opus-5"},
             phase_reasoning={"execution": "high"},
         ),
         "execution",
@@ -95,5 +99,38 @@ def test_reasoning_effort_composes_with_caching() -> None:
 
 def test_phase_default_model_id_stays_stable_for_cost() -> None:
     # The readback id used for cost attribution must remain the stable
-    # ``openai:`` id, NOT the translated ``openai-responses:`` inference name.
-    assert _phase_default_model_id("frame") == "openai:gpt-5-mini"
+    # ``provider:model`` catalog id.
+    assert _phase_default_model_id("frame") == "openai:gpt-5.6-luna"
+
+
+def test_configured_tier_actually_drives_phase_model_and_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The default tier happens to match the agents' baked model, so pin the
+    wiring with a tier that does NOT: switching DEFAULT_TIER must move both the
+    model and the reasoning effort for a phase the user has not pinned."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "default_provider", "openai", raising=False)
+    monkeypatch.setattr(settings, "default_tier", "quality", raising=False)
+
+    frame = _phase_override_kwargs(_ctx(), "frame")
+    execution = _phase_override_kwargs(_ctx(), "execution")
+
+    # quality: reasoning phases on sol at high, the mechanical phase on terra.
+    assert frame["model"] == "openai:gpt-5.6-sol"
+    assert frame["model_settings"]["thinking"] == "high"
+    assert execution["model"] == "openai:gpt-5.6-terra"
+    assert execution["model_settings"]["thinking"] == "medium"
+
+
+def test_explicit_phase_pick_outranks_the_configured_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "default_provider", "openai", raising=False)
+    monkeypatch.setattr(settings, "default_tier", "quality", raising=False)
+
+    kwargs = _phase_override_kwargs(
+        _ctx(phase_models={"frame": "openai:gpt-5.6-terra"}), "frame"
+    )
+    assert kwargs["model"] == "openai:gpt-5.6-terra"

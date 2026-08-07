@@ -160,7 +160,7 @@ voice from your typed delta + the resulting Ledger.
 """
 
 execution_agent: Agent[AgentDeps, RecoveryDelta | DeferredToolRequests] = Agent(
-    "openai:gpt-5-mini",
+    "openai:gpt-5.6-luna",
     output_type=[RecoveryDelta, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_EXECUTION_INSTRUCTIONS,

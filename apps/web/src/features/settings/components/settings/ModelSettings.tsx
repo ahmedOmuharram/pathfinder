@@ -10,7 +10,14 @@ import {
   type PhaseRole,
 } from "@/lib/models/phaseRoles";
 import { ModelPicker } from "@/features/settings/components/ModelPicker";
+import { TierPicker } from "@/features/settings/components/TierPicker";
 import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
+import { useTierPresetsQuery } from "@/lib/query/hooks/useTierPresetsQuery";
+import {
+  applyTierPreset,
+  deriveActiveTier,
+  presetsForProvider,
+} from "@/lib/models/tierPresets";
 
 export function ModelSettings() {
   const { data } = useModelCatalogQuery();
@@ -22,16 +29,38 @@ export function ModelSettings() {
   const setPhaseModel = useSettingsStore((s) => s.setPhaseModel);
   const phaseReasoning = useSettingsStore((s) => s.phaseReasoning);
   const setPhaseReasoning = useSettingsStore((s) => s.setPhaseReasoning);
+  const applyPhasePreset = useSettingsStore((s) => s.applyPhasePreset);
+
+  const { data: tierData } = useTierPresetsQuery();
+  const provider = data?.defaultProvider ?? "";
+  const tierPresets = presetsForProvider(tierData?.presets, provider);
+  const activeTier = deriveActiveTier(
+    tierData?.presets,
+    provider,
+    phaseModels,
+    phaseReasoning,
+  );
 
   return (
     <div className="space-y-1">
       <div className="mb-3">
         <p className="text-xs text-muted-foreground">
           The Lead orchestrates everything you see in chat. Each phase below runs as a
-          sub-agent the Lead delegates to. Pick a model + reasoning effort per phase;
-          leave blank to use the default.
+          sub-agent the Lead delegates to. Pick a preset, or set a model + reasoning
+          effort per phase; leave a phase blank to use the default.
         </p>
       </div>
+
+      <TierPicker
+        presets={tierPresets}
+        activeTier={activeTier}
+        onSelect={(tier) => {
+          const preset = tierPresets[tier];
+          if (preset === undefined) return;
+          const applied = applyTierPreset(preset);
+          applyPhasePreset(applied.models, applied.reasoning);
+        }}
+      />
 
       <div className="divide-y divide-border/40">
         {PHASE_ROLES.map((role) => (

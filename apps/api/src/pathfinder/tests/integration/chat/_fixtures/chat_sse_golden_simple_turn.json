@@ -114,6 +114,7 @@
       "build": {
         "failedCount": 0,
         "needsRecovery": false,
+        "nodeResults": [],
         "pushedCount": 0,
         "recoveryKind": "none",
         "skippedCount": 0,
@@ -125,26 +126,15 @@
         "grounded": [],
         "unmetCount": 0
       },
-      "discovery": {
-        "fitReports": [],
-        "intentSatisfied": false,
-        "needsMoreDiscovery": true,
-        "rejectedCount": 0,
-        "selectedCount": 0,
-        "selections": {}
-      },
       "frame": {
-        "blocked": false,
-        "blockingQuestionsUnanswered": [],
-        "matchesCurrentIntent": false,
-        "needed": true
-      },
-      "plan": {
-        "approved": false,
-        "blockedKind": "none",
-        "openDiscoverySlots": [],
-        "openUserInputSlots": [],
-        "readyToExecute": false
+        "boundCount": 0,
+        "contrasts": [],
+        "criteriaCount": 0,
+        "droppedCount": 0,
+        "needsUser": false,
+        "openSlotCount": 0,
+        "present": false,
+        "readyToBuild": false
       },
       "subAgentCallsThisTurn": [],
       "subAgentCallsTotal": 0,

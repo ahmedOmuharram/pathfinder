@@ -15,6 +15,7 @@ from pathfinder.services import quota as quota_service
 from pathfinder.services.experiment.store import get_experiment_store
 from pathfinder.services.experiment.types import Experiment
 from pathfinder.services.users import ensure_user_exists
+from pathfinder.services.wdk_identity import ensure_wdk_identity
 
 
 def _reject_null_bytes(value: str | None) -> str | None:
@@ -48,6 +49,20 @@ async def get_current_user_with_db_row(
 
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_with_db_row)]
+
+
+async def with_wdk_identity(
+    user_id: Annotated[UUID, Depends(get_current_user_with_db_row)],
+    session: DBSession,
+) -> UUID:
+    """Guarantee the request carries a WDK identity before touching WDK.
+
+    Routes that create/read/write WDK-owned resources (strategies, steps,
+    datasets) attach this so guest-mode users act as ONE durable WDK guest
+    across api and worker instead of per-container ephemeral guests.
+    """
+    await ensure_wdk_identity(session, user_id)
+    return user_id
 
 
 async def require_quota_available(

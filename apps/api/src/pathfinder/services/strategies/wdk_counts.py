@@ -10,6 +10,7 @@ Results are cached by plan hash to avoid redundant API calls.
 import asyncio
 import hashlib
 import json
+from collections.abc import Iterable
 
 from cachetools import LRUCache
 
@@ -35,10 +36,24 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_helpers import delete_temp_strategy
 from pathfinder.services.strategies.sync import build_step_tree_from_graph
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
 
 _STEP_COUNTS_CACHE: LRUCache[str, dict[str, int | None]] = LRUCache(maxsize=20)
+
+
+def invalidate_counts_for(sync_state: WDKSyncState, step_ids: Iterable[str]) -> None:
+    """Mark the cached counts of ``step_ids`` unknown.
+
+    Called after a successful push: the step's parameters just changed, so
+    whatever it returned before no longer describes it. ``None`` reads as
+    "recompute me" everywhere, while a stale integer reads as fact — and
+    gets quoted to the user as one.
+    """
+    for step_id in step_ids:
+        if step_id in sync_state.step_counts:
+            sync_state.step_counts[step_id] = None
 
 
 def plan_cache_key(site_id: str, payload: StrategyAst) -> str:

@@ -106,8 +106,8 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     setSelectedStep: graphNodes.setSelectedStep,
     edgeMenu: handlers.edgeMenu,
     setEdgeMenu: handlers.setEdgeMenu,
-    orthologModalOpen: handlers.orthologModalOpen,
-    setOrthologModalOpen: handlers.setOrthologModalOpen,
+    orthologTargetId: handlers.orthologTargetId,
+    setOrthologTargetId: handlers.setOrthologTargetId,
     syncStatus,
 
     selectedNodeIds,

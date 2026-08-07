@@ -67,10 +67,8 @@ from pathfinder.ai.models.mock import (
     current_user_text,
     get_mock_model,
 )
-from pathfinder.ai.models.settings import (
-    build_model_settings,
-    to_pydantic_ai_model_name,
-)
+from pathfinder.ai.models.settings import build_model_settings
+from pathfinder.ai.models.tiers import PhaseTierConfig, resolve_phase_tier_config
 from pathfinder.platform.config import get_settings
 
 PHASE_USAGE_LIMITS: UsageLimits = UsageLimits(
@@ -103,7 +101,19 @@ def _model_id_str(agent: Any) -> str:
 
 
 def _phase_default_model_id(role: PhaseRole) -> str:
+    """The phase's model when the user pinned nothing: the configured
+    ``(default_provider, default_tier)`` preset, else the agent's baked model."""
+    cfg = _configured_tier_config(role)
+    if cfg is not None:
+        return cfg.model_id
     return _model_id_str(_SUB_AGENT_BY_ROLE[role])
+
+
+def _configured_tier_config(role: PhaseRole) -> PhaseTierConfig | None:
+    settings = get_settings()
+    return resolve_phase_tier_config(
+        settings.default_provider, settings.default_tier, role
+    )
 
 
 def sub_agent_model_id(tool_name: str) -> str:
@@ -296,15 +306,18 @@ def _phase_override_kwargs(
     """Resolve the effective model + provider settings for a phase run.
 
     Always overrides: the effective model (user pick, else the phase default)
-    is translated to its pydantic-ai name and paired with provider-correct
-    settings (caching + reasoning effort), so caching is applied on every run.
+    is paired with provider-correct settings (caching + reasoning effort), so
+    caching is applied on every run.
     """
     if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
         return {"model": get_mock_model()}
     effective_model = runtime.phase_models.get(role) or _phase_default_model_id(role)
-    effort = runtime.phase_reasoning.get(role)
+    tier_cfg = _configured_tier_config(role)
+    effort = runtime.phase_reasoning.get(role) or (
+        tier_cfg.reasoning_effort if tier_cfg is not None else None
+    )
     return {
-        "model": to_pydantic_ai_model_name(effective_model),
+        "model": effective_model,
         "model_settings": build_model_settings(effective_model, thinking=effort),
     }
 
@@ -356,36 +369,39 @@ async def _stream_sub_agent[OutputT: BaseModel](
         },
     )
     with override_ctx:
-        async for event in agent.run_stream_events(
+        async with agent.run_stream_events(
             work_order,
             deps=agent_deps,
             usage_limits=PHASE_USAGE_LIMITS,
             usage=usage,
-        ):
-            if isinstance(event, AgentRunResultEvent):
-                agent_output = event.result.output
-                if isinstance(agent_output, expected_output_type):
-                    output = agent_output
-                response = event.result.response
-                deps.record_sub_agent_usage(
-                    SubAgentRunUsage(
-                        usage=event.result.usage,
-                        model_name=response.model_name,
-                        provider_name=response.provider_name,
-                        provider_url=response.provider_url,
-                        parent_tool_call_id=parent_tool_call_id,
-                    ),
+        ) as events:
+            async for event in events:
+                if isinstance(event, AgentRunResultEvent):
+                    agent_output = event.result.output
+                    if isinstance(agent_output, expected_output_type):
+                        output = agent_output
+                    response = event.result.response
+                    deps.record_sub_agent_usage(
+                        SubAgentRunUsage(
+                            usage=event.result.usage,
+                            model_name=response.model_name,
+                            provider_name=response.provider_name,
+                            provider_url=response.provider_url,
+                            parent_tool_call_id=parent_tool_call_id,
+                        ),
+                    )
+                    continue
+                _forward_inner_event(
+                    parent_tool_call_id=parent_tool_call_id,
+                    writer=writer,
+                    inner_calls=inner_calls,
+                    event=event,
                 )
-                continue
-            _forward_inner_event(
-                parent_tool_call_id=parent_tool_call_id,
-                writer=writer,
-                inner_calls=inner_calls,
-                event=event,
-            )
-            if isinstance(event, FunctionToolResultEvent):
-                _emit_live_ledger(writer, deps, agent_deps)
-                _emit_running_sub_agent_usage(writer, role, parent_tool_call_id, usage)
+                if isinstance(event, FunctionToolResultEvent):
+                    _emit_live_ledger(writer, deps, agent_deps)
+                    _emit_running_sub_agent_usage(
+                        writer, role, parent_tool_call_id, usage
+                    )
     return output
 
 

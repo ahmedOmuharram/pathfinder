@@ -25,6 +25,7 @@ from pathfinder.services.strategies.step_push_planner import (
 from pathfinder.services.strategies.step_wdk_push import push_steps_with_plan
 from pathfinder.services.strategies.sync import SyncResult, sync_strategy_for_site
 from pathfinder.services.strategies.sync_state import ensure_sync_state
+from pathfinder.services.strategies.wdk_counts import invalidate_counts_for
 from pathfinder.services.strategies.wdk_step_cleanup import (
     delete_orphaned_wdk_steps,
 )
@@ -130,6 +131,10 @@ async def _commit_to_wdk(
         push_outcome = await push_steps_with_plan(graph, sync_state, deps.site_id, plan)
         succeeded = push_outcome.succeeded
         failed = push_outcome.failed
+        # A pushed step's parameters just changed, so its stored count now
+        # describes the OLD step. Mark it unknown rather than let a stale
+        # number be read back as current fact.
+        invalidate_counts_for(sync_state, succeeded)
 
     wdk_ids_to_delete: list[int] = []
     for sid in dropped_step_ids:

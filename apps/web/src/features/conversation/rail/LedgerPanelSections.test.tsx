@@ -49,6 +49,15 @@ const FRAME_WITH_SPEC: LedgerFramePayload = {
   droppedCount: 1,
   readyToBuild: false,
   needsUser: true,
+  contrasts: [
+    {
+      criterionId: "gametocyte_enrichment",
+      comparator: "gametocyte",
+      reference: "asexual",
+      direction: "up-regulated",
+      summary: "up-regulated in gametocyte vs asexual",
+    },
+  ],
   structureRender: "(GenesByText INTERSECT GenesByTaxon)",
   spec: {
     goal: "find gametocyte genes",

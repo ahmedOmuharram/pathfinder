@@ -8,10 +8,7 @@ from pydantic_ai import Agent, RunContext
 from pathfinder.ai.agents._model_resolution import (
     resolve_orchestrator_model_entry,
 )
-from pathfinder.ai.models.settings import (
-    build_model_settings,
-    to_pydantic_ai_model_name,
-)
+from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -52,7 +49,7 @@ def build_compactor_agent(
 ) -> Agent[CompactorDeps, CompactionResult]:
     entry = resolve_orchestrator_model_entry(model_id, None)
     agent: Agent[CompactorDeps, CompactionResult] = Agent(
-        to_pydantic_ai_model_name(entry.id),
+        entry.id,
         deps_type=CompactorDeps,
         output_type=CompactionResult,
         instructions=_COMPACTOR_INSTRUCTIONS,

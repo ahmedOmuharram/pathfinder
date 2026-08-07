@@ -25,12 +25,10 @@ docker compose exec -T api .venv/bin/python -m pathfinder.devtools.chat run \
   --capture-wdk \
   --quiet \
   --run-dir /data/pf-runs/obp/turn1 \
-  --model lead=openai:gpt-5-mini \
-  --model scoping=openai:gpt-5-mini \
-  --model discovery=openai:gpt-5-mini \
-  --model planning=openai:gpt-5-mini \
-  --model execution=openai:gpt-5-mini \
-  --model verification=openai:gpt-5-mini
+  --model lead=openai:gpt-5.6-luna \
+  --model frame=openai:gpt-5.6-luna \
+  --model execution=openai:gpt-5.6-luna \
+  --model verification=openai:gpt-5.6-luna
 ```
 
 stdout is a clean compact trace + a final summary line with the run-dir path.
@@ -66,7 +64,7 @@ No DB and no re-run needed to inspect a past run — the files are the interface
 | `--site` | WDK site id (e.g. `vectorbase`, `plasmodb`) — required |
 | `--conversation-id <uuid>` | resume an existing conversation (durable via checkpointer). Omit to mint a new one (printed unless `--quiet`). |
 | `--run-dir <path>` | where artifacts go. Default `/data/pf-runs/<conv>/<turn>`. Re-using a path is safe — each run **resets** the artifact subdirs (`tools/`, `state/`, `errors/`, `wdk/`) and top-level files first, so two runs never mix. Other files in the directory are left alone. |
-| `--model PHASE=ID` | per-phase model override (repeatable). Phases: `lead scoping discovery planning execution verification`. |
+| `--model PHASE=ID` | per-phase model override (repeatable). Phases: `lead frame execution verification`. |
 | `--approve auto\|deny\|prompt` | how to answer mid-turn approval gates (`submit_plan`, etc.). `auto` for unattended; `prompt` reads stdin. |
 | `--capture-wdk` | also record raw WDK httpx round-trips to `wdk/`. |
 | `--via-worker` | run the turn through the **real worker** (defers a `chat_turn:run` job) instead of in-process, so **durable tools actually execute** (enrichment, control tests, optimization) and verification can complete. The worker writes `llm/` to the shared run-dir (captures the durable resumes too — the post-result phase agents); the devtool waits for the turn to settle, then replays the persisted `chat_events` into `events.jsonl`/`tools/`/`diagnosis`. Use this whenever the in-process run can't finish because a durable tool raises (the `AppNotOpen`/stub case). Requires the worker container running. |

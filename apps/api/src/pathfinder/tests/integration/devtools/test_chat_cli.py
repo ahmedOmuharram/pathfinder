@@ -28,14 +28,14 @@ def test_parse_run_args_maps_phase_models_and_run_dir(tmp_path: Path) -> None:
             "--site",
             "plasmodb",
             "--model",
-            "planning=openai:gpt-4.1",
+            "frame=openai:gpt-5.6-luna",
             "--run-dir",
             str(tmp_path / "r"),
         ]
     )
     assert args.prompt == "hello"
     assert args.site == "plasmodb"
-    assert args.phase_models == {"planning": "openai:gpt-4.1"}
+    assert args.phase_models == {"frame": "openai:gpt-5.6-luna"}
     assert args.approve == "prompt"
     assert args.run_dir == tmp_path / "r"
 

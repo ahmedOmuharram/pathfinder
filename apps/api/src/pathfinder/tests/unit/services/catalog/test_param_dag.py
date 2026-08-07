@@ -92,6 +92,15 @@ async def _embed_orthogonal(texts: Sequence[str]) -> list[list[float]]:
     return [[1.0, 0.0]] + [[0.0, 1.0]] * (len(texts) - 1)
 
 
+async def _embed_prefers_female(texts: Sequence[str]) -> list[list[float]]:
+    # Align the query with "female" and leave "male" orthogonal, so the
+    # slot-agnostic semantic matcher picks female for BOTH sample selectors.
+    return [
+        [1.0, 0.0] if t.startswith(SEARCH_QUERY_PREFIX) or "female" in t else [0.0, 1.0]
+        for t in texts
+    ]
+
+
 async def _embed_prefers_group1(texts: Sequence[str]) -> list[list[float]]:
     # Align the query with "Group 1" (cosine 1.0 >= floor) and leave "Group 2"
     # orthogonal, so the slot-agnostic semantic matcher picks g1 for BOTH params.
@@ -407,12 +416,14 @@ async def test_same_vocab_default_not_duplicated_into_degenerate_pair() -> None:
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at, intent=intent, embed=_embed_orthogonal
     )
-    # First selector takes its default; the second would duplicate it (same
-    # vocab) -> degenerate, so it becomes a user choice instead of silently 0.
-    assert isinstance(rp.params["samples_de_ref"], SinglePickValue)
-    assert rp.params["samples_de_ref"].value == "g1"
-    assert "samples_de_comp" not in rp.params
-    assert any(s.param_name == "samples_de_comp" for s in rp.open_slots)
+    # The COMPARATOR takes the default and the reference becomes the question:
+    # WDK measures the comparator against the reference, so when neither value
+    # is grounded in the user's intent the baseline is what must be asked about.
+    # (Which of the pair binds is role-driven now, not list order.)
+    assert isinstance(rp.params["samples_de_comp"], SinglePickValue)
+    assert rp.params["samples_de_comp"].value == "g1"
+    assert "samples_de_ref" not in rp.params
+    assert any(s.param_name == "samples_de_ref" for s in rp.open_slots)
 
 
 @pytest.mark.asyncio
@@ -443,10 +454,16 @@ async def test_same_vocab_intent_match_not_duplicated_into_degenerate_pair() -> 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at, intent=intent, embed=_embed_prefers_group1
     )
-    assert isinstance(rp.params["samples_de_ref_generic_deseq"], SinglePickValue)
-    assert rp.params["samples_de_ref_generic_deseq"].value == "g1"
-    assert "samples_de_comp_generic_deseq" not in rp.params
-    assert any(s.param_name == "samples_de_comp_generic_deseq" for s in rp.open_slots)
+    # The intent names what the user wants enriched, so it belongs in the
+    # COMPARATOR; the reference is then the only remaining group. Nothing needs
+    # to be asked, and the contrast points the right way.
+    comp = rp.params["samples_de_comp_generic_deseq"]
+    ref = rp.params["samples_de_ref_generic_deseq"]
+    assert isinstance(comp, SinglePickValue)
+    assert isinstance(ref, SinglePickValue)
+    assert comp.value == "g1"
+    assert ref.value == "g2"
+    assert rp.open_slots == []
 
 
 @pytest.mark.asyncio
@@ -539,6 +556,171 @@ async def test_distinct_vocab_defaults_both_apply() -> None:
     assert isinstance(regulated_dir, SinglePickValue)
     assert go_slim.value == "No"
     assert regulated_dir.value == "up"
+    assert rp.open_slots == []
+
+
+@pytest.mark.asyncio
+async def test_single_value_vocab_pair_both_bind_instead_of_opening_a_slot() -> None:
+    # A one-option vocabulary cannot form a MEANINGFUL degenerate pair: there is
+    # no second value either selector could take, and WDK ships that value as the
+    # default for both. Blocking the second one strands a required param on a
+    # question whose only answer is the value already rejected. Real case:
+    # VectorBase microarray fold-change searches, where `min_max_avg_ref` and
+    # `min_max_avg_comp` both draw from ["average1"].
+    only = [VocabOption(value="average1", display="average")]
+
+    async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
+        del context
+        return [
+            _p(
+                "min_max_avg_ref",
+                "single-pick-vocabulary",
+                allowed=only,
+                default="average1",
+            ),
+            _p(
+                "min_max_avg_comp",
+                "single-pick-vocabulary",
+                allowed=only,
+                default="average1",
+            ),
+        ]
+
+    intent = ParamIntent(organism_scope=None, text="female versus male")
+    rp = await resolve_params_with_intent(
+        fetch_at=fetch_at, intent=intent, embed=_embed_orthogonal
+    )
+    ref = rp.params["min_max_avg_ref"]
+    comp = rp.params["min_max_avg_comp"]
+    assert isinstance(ref, SinglePickValue)
+    assert isinstance(comp, SinglePickValue)
+    assert ref.value == "average1"
+    assert comp.value == "average1"
+    assert rp.open_slots == []
+    assert rp.unresolved_required == []
+
+
+@pytest.mark.asyncio
+async def test_user_override_outranks_the_degenerate_pair_guard() -> None:
+    # Tier-0 is the highest tier: an explicit override is the user answering an
+    # open slot. The dedup guard must not discard it — otherwise re-answering the
+    # slot re-opens it forever and the turn can never proceed.
+    groups = [
+        VocabOption(value="g1", display="Group 1"),
+        VocabOption(value="g2", display="Group 2"),
+    ]
+
+    async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
+        del context
+        return [
+            _p(
+                "samples_de_ref", "single-pick-vocabulary", allowed=groups, default="g1"
+            ),
+            _p(
+                "samples_de_comp",
+                "single-pick-vocabulary",
+                allowed=groups,
+                default="g1",
+            ),
+        ]
+
+    intent = ParamIntent(organism_scope=None, text="no matching comparison terms")
+    rp = await resolve_params_with_intent(
+        fetch_at=fetch_at,
+        intent=intent,
+        embed=_embed_orthogonal,
+        overrides={"samples_de_comp": "g1"},
+    )
+    comp = rp.params["samples_de_comp"]
+    assert isinstance(comp, SinglePickValue)
+    assert comp.value == "g1"
+    assert rp.open_slots == []
+    assert rp.unresolved_required == []
+
+
+@pytest.mark.asyncio
+async def test_override_claims_its_value_before_siblings_auto_resolve() -> None:
+    # An override is authoritative, so it must claim its vocabulary value BEFORE
+    # an un-overridden sibling auto-resolves -- otherwise the sibling grabs the
+    # same value first and the override (which outranks the dedup guard) lands
+    # on top of it, silently producing a self-comparison that returns 0 rows.
+    # Real case: intent "upregulated in female vs male" matches `female` for the
+    # reference slot, while the caller pins the comparison slot to `female`.
+    groups = [
+        VocabOption(value="male", display="male"),
+        VocabOption(value="female", display="female"),
+    ]
+
+    async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
+        del context
+        return [
+            _p("samples_fc_ref_generic", "multi-pick-vocabulary", allowed=groups),
+            _p("samples_fc_comp_generic", "multi-pick-vocabulary", allowed=groups),
+        ]
+
+    intent = ParamIntent(organism_scope=None, text="upregulated in female adults")
+    rp = await resolve_params_with_intent(
+        fetch_at=fetch_at,
+        intent=intent,
+        embed=_embed_prefers_female,
+        overrides={"samples_fc_comp_generic": "female"},
+    )
+    ref = rp.params["samples_fc_ref_generic"]
+    comp = rp.params["samples_fc_comp_generic"]
+    assert isinstance(ref, MultiPickValue)
+    assert isinstance(comp, MultiPickValue)
+    assert comp.values == ["female"], "the explicit override must be honored"
+    assert ref.values != comp.values, (
+        f"degenerate self-comparison: ref and comp both {ref.values}"
+    )
+    assert rp.open_slots == []
+
+
+@pytest.mark.asyncio
+async def test_override_evicts_a_guess_even_when_deferred_by_a_dependency() -> None:
+    # The real shape on VectorBase: the comparison selector declares
+    # ``vocab_depends_on=[profileset]``, so it is skipped on the first pass while
+    # the reference selector resolves and takes ``female``. Ordering within a
+    # pass cannot fix that -- by the time the override is considered, the guess
+    # is already bound -- so the override must evict it. Without this the pair
+    # is female-vs-female and every downstream step returns zero rows.
+    groups = [
+        VocabOption(value="male", display="male"),
+        VocabOption(value="female", display="female"),
+    ]
+
+    async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
+        comp_allowed = groups if "profileset" in context else [groups[1]]
+        return [
+            _p(
+                "profileset",
+                "single-pick-vocabulary",
+                allowed=[VocabOption(value="ps1", display="Profile Set 1")],
+            ),
+            _p("samples_fc_ref_generic", "multi-pick-vocabulary", allowed=groups),
+            _p(
+                "samples_fc_comp_generic",
+                "multi-pick-vocabulary",
+                allowed=comp_allowed,
+                depends_on=["profileset"],
+            ),
+        ]
+
+    intent = ParamIntent(organism_scope=None, text="upregulated in female adults")
+    rp = await resolve_params_with_intent(
+        fetch_at=fetch_at,
+        intent=intent,
+        embed=_embed_prefers_female,
+        overrides={"samples_fc_comp_generic": "female"},
+    )
+    ref = rp.params["samples_fc_ref_generic"]
+    comp = rp.params["samples_fc_comp_generic"]
+    assert isinstance(ref, MultiPickValue)
+    assert isinstance(comp, MultiPickValue)
+    assert comp.values == ["female"]
+    assert ref.values == ["male"], (
+        f"the guess should have been evicted and re-deduced, got {ref.values}"
+    )
     assert rp.open_slots == []
 
 

@@ -29,6 +29,7 @@ function makeLedger(
       droppedCount: 0,
       readyToBuild: true,
       needsUser: false,
+      contrasts: [],
       spec: null,
     },
     build: {

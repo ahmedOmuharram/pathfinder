@@ -324,19 +324,6 @@ export const VEUPATHDB_SITES: VEuPathDBSite[] = [
 export type ModelProvider = "openai" | "anthropic" | "google" | "ollama" | "mock";
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
 
-export interface PipelinePhaseConfig {
-  modelId: string;
-  reasoningEffort: ReasoningEffort;
-}
-
-export interface PipelineConfig {
-  frame: PipelinePhaseConfig;
-  execution: PipelinePhaseConfig;
-  verification: PipelinePhaseConfig;
-}
-
-export type TierName = "quality" | "balanced" | "fast" | "custom";
-
 export type PipelinePhase = "frame" | "build" | "execution" | "verification";
 
 export type PhaseStatus =
@@ -449,6 +436,19 @@ export interface LedgerSpecPayload {
   readyToBuild: boolean;
 }
 
+/** Which way a differential criterion points. WDK computes fold change as
+ * comparator-vs-reference, so swapping the two inverts the biology while still
+ * returning a full, plausible gene set — a failure with nothing to notice
+ * unless the direction is shown. */
+export interface LedgerContrastPayload {
+  criterionId: string;
+  comparator?: string | null;
+  reference?: string | null;
+  direction?: string | null;
+  /** Stated the way a biologist would: "up-regulated in female vs male". */
+  summary: string;
+}
+
 export interface LedgerFramePayload {
   present: boolean;
   criteriaCount: number;
@@ -458,6 +458,8 @@ export interface LedgerFramePayload {
   readyToBuild: boolean;
   needsUser: boolean;
   spec: LedgerSpecPayload | null;
+  /** One entry per criterion that contrasts two sample groups. */
+  contrasts: LedgerContrastPayload[];
   /** Compact combine-tree string, e.g. "(GenesByText INTERSECT GenesByTaxon)".
    * Absent (exclude_none) until a structure is set. */
   structureRender?: string | null;
