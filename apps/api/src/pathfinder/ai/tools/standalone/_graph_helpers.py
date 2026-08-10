@@ -11,8 +11,8 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     StepOkResponse,
     is_placeholder_name,
 )
-from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.explain import explain_operation
+from pathfinder.domain.strategy.graph_model import StrategyStep, step_status
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.domain.strategy.validation import StepValidation
@@ -26,10 +26,10 @@ from pathfinder.services.strategies.schemas import StepResponse
 
 def derive_strategy_name(
     record_type: str | None,
-    root_step: StrategyStepNode,
+    root_step: StrategyStep,
 ) -> str:
     base = None
-    kind = root_step.infer_kind()
+    kind = root_step.kind.value
     if kind in {"search", "transform"}:
         base = root_step.display_name or root_step.search_name
     elif kind == "combine":
@@ -47,9 +47,9 @@ def derive_strategy_name(
 
 def derive_strategy_description(
     record_type: str | None,
-    root_step: StrategyStepNode,
+    root_step: StrategyStep,
 ) -> str:
-    kind = root_step.infer_kind()
+    kind = root_step.kind.value
     if kind == "search":
         summary = root_step.display_name or root_step.search_name
         verb = "Find"
@@ -77,7 +77,7 @@ def derive_strategy_description(
 
 def build_step_response(
     graph: StrategyGraph | None,
-    step: StrategyStepNode,
+    step: StrategyStep,
     sync_state: SyncStateProtocol | None = None,
 ) -> StepResponse:
     """Build a StepResponse from a StrategyStepNode + graph/sync enrichment."""
@@ -99,20 +99,23 @@ def build_step_response(
 
     return StepResponse(
         id=step.id,
-        kind=step.infer_kind(),
+        kind=step.kind.value,
         display_name=step.display_label,
         search_name=step.search_name,
         record_type=record_type,
         parameters=step.parameters or None,
         operator=step.operator.value if step.operator else None,
         colocation_params=step.colocation_params,
-        primary_input_step_id=step.primary_input.id if step.primary_input else None,
-        secondary_input_step_id=step.secondary_input.id
-        if step.secondary_input
-        else None,
+        primary_input_step_id=step.primary_input_id,
+        secondary_input_step_id=step.secondary_input_id,
         estimated_size=estimated_size,
         wdk_step_id=wdk_step_id,
-        is_built=wdk_step_id is not None,
+        status=step_status(
+            step,
+            wdk_step_id=wdk_step_id,
+            validation=validation,
+            has_open_params=False,
+        ),
         is_filtered=bool(step.filters),
         wdk_push_error=wdk_push_error,
         validation=validation,
@@ -124,7 +127,7 @@ def build_step_response(
 
 def serialize_step(
     graph: StrategyGraph,
-    step: StrategyStepNode,
+    step: StrategyStep,
     sync_state: SyncStateProtocol | None = None,
 ) -> StepResponse:
     """Serialize a step for AI tool responses."""
@@ -159,13 +162,13 @@ def build_graph_snapshot(
         for step in graph.steps.values()
     ]
     edges: list[GraphEdge] = [
-        GraphEdge(source_id=inp.id, target_id=step.id, kind=kind)
+        GraphEdge(source_id=input_id, target_id=step.id, kind=kind)
         for step in graph.steps.values()
-        for kind, inp in [
-            ("primary", step.primary_input),
-            ("secondary", step.secondary_input),
+        for kind, input_id in [
+            ("primary", step.primary_input_id),
+            ("secondary", step.secondary_input_id),
         ]
-        if inp is not None
+        if input_id is not None
     ]
 
     return GraphSnapshotContent(
@@ -228,7 +231,7 @@ def build_context_strategy_ast(
 
 
 def step_ok_response(
-    session: StrategySession, graph: StrategyGraph, step: StrategyStepNode
+    session: StrategySession, graph: StrategyGraph, step: StrategyStep
 ) -> StepOkResponse:
     """Serialize a step as an ``ok=True`` response with a full graph snapshot.
 

@@ -145,7 +145,7 @@ class UserQuestionAnswer(CamelModel):
 
 
 class PipelineState(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     conversation_id: UUID
     user_id: UUID

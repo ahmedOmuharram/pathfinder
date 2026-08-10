@@ -15,9 +15,12 @@ from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
+from pathfinder.integrations.veupathdb.search_context import (
+    get_search_params_under_context,
+)
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
-from pathfinder.platform.errors import ValidationError, WDKError
+from pathfinder.platform.errors import ValidationError
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.wdk import get_strategy_api
 
@@ -43,20 +46,9 @@ async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
         name: str,
         params: Mapping[str, ParamValue],
     ) -> WDKSearchResponse:
-        context = encode_params(dict(params))
-        try:
-            return await api.client.get_search_details_with_params(
-                record_type,
-                name,
-                context=context,
-                expand_params=True,
-            )
-        except WDKError:
-            return await api.client.get_search_details(
-                record_type,
-                name,
-                expand_params=True,
-            )
+        return await get_search_params_under_context(
+            api.client, record_type, name, encode_params(dict(params))
+        )
 
     return _load
 

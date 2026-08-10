@@ -11,8 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from pathfinder.persistence.models import User
 from pathfinder.platform.security import create_user_token
 
-pytestmark = pytest.mark.asyncio
-
 _AST = {
     "recordType": "transcript",
     "root": {

@@ -1,4 +1,5 @@
 from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.operations import DeleteResolution
 from pathfinder.domain.strategy.operations.resolutions import (
     compute_delete_choices,
@@ -11,14 +12,7 @@ from pathfinder.domain.strategy.session import StrategyGraph
 def _graph_from_root(root: StrategyStepNode, name: str = "g") -> StrategyGraph:
     g = StrategyGraph(graph_id="g1", name=name, site_id="plasmodb")
 
-    def visit(n: StrategyStepNode) -> None:
-        g.steps[n.id] = n
-        if n.primary_input is not None:
-            visit(n.primary_input)
-        if n.secondary_input is not None:
-            visit(n.secondary_input)
-
-    visit(root)
+    g.steps.update(flatten_tree(root))
     g.recompute_roots()
     return g
 

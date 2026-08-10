@@ -41,15 +41,19 @@ from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
+from pathfinder.domain.strategy.graph_model import StepKind
 from pathfinder.domain.strategy.operations import (
     DeleteResolution,
     DeleteStepOp,
+    GraphOperation,
     ReplaceSubtreeOp,
     UpdateCombineOperatorOp,
     UpdateStepMetaOp,
     UpdateStepParamsOp,
 )
+from pathfinder.domain.strategy.operations.apply import ApplyError
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
+from pathfinder.domain.strategy.revision import strategy_revision
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import ErrorCode, ValidationError
 from pathfinder.platform.logging import get_logger
@@ -62,7 +66,10 @@ from pathfinder.services.catalog.param_validation import (
 from pathfinder.services.catalog.validation_callbacks import (
     make_validation_callbacks,
 )
-from pathfinder.services.strategies.commit import apply_and_commit
+from pathfinder.services.strategies.commit import (
+    apply_and_commit,
+    apply_operations_and_commit,
+)
 from pathfinder.services.strategies.insert_saved import (
     insert_saved_into_conversation,
 )
@@ -116,8 +123,18 @@ async def build_strategy(
     name: str | None = None,
     description: str | None = None,
     graph_id: str | None = None,
+    base_revision: str | None = None,
 ) -> ToolReturn[JSONObject]:
     """Materialize a complete strategy from a single declarative tree.
+
+    Use this to build a strategy from nothing. To CHANGE a strategy that
+    already exists, use `apply_operations` instead -- this replaces the whole
+    graph, so it costs the entire strategy in tokens and overwrites anything
+    the researcher edited in the meantime.
+
+    Replacing a non-empty strategy requires `base_revision` (the `revision`
+    from `get_strategy`), so a replacement is always something you chose
+    rather than something that happened.
 
     The ENTIRE strategy is passed as a single `root` argument — a recursive
     StrategyStepNode where every combine has its inputs nested inside it.
@@ -152,6 +169,17 @@ async def build_strategy(
             return_value=cast("JSONObject", graph_not_found(graph_id)),
         )
 
+    current = _current_revision(graph)
+    if current and base_revision != current:
+        msg = (
+            f"CONFLICT: this strategy already has {len(graph.steps)} step(s), and "
+            f"build_strategy replaces all of them. If you meant to change it, "
+            f"call apply_operations with base_revision={current!r} and send only "
+            f"the edits. If you really do mean to replace the whole strategy, "
+            f"re-call build_strategy with base_revision={current!r}."
+        )
+        raise ModelRetry(msg)
+
     outcome = await build_strategy_from_spec(
         deps=deps.to_strategy_context(),
         root=root,
@@ -169,6 +197,83 @@ async def build_strategy(
             ),
         )
     return ToolReturn(return_value=payload, metadata=metadata)
+
+
+def _current_revision(graph: StrategyGraph) -> str:
+    return strategy_revision(graph.to_strategy_ast())
+
+
+async def apply_operations(
+    ctx: RunContext[AgentDeps],
+    base_revision: str,
+    operations: list[GraphOperation],
+    graph_id: str | None = None,
+) -> ToolReturn[JSONObject]:
+    """Edit the strategy with a batch of operations, not a whole new tree.
+
+    Prefer this over `build_strategy` for any change to a strategy that
+    already exists: it sends only what changes, so adding one step does not
+    mean restating every existing step's parameters.
+
+    `base_revision` is the `revision` from the most recent `get_strategy`.
+    If the strategy changed since then -- typically because the researcher
+    edited a parameter in the UI -- nothing is applied and you are told the
+    current revision, so you can re-read and decide whether your edit still
+    makes sense. Use `""` for a strategy that does not exist yet.
+
+    Operations apply in order and all land together; if one is rejected the
+    strategy is left exactly as it was.
+    """
+    deps = ctx.deps
+    session = deps.strategy_session
+    graph = get_graph(session, graph_id)
+    if graph is None:
+        return ToolReturn(
+            return_value=cast("JSONObject", graph_not_found(graph_id)),
+        )
+
+    if not operations:
+        msg = (
+            "VALIDATION_ERROR: apply_operations needs at least one operation. "
+            "Pass the edits you want to make, or call get_strategy to look first."
+        )
+        raise ModelRetry(msg)
+
+    current = _current_revision(graph)
+    if base_revision != current:
+        msg = (
+            f"CONFLICT: the strategy changed since you last read it "
+            f"(you passed base_revision={base_revision!r}, current is "
+            f"{current!r}). Nothing was applied. Call get_strategy to see the "
+            f"current state, then re-issue only the edits that still apply -- "
+            f"the researcher may have already made this change themselves."
+        )
+        raise ModelRetry(msg)
+
+    try:
+        result = await apply_operations_and_commit(
+            deps=deps.to_strategy_context(),
+            ops=operations,
+        )
+    except ApplyError as exc:
+        # The batch was rolled back, so the model can fix the bad operation
+        # and re-send the whole list against the same revision.
+        msg = (
+            f"REJECTED: {exc}. Nothing was applied and the strategy is "
+            f"unchanged, so base_revision={current!r} is still valid. Fix the "
+            f"offending operation and send the batch again."
+        )
+        raise ModelRetry(msg) from exc
+    payload: JSONObject = {
+        "applied": len(operations),
+        "description": result.description,
+        "droppedStepIds": cast("JSONArray", list(result.dropped_step_ids)),
+        "revision": _current_revision(graph),
+    }
+    return ToolReturn(
+        return_value=payload,
+        metadata=[graph_snapshot_chunk(session, graph)],
+    )
 
 
 async def update_leaf_params(
@@ -193,11 +298,11 @@ async def update_leaf_params(
         return resolved
     graph, step = resolved
 
-    if step.primary_input is not None or step.secondary_input is not None:
+    if step.kind is not StepKind.SEARCH:
         msg = (
             f"VALIDATION_ERROR: update_leaf_params only applies to leaf "
             f"steps; step {step_id!r} is a "
-            f"{step.infer_kind()}. Use update_combine_operator (combine) "
+            f"{step.kind.value}. Use update_combine_operator (combine) "
             f"or replace_subtree to change a non-leaf step."
         )
         raise ModelRetry(msg)
@@ -206,7 +311,7 @@ async def update_leaf_params(
     merged = {**step.parameters, **parameters}
     try:
         canonical = await validate_parameters(
-            SearchContext(deps.site_id, record_type, step.search_name),
+            SearchContext(deps.site_id, record_type, step.search_name or ""),
             parameters=merged,
             callbacks=_make_callbacks(deps.site_id),
         )
@@ -243,10 +348,10 @@ async def update_combine_operator(
         return resolved
     graph, step = resolved
 
-    if step.primary_input is None or step.secondary_input is None:
+    if step.kind is not StepKind.COMBINE:
         msg = (
             f"VALIDATION_ERROR: update_combine_operator only applies to "
-            f"combine steps; step {step_id!r} is a {step.infer_kind()}."
+            f"combine steps; step {step_id!r} is a {step.kind.value}."
         )
         raise ModelRetry(msg)
 

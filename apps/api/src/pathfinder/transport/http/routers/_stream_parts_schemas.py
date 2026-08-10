@@ -32,6 +32,7 @@ from pathfinder.ai.graph.state import ConsultQuestion, UserQuestionAnswer
 from pathfinder.ai.graph.stream_events import (
     ConversationTitlePayload,
     LeadUsagePayload,
+    StrategyRevisionPayload,
     SubAgentCallPayload,
     SubAgentStepPayload,
     TurnStatusPayload,
@@ -71,6 +72,7 @@ class StreamPartsSchemaIndex(CamelModel):
     turn_status: TurnStatusPayload | None = None
     conversation_title: ConversationTitlePayload | None = None
     lead_usage: LeadUsagePayload | None = None
+    strategy_revision: StrategyRevisionPayload | None = None
 
 
 @router.get(

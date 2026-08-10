@@ -14,9 +14,16 @@ export function ValidationBanner({
   snapshot,
   onOpenDetails,
 }: ValidationBannerProps) {
-  if (!snapshot.isInvalid && !snapshot.isFailed) return null;
+  // A WDK rejection is shown even when the lifecycle machine is idle: the
+  // push failed on the server, so nothing local transitions to "invalid".
+  if (!snapshot.isInvalid && !snapshot.isFailed && snapshot.wdkPushError == null) {
+    return null;
+  }
   const message =
-    snapshot.validationErrors?.general?.[0] ?? snapshot.lastError ?? "Validation error";
+    snapshot.wdkPushError ??
+    snapshot.validationErrors?.general?.[0] ??
+    snapshot.lastError ??
+    "Validation error";
 
   return (
     <div className="mt-1 text-center text-xs font-semibold text-destructive">

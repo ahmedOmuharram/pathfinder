@@ -10,8 +10,10 @@ from uuid import uuid4
 import pytest
 from pydantic_ai.exceptions import ModelRetry
 
+from pathfinder.ai.lead.lead_agent import lead_agent
 from pathfinder.ai.tools.standalone import scored_comparison as tool_mod
 from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_scored
+from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
 from pathfinder.services.experiment.scored_comparison import (
     ScoredComparison,
     ScoredVariant,
@@ -91,3 +93,28 @@ async def test_refuses_single_variant(monkeypatch: pytest.MonkeyPatch) -> None:
             [VariantSpec(label="a", search_name="SA", parameters={})],
             control_set_id=str(uuid4()),
         )
+
+
+class TestTheLeadCanReachControlScoring:
+    """Phase 2b is only real if the Lead can actually call it. A tool dropped
+    from the toolset makes the whole capability unreachable while every unit
+    test of the tool itself keeps passing."""
+
+    def _lead_tool_names(self) -> list[str]:
+        return sorted(lead_agent._function_toolset.tools)
+
+    def test_the_scored_comparison_tool_is_registered(self) -> None:
+        assert "compare_variants_scored" in self._lead_tool_names()
+
+    def test_the_control_set_tools_it_depends_on_are_registered(self) -> None:
+        # compare_variants_scored takes a control_set_id, so the Lead needs a
+        # way to build or find one in the same turn.
+        names = self._lead_tool_names()
+        assert "build_control_set" in names
+        assert "list_control_sets" in names
+
+    def test_the_unscored_comparison_points_at_the_scored_one(self) -> None:
+        # The unscored tool admits it cannot pick a winner. Its description is
+        # the only place the model learns that a scored counterpart exists.
+        assert compare_search_variants.__doc__ is not None
+        assert "compare_variants_scored" in compare_search_variants.__doc__

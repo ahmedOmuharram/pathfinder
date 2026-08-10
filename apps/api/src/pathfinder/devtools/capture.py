@@ -139,6 +139,7 @@ class RunCapture:
         self._tokens = 0
         self._cost = 0.0
         self._has_error = False
+        self._reply_parts: list[str] = []
         self._terminal_error: str | None = None
         self._fail_counts: dict[str, int] = {}
         self._looped_tools: set[str] = set()
@@ -166,6 +167,7 @@ class RunCapture:
             "tool-approval-request": self._on_approval,
             "data-background-task-started": self._on_durable_task,
             "error": self._on_error,
+            "text-delta": self._on_text,
         }.get(env.type)
         if env.type == "start":
             self._pending = None
@@ -258,6 +260,19 @@ class RunCapture:
         self._has_error = True
         self._terminal_error = env.error_text
 
+    def _on_text(self, env: Chunk) -> None:
+        if env.delta:
+            self._reply_parts.append(env.delta)
+
+    def assistant_text(self) -> str:
+        """The reply the user actually saw, reassembled from text deltas.
+
+        The ``silent_*`` detectors read it: an issue the Lead explained in
+        prose is not silent, and the ledger's structured fields cannot show
+        that.
+        """
+        return "".join(self._reply_parts)
+
     def _render(self, env: Chunk) -> str | None:
         if env.type == "data-sub-agent-call":
             d = sub_agent_call_data(env.data)
@@ -348,7 +363,12 @@ class RunCapture:
         )
 
     def anomalies(self) -> list[Anomaly]:
-        return diagnose(self.tool_calls(), self._ledger_by_phase, self.summary())
+        return diagnose(
+            self.tool_calls(),
+            self._ledger_by_phase,
+            self.summary(),
+            self.assistant_text(),
+        )
 
     def summary(self) -> RunSummary:
         calls = self.tool_calls()
@@ -381,6 +401,9 @@ class RunCapture:
             out.append(f"- [{call.phase}] {call.tool} → {call.status}")
             if call.result:
                 out.append(f"    {_clip(call.result)}")
+        reply = self.assistant_text()
+        if reply:
+            out += ["", "## Reply", "", reply]
         return "\n".join(out) + "\n"
 
     def flush(self) -> Path:

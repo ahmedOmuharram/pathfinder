@@ -13,21 +13,27 @@ from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import (
     COMBINE_SEARCH_NAME,
-    StrategyStepNode,
-    walk_step_tree,
 )
-from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
+from pathfinder.domain.strategy.graph_model import (
+    StepKind,
+    StepStatus,
+    StrategyStep,
+    step_status,
+    wdk_search_name,
+)
+from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
     PatchStepSpec,
     WDKSearchConfig,
 )
-from pathfinder.platform.errors import AppError
+from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.param_validation import (
     ValidationCallbacks,
@@ -67,7 +73,7 @@ logger = get_logger(__name__)
 async def push_step_to_wdk(
     *,
     sync_state: WDKSyncState,
-    step: StrategyStepNode,
+    step: StrategyStep,
     site_id: str,
     record_type: str,
     search_name: str,
@@ -88,8 +94,8 @@ async def push_step_to_wdk(
     str_params: dict[str, str] = encode_params(parameters)
     try:
         api = get_strategy_api(site_id)
-        is_binary = step.primary_input is not None and step.secondary_input is not None
-        is_transform = step.primary_input is not None and not is_binary
+        is_binary = step.kind is StepKind.COMBINE
+        is_transform = step.kind is StepKind.TRANSFORM
 
         if is_binary:
             wdk_step_id = await _push_combine_step(
@@ -128,7 +134,7 @@ async def _push_leaf_step(
     api: StrategyAPI,
     search_name: str,
     str_params: dict[str, str],
-    step: StrategyStepNode,
+    step: StrategyStep,
     record_type: str,
 ) -> int:
     """Push a leaf step to WDK. Returns the WDK step ID."""
@@ -146,7 +152,7 @@ async def _push_leaf_step(
 async def _push_combine_step(
     api: StrategyAPI,
     sync_state: WDKSyncState,
-    step: StrategyStepNode,
+    step: StrategyStep,
     record_type: str,
     parsed_op: CombineOp | None,
 ) -> int | None:
@@ -155,13 +161,13 @@ async def _push_combine_step(
     Returns the WDK step ID or None if inputs are missing.
     """
     primary_wdk_id = (
-        sync_state.wdk_step_ids.get(step.primary_input.id)
-        if step.primary_input
+        sync_state.wdk_step_ids.get(step.primary_input_id)
+        if step.primary_input_id
         else None
     )
     secondary_wdk_id = (
-        sync_state.wdk_step_ids.get(step.secondary_input.id)
-        if step.secondary_input
+        sync_state.wdk_step_ids.get(step.secondary_input_id)
+        if step.secondary_input_id
         else None
     )
     if primary_wdk_id is None or secondary_wdk_id is None or parsed_op is None:
@@ -200,14 +206,14 @@ async def _push_combine_step(
         return wdk_result.id
 
     wdk_result = await api.create_combined_step(
-        primary_wdk_id,
-        secondary_wdk_id,
-        get_wdk_operator(parsed_op),
+        CombinedStepSpec(
+            primary_step_id=primary_wdk_id,
+            secondary_step_id=secondary_wdk_id,
+            boolean_operator=parsed_op,
+            custom_name=step.display_name or None,
+            wdk_weight=step.wdk_weight,
+        ),
         record_type=record_type,
-        spec_overrides=PatchStepSpec(custom_name=step.display_name)
-        if step.display_name
-        else None,
-        wdk_weight=step.wdk_weight,
     )
     if step.expanded_strategy_id is not None:
         # WDK's create-combined-step endpoint doesn't accept expanded; PATCH
@@ -226,7 +232,7 @@ async def _push_combine_step(
 async def _push_transform_step(
     api: StrategyAPI,
     sync_state: WDKSyncState,
-    step: StrategyStepNode,
+    step: StrategyStep,
     search_name: str,
     str_params: dict[str, str],
     record_type: str,
@@ -236,8 +242,8 @@ async def _push_transform_step(
     Returns the WDK step ID or None if input is missing.
     """
     input_wdk_id = (
-        sync_state.wdk_step_ids.get(step.primary_input.id)
-        if step.primary_input
+        sync_state.wdk_step_ids.get(step.primary_input_id)
+        if step.primary_input_id
         else None
     )
     if input_wdk_id is None:
@@ -262,12 +268,12 @@ async def _push_transform_step(
 async def _update_existing_step(
     api: StrategyAPI,
     sync_state: WDKSyncState,
-    step: StrategyStepNode,
+    step: StrategyStep,
     record_type: str,
 ) -> None:
     """Update an existing WDK step's search-config (parameters + weight)."""
     wdk_step_id = sync_state.wdk_step_ids[step.id]
-    kind = step.infer_kind()
+    kind = step.kind.value
 
     # Skip combine steps — their params are structural (empty strings)
     # and don't change.
@@ -279,14 +285,14 @@ async def _update_existing_step(
         step_id=wdk_step_id,
         search_config=WDKSearchConfig(parameters=str_params),
         record_type=record_type,
-        search_name=step.search_name,
+        search_name=wdk_search_name(step),
     )
 
 
 async def _patch_combine_metadata(
     api: StrategyAPI,
     sync_state: WDKSyncState,
-    step: StrategyStepNode,
+    step: StrategyStep,
 ) -> None:
     # WDK combine operators are creation-time params; only display name /
     # weight are PATCHable on a combine step.
@@ -302,12 +308,12 @@ async def _patch_combine_metadata(
 async def _execute_patch(
     sync_state: WDKSyncState,
     site_id: str,
-    step: StrategyStepNode,
+    step: StrategyStep,
     record_type: str,
 ) -> str | None:
     api = get_strategy_api(site_id)
     try:
-        if step.infer_kind() == "combine":
+        if step.kind.value == "combine":
             await _patch_combine_metadata(api, sync_state, step)
         else:
             await _update_existing_step(api, sync_state, step, record_type)
@@ -321,7 +327,7 @@ async def _execute_patch(
 async def _execute_create(
     sync_state: WDKSyncState,
     site_id: str,
-    step: StrategyStepNode,
+    step: StrategyStep,
     record_type: str,
 ) -> str | None:
     wdk_step_id, _validation, push_error = await push_step_to_wdk(
@@ -329,7 +335,7 @@ async def _execute_create(
         step=step,
         site_id=site_id,
         record_type=record_type,
-        search_name=step.search_name,
+        search_name=wdk_search_name(step),
         parameters=step.parameters,
     )
     if wdk_step_id is None:
@@ -342,20 +348,79 @@ async def _execute_create(
 async def _execute_recreate(
     sync_state: WDKSyncState,
     site_id: str,
-    step: StrategyStepNode,
+    step: StrategyStep,
     record_type: str,
 ) -> str | None:
     sync_state.wdk_step_ids.pop(step.id, None)
     return await _execute_create(sync_state, site_id, step, record_type)
 
 
+def defer_draft_steps(
+    plan: list[StepPushPlan],
+    *,
+    steps_by_id: dict[str, StrategyStep],
+    open_param_step_ids: set[str],
+    existing_wdk_ids: dict[str, int],
+) -> list[StepPushPlan]:
+    """Skip the steps that are not ready, by asking what state they are in.
+
+    This used to infer "draft" from "validation failed AND it was never
+    pushed", which missed the structural case entirely: a combine that lost an
+    input has every parameter it needs and is still not computable. Asking
+    ``step_status`` covers both, and covers them the same way the UI does.
+
+    A step already in WDK is never demoted here - ``_validate_plan_params``
+    re-raises for those - because turning a live step into a draft would
+    silently drop it from the built strategy.
+    """
+    deferred: list[StepPushPlan] = []
+    for entry in plan:
+        step = steps_by_id.get(entry.step_id)
+        already_live = entry.step_id in existing_wdk_ids
+        status = (
+            step_status(
+                step,
+                wdk_step_id=existing_wdk_ids.get(entry.step_id),
+                validation=None,
+                has_open_params=entry.step_id in open_param_step_ids,
+            )
+            if step is not None
+            else StepStatus.BUILT
+        )
+        is_draft_to_defer = (
+            step is not None
+            and not status.is_pushable
+            and not already_live
+            and not isinstance(entry.action, SkipAction)
+        )
+        if is_draft_to_defer:
+            deferred.append(
+                StepPushPlan(
+                    step_id=entry.step_id,
+                    action=SkipAction(),
+                    reason="draft: not ready to build yet",
+                )
+            )
+            continue
+        deferred.append(entry)
+    return deferred
+
+
 async def _validate_plan_params(
     plan: list[StepPushPlan],
-    steps_by_id: dict[str, StrategyStepNode],
+    steps_by_id: dict[str, StrategyStep],
     site_id: str,
     record_type: str,
-) -> None:
+    existing_wdk_ids: dict[str, int],
+) -> set[str]:
+    """Canonicalize each pushable step's params in place.
+
+    Returns the ids of never-pushed steps whose parameters are not complete
+    enough for WDK. A step that is already in WDK re-raises instead: it is
+    live, and quietly demoting it to a draft would drop it from the strategy.
+    """
     callbacks: ValidationCallbacks = make_validation_callbacks(site_id)
+    incomplete: set[str] = set()
     for entry in plan:
         step = steps_by_id.get(entry.step_id)
         if step is None or isinstance(entry.action, SkipAction):
@@ -363,13 +428,19 @@ async def _validate_plan_params(
         search_name = step.search_name or COMBINE_SEARCH_NAME
         if search_name == COMBINE_SEARCH_NAME:
             continue
-        step.parameters = await validate_parameters(
-            SearchContext(
-                site_id=site_id, record_type=record_type, search_name=search_name
-            ),
-            parameters=dict(step.parameters),
-            callbacks=callbacks,
-        )
+        try:
+            step.parameters = await validate_parameters(
+                SearchContext(
+                    site_id=site_id, record_type=record_type, search_name=search_name
+                ),
+                parameters=dict(step.parameters),
+                callbacks=callbacks,
+            )
+        except ValidationError:
+            if entry.step_id in existing_wdk_ids:
+                raise
+            incomplete.add(entry.step_id)
+    return incomplete
 
 
 async def push_steps_with_plan(
@@ -391,12 +462,20 @@ async def push_steps_with_plan(
     if root_step is None:
         return PushOutcome(succeeded=[], failed=[])
 
-    steps_by_id: dict[str, StrategyStepNode] = {
-        s.id: s for s in walk_step_tree(root_step)
-    }
+    # Validation reads each step's own params, so the keyed map is what it
+    # wants; the nested projection is only needed on the way to WDK.
+    steps_by_id: dict[str, StrategyStep] = dict(graph.steps)
     record_type = graph.record_type or "transcript"
 
-    await _validate_plan_params(plan, steps_by_id, site_id, record_type)
+    incomplete = await _validate_plan_params(
+        plan, steps_by_id, site_id, record_type, sync_state.wdk_step_ids
+    )
+    plan = defer_draft_steps(
+        plan,
+        steps_by_id=steps_by_id,
+        open_param_step_ids=incomplete,
+        existing_wdk_ids=sync_state.wdk_step_ids,
+    )
 
     succeeded: list[str] = []
     failed: list[str] = []

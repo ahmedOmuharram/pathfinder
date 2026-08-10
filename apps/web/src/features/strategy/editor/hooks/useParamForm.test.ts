@@ -284,12 +284,12 @@ describe("extractDefaults override", () => {
     expect(result["text_fields"]).toEqual(["product", "gene"]);
   });
 
-  it("encodes a typed number-range as min-max", () => {
+  it("encodes a typed number-range as min:max", () => {
     const result = extractDefaults(
       [specWith({ name: "dnds", type: "number-range", displayType: "" })],
       { dnds: { type: "number-range", min: 0, max: 1.3 } },
     );
-    expect(result["dnds"]).toBe("0-1.3");
+    expect(result["dnds"]).toBe("0:1.3");
   });
 
   it("passes through a typed date value", () => {

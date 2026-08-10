@@ -19,8 +19,6 @@ from pathfinder.ai.tools.standalone import catalog_discovery, catalog_selection
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.services.catalog.param_formatting import ParameterInfo
 
-pytestmark = pytest.mark.asyncio
-
 
 def _ctx(state: AgentToolState) -> Any:
     ctx = MagicMock()

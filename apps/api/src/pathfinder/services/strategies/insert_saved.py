@@ -13,7 +13,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode, generate_step_id
+from pathfinder.domain.strategy.graph_model import (
+    StepKind,
+    StrategyStep,
+    flatten_tree,
+    rebuild_tree,
+)
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -61,29 +67,35 @@ def _build_new_root(
     expanded_strategy_id: int,
     expanded_name: str,
 ) -> tuple[StrategyStepNode, str]:
-    """Wrap ``target_step_id`` in a new combine that takes the saved subtree."""
-    target_node = graph.steps[target_step_id]
-    new_combine = StrategyStepNode(
-        search_name="__combine__",
+    """Wrap ``target_step_id`` in a new combine that takes the saved subtree.
+
+    Splicing is a single slot assignment now that steps reference each other
+    by id. Under the nested model every ancestor had to be rebuilt on the way
+    up, because changing a child meant constructing a new parent to hold it.
+    """
+    graph.steps.update(flatten_tree(cloned_secondary))
+    combine = StrategyStep(
+        id=generate_step_id(),
+        kind=StepKind.COMBINE,
         operator=operator,
-        primary_input=target_node,
-        secondary_input=cloned_secondary,
+        primary_input_id=target_step_id,
+        secondary_input_id=cloned_secondary.id,
         expanded_strategy_id=expanded_strategy_id,
         expanded_name=expanded_name,
     )
+    graph.steps[combine.id] = combine
+
     parent_info = graph.find_parent(target_step_id)
-    if parent_info is None:
-        return new_combine, new_combine.id
-    parent, slot = parent_info
-    field = "primary_input" if slot == "primary" else "secondary_input"
-    current = parent.model_copy(update={field: new_combine})
-    while True:
-        up = graph.find_parent(current.id)
-        if up is None:
-            return current, new_combine.id
-        up_parent, up_slot = up
-        up_field = "primary_input" if up_slot == "primary" else "secondary_input"
-        current = up_parent.model_copy(update={up_field: current})
+    if parent_info is not None:
+        parent, slot = parent_info
+        if slot == "primary":
+            parent.primary_input_id = combine.id
+        else:
+            parent.secondary_input_id = combine.id
+    graph.recompute_roots()
+
+    root_id = graph.primary_root_id() or combine.id
+    return rebuild_tree(root_id, graph.steps), combine.id
 
 
 async def insert_saved_into_conversation(  # noqa: PLR0913

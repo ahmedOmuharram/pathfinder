@@ -43,7 +43,6 @@ export type GraphOperation =
       slot: "primary" | "secondary";
       resolution: DeleteEdgeResolution;
     }
-  | { kind: "replaceSubtree"; stepId: string; subtree: Step[] }
   | {
       kind: "updateStepParams";
       stepId: string;
@@ -80,7 +79,6 @@ export interface OperationChoice<R extends string = string> {
   description: string;
   isDefault: boolean;
   willDelete: string[];
-  willOrphan: string[];
 }
 
 export type ApplyResult =

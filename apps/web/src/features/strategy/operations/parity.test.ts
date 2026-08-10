@@ -38,9 +38,8 @@ function makeStep(s: Case["initial"]["steps"][number]): Step {
     primaryInputStepId: s.primaryInputStepId ?? null,
     secondaryInputStepId: s.secondaryInputStepId ?? null,
     operator: s.kind === "combine" ? "INTERSECT" : null,
-    isBuilt: false,
     isFiltered: false,
-  } as Step;
+  };
 }
 
 function strategy(c: Case["initial"]): Strategy {
@@ -57,7 +56,7 @@ function strategy(c: Case["initial"]): Strategy {
     wdkUrl: null,
     createdAt: "t",
     updatedAt: "t",
-  } as Strategy;
+  };
 }
 
 const cases = (fixture as { cases: Case[] }).cases;

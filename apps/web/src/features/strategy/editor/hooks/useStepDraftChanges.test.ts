@@ -16,7 +16,6 @@ function makeStep(overrides: Partial<Step> = {}): Step {
     searchName: "GenesByTaxon",
     recordType: "transcript",
     parameters: { organism: single("Pf3D7") },
-    isBuilt: false,
     isFiltered: false,
     operator: "",
     colocationParams: null,

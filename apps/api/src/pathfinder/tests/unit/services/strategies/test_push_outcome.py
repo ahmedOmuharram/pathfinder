@@ -7,9 +7,11 @@ import pytest
 
 from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
+from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
     PatchStepSpec,
     WDKIdentifier,
@@ -63,20 +65,18 @@ class CountingStrategyAPI:
 
     async def create_combined_step(
         self,
-        primary_step_id: int,
-        secondary_step_id: int,
-        boolean_operator: str,
+        spec: CombinedStepSpec,
         record_type: str,
-        **kwargs: Any,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
-        del kwargs
+        del user_id
         self.calls.append(
             _CallRecord(
                 "create_combined_step",
                 {
-                    "primary_step_id": primary_step_id,
-                    "secondary_step_id": secondary_step_id,
-                    "boolean_operator": boolean_operator,
+                    "primary_step_id": spec.primary_step_id,
+                    "secondary_step_id": spec.secondary_step_id,
+                    "boolean_operator": spec.boolean_operator.value,
                     "record_type": record_type,
                 },
             )
@@ -145,8 +145,8 @@ class CountingStrategyAPI:
         )
 
 
-async def _noop_validate_plan_params(*_args: object, **_kwargs: object) -> None:
-    return None
+async def _noop_validate_plan_params(*_args: object, **_kwargs: object) -> set[str]:
+    return set()
 
 
 @pytest.fixture
@@ -169,7 +169,7 @@ def _leaf(step_id: str, search: str = "GenesByTaxon") -> StrategyStepNode:
 
 def _populate_graph(graph: StrategyGraph, ast: StrategyAst) -> None:
     for step in walk_step_tree(ast.root):
-        graph.steps[step.id] = step
+        graph.steps.update(flatten_tree(step))
     graph.record_type = ast.record_type
     graph.recompute_roots()
 
@@ -207,7 +207,7 @@ async def test_push_outcome_partial_failure_continues_after_failed_step(
     b = _leaf("B", "SearchB")
     c = _leaf("C", "SearchC")
     graph_a = StrategyGraph("g1", "test", "plasmodb")
-    graph_a.steps = {"A": a}
+    graph_a.steps = flatten_tree(a)
     graph_a.record_type = "transcript"
     graph_a.recompute_roots()
 
@@ -221,7 +221,7 @@ async def test_push_outcome_partial_failure_continues_after_failed_step(
     a_wdk_id = sync_state.wdk_step_ids["A"]
 
     graph_b = StrategyGraph("g1", "test", "plasmodb")
-    graph_b.steps = {"B": b}
+    graph_b.steps = flatten_tree(b)
     graph_b.record_type = "transcript"
     graph_b.recompute_roots()
     plan_b = plan_step_pushes(
@@ -232,7 +232,7 @@ async def test_push_outcome_partial_failure_continues_after_failed_step(
     outcome_b = await push_steps_with_plan(graph_b, sync_state, "plasmodb", plan_b)
 
     graph_c = StrategyGraph("g1", "test", "plasmodb")
-    graph_c.steps = {"C": c}
+    graph_c.steps = flatten_tree(c)
     graph_c.record_type = "transcript"
     graph_c.recompute_roots()
     plan_c = plan_step_pushes(
@@ -266,7 +266,7 @@ async def test_push_outcome_all_failed(counting_api: CountingStrategyAPI) -> Non
 
     for step_id, node in [("A", a), ("B", b), ("C", c)]:
         graph = StrategyGraph("g1", "test", "plasmodb")
-        graph.steps = {step_id: node}
+        graph.steps = flatten_tree(node)
         graph.record_type = "transcript"
         graph.recompute_roots()
         plan = plan_step_pushes(

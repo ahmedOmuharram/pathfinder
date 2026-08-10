@@ -38,6 +38,7 @@ class ConversationUpdate:
     is_saved: bool | None = None
     is_saved_set: bool = False
     strategy_ast: StrategyAst | None = None
+    strategy_ast_set: bool = False
     step_count: int | None = None
     estimated_size: int | None = None
     estimated_size_set: bool = False
@@ -77,6 +78,10 @@ def _collect_chat_values(upd: ConversationUpdate) -> dict[str, Any]:
         values["strategy_ast"] = upd.strategy_ast.model_dump(
             by_alias=True, exclude_none=True, mode="json"
         )
+    elif upd.strategy_ast_set:
+        # Deleting the last step leaves nothing to serialize; the row has to
+        # say so, or the strategy reappears on the next read.
+        values["strategy_ast"] = None
 
     if upd.imported_saved_strategy_ids is not None:
         values["imported_saved_strategy_ids"] = list(upd.imported_saved_strategy_ids)
@@ -346,17 +351,6 @@ class ConversationRepository:
             .values(**values)
         )
         await self.session.flush()
-
-    async def commit_partial(self) -> None:
-        """Commit the underlying session immediately.
-
-        Used by `apply_step_patch` to make partial-success WDK push state
-        durable before raising `PartialPushError`. Without this the
-        request-session middleware would roll back on the raised exception
-        and the next user retry would see no progress (and re-create the
-        already-pushed steps in WDK).
-        """
-        await self.session.commit()
 
     async def dismiss(self, conversation_id: UUID) -> None:
         """Soft-delete: mark a chat as dismissed (hidden from main list)."""

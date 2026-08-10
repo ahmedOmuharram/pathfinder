@@ -31,7 +31,6 @@ export function flattenStrategyStepNode(
     operator: node.operator ?? null,
     primaryInputStepId: primaryInputStepId ?? null,
     secondaryInputStepId: secondaryInputStepId ?? null,
-    isBuilt: false,
     isFiltered: false,
   });
 

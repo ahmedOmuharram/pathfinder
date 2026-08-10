@@ -22,10 +22,12 @@ from pathfinder.ai.tools.standalone.strategy import (
 )
 from pathfinder.domain.parameters.values import MultiPickValue, SinglePickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.operations import DeleteResolution
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
     PatchStepSpec,
     WDKIdentifier,
@@ -80,20 +82,18 @@ class _StubAPI:
 
     async def create_combined_step(
         self,
-        primary_step_id: int,
-        secondary_step_id: int,
-        boolean_operator: str,
+        spec: CombinedStepSpec,
         record_type: str,
-        **kwargs: Any,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
-        del kwargs
+        del user_id
         self.calls.append(
             _Call(
                 "create_combined_step",
                 {
-                    "primary_step_id": primary_step_id,
-                    "secondary_step_id": secondary_step_id,
-                    "boolean_operator": boolean_operator,
+                    "primary_step_id": spec.primary_step_id,
+                    "secondary_step_id": spec.secondary_step_id,
+                    "boolean_operator": spec.boolean_operator.value,
                     "record_type": record_type,
                 },
             ),
@@ -210,8 +210,8 @@ def stub_api(monkeypatch: pytest.MonkeyPatch) -> _StubAPI:
 
     monkeypatch.setattr(strategy_module, "validate_parameters", _noop_validate)
 
-    async def _noop_validate_plan_params(*_args: Any, **_kwargs: Any) -> None:
-        return None
+    async def _noop_validate_plan_params(*_args: Any, **_kwargs: Any) -> set[str]:
+        return set()
 
     monkeypatch.setattr(
         step_wdk_push, "_validate_plan_params", _noop_validate_plan_params
@@ -249,7 +249,7 @@ def _seed(root: StrategyStepNode, wdk_step_ids: dict[str, int]) -> AgentDeps:
     stack = [root]
     while stack:
         node = stack.pop()
-        graph.steps[node.id] = node
+        graph.steps.update(flatten_tree(node))
         if node.primary_input is not None:
             stack.append(node.primary_input)
         if node.secondary_input is not None:
@@ -557,7 +557,7 @@ async def test_insert_saved_strategy_requires_persistent_context(
     session = StrategySession(site_id="plasmodb")
     graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
     graph.record_type = "transcript"
-    graph.steps[a.id] = a
+    graph.steps.update(flatten_tree(a))
     graph.recompute_roots()
     session.graph = graph
     session.sync_state = WDKSyncState(wdk_step_ids={"a": 100})

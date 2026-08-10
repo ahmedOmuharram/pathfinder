@@ -18,6 +18,8 @@ import pytest
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.tools.standalone import catalog_discovery
 from pathfinder.ai.tools.standalone.catalog_discovery import AlreadyReadNotice
+from pathfinder.domain.parameters.values import SinglePickValue
+from pathfinder.domain.strategy.operational_spec import Criterion
 from pathfinder.services.catalog.param_formatting import ParameterNotOnSearch
 
 
@@ -58,6 +60,24 @@ def _patch_resolve_and_client(
         return client
 
     monkeypatch.setattr(catalog_discovery, "get_wdk_client", _get_client)
+
+
+def _patch_context_client(
+    monkeypatch: pytest.MonkeyPatch, param_names: list[str]
+) -> Any:
+    """Client whose context-carrying read is the one under assertion."""
+
+    async def _resolve(*_args: Any, **_kw: Any) -> str:
+        return "transcript"
+
+    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    details = MagicMock()
+    details.search_data.parameters = [_wdk_param(n) for n in param_names]
+    client = MagicMock()
+    client.get_search_details_with_params = AsyncMock(return_value=details)
+    client.get_search_details = AsyncMock(return_value=details)
+    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
+    return client
 
 
 @pytest.mark.asyncio
@@ -214,3 +234,109 @@ async def test_failed_read_is_not_marked_so_retry_works(
         parameter_id="go_term",
     )
     assert fixed is fake_info
+
+
+class TestInheritsBoundParentContext:
+    """A read with no ``context_values`` must still use the parents the spec has
+    already bound, or WDK answers from the search's defaults.
+
+    The DeRisi criterion was bound to ``DeRisi 3D7 Smoothed`` while the read went
+    out with no context, so WDK returned the default profileset's (HB3's) time
+    points -- a genuinely different set of hours. See
+    ``test_resolved_params_for.py`` for the vocabularies.
+    """
+
+    @staticmethod
+    def _ctx_with_bound_profileset() -> Any:
+        ctx = _ctx()
+        ctx.deps.agent_state.frame_set_criterion(
+            Criterion(
+                id="timecourse",
+                text="trophozoite expression",
+                search_name="GenesByMicroarrayDerisi",
+                resolved_params={
+                    "profileset_generic": SinglePickValue(value="DeRisi 3D7 Smoothed")
+                },
+            )
+        )
+        return ctx
+
+    @pytest.mark.asyncio
+    async def test_sends_the_bound_parent_to_wdk(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        client = _patch_context_client(monkeypatch, ["samples_percentile_generic"])
+        monkeypatch.setattr(
+            catalog_discovery, "format_typed_param", lambda *a, **k: MagicMock()
+        )
+
+        await catalog_discovery.get_parameter_options(
+            self._ctx_with_bound_profileset(),
+            search_name="GenesByMicroarrayDerisi",
+            parameter_id="samples_percentile_generic",
+        )
+
+        client.get_search_details_with_params.assert_awaited_once()
+        context = client.get_search_details_with_params.await_args.kwargs["context"]
+        assert context["profileset_generic"] == "DeRisi 3D7 Smoothed"
+
+    @pytest.mark.asyncio
+    async def test_explicit_context_overrides_the_bound_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Deliberately looking at another profileset is legitimate exploration.
+        client = _patch_context_client(monkeypatch, ["samples_percentile_generic"])
+        monkeypatch.setattr(
+            catalog_discovery, "format_typed_param", lambda *a, **k: MagicMock()
+        )
+
+        await catalog_discovery.get_parameter_options(
+            self._ctx_with_bound_profileset(),
+            search_name="GenesByMicroarrayDerisi",
+            parameter_id="samples_percentile_generic",
+            context_values={"profileset_generic": "DeRisi Dd2 Smoothed"},
+        )
+
+        context = client.get_search_details_with_params.await_args.kwargs["context"]
+        assert context["profileset_generic"] == "DeRisi Dd2 Smoothed"
+
+    @pytest.mark.asyncio
+    async def test_unbound_search_still_reads_without_context(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_resolve_and_client(
+            monkeypatch, record_type="transcript", param_names=["go_term"]
+        )
+        monkeypatch.setattr(
+            catalog_discovery, "format_typed_param", lambda *a, **k: MagicMock()
+        )
+
+        result = await catalog_discovery.get_parameter_options(
+            _ctx(), search_name="GenesByGoTerm", parameter_id="go_term"
+        )
+
+        assert not isinstance(result, ParameterNotOnSearch)
+
+    @pytest.mark.asyncio
+    async def test_inherited_context_reaches_the_formatter(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The note must be able to name the context the list came from.
+        _patch_context_client(monkeypatch, ["samples_percentile_generic"])
+        seen: dict[str, Any] = {}
+
+        def _format(*_a: Any, **kw: Any) -> Any:
+            seen.update(kw)
+            return MagicMock()
+
+        monkeypatch.setattr(catalog_discovery, "format_typed_param", _format)
+
+        await catalog_discovery.get_parameter_options(
+            self._ctx_with_bound_profileset(),
+            search_name="GenesByMicroarrayDerisi",
+            parameter_id="samples_percentile_generic",
+        )
+
+        assert seen["applied_context"] == {
+            "profileset_generic": SinglePickValue(value="DeRisi 3D7 Smoothed")
+        }

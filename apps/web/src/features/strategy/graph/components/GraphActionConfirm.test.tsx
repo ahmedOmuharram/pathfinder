@@ -13,7 +13,6 @@ function makeChoices(): OperationChoice<"a" | "b" | "c">[] {
       description: "first",
       isDefault: true,
       willDelete: ["x"],
-      willOrphan: [],
     },
     {
       resolution: "b",
@@ -21,7 +20,6 @@ function makeChoices(): OperationChoice<"a" | "b" | "c">[] {
       description: "second",
       isDefault: false,
       willDelete: ["x", "y"],
-      willOrphan: ["z"],
     },
     {
       resolution: "c",
@@ -29,13 +27,12 @@ function makeChoices(): OperationChoice<"a" | "b" | "c">[] {
       description: "third",
       isDefault: false,
       willDelete: [],
-      willOrphan: [],
     },
   ];
 }
 
 describe("GraphActionConfirm", () => {
-  it("renders all choices and surfaces will-delete / will-orphan counts", () => {
+  it("renders all choices and surfaces how many steps each removes", () => {
     render(
       <GraphActionConfirm
         open
@@ -47,8 +44,9 @@ describe("GraphActionConfirm", () => {
     );
     expect(screen.getByText("Choice A")).toBeTruthy();
     expect(screen.getByText("Choice B")).toBeTruthy();
-    expect(screen.getByText(/Will delete 1 · Will orphan 0/)).toBeTruthy();
-    expect(screen.getByText(/Will delete 2 · Will orphan 1/)).toBeTruthy();
+    expect(screen.getByText(/Will delete 1/)).toBeTruthy();
+    expect(screen.getByText(/Will delete 2/)).toBeTruthy();
+    expect(screen.getByText(/Will delete 0/)).toBeTruthy();
   });
 
   it("preselects the default choice", () => {

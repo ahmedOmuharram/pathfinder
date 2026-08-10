@@ -56,6 +56,7 @@ import { humanizeToolName } from "@/lib/utils/toolNames";
 import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
 import { DataPartRenderer } from "./DataPartRenderer";
 import { ModelBadge } from "./ModelBadge";
+import { SupersededBadge } from "./SupersededBadge";
 import { ConsultCarousel } from "./parts/ConsultCarousel";
 import { StoppedNotice } from "./StoppedNotice";
 import { dataPartComponents } from "./contentComponents";
@@ -281,6 +282,7 @@ export function AssistantMessage() {
       <Message from="assistant">
         <MessageContent>
           <ModelBadge />
+          <SupersededBadge />
           <MessagePrimitive.Content components={contentComponents} />
           <ConsultCarousel />
           <AssistantThinkingPlaceholder />

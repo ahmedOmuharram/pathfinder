@@ -16,6 +16,10 @@ from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     walk_step_tree,
 )
+from pathfinder.domain.strategy.graph_model import (
+    pushable_root_id,
+    rebuild_tree,
+)
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.validate import validate_strategy
 from pathfinder.domain.strategy.validation import StepValidation
@@ -32,7 +36,7 @@ from pathfinder.services.catalog.searches import (
     make_record_type_resolver,
     resolve_record_type_from_steps,
 )
-from pathfinder.services.strategies.build import resolve_root_step
+from pathfinder.services.strategies.build import RootResolutionError, resolve_root_step
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
@@ -355,8 +359,17 @@ async def sync_strategy(
     :raises StrategyCompilationError: If steps lack WDK IDs or validation fails.
     :raises AppError: On WDK API failures.
     """
-    # 1. Resolve root step from graph.
-    root_step = resolve_root_step(graph, None)
+    # 1. Resolve the root and project it to the nested shape WDK expects.
+    #    The working graph is keyed by id; the tree exists only for this call.
+    root = resolve_root_step(graph, None)
+    # A combine that lost an input is kept on the canvas but cannot be
+    # computed, so WDK is given the surviving branch instead of a step it
+    # would reject.
+    pushable_id = pushable_root_id(root.id, graph.steps)
+    if pushable_id is None:
+        msg = "No computable step in graph. Finish wiring the strategy first."
+        raise RootResolutionError(msg)
+    root_step = rebuild_tree(pushable_id, graph.steps)
 
     # 2. Auto-resolve record type from leaf searches if not set.
     if not graph.record_type:

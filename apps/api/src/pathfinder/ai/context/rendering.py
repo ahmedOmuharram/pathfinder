@@ -7,7 +7,7 @@ graph state pinning.
 
 from pathfinder.ai.context.extractors import extract_tool_summary
 from pathfinder.ai.context.models import ToolCallRecord, TurnSummary
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import StrategyStep
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.types import SyncStateProtocol
 
@@ -105,19 +105,19 @@ _COMBINE_SEARCH_NAME = "__combine__"
 _MAX_PARAM_VAL_LEN = 40
 
 
-def _render_step_header(step_id: str, step: StrategyStepNode) -> list[str]:
+def _render_step_header(step_id: str, step: StrategyStep) -> list[str]:
     """Render the header parts for a single step."""
-    kind = step.infer_kind()
+    kind = step.kind.value
     parts: list[str] = [f"{step_id}:"]
 
     if kind == "combine":
         op = step.operator or "?"
-        primary = step.primary_input.id if step.primary_input else "?"
-        secondary = step.secondary_input.id if step.secondary_input else "?"
+        primary = step.primary_input_id or "?"
+        secondary = step.secondary_input_id or "?"
         parts.append(f"{op}({primary}, {secondary})")
     elif kind == "transform":
         parts.append(f"{step.search_name} [transform]")
-        input_id = step.primary_input.id if step.primary_input else "?"
+        input_id = step.primary_input_id or "?"
         parts.append(f"input={input_id}")
     else:
         parts.append(f"{step.search_name} [leaf]")
@@ -160,7 +160,7 @@ def _render_step_suffix(
     return ""
 
 
-def _render_step_params(step: StrategyStepNode) -> str:
+def _render_step_params(step: StrategyStep) -> str:
     """Render parameters as a compact indented line."""
     if not step.parameters:
         return ""
@@ -195,7 +195,7 @@ def render_graph_state(
         if suffix:
             parts.append(suffix)
         line = " ".join(parts)
-        if step.infer_kind() != "combine":
+        if step.kind.value != "combine":
             line += _render_step_params(step)
         lines.append(line)
 

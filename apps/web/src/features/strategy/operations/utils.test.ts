@@ -19,11 +19,10 @@ const step = (
     id,
     kind,
     displayName: id,
-    primaryInputStepId: primary,
-    secondaryInputStepId: secondary,
-    isBuilt: false,
+    primaryInputStepId: primary ?? null,
+    secondaryInputStepId: secondary ?? null,
     isFiltered: false,
-  }) as Step;
+  });
 
 describe("buildIndex", () => {
   test("indexes by id and counts incoming refs", () => {

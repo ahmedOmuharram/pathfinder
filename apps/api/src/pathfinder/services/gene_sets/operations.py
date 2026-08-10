@@ -37,6 +37,23 @@ from pathfinder.services.wdk.step_results import StepResultsService
 logger = get_logger(__name__)
 
 
+class EmptyGeneSetError(ValidationError):
+    """Raised when a gene set resolves to zero genes.
+
+    A distinct type so the auto-import path can skip the conversation without
+    latching it, leaving a later re-build free to import the real result.
+    """
+
+    def __init__(self, name: str) -> None:
+        super().__init__(
+            title="Empty gene set",
+            detail=(
+                f"'{name}' resolved to 0 genes, so there is nothing to save. "
+                "Widen the search (or re-run the strategy) and try again."
+            ),
+        )
+
+
 def _dedup_ordered(gene_ids: list[str]) -> list[str]:
     """Gene IDs with duplicates removed, preserving first-seen order."""
     seen: set[str] = set()
@@ -93,10 +110,17 @@ class GeneSetService:
         source: GeneSetSource,
         wdk: GeneSetWdkContext | None = None,
     ) -> GeneSet:
-        """Create a gene set, auto-resolving from WDK if needed."""
+        """Create a gene set, auto-resolving from WDK if needed.
+
+        :raises EmptyGeneSetError: when nothing resolved. A 0-gene set is inert
+            (no enrichment input, empty exports) but reads as a real result in
+            the workbench list, so it is refused rather than saved.
+        """
         ctx = wdk or GeneSetWdkContext()
         gene_ids, ctx, step_count = await resolve_wdk_context(site_id, gene_ids, ctx)
         unique_gene_ids = _dedup_ordered(gene_ids)
+        if not unique_gene_ids:
+            raise EmptyGeneSetError(name)
 
         gs = GeneSet(
             id=str(uuid4()),
@@ -265,6 +289,15 @@ class GeneSetService:
         if not results and errors:
             msg = "Enrichment analysis failed: " + "; ".join(errors)
             raise InternalError(detail=msg)
+
+        # Keep what was computed. Enrichment is a slow WDK round trip, so
+        # discarding it made reopening the workbench pay for it again - and
+        # made the results look like they had never been run.
+        gs.enrichment_results = results
+        self._store.save(gs)
+        # Durable before returning: the caller is about to show these results,
+        # and a reload must not find the set without them.
+        await self.flush(gs.id)
         return results
 
     # -- Step results access --------------------------------------------------

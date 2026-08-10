@@ -11,6 +11,7 @@ from pydantic_ai import RunContext
 
 from pathfinder.domain.strategy.ops import (
     DEFAULT_COMBINE_OPERATOR,
+    CombineOp,
 )
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -50,7 +51,7 @@ async def refine_with_search(
     ctx: RunContext[WorkbenchDeps],
     search_name: str,
     parameters: dict[str, str],
-    operator: str = DEFAULT_COMBINE_OPERATOR.value,
+    operator: CombineOp = DEFAULT_COMBINE_OPERATOR,
 ) -> JSONObject:
     """Add a new search step and combine it with current experiment results.
 
@@ -92,7 +93,7 @@ async def refine_with_search(
 async def refine_with_gene_ids(
     ctx: RunContext[WorkbenchDeps],
     gene_ids: list[str],
-    operator: str = DEFAULT_COMBINE_OPERATOR.value,
+    operator: CombineOp = DEFAULT_COMBINE_OPERATOR,
 ) -> JSONObject:
     """Combine experiment results with a gene ID list.
 

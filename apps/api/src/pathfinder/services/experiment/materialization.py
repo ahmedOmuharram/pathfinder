@@ -8,13 +8,14 @@ from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import (
     DEFAULT_COMBINE_OPERATOR,
     ColocationParams,
+    CombineOp,
 )
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
-    PatchStepSpec,
     WDKSearchConfig,
     WDKStepTree,
 )
@@ -67,12 +68,8 @@ async def _materialize_step_tree(
     display_name = node.display_name or search_name
 
     if primary_tree is not None and secondary_tree is not None:
-        operator = (
-            node.operator.value
-            if node.operator is not None
-            else DEFAULT_COMBINE_OPERATOR.value
-        )
-        if operator == "COLOCATE":
+        operator = node.operator or DEFAULT_COMBINE_OPERATOR
+        if operator is CombineOp.COLOCATE:
             coloc = node.colocation_params
             if coloc is None:
                 coloc = ColocationParams()
@@ -89,11 +86,13 @@ async def _materialize_step_tree(
             )
         else:
             step = await api.create_combined_step(
-                primary_step_id=primary_tree.step_id,
-                secondary_step_id=secondary_tree.step_id,
-                boolean_operator=operator,
+                CombinedStepSpec(
+                    primary_step_id=primary_tree.step_id,
+                    secondary_step_id=secondary_tree.step_id,
+                    boolean_operator=operator,
+                    custom_name=display_name,
+                ),
                 record_type=record_type,
-                spec_overrides=PatchStepSpec(custom_name=display_name),
             )
         step_id = step.id
         return WDKStepTree(

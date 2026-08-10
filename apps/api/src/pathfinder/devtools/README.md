@@ -37,7 +37,7 @@ them). The summary prints any anomalies inline:
 
 ```
 ─── summary ───  status=ok  tokens=555763  cost=$0.206  toolcalls=43  failures=12  loop=true  anomalies=2
-  ⚑ [critical] loop: create_plan failed 5 times — the agent is stuck retrying.
+  ⚑ [critical] loop: frame_problem failed 5 times — the agent is stuck retrying.
   ⚑ [warning] budget_burn: 555763 tokens ($0.21) — abnormally high.
 run-dir=/data/pf-runs/obp/turn2
 ```
@@ -49,7 +49,7 @@ host (gitignored). So after a run you read the artifacts directly:
 
 ```bash
 jq -r '.[] | "[\(.severity)] \(.kind): \(.message)"' apps/api/.pf-runs/obp/turn2/diagnosis.json
-jq -r '.status, (.errors|map(.kind+":"+(.param//"?")))' apps/api/.pf-runs/obp/turn2/tools/28-create_plan.json
+jq -r '.status, (.errors|map(.kind+":"+(.param//"?")))' apps/api/.pf-runs/obp/turn2/tools/28-frame_problem.json
 ```
 
 No DB and no re-run needed to inspect a past run — the files are the interface.
@@ -65,7 +65,7 @@ No DB and no re-run needed to inspect a past run — the files are the interface
 | `--conversation-id <uuid>` | resume an existing conversation (durable via checkpointer). Omit to mint a new one (printed unless `--quiet`). |
 | `--run-dir <path>` | where artifacts go. Default `/data/pf-runs/<conv>/<turn>`. Re-using a path is safe — each run **resets** the artifact subdirs (`tools/`, `state/`, `errors/`, `wdk/`) and top-level files first, so two runs never mix. Other files in the directory are left alone. |
 | `--model PHASE=ID` | per-phase model override (repeatable). Phases: `lead frame execution verification`. |
-| `--approve auto\|deny\|prompt` | how to answer mid-turn approval gates (`submit_plan`, etc.). `auto` for unattended; `prompt` reads stdin. |
+| `--approve auto\|deny\|prompt` | how to answer mid-turn approval gates (`consult_user`, etc.). `auto` for unattended; `prompt` reads stdin. |
 | `--capture-wdk` | also record raw WDK httpx round-trips to `wdk/`. |
 | `--via-worker` | run the turn through the **real worker** (defers a `chat_turn:run` job) instead of in-process, so **durable tools actually execute** (enrichment, control tests, optimization) and verification can complete. The worker writes `llm/` to the shared run-dir (captures the durable resumes too — the post-result phase agents); the devtool waits for the turn to settle, then replays the persisted `chat_events` into `events.jsonl`/`tools/`/`diagnosis`. Use this whenever the in-process run can't finish because a durable tool raises (the `AppNotOpen`/stub case). Requires the worker container running. |
 | `--capture-llm` | (in-process runs) record the exact LLM I/O per call to `llm/NN-<role>-{request,response}.json` — the full system prompt (`instructions`), the complete typed message history **as the model receives it** (incl. `tool-return` / `retry-prompt` parts — i.e. whether the model actually sees an error/directive), the tool definitions offered, model settings, and the response parts + usage + finish reason. The ground-truth plane for "does the model truly see X". Read with `inspect <dir> --llm [role]`. |
@@ -87,7 +87,7 @@ detects the one pending interaction and writes **`gate.json`** (+ prints it):
 
 | gate `kind` | UI equivalent | how to answer |
 |------|------|------|
-| `approval` | approval card (`submit_plan`, `delete_step`, …) | `respond … --accept` / `--deny [--reason …]` |
+| `approval` | approval card (`consult_user`, `delete_step`, …) | `respond … --accept` / `--deny [--reason …]` |
 | `consult` | question carousel (`consult_user`) | `respond … --answer <qid>=<label>` (repeat; comma-separate for multi) |
 | `approval` w/ `plan_slots` | plan slot form (NEEDS_USER_INPUT) | `respond … --slot <stepId>:<param>=<value>` (repeat) |
 | `durable` | running background task | nothing — `--via-worker` streams progress and continues |
@@ -143,7 +143,7 @@ that raw shell can't do trivially. Run it anywhere the files are reachable
 ... chat inspect <run-dir> --failures
 
 # every attempt of one tool, args diffed across attempts (surfaces oscillation)
-... chat inspect <run-dir> --tool create_plan
+... chat inspect <run-dir> --tool frame_problem
 
 # the diagnosis (anomalies, most severe first)
 ... chat inspect <run-dir> --anomalies
@@ -175,7 +175,7 @@ that raw shell can't do trivially. Run it anywhere the files are reachable
 
 `tools/*.json` is the substrate for surgical debugging: display in stdout is
 clipped, but **disk keeps full args and full results** (e.g. the complete
-`create_plan` payload that failed), with Pydantic/`VALIDATION_ERROR`/"unknown
+`frame_problem` payload that failed), with Pydantic/`VALIDATION_ERROR`/"unknown
 keys" failure strings decoded into a typed `errors[]` list (`kind`, `param`,
 `search_name`).
 
@@ -191,9 +191,12 @@ The engine (`diagnosis.py`) flags PathFinder's recurring failure modes:
 | `loop` | one tool failed ≥5 times (consecutive or alternating error signatures) — the agent is stuck. |
 | `wdk_service_error` | the same search returned a WDK 5xx ≥2 times — the agent retried an unavailable search instead of routing around it. Usually an upstream outage, not a PathFinder bug. |
 | `outage_driven_rejection` | a search was **rejected for a service-outage reason, not a scientific one** — the plan silently drops a data dimension the user asked for while still reporting success. |
-| `silent_zero` | a step returned 0 results (`ledger.build.zeroResultSteps`) — possible silent failure (e.g. missing JSESSIONID, wrong params). |
+| `silent_zero` | a step returned 0 results (`ledger.build.zeroResultSteps`) **and the reply never said so** — possible silent failure (e.g. missing JSESSIONID, wrong params). |
+| `silent_constraint_violation` | a user-explicit constraint was substituted or ungroundable, blocking, **and the reply never named it** — the plan deviated from what the user asked without saying so. |
 | `budget_burn` | the turn consumed an abnormal number of tokens (≥200k). |
 | `no_plan` | planning terminated without producing a plan. |
+
+**The `silent_*` kinds read the reply, not just the ledger.** Their claim is that the turn never surfaced the problem, and a Lead usually surfaces it in prose, which no structured ledger field records. `transcript.md` carries the reply under `## Reply` so you can check the call yourself. A run captured without any reply text counts as silent, so an uncaptured run is never quietly excused.
 
 ---
 

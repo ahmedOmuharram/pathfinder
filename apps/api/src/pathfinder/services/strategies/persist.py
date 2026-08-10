@@ -45,6 +45,9 @@ async def persist_strategy_ast_to_conversation(
     sync_state = deps.strategy_session.sync_state
     agent_ast = graph.to_strategy_ast(sync_state=sync_state)
     if agent_ast is None:
+        # No steps at all. Several roots is a normal mid-edit state and is
+        # carried in ``detached_roots``, not skipped.
+        await _clear_persisted_strategy(deps)
         return
     try:
         async with deps.db_session_factory() as session:
@@ -67,13 +70,50 @@ async def persist_strategy_ast_to_conversation(
                     record_type=merged_ast.record_type or None,
                     wdk_strategy_id=wdk_strategy_id_to_write,
                     wdk_strategy_id_set=sync_result is not None,
-                    step_count=len(walk_step_tree(merged_ast.root)),
+                    step_count=_total_step_count(merged_ast),
                 ),
             )
             await session.commit()
     except (AppError, OSError, RuntimeError) as exc:
         logger.warning(
             "Failed to persist strategy AST to conversation",
+            conversation_id=str(deps.conversation_id),
+            error=str(exc),
+        )
+
+
+def _total_step_count(ast: StrategyAst) -> int:
+    """Every step the researcher can see, pushed or not yet combined."""
+    total = len(walk_step_tree(ast.root))
+    for detached in ast.detached_roots:
+        total += len(walk_step_tree(detached))
+    return total
+
+
+async def _clear_persisted_strategy(deps: StrategyMutationContext) -> None:
+    """Blank the strategy columns after the last step is deleted."""
+    if deps.conversation_id is None or deps.db_session_factory is None:
+        return
+    try:
+        async with deps.db_session_factory() as session:
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+                {"k": f"strategy:{deps.conversation_id}"},
+            )
+            await ConversationRepository(session).update_conversation(
+                deps.conversation_id,
+                ConversationUpdate(
+                    strategy_ast=None,
+                    strategy_ast_set=True,
+                    wdk_strategy_id=None,
+                    wdk_strategy_id_set=True,
+                    step_count=0,
+                ),
+            )
+            await session.commit()
+    except (AppError, OSError, RuntimeError) as exc:
+        logger.warning(
+            "Failed to clear strategy AST on conversation",
             conversation_id=str(deps.conversation_id),
             error=str(exc),
         )

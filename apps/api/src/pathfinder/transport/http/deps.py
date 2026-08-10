@@ -5,7 +5,6 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Query, status
-from pydantic import AfterValidator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.platform.db import get_db_session
@@ -17,22 +16,11 @@ from pathfinder.services.experiment.types import Experiment
 from pathfinder.services.users import ensure_user_exists
 from pathfinder.services.wdk_identity import ensure_wdk_identity
 
-
-def _reject_null_bytes(value: str | None) -> str | None:
-    # PostgreSQL text cannot hold NUL (0x00).
-    if value is not None and "\x00" in value:
-        msg = "must not contain null characters"
-        raise ValueError(msg)
-    return value
-
-
 # Type aliases for dependencies
 DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 
 # Optional ``siteId`` query param shared by list endpoints.
-SiteIdQuery = Annotated[
-    str | None, AfterValidator(_reject_null_bytes), Query(alias="siteId")
-]
+SiteIdQuery = Annotated[str | None, Query(alias="siteId")]
 
 
 async def get_current_user_with_db_row(

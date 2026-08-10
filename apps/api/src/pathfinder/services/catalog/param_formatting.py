@@ -11,7 +11,7 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, TypeAdapter, ValidationError, model_validator
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.parameters.values import ParamKind
+from pathfinder.domain.parameters.values import ParamKind, ParamValue
 from pathfinder.domain.parameters.wdk_vocab import (
     VocabOption,
     WDKTreeBoxVocabNode,
@@ -107,6 +107,10 @@ class ParameterInfo(CamelModel):
     type: str
     required: bool
     is_visible: bool
+    # WDK reports numeric bounds as ``type: "string"`` with ``isNumber: true``.
+    # The free-text guard needs the distinction: a number's initial value is a
+    # default, a text query's is an example.
+    is_number: bool = False
     help: str
     value_format: str
     default_value: str | None = None
@@ -244,8 +248,15 @@ def format_typed_param(
     param: WDKParameter,
     depends_on: dict[str, list[str]],
     controls: dict[str, list[str]],
+    applied_context: dict[str, ParamValue] | None = None,
 ) -> ParameterInfo:
-    """Format a single typed WDK parameter into an AI-consumable info object."""
+    """Format a single typed WDK parameter into an AI-consumable info object.
+
+    ``applied_context`` names the parent values this vocabulary was actually
+    fetched under. Without it the note can only say the values are the default
+    context's, which stops being true once a read inherits bound parents -- and
+    a note that lies about which dataset produced a list is worse than none.
+    """
     name = param.name
     help_text = param.help or ""
     if name == "profile_pattern":
@@ -258,13 +269,25 @@ def format_typed_param(
     if name in depends_on:
         parents = depends_on[name]
         vocab_depends_on = parents
-        note = (
-            f"The allowed values for this param change based on the value of "
-            f"{', '.join(parents)}. The values shown here are for the default "
-            f"context only. Use get_parameter_options(search_name, parameter_id='{name}', "
-            f"context_values={{'{parents[0]}': '<your chosen value>'}}) to see "
-            f"the full vocabulary after setting {parents[0]}."
-        )
+        context = applied_context or {}
+        applied = {p: context[p] for p in parents if p in context}
+        if applied:
+            shown = ", ".join(f"{p}={v.to_wire()}" for p, v in sorted(applied.items()))
+            note = (
+                f"The allowed values for this param change based on the value of "
+                f"{', '.join(parents)}. The values below are the vocabulary under "
+                f"{shown} -- the values already bound for this search. A different "
+                f"parent value yields a DIFFERENT list, so do not conclude a value "
+                f"does not exist without re-reading under the parent you mean."
+            )
+        else:
+            note = (
+                f"The allowed values for this param change based on the value of "
+                f"{', '.join(parents)}. The values shown here are for the default "
+                f"context only. Use get_parameter_options(search_name, parameter_id='{name}', "
+                f"context_values={{'{parents[0]}': '<your chosen value>'}}) to see "
+                f"the full vocabulary after setting {parents[0]}."
+            )
 
     return ParameterInfo(
         name=name,
@@ -275,6 +298,7 @@ def format_typed_param(
         help=help_text,
         value_format=_value_format(param.type),
         default_value=param.initial_display_value,
+        is_number=param.is_number,
         allowed_values=vocab.allowed_values,
         allowed_values_tree=vocab.allowed_values_tree,
         allowed_values_note=vocab.allowed_values_note,
@@ -282,9 +306,11 @@ def format_typed_param(
         vocab_depends_on=vocab_depends_on,
         note=note,
         filter_fields=filter_fields_for(param),
-        vocab_leaves=(
-            flatten_vocab(param.vocabulary) if not vocab.allowed_values else []
-        ),
+        # Always flattened, not only when ``allowed_values`` is empty. That
+        # list is capped at 50 entries, so an accession the user named in a
+        # 2,364-entry typeahead is invisible without this. Excluded from the
+        # model-facing payload, so it costs no tokens.
+        vocab_leaves=flatten_vocab(param.vocabulary),
     )
 
 
@@ -350,6 +376,7 @@ def _format_normalized_one(
         help=spec.help or "",
         value_format=_value_format(spec.param_type),
         default_value=spec.initial_display_value,
+        is_number=spec.is_number,
         allowed_values=vocab.allowed_values,
         allowed_values_tree=vocab.allowed_values_tree,
         allowed_values_note=vocab.allowed_values_note,

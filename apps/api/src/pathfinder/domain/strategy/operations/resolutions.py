@@ -1,4 +1,8 @@
-from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
+from pathfinder.domain.strategy.graph_model import (
+    StepKind,
+    StrategyStep,
+    subtree_ids,
+)
 from pathfinder.domain.strategy.operations.types import (
     DeleteResolution,
     OperationChoice,
@@ -12,12 +16,12 @@ def compute_delete_choices(graph: StrategyGraph, step_id: str) -> list[Operation
         return []
     if len(graph.steps) == 1:
         return _sole_step_choices(step_id)
-    if target.infer_kind() == "transform":
+    if target.kind is StepKind.TRANSFORM:
         return _transform_choices(step_id)
     parent_info = graph.find_parent(step_id)
     if parent_info is None:
         return _root_choices(graph, target)
-    return _child_choices(target, parent_info)
+    return _child_choices(graph, target, parent_info)
 
 
 def _sole_step_choices(step_id: str) -> list[OperationChoice]:
@@ -47,12 +51,13 @@ def _transform_choices(step_id: str) -> list[OperationChoice]:
 
 
 def _root_choices(
-    graph: StrategyGraph, target: StrategyStepNode
+    graph: StrategyGraph, target: StrategyStep
 ) -> list[OperationChoice]:
-    if target.infer_kind() == "combine":
-        secondary = target.secondary_input
+    if target.kind is StepKind.COMBINE:
         secondary_subtree_ids = (
-            [s.id for s in walk_step_tree(secondary)] if secondary else []
+            subtree_ids(target.secondary_input_id, graph.steps)
+            if target.secondary_input_id is not None
+            else []
         )
         return [
             OperationChoice(
@@ -85,12 +90,14 @@ def _root_choices(
 
 
 def _child_choices(
-    target: StrategyStepNode, parent_info: tuple[StrategyStepNode, str]
+    graph: StrategyGraph,
+    target: StrategyStep,
+    parent_info: tuple[StrategyStep, str],
 ) -> list[OperationChoice]:
     parent, _ = parent_info
-    subtree_ids = sorted({s.id for s in walk_step_tree(target)})
-    will_delete = sorted([*subtree_ids, parent.id])
-    if parent.infer_kind() == "combine":
+    branch_ids = sorted(subtree_ids(target.id, graph.steps))
+    will_delete = sorted([*branch_ids, parent.id])
+    if parent.kind is StepKind.COMBINE:
         return [
             OperationChoice(
                 resolution=DeleteResolution.COLLAPSE_COMBINE,

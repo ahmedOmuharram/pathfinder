@@ -16,7 +16,7 @@ const strategy = (steps: Step[]): Strategy =>
     wdkUrl: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
-  }) as Strategy;
+  });
 
 const step = (
   id: string,
@@ -28,11 +28,10 @@ const step = (
     id,
     kind,
     displayName: id,
-    primaryInputStepId: primary,
-    secondaryInputStepId: secondary,
-    isBuilt: false,
+    primaryInputStepId: primary ?? null,
+    secondaryInputStepId: secondary ?? null,
     isFiltered: false,
-  }) as Step;
+  });
 
 describe("applyOperation: addLeaf", () => {
   test("new-root mode appends step", () => {
@@ -217,44 +216,6 @@ describe("applyOperation: deleteStep", () => {
     expect(result.next.steps.map((x) => x.id).sort()).toEqual(["b"]);
   });
 
-  test("orphan-sibling: leaf deleted, combine + sibling remain as orphans", () => {
-    const s = strategy([step("a"), step("b"), step("c", "a", "b", "combine")]);
-    const result = applyOperation(s, {
-      kind: "deleteStep",
-      stepId: "a",
-      resolution: "orphan-sibling",
-    });
-    expect(result.kind).toBe("applied");
-    if (result.kind !== "applied") return;
-    expect(result.next.steps.map((x) => x.id).sort()).toEqual(["b", "c"]);
-    const c = result.next.steps.find((x) => x.id === "c")!;
-    expect(c.primaryInputStepId).toBeNull();
-    expect(c.secondaryInputStepId).toBe("b");
-  });
-
-  test("orphan-sibling on nested case: combine subtree disconnects from grandparent", () => {
-    // R(combine) → primary=C(combine A,B), secondary=D
-    const steps = [
-      step("A"),
-      step("B"),
-      step("D"),
-      step("C", "A", "B", "combine"),
-      step("R", "C", "D", "combine"),
-    ];
-    const result = applyOperation(strategy(steps), {
-      kind: "deleteStep",
-      stepId: "A",
-      resolution: "orphan-sibling",
-    });
-    expect(result.kind).toBe("applied");
-    if (result.kind !== "applied") return;
-    const r = result.next.steps.find((x) => x.id === "R")!;
-    expect(r.primaryInputStepId).toBeNull();
-    const c = result.next.steps.find((x) => x.id === "C")!;
-    expect(c.primaryInputStepId).toBeNull();
-    expect(c.secondaryInputStepId).toBe("B");
-  });
-
   test("promote-primary on root combine: drops combine + secondary subtree", () => {
     const s = strategy([step("a"), step("b"), step("c", "a", "b", "combine")]);
     const result = applyOperation(s, {
@@ -362,34 +323,6 @@ describe("applyOperation: updateStepMeta", () => {
     expect(result.kind).toBe("applied");
     if (result.kind !== "applied") return;
     expect(result.next.steps[0]?.displayName).toBe("renamed");
-  });
-});
-
-describe("applyOperation: replaceSubtree", () => {
-  test("swaps a subtree under its parent", () => {
-    const s = strategy([step("a"), step("b"), step("c", "a", "b", "combine")]);
-    const newSubtree = [step("x"), step("y"), step("z", "x", "y", "combine")];
-    const result = applyOperation(s, {
-      kind: "replaceSubtree",
-      stepId: "a",
-      subtree: newSubtree,
-    });
-    expect(result.kind).toBe("applied");
-    if (result.kind !== "applied") return;
-    const ids = result.next.steps.map((x) => x.id).sort();
-    expect(ids).toEqual(["b", "c", "x", "y", "z"]);
-    const c = result.next.steps.find((x) => x.id === "c")!;
-    expect(c.primaryInputStepId).toBe("z");
-  });
-
-  test("rejects empty subtree", () => {
-    const s = strategy([step("a")]);
-    const result = applyOperation(s, {
-      kind: "replaceSubtree",
-      stepId: "a",
-      subtree: [],
-    });
-    expect(result.kind).toBe("rejected");
   });
 });
 

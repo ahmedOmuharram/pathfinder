@@ -4,6 +4,7 @@ import pytest
 
 from pathfinder.domain.parameters.values import StringValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.operations import (
     AddCombineOp,
     AddLeafOp,
@@ -27,14 +28,7 @@ from pathfinder.domain.strategy.session import StrategyGraph
 def _graph_with(roots: Iterable[StrategyStepNode]) -> StrategyGraph:
     g = StrategyGraph(graph_id="g1", name="g", site_id="plasmodb")
     for root in roots:
-        stack = [root]
-        while stack:
-            node = stack.pop()
-            g.steps[node.id] = node
-            if node.primary_input is not None:
-                stack.append(node.primary_input)
-            if node.secondary_input is not None:
-                stack.append(node.secondary_input)
+        g.steps.update(flatten_tree(root))
     g.recompute_roots()
     return g
 
@@ -82,7 +76,7 @@ class TestApplyAddLeaf:
                 attach=AttachIntoSlot(target_step_id="c", slot="primary"),
             ),
         )
-        assert g.steps["c"].primary_input is new_leaf
+        assert g.steps["c"].primary_input_id == new_leaf.id
 
     def test_rejects_duplicate_id(self) -> None:
         g = _graph_with([_leaf("a")])
@@ -107,10 +101,10 @@ class TestApplyAddCombine:
             ),
         )
         c = g.steps["c"]
-        assert c.primary_input is not None
-        assert c.primary_input.id == "a"
-        assert c.secondary_input is not None
-        assert c.secondary_input.id == "b"
+        assert c.primary_input_id is not None
+        assert c.primary_input_id == "a"
+        assert c.secondary_input_id is not None
+        assert c.secondary_input_id == "b"
         assert g.roots == {"c"}
 
     def test_rejects_same_input(self) -> None:
@@ -143,10 +137,10 @@ class TestApplyAddTransform:
                 mode="before-consumer",
             ),
         )
-        assert g.steps["r"].primary_input is not None
-        assert g.steps["r"].primary_input.id == "t"
-        assert g.steps["t"].primary_input is not None
-        assert g.steps["t"].primary_input.id == "a"
+        assert g.steps["r"].primary_input_id is not None
+        assert g.steps["r"].primary_input_id == "t"
+        assert g.steps["t"].primary_input_id is not None
+        assert g.steps["t"].primary_input_id == "a"
 
     def test_new_root(self) -> None:
         g = _graph_with([_leaf("a")])
@@ -174,8 +168,8 @@ class TestApplyDeleteStep:
             DeleteStepOp(step_id="A", resolution=DeleteResolution.COLLAPSE_COMBINE),
         )
         assert sorted(g.steps.keys()) == ["B", "D", "R"]
-        assert g.steps["R"].primary_input is not None
-        assert g.steps["R"].primary_input.id == "B"
+        assert g.steps["R"].primary_input_id is not None
+        assert g.steps["R"].primary_input_id == "B"
         assert sorted(result.dropped_step_ids) == ["A", "C"]
 
     def test_collapse_combine_root_secondary_leaf(self) -> None:
@@ -230,7 +224,7 @@ class TestApplyDeleteStep:
             DeleteStepOp(step_id="a", resolution=DeleteResolution.DELETE_SUBTREE),
         )
         assert sorted(g.steps.keys()) == ["r"]
-        assert g.steps["r"].primary_input is None
+        assert g.steps["r"].primary_input_id is None
 
     def test_delete_strategy_empties_graph(self) -> None:
         g = _graph_with([_leaf("a")])
@@ -265,8 +259,8 @@ class TestApplyReplaceSubtree:
         )
         assert "a" not in g.steps
         assert "new_a" in g.steps
-        assert g.steps["c"].primary_input is not None
-        assert g.steps["c"].primary_input.id == "new_a"
+        assert g.steps["c"].primary_input_id is not None
+        assert g.steps["c"].primary_input_id == "new_a"
 
 
 class TestApplyUpdateOps:
@@ -351,13 +345,13 @@ class TestApplyDuplicateStep:
         assert "a_dup" in g.steps
         assert "combine_dup" in g.steps
         combine_dup = g.steps["combine_dup"]
-        assert combine_dup.primary_input is not None
-        assert combine_dup.primary_input.id == "a"
-        assert combine_dup.secondary_input is not None
-        assert combine_dup.secondary_input.id == "a_dup"
+        assert combine_dup.primary_input_id is not None
+        assert combine_dup.primary_input_id == "a"
+        assert combine_dup.secondary_input_id is not None
+        assert combine_dup.secondary_input_id == "a_dup"
         # Original parent c now points at the new combine in place of a
-        assert g.steps["c"].primary_input is not None
-        assert g.steps["c"].primary_input.id == "combine_dup"
+        assert g.steps["c"].primary_input_id is not None
+        assert g.steps["c"].primary_input_id == "combine_dup"
 
     def test_rejects_unknown_source(self) -> None:
         g = _graph_with([_leaf("a")])

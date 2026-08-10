@@ -52,7 +52,11 @@ function makeStrategy(steps: Step[]): Strategy {
     rootStepId: steps.at(-1)?.id ?? steps[0]?.id ?? "",
     recordType: "gene",
     steps,
-  } as Strategy;
+    siteId: "plasmodb",
+    isSaved: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
 }
 
 interface CtxOverrides {

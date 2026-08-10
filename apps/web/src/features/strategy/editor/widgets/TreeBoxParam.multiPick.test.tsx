@@ -228,3 +228,156 @@ describe("TreeBoxParam — search filter", () => {
     expect(screen.queryByText("Leaf 3")).toBeNull();
   });
 });
+
+describe("TreeBoxParam — a value stored as a parent term", () => {
+  /**
+   * FRAME binds organism scope as a species-level term, e.g.
+   * `organism: ["Plasmodium falciparum"]`, and the backend expands parent
+   * terms to leaves at the WDK boundary (`_expand_tree_params_to_leaves`,
+   * because WDK silently returns 0 genes for a parent node). The tree only
+   * ever matched leaves, so a correctly-scoped step opened showing
+   * "0 of 62 selected" on a REQUIRED field — and any interaction would have
+   * written the tree's own state over the real scope.
+   */
+
+  it("counts a parent term as its leaves", () => {
+    render(
+      <WidgetTestForm name="test_tree" defaultValue={["branch-a"]}>
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+
+    expect(screen.getByText("2 of 4 selected")).toBeTruthy();
+  });
+
+  it("checks the parent and its leaves", () => {
+    render(
+      <WidgetTestForm name="test_tree" defaultValue={["branch-a"]}>
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+
+    expect(stateOf("Branch A")).toBe("checked");
+    expect(stateOf("Leaf 1")).toBe("checked");
+    expect(stateOf("Leaf 2")).toBe("checked");
+  });
+
+  it("leaves an unrelated branch alone", () => {
+    render(
+      <WidgetTestForm name="test_tree" defaultValue={["branch-a"]}>
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+
+    expect(stateOf("Branch B")).toBe("unchecked");
+    expect(stateOf("Leaf 3")).toBe("unchecked");
+  });
+
+  it("marks the root indeterminate when only one branch is stored", () => {
+    render(
+      <WidgetTestForm name="test_tree" defaultValue={["branch-a"]}>
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+
+    expect(stateOf("Root")).toBe("indeterminate");
+  });
+
+  it("unchecking one leaf of a stored parent keeps the others", async () => {
+    // Editing must start from what the tree SHOWS. Filtering the raw
+    // ["branch-a"] for "leaf-1" would remove nothing and silently keep the
+    // whole branch selected.
+    const user = userEvent.setup();
+    render(
+      <WidgetTestForm name="test_tree" defaultValue={["branch-a"]}>
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+
+    await user.click(screen.getByLabelText("Leaf 1"));
+
+    expect(stateOf("Leaf 1")).toBe("unchecked");
+    expect(stateOf("Leaf 2")).toBe("checked");
+    expect(screen.getByText("1 of 4 selected")).toBeTruthy();
+  });
+
+  it("adding a leaf from another branch keeps the stored branch", async () => {
+    const user = userEvent.setup();
+    render(
+      <WidgetTestForm name="test_tree" defaultValue={["branch-a"]}>
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+
+    await user.click(screen.getByLabelText("Leaf 3"));
+
+    expect(screen.getByText("3 of 4 selected")).toBeTruthy();
+    expect(stateOf("Branch A")).toBe("checked");
+  });
+
+  it("still counts plain leaf values", () => {
+    render(
+      <WidgetTestForm name="test_tree" defaultValue={["leaf-1", "leaf-3"]}>
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+
+    expect(screen.getByText("2 of 4 selected")).toBeTruthy();
+  });
+});

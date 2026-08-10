@@ -15,7 +15,6 @@ const STEP: Step = {
   searchName: "GenesByTaxon",
   recordType: "transcript",
   displayName: "Genes by taxon",
-  isBuilt: false,
   isFiltered: false,
 };
 

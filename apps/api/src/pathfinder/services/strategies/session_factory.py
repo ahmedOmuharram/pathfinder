@@ -2,7 +2,7 @@
 
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
-from pathfinder.domain.strategy.ast import walk_step_tree
+from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph
 from pathfinder.platform.logging import get_logger
@@ -57,8 +57,9 @@ def build_strategy_session(
         try:
             graph.record_type = payload.record_type
             graph.name = payload.name or name
-            all_steps = walk_step_tree(payload.root)
-            graph.steps = {step.id: step for step in all_steps}
+            graph.steps = flatten_tree(payload.root)
+            for detached in payload.detached_roots:
+                graph.steps.update(flatten_tree(detached))
             graph.recompute_roots()
             graph.last_step_id = payload.root.id
             graph.description = payload.description

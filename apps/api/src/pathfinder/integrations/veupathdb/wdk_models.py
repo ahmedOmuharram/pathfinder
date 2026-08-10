@@ -17,6 +17,7 @@ from pydantic import ConfigDict, Discriminator, Field, JsonValue
 from pydantic.alias_generators import to_camel
 
 from pathfinder.domain.parameters.values import ParamValue
+from pathfinder.domain.strategy.ops import BooleanOperator
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.domain.wdk_values import (
     WDKHistogramBin,
@@ -572,6 +573,23 @@ class NewStepSpec(PatchStepSpec):
 
     search_name: str
     search_config: WDKSearchConfig
+
+
+class CombinedStepSpec(PatchStepSpec):
+    """Spec for creating a boolean combine step.
+
+    WDK models a combine as an ordinary step whose search is the record
+    type's ``boolean_question_*`` and whose config carries the operator, so
+    this could in principle be a ``NewStepSpec``. It cannot be: that search
+    name and its three parameter names are resolved per record type at call
+    time, and a caller has no way to know them. The caller supplies what it
+    does know, and ``create_combined_step`` fills the rest.
+    """
+
+    primary_step_id: int
+    secondary_step_id: int
+    boolean_operator: BooleanOperator
+    wdk_weight: int | None = None
 
 
 # Resolve forward reference: WDKSearch.parameters uses WDKParameter

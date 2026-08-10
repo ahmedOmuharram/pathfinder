@@ -2,22 +2,11 @@
 
 import { Input } from "@/components/ui/input";
 import type { ParamWidgetProps } from "./types";
-
-interface RangeParts {
-  min: string;
-  max: string;
-}
-
-function decode(value: string): RangeParts {
-  const idx = value.indexOf(":");
-  if (idx <= 0) return { min: value, max: "" };
-  return { min: value.slice(0, idx), max: value.slice(idx + 1) };
-}
-
-function encode(min: string, max: string): string {
-  if (min === "" && max === "") return "";
-  return `${min}:${max}`;
-}
+import {
+  decodeRange,
+  encodeRange,
+  type RangeParts,
+} from "@/features/strategy/parameters/rangeCodec";
 
 function specMin(spec: ParamWidgetProps["spec"]): string | undefined {
   if (typeof spec.min === "number") return String(spec.min);
@@ -30,14 +19,14 @@ function specMax(spec: ParamWidgetProps["spec"]): string | undefined {
 
 export function DateRangeParam({ spec, name, field }: ParamWidgetProps) {
   const value = typeof field.state.value === "string" ? field.state.value : "";
-  const parts = decode(value);
+  const parts = decodeRange(value);
 
   const errors = field.state.meta.errors;
   const hasError = errors.length > 0;
   const errorMessage = hasError ? String(errors[0]) : null;
 
   const update = (next: RangeParts) => {
-    field.handleChange(encode(next.min, next.max));
+    field.handleChange(encodeRange(next.min, next.max));
   };
 
   return (

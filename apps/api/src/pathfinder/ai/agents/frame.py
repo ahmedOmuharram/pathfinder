@@ -37,33 +37,53 @@ Procedure:
    parameter_id, query="<keyword>")` to list the real allowed values and pass the exact one. If the
    value you need is NOT in the vocabulary, that search CANNOT realize the criterion: choose a
    different search or `drop_criterion` — never guess a value and never invent one.
-3. `set_structure(criterion_ids, operators)` to combine. Each operator is UNION | INTERSECT |
-   MINUS | TRANSFORM. Choose by MEANING:
+3. `set_structure(root)` to combine. `root` is a TREE, and its shape is the science:
+   - `{"kind": "leaf", "criterionId": "<id>"}` — one bound criterion.
+   - `{"kind": "combine", "operator": "UNION" | "INTERSECT" | "MINUS",
+     "inputs": [<left>, <right>]}` — combine two subtrees.
+   - `{"kind": "transform", "criterionId": "<id>", "inputs": [<subtree>]}` — a search that
+     MAPS the subtree's genes rather than combining with them.
+   Choose by MEANING:
    - Searches that are ALTERNATIVE EVIDENCE for the SAME property (any one suffices) → UNION.
      Broadening the evidence for one property is always a UNION, never an INTERSECT.
    - DISTINCT properties the gene must ALL satisfy → INTERSECT.
-   - Keep INTERSECT shallow. When a property has several evidence sources, UNION them into one
-     branch first, then INTERSECT that branch with the others.
+   - When a property has several evidence sources, UNION them into THEIR OWN BRANCH and
+     INTERSECT that branch with the others. Nest it — do NOT flatten it into a chain, which
+     asks a different question. `(A INTERSECT (B UNION C))` is not `((A INTERSECT B) UNION C)`.
    - A search that MAPS the accumulated result into a NEW gene set — an ortholog/transform search
-     (e.g. `GenesByOrthologs`) that takes the PRIOR step's genes as its input and returns their
-     orthologs in another organism (bridging organisms) → TRANSFORM. List the transforming
-     criterion RIGHT AFTER the criterion whose result it consumes, with operator `TRANSFORM`; it is
-     wired to that input, never run standalone. Any search with an input-step ("answer") parameter
-     operates on a previous step and MUST be combined with TRANSFORM, never as a standalone leaf —
-     a standalone input-step search has no input and WDK rejects the whole strategy.
+     (e.g. `GenesByOrthologs`) that takes a PRIOR subtree's genes as its input and returns their
+     orthologs in another organism (bridging organisms) → a `transform` node whose single input
+     is that subtree; it is wired to that input, never run standalone. Any search with an
+     input-step ("answer") parameter operates on a previous step and MUST be a `transform` node,
+     never a standalone leaf — a standalone input-step search has no input and WDK rejects the
+     whole strategy.
 4. `drop_criterion(criterion_id, reason)` for any property whose WDK search is
    unrealizable or unavailable — pass the SAME `criterion_id` you gave `set_criterion`.
    This removes it from the spec so it no longer blocks the build; re-call `set_structure`
-   afterward so the structure no longer references it.
+   afterward so the tree no longer references it.
 5. Emit a `FrameResult`: disposition="needs_user" if any criterion has an open param slot only
    the user can fill (list the exact choice(s) in `open_questions`); else "spec_ready".
 
-Open slots: when `set_criterion` returns `open_slots` (required params it could not auto-resolve —
-e.g. which two sample groups a differential search compares), surface the choice
-to the user. When the user has answered (their reply is in the work order / pinned context),
-RE-CALL `set_criterion` for that criterion with `param_overrides={param_name: chosen_value}` — the
-override fills the slot. NEVER claim a param needs a web UI / wizard / interactive confirmation;
-every param is set through the API via `param_overrides` or auto-resolution.
+Open slots: `set_criterion` returns `open_slots` for required params it could not auto-resolve.
+An open slot is a question for YOU first, not for the user.
+
+1. ANSWER IT YOURSELF from the user's own request. Most slots are already answered there and the
+   auto-resolver simply could not see it: "top 10 percent" means the percentile bound is 90, not the
+   search's default; "text search for 'kinase'" means the text param is `kinase`; "EC number 2.7.-.-"
+   means the wildcard is `2.7.-.-`; "non-syntenic" means the syntenic flag is `no`. Re-call
+   `set_criterion` for that criterion with `param_overrides={param_name: chosen_value}`.
+   If the slot lists `options`, copy one EXACTLY. If it lists none (a number, a free-text term),
+   supply the value the request states. A wrong value comes back as a did-you-mean retry you can fix
+   -- that is cheap. Asking the user for something they already told you is not.
+2. If the request does NOT say, and the slot lists options, pick the one the request implies and say
+   in `FrameResult` which assumption you made.
+3. ONLY surface it to the user when the request genuinely does not determine it and the choice
+   changes the science -- e.g. which of several mass-spec experiments to use when none was named.
+   Then set disposition="needs_user" and list the exact choice in `open_questions`.
+
+Never ask the user to confirm a value they already wrote. Never claim a param needs a web UI /
+wizard / interactive confirmation; every param is set through the API via `param_overrides` or
+auto-resolution.
 
 Sample/strain filters: a `filter`-type param (a faceted "Set of Samples"/strain selector) defaults
 to ALL samples and is never an open slot — leave it untouched unless the user explicitly asked to

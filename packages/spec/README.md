@@ -38,10 +38,8 @@ uv run python -m pathfinder.devtools.openapi generate
 
 ### Generate TypeScript types from the spec
 
-The repo generates TS types from this spec into `packages/shared-ts/src/openapi.generated.ts`.
+The repo generates TS types from this spec into `packages/shared-ts/src/generated`.
 
 ```bash
-cd packages/shared-ts
-yarn install
-yarn generate:openapi
+yarn generate:types
 ```

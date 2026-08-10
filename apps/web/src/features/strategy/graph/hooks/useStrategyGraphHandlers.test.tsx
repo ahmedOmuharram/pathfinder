@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
+import { makeStrategy } from "@/lib/types/fixtures";
 import { describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import type { Step, Strategy } from "@pathfinder/shared";
+import type { Step } from "@pathfinder/shared";
 import { useStrategyGraphHandlers } from "./useStrategyGraphHandlers";
 
 vi.mock("@/features/strategy/mutations", () => ({
@@ -13,7 +14,7 @@ vi.mock("@/features/strategy/graph/hooks/useDeleteOperation", () => ({
   useDeleteOperation: () => ({ requestDelete: vi.fn(), requestDeleteMany: vi.fn() }),
 }));
 
-const strategy = { id: "conv-1", steps: [], recordType: "gene" } as unknown as Strategy;
+const strategy = makeStrategy({ id: "conv-1", steps: [], recordType: "gene" });
 
 function setup(selectedNodeIds: string[]) {
   return renderHook(

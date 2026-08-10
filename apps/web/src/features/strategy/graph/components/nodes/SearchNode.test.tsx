@@ -26,13 +26,12 @@ function makeStep(overrides: Partial<Step> = {}): Step {
     displayName: "Genes by taxon",
     searchName: "GenesByTaxon",
     recordType: "gene",
-    parameters: { organism: "Plasmodium" },
+    parameters: { organism: { type: "single-pick-vocabulary", value: "Plasmodium" } },
     estimatedSize: 1234,
-    isBuilt: false,
     isFiltered: false,
     validation: null,
     ...overrides,
-  } as Step;
+  };
 }
 
 function reset() {

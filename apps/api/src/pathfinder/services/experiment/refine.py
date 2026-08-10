@@ -4,10 +4,11 @@ Provides the shared business logic for adding steps to an experiment's
 WDK strategy — used by both the HTTP endpoint and the AI refinement tools.
 """
 
+from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
-    PatchStepSpec,
     WDKSearchConfig,
     WDKStepTree,
 )
@@ -21,7 +22,7 @@ class RefineResult(CamelModel):
     """Result of a strategy refinement operation."""
 
     new_step_id: int
-    operator: str | None = None
+    operator: CombineOp | None = None
     estimated_size: int | None = None
 
 
@@ -36,7 +37,7 @@ async def combine_steps(
     api: StrategyAPI,
     exp: Experiment,
     secondary_step_id: int,
-    operator: str,
+    operator: CombineOp,
     store: ExperimentStore,
     custom_name: str | None = None,
 ) -> RefineResult:
@@ -50,11 +51,13 @@ async def combine_steps(
 
     name = custom_name or f"{operator} refinement"
     combined = await api.create_combined_step(
-        primary_step_id=current_step_id,
-        secondary_step_id=secondary_step_id,
-        boolean_operator=operator,
+        CombinedStepSpec(
+            primary_step_id=current_step_id,
+            secondary_step_id=secondary_step_id,
+            boolean_operator=operator,
+            custom_name=name,
+        ),
         record_type=exp.config.record_type,
-        spec_overrides=PatchStepSpec(custom_name=name),
     )
     combined_id = combined.id
 
@@ -85,7 +88,7 @@ async def combine_with_search(
     exp: Experiment,
     search_name: str,
     parameters: dict[str, str],
-    operator: str,
+    operator: CombineOp,
     store: ExperimentStore,
 ) -> RefineResult:
     """Create a search step and combine it with the experiment's current step."""

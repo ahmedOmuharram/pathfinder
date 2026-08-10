@@ -26,6 +26,13 @@ _OUTAGE_REASON_RE = re.compile(
     r"server error|service (?:unavail|error)|unavailable|5\d\d|temporarily",
     re.IGNORECASE,
 )
+_ZERO_RESULT_RE = re.compile(
+    r"\b(?:0|no|zero|none|empty)\b[^.]{0,40}?"
+    r"\b(?:gene|transcript|result|record|hit|row|overlap|match)|"
+    r"\b(?:returned|came back|yielded|found)\b[^.]{0,20}?"
+    r"\b(?:0|no|zero|nothing|empty)\b",
+    re.IGNORECASE,
+)
 
 
 def _evidence(calls: list[CapturedToolCall]) -> list[str]:
@@ -158,8 +165,16 @@ def _outage_driven_rejection(calls: list[CapturedToolCall]) -> list[Anomaly]:
     return out
 
 
+def _mentions(text: str, needle: str) -> bool:
+    """Does the reply refer to this label or id, ignoring case and separators?"""
+    flat = re.sub(r"[\W_]+", " ", text).casefold()
+    target = re.sub(r"[\W_]+", " ", needle).casefold().strip()
+    return bool(target) and target in flat
+
+
 def _silent_constraint_violation(
     ledgers: dict[str, dict[str, Any]],
+    assistant_text: str,
 ) -> list[Anomaly]:
     out: list[Anomaly] = []
     for phase, ledger in ledgers.items():
@@ -175,6 +190,17 @@ def _silent_constraint_violation(
             if g.constraint.source == "user_explicit"
             and g.status in {"substituted", "ungroundable"}
         ]
+        # "silent" is the claim being made. A Lead that explained the
+        # substitution in its reply was not silent, whatever the ledger's
+        # structured fields say.
+        spoken = [
+            value
+            for g in probe.grounded
+            for value in (g.constraint.label, g.constraint.requested_value)
+            if value and _mentions(assistant_text, value)
+        ]
+        if spoken:
+            continue
         out.append(
             Anomaly(
                 kind="silent_constraint_violation",
@@ -195,11 +221,17 @@ def _silent_constraint_violation(
     return out
 
 
-def _silent_zero(ledgers: dict[str, dict[str, Any]]) -> list[Anomaly]:
+def _silent_zero(
+    ledgers: dict[str, dict[str, Any]],
+    assistant_text: str,
+) -> list[Anomaly]:
     out: list[Anomaly] = []
     for phase, ledger in ledgers.items():
         zero_steps = ((ledger or {}).get("build") or {}).get("zeroResultSteps") or []
-        if zero_steps:
+        reported = _ZERO_RESULT_RE.search(assistant_text) is not None or any(
+            _mentions(assistant_text, str(step)) for step in zero_steps
+        )
+        if zero_steps and not reported:
             out.append(
                 Anomaly(
                     kind="silent_zero",
@@ -252,17 +284,24 @@ def diagnose(
     calls: list[CapturedToolCall],
     ledgers: dict[str, dict[str, Any]],
     summary: RunSummary,
+    assistant_text: str = "",
 ) -> list[Anomaly]:
     """Run every fingerprint detector over a captured run and return the
-    anomalies found, most severe first. Pure; never raises."""
+    anomalies found, most severe first. Pure; never raises.
+
+    ``assistant_text`` is the reply the user actually saw. The ``silent_*``
+    detectors need it: their claim is that the turn never surfaced the
+    problem, and prose is where a Lead usually surfaces it. Omitting it means
+    "nothing was said", which keeps an uncaptured run honest rather than
+    excused."""
 
     anomalies = (
         _catch_22(calls)
         + _loops(calls)
         + _wdk_service_errors(calls)
         + _outage_driven_rejection(calls)
-        + _silent_constraint_violation(ledgers)
-        + _silent_zero(ledgers)
+        + _silent_constraint_violation(ledgers, assistant_text)
+        + _silent_zero(ledgers, assistant_text)
         + _budget(summary)
         + _no_plan(summary)
     )

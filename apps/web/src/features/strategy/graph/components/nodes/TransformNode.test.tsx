@@ -29,11 +29,10 @@ function makeStep(overrides: Partial<Step> = {}): Step {
     parameters: {},
     primaryInputStepId: "left",
     estimatedSize: 42,
-    isBuilt: false,
     isFiltered: false,
     validation: null,
     ...overrides,
-  } as Step;
+  };
 }
 
 function reset() {

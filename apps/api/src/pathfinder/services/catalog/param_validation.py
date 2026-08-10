@@ -321,6 +321,13 @@ async def validate_parameters(
         record_type=resolved_record_type,
         search_name=ctx.search_name,
     )
+    # Fill hidden defaults BEFORE refreshing. A hidden required parent is
+    # plumbing the model never sets -- `channel` on the DeRisi searches, with
+    # `initial_display_value="Channel 1"` -- and the refresh below skips any
+    # parent whose value is empty. Refreshing first left the child's
+    # vocabulary un-narrowed, so 13 time points WDK accepts were reported
+    # invalid and the strategy could not build.
+    canonical = fill_hidden_required_defaults(param_spec_map, canonical)
     param_spec_map = await _refresh_dependent_vocabularies(
         ctx=refreshed_ctx,
         param_spec_map=param_spec_map,

@@ -64,11 +64,10 @@ function makeStep(overrides: Partial<Step> = {}): Step {
     recordType: "gene",
     parameters: {},
     estimatedSize: 100,
-    isBuilt: false,
     isFiltered: false,
     validation: null,
     ...overrides,
-  } as Step;
+  };
 }
 
 function makeSnapshot(overrides: Partial<StepSnapshot> = {}): StepSnapshot {
@@ -81,6 +80,8 @@ function makeSnapshot(overrides: Partial<StepSnapshot> = {}): StepSnapshot {
     isBusy: false,
     isInvalid: false,
     isFailed: false,
+  isDraft: false,
+  wdkPushError: null,
     ...overrides,
   };
 }

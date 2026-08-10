@@ -9,7 +9,6 @@ import { applyDeleteStep } from "./applyDelete";
 import {
   applyDeleteEdge,
   applyReplaceStrategy,
-  applyReplaceSubtree,
   applyUpdateCombineOperator,
   applyUpdateStepMeta,
   applyUpdateStepParams,
@@ -32,8 +31,6 @@ export function applyOperation(strategy: Strategy, op: GraphOperation): ApplyRes
       return applyDeleteStep(strategy, op);
     case "deleteEdge":
       return applyDeleteEdge(strategy, op, applyOperation);
-    case "replaceSubtree":
-      return applyReplaceSubtree(strategy, op);
     case "updateStepParams":
       return applyUpdateStepParams(strategy, op);
     case "updateCombineOperator":

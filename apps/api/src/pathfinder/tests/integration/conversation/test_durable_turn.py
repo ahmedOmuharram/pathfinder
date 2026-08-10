@@ -34,8 +34,6 @@ from pathfinder.jobs.tasks import ensure_registered
 from pathfinder.persistence.models import Conversation
 from pathfinder.platform.security import create_user_token
 
-pytestmark = pytest.mark.asyncio
-
 
 def _event_ids(body: str) -> list[int]:
     return [

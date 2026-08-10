@@ -11,20 +11,10 @@ import {
 
 function step(partial: Partial<Step> & { id: string }): Step {
   return {
-    id: partial.id,
-    kind: partial.kind ?? "search",
-    displayName: partial.displayName ?? partial.id,
-    operator: partial.operator,
-    recordType: partial.recordType,
-    parameters: partial.parameters,
-    searchName: partial.searchName,
-    primaryInputStepId: partial.primaryInputStepId,
-    secondaryInputStepId: partial.secondaryInputStepId,
-    estimatedSize: partial.estimatedSize,
-    validation: partial.validation,
-    wdkStepId: partial.wdkStepId,
-    colocationParams: partial.colocationParams,
-  } as Step;
+    kind: "search",
+    displayName: partial.id,
+    ...partial,
+  };
 }
 
 describe("graphConnectionsLogic", () => {

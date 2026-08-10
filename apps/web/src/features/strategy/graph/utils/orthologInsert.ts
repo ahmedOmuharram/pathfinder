@@ -43,7 +43,6 @@ export function computeOrthologInsert(args: {
     recordType: inferredRecordType,
     parameters: {},
     primaryInputStepId: selectedId,
-    isBuilt: false,
     isFiltered: false,
   };
 

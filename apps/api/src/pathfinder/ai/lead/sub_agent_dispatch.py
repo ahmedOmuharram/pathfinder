@@ -106,6 +106,48 @@ async def frame_problem(ctx: RunContext[LeadDeps], reason: str) -> FrameResult:
     return delta
 
 
+def build_not_ready_message(spec: OperationalSpec | None) -> str:
+    """Why the spec cannot be built, phrased for what the model can do next.
+
+    Open parameter slots are not a retry. Re-running FRAME regenerates the
+    same slots, so telling the model to "call frame_problem first" sends it
+    round a loop it cannot exit -- only the user can answer. Observed on a
+    real 16-step build: FRAME bound all 8 criteria, left 7 open slots, and
+    the Lead re-dispatched instead of asking.
+    """
+    if spec is None or not spec.criteria or spec.structure is None:
+        return (
+            "No OperationalSpec to build yet (no criteria or no structure). "
+            "Call frame_problem first."
+        )
+    if spec.open_slots:
+        slots = "; ".join(
+            f"{slot.param_name}"
+            + (f" -- {slot.question}" if slot.question else "")
+            + (f" (options: {', '.join(slot.options)})" if slot.options else "")
+            for slot in spec.open_slots
+        )
+        return (
+            f"The strategy cannot be built until the user answers "
+            f"{len(spec.open_slots)} open parameter(s): {slots}. "
+            "Do NOT re-frame -- the same slots come back. Ask the user for "
+            "these values in your reply, then build once they answer."
+        )
+    unbound = [c.id for c in spec.criteria if not c.bound]
+    if unbound:
+        return (
+            f"These criteria are not bound to a WDK search: {', '.join(unbound)}. "
+            "Call frame_problem to bind them."
+        )
+    open_params = [
+        f"{c.id}.{slot.param_name}" for c in spec.criteria for slot in c.open_params
+    ]
+    return (
+        f"These criteria still need user-supplied parameters: "
+        f"{', '.join(open_params)}. Ask the user for them, then build."
+    )
+
+
 async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     """Materialize the OperationalSpec into a real WDK strategy declaratively
     (no LLM). Requires ``frame_problem`` first. Inspect ``ledger.build`` after
@@ -113,11 +155,7 @@ async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     deps = ctx.deps
     spec = deps.state.operational_spec
     if spec is None or not spec.ready_to_build:
-        msg = (
-            "OperationalSpec is not ready to build (no criteria/structure, or "
-            "open param slots need user input). Call frame_problem first."
-        )
-        raise ModelRetry(msg)
+        raise ModelRetry(build_not_ready_message(spec))
     root = operational_spec_to_step_tree(spec)
     agent_deps = _agent_deps(deps)
     outcome: BuildOutcome = await build_strategy_from_spec(

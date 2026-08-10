@@ -54,6 +54,55 @@ function deleteSubtree(strategy: Strategy, stepId: string): ApplyResult {
   };
 }
 
+function orphanSibling(strategy: Strategy, stepId: string): ApplyResult {
+  const parentInfo = findParent(strategy.steps, stepId);
+  if (parentInfo === null)
+    return { kind: "rejected", reason: "orphan-sibling needs a combine parent" };
+  const { parent } = parentInfo;
+  const subtree = new Set(walkSubtreeIds(strategy.steps, stepId));
+  let next = strategy.steps.filter((s) => !subtree.has(s.id));
+
+  // Mirrors the backend: a secondary input with no primary breaks the node
+  // invariant, so clearing the primary slot promotes the survivor instead of
+  // stranding it. Diverging here would make the optimistic graph flicker into
+  // a different shape than the one the server returns.
+  next =
+    parentInfo.slot === "primary" && parent.secondaryInputStepId != null
+      ? patchSteps(next, parent.id, {
+          primaryInputStepId: parent.secondaryInputStepId,
+          secondaryInputStepId: null,
+          operator: null,
+        })
+      : patchSteps(next, parent.id, {
+          [parentInfo.slot === "primary"
+            ? "primaryInputStepId"
+            : "secondaryInputStepId"]: null,
+          operator: null,
+        });
+
+  const grandparent = findParent(strategy.steps, parent.id);
+  if (grandparent !== null) {
+    next =
+      grandparent.slot === "primary" &&
+      grandparent.parent.secondaryInputStepId != null
+        ? patchSteps(next, grandparent.parent.id, {
+            primaryInputStepId: grandparent.parent.secondaryInputStepId,
+            secondaryInputStepId: null,
+            operator: null,
+          })
+        : patchSteps(next, grandparent.parent.id, {
+            [grandparent.slot === "primary"
+              ? "primaryInputStepId"
+              : "secondaryInputStepId"]: null,
+          });
+  }
+  return {
+    kind: "applied",
+    next: { ...strategy, steps: next },
+    description: `Deleted ${stepId}, orphaned ${parentInfo.parent.id}`,
+  };
+}
+
 function collapseCombine(
   strategy: Strategy,
   stepId: string,
@@ -108,28 +157,6 @@ function collapseCombine(
     kind: "applied",
     next: { ...strategy, steps: next },
     description: `Collapsed combine ${parent.id}`,
-  };
-}
-
-function orphanSibling(strategy: Strategy, stepId: string): ApplyResult {
-  const parentInfo = findParent(strategy.steps, stepId);
-  if (parentInfo === null)
-    return { kind: "rejected", reason: "orphan-sibling needs a combine parent" };
-  const subtree = new Set(walkSubtreeIds(strategy.steps, stepId));
-  const slotKey =
-    parentInfo.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
-  let next = strategy.steps.filter((s) => !subtree.has(s.id));
-  next = patchSteps(next, parentInfo.parent.id, { [slotKey]: null });
-  const grandparent = findParent(strategy.steps, parentInfo.parent.id);
-  if (grandparent !== null) {
-    const gpSlotKey =
-      grandparent.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
-    next = patchSteps(next, grandparent.parent.id, { [gpSlotKey]: null });
-  }
-  return {
-    kind: "applied",
-    next: { ...strategy, steps: next },
-    description: `Deleted ${stepId} (orphaned sibling)`,
   };
 }
 

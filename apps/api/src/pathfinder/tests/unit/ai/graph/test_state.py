@@ -131,3 +131,59 @@ def test_state_rejects_negative_total_tokens() -> None:
                 "turn_total_tokens": "not a number",
             },
         )
+
+
+class TestCheckpointsFromBeforeTheFbvFlip:
+    """A checkpoint written by the five-phase pipeline must be REJECTED.
+
+    ``PipelineState`` used to leave Pydantic's ``extra`` at its default, so a
+    stale key was silently dropped. That is a compatibility shim for a shape
+    that no longer exists, and it hides drift exactly the way an ``as Step``
+    cast did: a field renamed in code goes quiet instead of loud.
+
+    The state is strict now, and the old-shape checkpoints are truncated by
+    the migration that accompanies it. PathFinder has not shipped, so there
+    is nothing to stay compatible with.
+    """
+
+    def _old_shape(self) -> dict[str, object]:
+        return {
+            "conversation_id": str(uuid4()),
+            "user_id": str(uuid4()),
+            "site_id": "plasmodb",
+            "mode": "strategy",
+            "user_prompt": "gametocyte upregulated genes",
+            # Fields the five-phase pipeline wrote and FRAME/BUILD/VERIFY removed.
+            "active_plan": {"steps": [{"searchName": "GenesByTaxon"}]},
+        }
+
+    def test_a_pre_flip_checkpoint_is_rejected_loudly(self) -> None:
+        with pytest.raises(ValidationError, match="active_plan"):
+            PipelineState.model_validate(self._old_shape())
+
+    def test_a_typo_in_a_field_name_is_rejected(self) -> None:
+        # The real payoff: renaming a field can no longer half-land, with
+        # writers setting a key readers silently ignore.
+        payload = {
+            "conversation_id": str(uuid4()),
+            "user_id": str(uuid4()),
+            "site_id": "plasmodb",
+            "mode": "strategy",
+            "operationl_spec": None,
+        }
+
+        with pytest.raises(ValidationError, match="operationl_spec"):
+            PipelineState.model_validate(payload)
+
+    def test_the_current_shape_still_validates(self) -> None:
+        state = PipelineState.model_validate(
+            {
+                "conversation_id": str(uuid4()),
+                "user_id": str(uuid4()),
+                "site_id": "plasmodb",
+                "mode": "strategy",
+                "user_prompt": "gametocyte upregulated genes",
+            }
+        )
+
+        assert state.operational_spec is None

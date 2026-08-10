@@ -17,6 +17,8 @@ jobs:
     outputs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}
+      knowledge: ${{ steps.filter.outputs.knowledge }}
+      wdk: ${{ steps.filter.outputs.wdk }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -29,6 +31,43 @@ jobs:
             web:
               - 'apps/web/**'
               - 'packages/shared-ts/**'
+            knowledge:
+              - 'docs/knowledge/**'
+              - 'scripts/check-knowledge.mjs'
+              - 'scripts/check-knowledge.test.mjs'
+              - 'scripts/__fixtures__/knowledge/**'
+            # Anchors and test ids resolve against the repo root, so a move
+            # anywhere in these trees can break a rule without touching a doc.
+            wdk:
+              - 'docs/**'
+              - 'apps/**'
+              - 'packages/**'
+              - 'scripts/**'
+
+  check-knowledge:
+    name: Check knowledge bundle
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.knowledge == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      # Zero dependencies by design, so the runner's node is enough.
+      - name: Check OKF conformance
+        run: node scripts/check-knowledge.mjs
+      - name: Check the checker
+        run: node --test scripts/check-knowledge.test.mjs
+
+  check-wdk-rules:
+    name: Check WDK rules
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.wdk == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check rule conformance
+        run: node scripts/check-wdk-rules.mjs
+      - name: Check the checker
+        run: node --test scripts/check-wdk-rules.test.mjs
 
   lint-api:
     name: Lint API
@@ -252,6 +291,8 @@ jobs:
     if: always()
     needs:
       - changes
+      - check-knowledge
+      - check-wdk-rules
       - lint-api
       - build-docs
       - test-api

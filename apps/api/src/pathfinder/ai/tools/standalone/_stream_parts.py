@@ -33,6 +33,7 @@ from shared_py.stream_parts.strategy import (
     StrategyMeta,
 )
 
+from pathfinder.domain.strategy.graph_model import wdk_search_name
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
 
@@ -83,7 +84,7 @@ def _snapshot_nodes(graph: StrategyGraph) -> list[GraphNode]:
     return [
         GraphNode(
             id=step.id,
-            search_name=step.search_name,
+            search_name=wdk_search_name(step),
             estimated_size=_count_for_step(step.id, sync_state),
         )
         for step in graph.steps.values()
@@ -94,11 +95,11 @@ def _snapshot_edges(graph: StrategyGraph) -> list[GraphEdge]:
     edges: list[GraphEdge] = []
     for step in graph.steps.values():
         # Primary input edge
-        primary = step.primary_input
+        primary = step.primary_input_id
         if primary is not None:
             edges.append(
                 GraphEdge(
-                    source=primary.id,
+                    source=primary,
                     target=step.id,
                     operator=_coerce_operator(
                         step.operator.value if step.operator else None
@@ -106,11 +107,11 @@ def _snapshot_edges(graph: StrategyGraph) -> list[GraphEdge]:
                 )
             )
         # Secondary input edge
-        secondary = step.secondary_input
+        secondary = step.secondary_input_id
         if secondary is not None:
             edges.append(
                 GraphEdge(
-                    source=secondary.id,
+                    source=secondary,
                     target=step.id,
                     operator=_coerce_operator(
                         step.operator.value if step.operator else None
@@ -132,7 +133,7 @@ def build_graph_snapshot_payload(
     nodes = [
         GraphNode(
             id=step.id,
-            search_name=step.search_name,
+            search_name=wdk_search_name(step),
             estimated_size=_count_for_step(step.id, sync_state),
         )
         for step in graph.steps.values()

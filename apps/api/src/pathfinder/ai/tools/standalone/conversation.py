@@ -21,6 +21,9 @@ from pathfinder.ai.tools.standalone._stream_parts import (
     graph_cleared_chunk,
     strategy_meta_chunk,
 )
+from pathfinder.services.strategies.persist import (
+    persist_strategy_ast_to_conversation,
+)
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
 
@@ -99,6 +102,13 @@ async def clear_strategy(
     graph.last_step_id = None
     # Reset WDK sync state.
     session.sync_state = WDKSyncState()
+    # Without this the row keeps the old AST and the cleared strategy
+    # reappears on the next read.
+    await persist_strategy_ast_to_conversation(
+        deps=ctx.deps.to_strategy_context(),
+        graph=graph,
+        sync_result=None,
+    )
 
     return ToolReturn(
         return_value=ClearStrategyResult(

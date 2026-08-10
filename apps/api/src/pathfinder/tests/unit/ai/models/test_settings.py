@@ -68,3 +68,45 @@ class TestBuildModelSettings:
     def test_thinking_default_omitted(self) -> None:
         data = dict(build_model_settings("openai:gpt-4.1-mini"))
         assert "thinking" not in data
+
+
+class TestOpenAiItemIdsAreNotSentBack:
+    """The Responses API validates item IDs we echo back; we rewrite history,
+    so they never match.
+
+    ``openai_send_reasoning_ids`` defaults to True for reasoning models and
+    makes pydantic-ai send the IDs of reasoning, text and **function call**
+    parts from history. pydantic-ai's own docs say to disable it when the
+    history "does not match exactly what was received from the Responses API
+    ... for example if you're using a history processor".
+
+    Every one of our agents runs `pair_tool_calls` and
+    `elide_consumed_tool_results`, so our history never matches byte for
+    byte. Sending the IDs made OpenAI reject the request with
+    "No tool invocation found for tool call ID ...", which is the crash seen
+    on branching, reverting, cancel-then-send, and long tool loops.
+    """
+
+    def test_openai_does_not_send_item_ids(self) -> None:
+        settings = build_model_settings("openai:gpt-5.6-luna")
+
+        assert settings.get("openai_send_reasoning_ids") is False
+
+    def test_it_is_disabled_regardless_of_thinking_effort(self) -> None:
+        for effort in ("none", "low", "medium", "high"):
+            settings = build_model_settings("openai:gpt-5.6-luna", thinking=effort)
+
+            assert settings.get("openai_send_reasoning_ids") is False, effort
+
+    def test_anthropic_is_untouched(self) -> None:
+        # The setting is OpenAI-only; Anthropic keeps its cache flags.
+        settings = build_model_settings("anthropic:claude-sonnet-5")
+
+        assert "openai_send_reasoning_ids" not in settings
+        assert settings.get("anthropic_cache_messages") is True
+
+    def test_thinking_still_applied_for_openai(self) -> None:
+        settings = build_model_settings("openai:gpt-5.6-luna", thinking="high")
+
+        assert settings.get("thinking") == "high"
+        assert settings.get("openai_send_reasoning_ids") is False

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DataLedgerUpdatePayload } from "@pathfinder/shared";
+import { normalizeLedgerPayload } from "./normalizeLedger";
 
 import { cn } from "@/lib/utils/cn";
 import { useRightRailStore } from "@/state/useRightRailStore";
@@ -48,8 +49,8 @@ function latestLedger(
     for (let j = parts.length - 1; j >= 0; j--) {
       const part = parts[j];
       if (part?.type !== "data-ledger-update") continue;
-      const data = part.data as DataLedgerUpdatePayload | undefined;
-      if (data !== undefined) return data;
+      const data = normalizeLedgerPayload(part.data);
+      if (data !== null) return data;
     }
   }
   return null;

@@ -11,9 +11,9 @@ from pydantic import (
     ConfigDict,
     Field,
     JsonValue,
-    ValidationError,
     field_validator,
 )
+from pydantic import ValidationError as PydanticValidationError
 
 from pathfinder.domain.parameters.values import (
     FilterTermClause,
@@ -24,6 +24,10 @@ from pathfinder.domain.parameters.values import (
 )
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.domain.strategy.operational_spec import OpenSlot
+from pathfinder.integrations.veupathdb.search_context import (
+    get_search_params_under_context,
+)
+from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_formatting import (
     FilterFieldInfo,
@@ -58,6 +62,22 @@ def _vocab_signature(info: ParameterInfo) -> str | None:
     if not values:
         return None
     return "|".join(sorted(o.value for o in values))
+
+
+# An answered open slot: one value, or the several a multi-pick slot takes.
+OverrideValue = str | list[str]
+OverrideMap = dict[str, OverrideValue]
+
+
+def _sole_claim(value: OverrideValue | None) -> str | None:
+    """The single vocabulary option this resolution claims, if it claims one.
+
+    The vocab ledger exists to stop the two halves of a ref/comp contrast
+    selecting the SAME option. That question only has meaning for a scalar
+    pick; a multi-pick selection of 13 time points claims no single option and
+    has no contrast sibling to degenerate against.
+    """
+    return None if isinstance(value, list) else value
 
 
 def param_value_for(pi: ParameterInfo, raw: object) -> ParamValue:
@@ -148,13 +168,9 @@ async def resolve_dag(
 
 def _wdk_fetch_at(site_id: str, record_type: str, search_name: str) -> ParamFetcher:
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
-        client = get_wdk_client(site_id)
-        if context:
-            resp = await client.get_search_details_with_params(
-                record_type, search_name, context=context
-            )
-        else:
-            resp = await client.get_search_details(record_type, search_name)
+        resp = await get_search_params_under_context(
+            get_wdk_client(site_id), record_type, search_name, context
+        )
         params = resp.search_data.parameters or []
         return format_param_info_typed(params)
 
@@ -183,7 +199,7 @@ class ResolvedParams(CamelModel):
     unresolved_required: list[str] = Field(default_factory=list)
 
 
-def _build_value(info: ParameterInfo, value: str | None) -> ParamValue | None:
+def _build_value(info: ParameterInfo, value: OverrideValue | None) -> ParamValue | None:
     """Coerce a chosen string into the param's typed value, or ``None`` when it
     can't (e.g. a plain answer for a structured 'dataset'/'step' selector) — so
     the param degrades to an open slot instead of crashing set_criterion. Filter
@@ -196,16 +212,23 @@ def _build_value(info: ParameterInfo, value: str | None) -> ParamValue | None:
         return None
 
 
-def _apply_override(info: ParameterInfo, value: str) -> str:
+def _apply_override(info: ParameterInfo, value: OverrideValue) -> OverrideValue:
     """A user-supplied value for an open slot. Match it to the param's
     vocabulary (so 'uninfected' resolves to the exact option, or a bare
     'Plasmodium vivax' snaps to the tree-box leaf 'Plasmodium vivax P01') when
     there is one; otherwise pass the value through for WDK to validate. Tree-box
-    params carry their values in ``vocab_leaves`` rather than ``allowed_values``."""
+    params carry their values in ``vocab_leaves`` rather than ``allowed_values``.
+
+    A multi-pick answer arrives as a list and stays one: each element snaps
+    independently. Collapsing it to a single string made the whole serialized
+    array one candidate option, which matched nothing and was reported back to
+    the model as its own answer being invalid."""
     options = info.allowed_values or info.vocab_leaves
-    if options:
-        return match_option(options, value) or value
-    return value
+    if not options:
+        return value
+    if isinstance(value, list):
+        return [match_option(options, v) or v for v in value]
+    return match_option(options, value) or value
 
 
 def _match_filter_field(info: ParameterInfo, hint: str) -> FilterFieldInfo | None:
@@ -280,7 +303,7 @@ def _enrich_clause(
 def _filter_from_json(info: ParameterInfo, text: str) -> FilterValue:
     try:
         parsed = _RawFilterInput.model_validate_json(text)
-    except ValidationError:
+    except PydanticValidationError:
         return FilterValue()
     clauses = [
         clause
@@ -325,12 +348,24 @@ def _contrast_open_slot(info: ParameterInfo) -> OpenSlot:
 
 
 def _resolve_filter_param(
-    info: ParameterInfo, infos: list[ParameterInfo], overrides: dict[str, str]
+    info: ParameterInfo, infos: list[ParameterInfo], overrides: OverrideMap
 ) -> FilterValue | OpenSlot:
     """Resolve a filter param to a value, or surface an ``OpenSlot`` when it is
     an unspecified half of a ref/comp contrast pair (both halves defaulting to
     'all samples' is a degenerate all-vs-all contrast)."""
     override = overrides.get(info.name)
+    if isinstance(override, list):
+        raise ValidationError(
+            title="Invalid parameter value",
+            detail=(
+                f"Parameter '{info.name}' is a filter, which selects members of "
+                f"ONE facet. A bare list names no facet. Pass "
+                f"'<facet>=<value1>,<value2>' instead, e.g. "
+                f"'{info.filter_fields[0].term if info.filter_fields else 'Sample type'}"
+                f"={','.join(override[:2])}'."
+            ),
+            errors=[{"param": info.name, "value": list(override)}],
+        )
     if override is None and _has_contrast_sibling(info, infos):
         return _contrast_open_slot(info)
     return _resolve_filter(info, override)
@@ -374,8 +409,8 @@ async def _resolve_one(
     info: ParameterInfo,
     intent: ParamIntent,
     embed: EmbedFn,
-    overrides: dict[str, str],
-) -> str | None:
+    overrides: OverrideMap,
+) -> OverrideValue | None:
     """Tier-0 user override (an answered open slot) → Tier-1 (single valid
     value) → Tier-2 (intent). Scalar-defaulting is decided by the walk so it
     can refuse a degenerate duplicate selection."""
@@ -394,9 +429,15 @@ def _is_free_text_query(info: ParameterInfo) -> bool:
     an odorant-binding-protein search becomes a reductase search. Hidden string
     params are internal switches whose defaults ARE correct (``document_type``
     is required with a ``gene`` default), so visibility is the discriminator.
+
+    Numbers are excluded. WDK types its numeric bounds as ``string`` with
+    ``isNumber: true`` (``dn_ds_ratio_lower``, ``MinPercentIsolateCalls``),
+    and their initial value is what PlasmoDB pre-fills, not an example --
+    treating them as free text asked five needless questions on one search.
     """
     return (
         info.param_kind == "string"
+        and not info.is_number
         and info.is_visible
         and info.required
         and not info.allowed_values
@@ -510,7 +551,7 @@ class _VocabLedger(CamelModel):
         return remaining[0] if len(remaining) == 1 else None
 
     def release_guess_holding(
-        self, info: ParameterInfo, wanted: str, overrides: dict[str, str]
+        self, info: ParameterInfo, wanted: str, overrides: OverrideMap
     ) -> str | None:
         """Free ``wanted`` from a *guessed* claimant so this override can take it.
 
@@ -550,7 +591,7 @@ async def _resolve_nonfilter(
     info: ParameterInfo,
     intent: ParamIntent,
     embed: EmbedFn,
-    overrides: dict[str, str],
+    overrides: OverrideMap,
     ledger: _VocabLedger,
 ) -> ParamValue | OpenSlot | None:
     """Resolve a non-filter param: Tier-0 override → Tier-1/2 intent → scalar
@@ -571,15 +612,16 @@ async def _resolve_nonfilter(
         value = _scalar_default(info)
     if value is None and contrast_role(info) == "reference":
         value = ledger.sole_remaining_after_authoritative(info)
+    claimed = _sole_claim(value)
     if (
-        value is not None
+        claimed is not None
         and not is_user_choice
-        and ledger.duplicates_sibling(info, value)
+        and ledger.duplicates_sibling(info, claimed)
     ):
         # The sibling already took this value. If a user pinned it and exactly
         # one option is left, that remainder is forced -- take it rather than
         # asking a question with a single possible answer.
-        value = ledger.sole_remaining_option(info, value)
+        value = ledger.sole_remaining_option(info, claimed)
     resolved = _build_value(info, value)
     if resolved is not None and value is not None:
         signature = _vocab_signature(info)
@@ -595,7 +637,9 @@ async def _resolve_nonfilter(
             authoritative = is_user_choice or (
                 from_intent and contrast_role(info) == "comparison"
             )
-            ledger.claim(signature, value, info.name, pinned=authoritative)
+            claimed = _sole_claim(value)
+            if claimed is not None:
+                ledger.claim(signature, claimed, info.name, pinned=authoritative)
         return resolved
     if info.required:
         return _open_slot(info)
@@ -629,7 +673,7 @@ def _awaits_comparator(
 
 def _evict_for_override(
     info: ParameterInfo,
-    overrides: dict[str, str],
+    overrides: OverrideMap,
     *,
     ledger: _VocabLedger,
     params: dict[str, ParamValue],
@@ -640,9 +684,10 @@ def _evict_for_override(
     guess re-resolves against the now-claimed vocabulary."""
     if info.name not in overrides:
         return
-    evicted = ledger.release_guess_holding(
-        info, _apply_override(info, overrides[info.name]), overrides
-    )
+    wanted = _sole_claim(_apply_override(info, overrides[info.name]))
+    if wanted is None:
+        return
+    evicted = ledger.release_guess_holding(info, wanted, overrides)
     if evicted is None:
         return
     params.pop(evicted, None)
@@ -650,7 +695,7 @@ def _evict_for_override(
     seen.discard(evicted)
 
 
-def _resolution_rank(info: ParameterInfo, overrides: dict[str, str]) -> tuple[int, int]:
+def _resolution_rank(info: ParameterInfo, overrides: OverrideMap) -> tuple[int, int]:
     """Resolution order within a pass: authoritative values claim their
     vocabulary slot before anything guesses onto it.
 
@@ -690,7 +735,7 @@ async def resolve_params_with_intent(
     fetch_at: ParamFetcher,
     intent: ParamIntent,
     embed: EmbedFn,
-    overrides: dict[str, str] | None = None,
+    overrides: OverrideMap | None = None,
 ) -> ResolvedParams:
     """Walk the dependency DAG resolving each param Tier-0 (user override) →
     Tier-1 (auto) → Tier-2 (intent) → scalar default → Tier-3 (slot). Re-fetches
@@ -756,7 +801,7 @@ async def resolve_search_params(
     search_name: str,
     intent: ParamIntent,
     embed: EmbedFn,
-    overrides: dict[str, str] | None = None,
+    overrides: OverrideMap | None = None,
 ) -> ResolvedParams:
     return await resolve_params_with_intent(
         fetch_at=_wdk_fetch_at(site_id, record_type, search_name),

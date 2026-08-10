@@ -1,13 +1,21 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from pathfinder.domain.strategy.operations import GraphOperation
-from pathfinder.domain.strategy.operations.apply import apply_operation
+from pathfinder.domain.strategy.graph_model import pushable_root_id
+from pathfinder.domain.strategy.operations import (
+    GraphOperation,
+    ReplaceStrategyOp,
+)
+from pathfinder.domain.strategy.operations.apply import (
+    ApplyError,
+    ApplyResult,
+    apply_operation,
+)
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.platform.errors import (
     AppError,
-    PartialPushError,
     ValidationError,
 )
 from pathfinder.platform.logging import get_logger
@@ -38,6 +46,14 @@ class CommitResult:
     description: str
     dropped_step_ids: list[str] = field(default_factory=list)
     sync_result: SyncResult | None = None
+    failed_step_ids: list[str] = field(default_factory=list)
+    """Steps WDK rejected. Reported, not raised.
+
+    The edit is applied in memory and written to Postgres before the push, so
+    raising made the client roll back an edit the server had kept - and the
+    next read handed it straight back. The rejection is carried on the step
+    (``wdk_push_error``) so all four stores say the same thing.
+    """
 
 
 def _require_graph(deps: StrategyMutationContext) -> StrategyGraph:
@@ -55,6 +71,39 @@ async def apply_and_commit(
     deps: StrategyMutationContext,
     op: GraphOperation,
 ) -> CommitResult:
+    return await apply_operations_and_commit(deps=deps, ops=[op])
+
+
+def _restore_graph(graph: StrategyGraph, old_ast: StrategyAst | None) -> None:
+    """Put the graph back the way it was before a failed batch.
+
+    ``apply_operation`` edits the live nodes, so a batch that fails partway
+    has already changed the graph. Replaying the pre-batch tree is what makes
+    a rejected batch a no-op rather than a half-applied edit.
+    """
+    graph.steps.clear()
+    graph.roots.clear()
+    graph.last_step_id = None
+    if old_ast is None:
+        return
+    apply_operation(graph, ReplaceStrategyOp(root=old_ast.root))
+
+
+async def apply_operations_and_commit(
+    *,
+    deps: StrategyMutationContext,
+    ops: Sequence[GraphOperation],
+) -> CommitResult:
+    """Apply every operation, then push and persist once.
+
+    The push planner diffs the before and after trees rather than reading the
+    operations, so a batch costs the same WDK round trip as a single edit.
+    Either all of the operations land or none of them do.
+    """
+    if not ops:
+        msg = "apply_operations_and_commit requires at least one operation"
+        raise ValidationError(title="No operations", detail=msg)
+
     graph = _require_graph(deps)
     sync_state = ensure_sync_state(deps.strategy_session)
     snapshot = graph.to_strategy_ast(sync_state=sync_state)
@@ -63,17 +112,46 @@ async def apply_and_commit(
     # change detection.
     old_ast = snapshot.model_copy(deep=True) if snapshot is not None else None
 
-    result = apply_operation(graph, op)
+    descriptions: list[str] = []
+    dropped_step_ids: list[str] = []
+    try:
+        for op in ops:
+            step_result = apply_operation(graph, op)
+            descriptions.append(step_result.description)
+            dropped_step_ids.extend(step_result.dropped_step_ids)
+    except (ApplyError, ValueError):
+        _restore_graph(graph, old_ast)
+        raise
+
+    result = ApplyResult(
+        description="; ".join(descriptions),
+        dropped_step_ids=sorted(set(dropped_step_ids)),
+    )
     if graph.steps:
         graph.save_history(result.description)
 
     new_ast = graph.to_strategy_ast(sync_state=sync_state)
+    # WDK is only offered the computable part of the graph. A combine that
+    # lost an input stays on the canvas and in the persisted AST, but pushing
+    # it would be rejected, so the plan is built from the surviving branch.
+    pushable_id = (
+        pushable_root_id(new_ast.root.id, graph.steps)
+        if new_ast is not None
+        else None
+    )
+    wdk_ast = (
+        graph.to_strategy_ast(
+            pushable_id, sync_state=sync_state, include_detached=False
+        )
+        if pushable_id is not None
+        else None
+    )
 
     sync_result = await _commit_to_wdk(
         deps=deps,
         graph=graph,
         old_ast=old_ast,
-        new_ast=new_ast,
+        new_ast=wdk_ast,
         dropped_step_ids=result.dropped_step_ids,
     )
 
@@ -83,16 +161,11 @@ async def apply_and_commit(
         sync_result=sync_result.sync_result,
     )
 
-    if sync_result.failed_step_ids:
-        raise PartialPushError(
-            succeeded_step_ids=sync_result.succeeded_step_ids,
-            failed_step_ids=sync_result.failed_step_ids,
-        )
-
     return CommitResult(
         description=result.description,
         dropped_step_ids=result.dropped_step_ids,
         sync_result=sync_result.sync_result,
+        failed_step_ids=sync_result.failed_step_ids,
     )
 
 

@@ -43,9 +43,12 @@ jobs:
           fetch-depth: 0
 
       - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@v3.96.0
         with:
-          extra_args: --only-verified
+          # Lob excluded: its pattern is `(live|test)_[a-zA-Z0-9_]{35}` with no
+          # vendor keyword, so every 40-char pytest name matches, and its verifier
+          # counts a 403 from api.lob.com as a live key. We have no Lob integration.
+          extra_args: --only-verified --exclude-detectors=Lob
 
   codeql:
     name: CodeQL Analysis

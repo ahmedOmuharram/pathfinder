@@ -1,8 +1,10 @@
 """Enrichment parser: transform real WDK plugin responses (all-string,
-camelCase rows under ``resultData``) into typed ``EnrichmentTerm``s. Field
-names + shapes verified against live PlasmoDB GO/pathway/word enrichment —
-the exact wire format the journeys hit. The journeys run this against live
-WDK; here we pin the transformation deterministically.
+camelCase rows under ``resultData``) into typed ``EnrichmentTerm``s.
+
+Column names come from the step-analysis plugins in VEuPathDB/ApiCommonWebsite
+(``Model/src/main/java/org/apidb/apicommon/model/stepanalysis``), not from WDK,
+which passes plugin JSON through untouched. Confirmed against live PlasmoDB and
+ToxoDB responses. See docs/knowledge/wdk/rules/searches-and-answers.md WDK-ANS-007.
 """
 
 from __future__ import annotations
@@ -71,8 +73,9 @@ def test_parse_pathway_rows_uses_pathway_id_and_name() -> None:
     assert term.p_value == pytest.approx(0.01)
 
 
-def test_parse_word_rows_map_word_to_id_and_descrip_to_name() -> None:
-    # WDK Java field ``_descrip`` serializes to JSON key ``pathwayName``.
+def test_word_rows_map_word_to_id_and_pathway_name_to_description() -> None:
+    # WordEnrichmentPlugin.ResultRow.toJson writes json.put("pathwayName", _descrip),
+    # so the word plugin's description column arrives under the pathway plugin's key.
     row: JSONObject = {
         "word": "kinase",
         "pathwayName": "protein kinase, putative",

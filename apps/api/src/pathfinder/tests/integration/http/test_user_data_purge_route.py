@@ -12,8 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.platform.security import create_user_token
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 async def db_session(

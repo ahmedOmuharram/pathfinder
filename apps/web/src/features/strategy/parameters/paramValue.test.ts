@@ -19,8 +19,8 @@ describe("paramValueToRaw — typed value → WDK raw", () => {
     ).toEqual(["Plasmodium falciparum 3D7", "Plasmodium berghei"]);
   });
 
-  it("encodes a number range as min-max", () => {
-    expect(paramValueToRaw({ type: "number-range", min: 2, max: 8 })).toBe("2-8");
+  it("encodes a number range as min:max", () => {
+    expect(paramValueToRaw({ type: "number-range", min: 2, max: 8 })).toBe("2:8");
   });
 
   it("serializes filter clauses as JSON", () => {
@@ -40,8 +40,8 @@ describe("rawToParamValue — WDK raw → typed value", () => {
     });
   });
 
-  it("splits a min-max string into numeric bounds", () => {
-    expect(rawToParamValue(spec("number-range"), "2-8")).toEqual({
+  it("splits a min:max string into numeric bounds", () => {
+    expect(rawToParamValue(spec("number-range"), "2:8")).toEqual({
       type: "number-range",
       min: 2,
       max: 8,

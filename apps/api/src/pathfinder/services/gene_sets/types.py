@@ -6,6 +6,7 @@ from typing import Literal
 from uuid import UUID
 
 from pathfinder.domain.parameters.values import ParamValue
+from pathfinder.services.enrichment.types import EnrichmentResult
 
 GeneSetSource = Literal["strategy", "paste", "upload", "derived", "saved"]
 
@@ -29,3 +30,9 @@ class GeneSet:
     parent_set_ids: list[str] = field(default_factory=list)
     operation: str | None = None  # "intersect" | "union" | "minus"
     step_count: int = 1
+    enrichment_results: list[EnrichmentResult] = field(default_factory=list)
+    """Enrichment the researcher has already run on this set.
+
+    Computing it is a slow WDK round trip; not storing it meant reopening the
+    workbench threw the analysis away and it had to be paid for again.
+    """

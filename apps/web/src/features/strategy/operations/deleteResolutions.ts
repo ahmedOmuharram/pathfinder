@@ -18,7 +18,6 @@ export function computeDeleteChoices(
         description: "This is the only step. Removing it empties the strategy.",
         isDefault: true,
         willDelete: [stepId],
-        willOrphan: [],
       },
     ];
   }
@@ -35,7 +34,6 @@ export function computeDeleteChoices(
           "The step it consumed becomes the input of the next step downstream.",
         isDefault: true,
         willDelete: [stepId],
-        willOrphan: [],
       },
     ];
   }
@@ -54,7 +52,6 @@ export function computeDeleteChoices(
             "Drop this combine and the secondary branch; the primary branch becomes the new root.",
           isDefault: true,
           willDelete: [stepId, ...secondarySubtree],
-          willOrphan: [],
         },
         {
           resolution: "delete-strategy",
@@ -62,7 +59,6 @@ export function computeDeleteChoices(
           description: "Remove every step.",
           isDefault: false,
           willDelete: steps.map((s) => s.id),
-          willOrphan: [],
         },
       ];
     }
@@ -73,7 +69,6 @@ export function computeDeleteChoices(
         description: "Removing this leaf leaves no steps.",
         isDefault: true,
         willDelete: steps.map((s) => s.id),
-        willOrphan: [],
       },
     ];
   }
@@ -82,13 +77,7 @@ export function computeDeleteChoices(
   const parentKind = inferStepKind(parent);
 
   if (parentKind === "combine") {
-    const siblingId =
-      parentInfo.slot === "primary"
-        ? parent.secondaryInputStepId
-        : parent.primaryInputStepId;
     const subtreeIds = walkSubtreeIds(steps, stepId);
-    const siblingSubtree =
-      siblingId != null && siblingId !== "" ? walkSubtreeIds(steps, siblingId) : [];
     return [
       {
         resolution: "collapse-combine",
@@ -97,17 +86,14 @@ export function computeDeleteChoices(
           "Drop this branch and the combine; the other branch reconnects upward.",
         isDefault: true,
         willDelete: [...subtreeIds, parent.id],
-        willOrphan: [],
       },
       {
         resolution: "orphan-sibling",
         title: "Delete only this branch",
         description:
-          "Leave the combine and the other branch as orphan nodes (not pushed).",
+          "Leave the combine and the other branch in the graph as a detached group (kept, but not pushed).",
         isDefault: false,
         willDelete: subtreeIds,
-        willOrphan:
-          siblingSubtree.length > 0 ? [parent.id, ...siblingSubtree] : [parent.id],
       },
       {
         resolution: "delete-subtree",
@@ -116,7 +102,6 @@ export function computeDeleteChoices(
           "Same as the first option for a leaf, but for a multi-step branch it removes everything below.",
         isDefault: false,
         willDelete: [...subtreeIds, parent.id],
-        willOrphan: [],
       },
     ];
   }
@@ -129,7 +114,6 @@ export function computeDeleteChoices(
         "The transform consuming this step has no other input, so it is removed too.",
       isDefault: true,
       willDelete: [...walkSubtreeIds(steps, stepId), parent.id],
-      willOrphan: [],
     },
   ];
 }

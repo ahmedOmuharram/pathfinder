@@ -30,11 +30,10 @@ function makeStep(overrides: Partial<Step> = {}): Step {
     recordType: "gene",
     parameters: {},
     estimatedSize: 100,
-    isBuilt: false,
     isFiltered: false,
     validation: null,
     ...overrides,
-  } as Step;
+  };
 }
 
 function reset() {

@@ -8,7 +8,7 @@ import json
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from pydantic_ai.exceptions import ModelRetry
 
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import StrategyStep
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.platform.errors import ErrorCode, ValidationError
@@ -122,7 +122,7 @@ def step_not_found(step_id: str) -> ToolErrorPayload:
 
 def get_graph_and_step(
     session: StrategySession, graph_id: str | None, step_id: str
-) -> tuple[StrategyGraph, StrategyStepNode] | ToolErrorPayload:
+) -> tuple[StrategyGraph, StrategyStep] | ToolErrorPayload:
     """Look up graph and step, returning an error payload on failure.
 
     Callers should check ``isinstance(result, ToolErrorPayload)`` -- if

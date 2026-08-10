@@ -23,7 +23,7 @@ _STATUS_TO_ERROR_CODE: dict[int, ErrorCode] = {
 }
 
 
-def _problem_response(
+def problem_response(
     request: Request,
     *,
     status: int,
@@ -64,7 +64,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         log.error("Request failed", exc_info=exc)
     else:
         log.warning("Request failed")
-    return _problem_response(
+    return problem_response(
         request,
         status=exc.status,
         code=exc.code,
@@ -77,7 +77,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handle FastAPI HTTPException."""
     code = _STATUS_TO_ERROR_CODE.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
-    return _problem_response(
+    return problem_response(
         request,
         status=exc.status_code,
         code=code,
@@ -97,7 +97,7 @@ async def request_validation_handler(
         errors=raw,
     )
     summary = "; ".join(item["msg"] for item in raw) or "Request validation failed"
-    return _problem_response(
+    return problem_response(
         request,
         status=HTTPStatus.UNPROCESSABLE_ENTITY,
         code=ErrorCode.VALIDATION_ERROR,
@@ -109,7 +109,7 @@ async def request_validation_handler(
 
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
     """Handle slowapi rate-limit rejections as problem+json."""
-    response = _problem_response(
+    response = problem_response(
         request,
         status=HTTPStatus.TOO_MANY_REQUESTS,
         code=ErrorCode.RATE_LIMITED,

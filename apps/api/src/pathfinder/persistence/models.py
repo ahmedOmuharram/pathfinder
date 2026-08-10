@@ -182,6 +182,7 @@ class GeneSetRow(Base):
     parent_set_ids: Mapped[JSONArray] = mapped_column(JSON, default=list)
     operation: Mapped[str | None] = mapped_column(String(20), nullable=True)
     step_count: Mapped[int] = mapped_column(Integer, default=1)
+    enrichment_results: Mapped[JSONArray] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

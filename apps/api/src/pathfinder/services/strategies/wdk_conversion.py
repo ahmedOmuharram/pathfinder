@@ -17,6 +17,9 @@ from pathfinder.domain.strategy.ast import (
 )
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
+from pathfinder.integrations.veupathdb.search_context import (
+    get_search_params_under_context,
+)
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.value_decoding import decode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -206,37 +209,20 @@ async def _load_search_spec(
     search_name: str,
     context: dict[str, str],
 ) -> WDKSearch | None:
-    """Load and unwrap search details for parameter normalization.
-
-    Tries the context-aware endpoint first; falls back to the plain endpoint.
-    Returns ``None`` when both fail.
-    """
+    """Load and unwrap a search's parameters, narrowed by ``context`` when WDK
+    can narrow them. ``None`` when the search itself is unreachable."""
     try:
-        response = await api.client.get_search_details_with_params(
-            record_type,
-            search_name,
-            context=context,
-            expand_params=True,
+        response = await get_search_params_under_context(
+            api.client, record_type, search_name, context
         )
     except AppError as exc:
         logger.warning(
-            "Failed to load search details with params during WDK sync",
+            "Failed to load search details during WDK sync",
             record_type=record_type,
             search_name=search_name,
             error=str(exc),
         )
-        try:
-            response = await api.client.get_search_details(
-                record_type, search_name, expand_params=True
-            )
-        except AppError as fallback_exc:
-            logger.warning(
-                "Failed to load search details during WDK sync",
-                record_type=record_type,
-                search_name=search_name,
-                error=str(fallback_exc),
-            )
-            return None
+        return None
     return response.search_data
 
 

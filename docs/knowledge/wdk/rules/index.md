@@ -1,0 +1,13 @@
+# WDK rules
+
+Each file holds one ID family. The statement in a heading is an assertion, not advice.
+
+`class` sets test priority: `HARD` means WDK rejects the request, `SILENT` means WDK
+accepts it and the science is wrong, `CONTRACT` means a PathFinder invariant that keeps
+us aligned. `SILENT` is why this exists.
+
+- [Auth and transport](auth-and-transport.md) - `WDK-HTTP-001..003` and `WDK-AUTH-001..003`
+- [Strategies and steps](strategies-and-steps.md) - `WDK-STRAT-001..007` and `WDK-STEP-001..008`
+- [Searches and answers](searches-and-answers.md) - `WDK-SEARCH-001..004` and `WDK-ANS-001..008`
+- [Parameters and vocabularies](parameters-and-vocabularies.md) - `WDK-PARAM-001..009` and `WDK-VOCAB-001..006`
+- [Filters](filters.md) - `WDK-FILTER-001..006`

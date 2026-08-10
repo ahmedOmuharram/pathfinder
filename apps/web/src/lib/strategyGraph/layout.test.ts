@@ -1,20 +1,20 @@
+import { makeStrategy } from "@/lib/types/fixtures";
 import { describe, expect, test } from "vitest";
 import { layoutStrategyGraph } from "@/lib/strategyGraph/layout";
-import type { Strategy } from "@pathfinder/shared";
 
 describe("layoutStrategyGraph", () => {
   test("returns an empty map for null/empty strategy", async () => {
     expect((await layoutStrategyGraph(null)).size).toBe(0);
-    expect((await layoutStrategyGraph({ steps: [] } as unknown as Strategy)).size).toBe(
+    expect((await layoutStrategyGraph(makeStrategy({ steps: [] }))).size).toBe(
       0,
     );
   });
 
   test("lays out a single leaf step with a numeric position", async () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s1",
       steps: [{ id: "a", displayName: "A" }],
-    } as unknown as Strategy;
+    });
 
     const positions = await layoutStrategyGraph(strategy);
     const pos = positions.get("a");
@@ -24,13 +24,13 @@ describe("layoutStrategyGraph", () => {
   });
 
   test("lays out a linear chain with source ranked left of target", async () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s2",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B", primaryInputStepId: "a" },
       ],
-    } as unknown as Strategy;
+    });
 
     const positions = await layoutStrategyGraph(strategy);
     const a = positions.get("a")!;
@@ -39,7 +39,7 @@ describe("layoutStrategyGraph", () => {
   });
 
   test("primary input source is vertically above secondary input source on a combine", async () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s-order",
       steps: [
         { id: "secondary", displayName: "Secondary" },
@@ -52,7 +52,7 @@ describe("layoutStrategyGraph", () => {
           operator: "UNION",
         },
       ],
-    } as unknown as Strategy;
+    });
 
     const positions = await layoutStrategyGraph(strategy);
     const primary = positions.get("primary")!;
@@ -63,7 +63,7 @@ describe("layoutStrategyGraph", () => {
   });
 
   test("nested combines keep primary above secondary at every level", async () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "nested",
       steps: [
         { id: "a", displayName: "A" },
@@ -84,7 +84,7 @@ describe("layoutStrategyGraph", () => {
           operator: "INTERSECT",
         },
       ],
-    } as unknown as Strategy;
+    });
 
     const positions = await layoutStrategyGraph(strategy);
     expect(positions.get("a")!.y).toBeLessThanOrEqual(positions.get("b")!.y);
@@ -95,10 +95,10 @@ describe("layoutStrategyGraph", () => {
   });
 
   test("skips edges whose endpoints reference missing steps", async () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "missing",
       steps: [{ id: "a", displayName: "A", primaryInputStepId: "ghost" }],
-    } as unknown as Strategy;
+    });
 
     // Should not throw even though "ghost" is not a step.
     const positions = await layoutStrategyGraph(strategy);

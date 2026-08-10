@@ -91,7 +91,6 @@ export function applyDuplicateStep(
     id: op.duplicateStepId,
     wdkStepId: null,
     estimatedSize: null,
-    isBuilt: false,
     validation: null,
   };
 
@@ -103,7 +102,6 @@ export function applyDuplicateStep(
     recordType: source.recordType ?? null,
     primaryInputStepId: op.sourceStepId,
     secondaryInputStepId: op.duplicateStepId,
-    isBuilt: false,
     isFiltered: false,
   };
 

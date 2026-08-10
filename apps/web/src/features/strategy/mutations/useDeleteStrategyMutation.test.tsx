@@ -46,7 +46,6 @@ function makeStrategy(): Strategy {
         displayName: "Genes by taxon",
         searchName: "GenesByTaxon",
         recordType: "gene",
-        isBuilt: false,
         isFiltered: false,
       },
     ],

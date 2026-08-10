@@ -7,6 +7,11 @@ from pathfinder.domain.strategy.ast import (
     StepReport,
     StrategyStepNode,
 )
+from pathfinder.domain.strategy.graph_model import (
+    StepStatus,
+    flatten_tree,
+    step_status,
+)
 from pathfinder.domain.strategy.ops import ColocationParams
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.validation import StepValidation
@@ -28,7 +33,13 @@ class StepResponse(CamelModel):
     secondary_input_step_id: str | None = None
     estimated_size: int | None = None
     wdk_step_id: int | None = None
-    is_built: bool = False
+    status: StepStatus = StepStatus.DRAFT
+    """Draft / ready / built / invalid, derived in one place.
+
+    Replaces ``is_built``, which only answered "does WDK have a row for this".
+    It could not say a step is deliberately unfinished, so the canvas kept its
+    own notion and the push planner inferred a third.
+    """
     is_filtered: bool = False
     wdk_push_error: str | None = None
     validation: StepValidation | None = None
@@ -65,7 +76,13 @@ def step_response_from_strategy_ast(
         else None,
         estimated_size=counts.get(step.id),
         wdk_step_id=wdk_step_id,
-        is_built=wdk_step_id is not None,
+        status=step_status(
+            flatten_tree(step)[step.id],
+            wdk_step_id=wdk_step_id,
+            validation=validations.get(step.id),
+            has_open_params=False,
+        ),
+        wdk_push_error=(payload.wdk_push_errors or {}).get(step.id),
         is_filtered=bool(step.filters),
         validation=validations.get(step.id),
         filters=step.filters or None,

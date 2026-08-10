@@ -14,7 +14,6 @@ function makeChoices(): OperationChoice<"a" | "b">[] {
       description: "first option",
       isDefault: true,
       willDelete: [],
-      willOrphan: [],
     },
     {
       resolution: "b",
@@ -22,7 +21,6 @@ function makeChoices(): OperationChoice<"a" | "b">[] {
       description: "second option",
       isDefault: false,
       willDelete: [],
-      willOrphan: [],
     },
   ];
 }

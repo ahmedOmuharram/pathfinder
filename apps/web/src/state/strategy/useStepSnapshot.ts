@@ -1,7 +1,11 @@
 import { useShallow } from "zustand/react/shallow";
 import type { SearchValidationErrors, Step } from "@pathfinder/shared";
 import { useStrategyStore } from "./store";
-import type { StepLifecycleStateName, StepMachineSnapshot } from "./stepMachine";
+import {
+  STEP_LIFECYCLE_STATE_NAMES,
+  type StepLifecycleStateName,
+  type StepMachineSnapshot,
+} from "./stepMachine";
 
 export interface StepSnapshot {
   step: Step | null;
@@ -19,15 +23,30 @@ export interface StepSnapshot {
   isInvalid: boolean;
   /** True when the step suffered a transient run/validation failure. */
   isFailed: boolean;
+  /**
+   * True when the step is deliberately unfinished - missing a required
+   * parameter, or a combine that is not fully wired.
+   *
+   * The backend derives this in one place. The canvas used to have no way to
+   * say it: an unfinished step and a step whose count had simply not arrived
+   * both rendered as "? transcripts".
+   */
+  isDraft: boolean;
+  /**
+   * Why WDK rejected this step's last push, if it did.
+   *
+   * A rejected step used to abort the whole commit, so the canvas rolled back
+   * and said "Operation failed" while the server had kept the edit. The
+   * rejection now travels with the step; this is where the canvas reads it.
+   */
+  wdkPushError: string | null;
 }
 
 function pickLifecycleValue(
   snapshot: StepMachineSnapshot | undefined,
 ): StepLifecycleStateName {
-  if (!snapshot) return "idle";
-  const value = snapshot.value;
-  if (typeof value === "string") return value as StepLifecycleStateName;
-  return "idle";
+  const value = snapshot?.value;
+  return STEP_LIFECYCLE_STATE_NAMES.find((name) => name === value) ?? "idle";
 }
 
 function resolveEstimatedSize(
@@ -63,10 +82,10 @@ function resolveValidationErrors(
 }
 
 export function useStepSnapshot(step: Step | null): StepSnapshot {
-  const stepId = step?.id ?? "";
   return useStrategyStore(
     useShallow((state) => {
-      const lifecycle = stepId !== "" ? state.stepLifecycleById[stepId] : undefined;
+      const lifecycle =
+        step !== null ? state.stepLifecycleById[step.id] : undefined;
       const lifecycleState = pickLifecycleValue(lifecycle);
       return {
         step,
@@ -77,6 +96,8 @@ export function useStepSnapshot(step: Step | null): StepSnapshot {
         isBusy: lifecycleState === "validating" || lifecycleState === "running",
         isInvalid: lifecycleState === "invalid",
         isFailed: lifecycleState === "failed",
+        isDraft: step?.status === "draft",
+        wdkPushError: step?.wdkPushError ?? null,
       };
     }),
   );

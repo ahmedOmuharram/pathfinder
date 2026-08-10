@@ -66,15 +66,24 @@ def test_frame_set_criterion_replaces_by_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_set_structure_transform_operator_builds_transform_node() -> None:
-    # A search that maps a prior result (e.g. GenesByOrthologs) is wired with the
-    # TRANSFORM operator: it transforms the accumulated subtree rather than being
-    # boolean-combined as a standalone leaf.
+async def test_set_structure_wires_a_transform_to_its_input() -> None:
+    # A search that maps a prior result (e.g. GenesByOrthologs) is a transform
+    # node holding that subtree as its input, never a standalone leaf.
     st = AgentToolState()
     await set_structure(
         _ctx(st),
-        criterion_ids=["c_seed", "c_ortho", "c_pf"],
-        operators=["TRANSFORM", "INTERSECT"],
+        root=StructureNode(
+            kind="combine",
+            operator=CombineOp.INTERSECT,
+            inputs=[
+                StructureNode(
+                    kind="transform",
+                    criterion_id="c_ortho",
+                    inputs=[StructureNode(kind="leaf", criterion_id="c_seed")],
+                ),
+                StructureNode(kind="leaf", criterion_id="c_pf"),
+            ],
+        ),
     )
     root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
     assert root.kind == "combine"
@@ -87,16 +96,30 @@ async def test_set_structure_transform_operator_builds_transform_node() -> None:
 
 
 @pytest.mark.asyncio
-async def test_set_structure_builds_left_fold_with_per_step_operators() -> None:
+async def test_set_structure_keeps_each_nodes_own_operator() -> None:
     st = AgentToolState()
     await set_structure(
-        _ctx(st), criterion_ids=["c1", "c2", "c3"], operators=["INTERSECT", "UNION"]
+        _ctx(st),
+        root=StructureNode(
+            kind="combine",
+            operator=CombineOp.UNION,
+            inputs=[
+                StructureNode(
+                    kind="combine",
+                    operator=CombineOp.INTERSECT,
+                    inputs=[
+                        StructureNode(kind="leaf", criterion_id="c1"),
+                        StructureNode(kind="leaf", criterion_id="c2"),
+                    ],
+                ),
+                StructureNode(kind="leaf", criterion_id="c3"),
+            ],
+        ),
     )
     root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
-    assert root.kind == "combine"
-    assert root.operator == CombineOp.UNION  # outermost fold step
+    assert root.operator == CombineOp.UNION
     assert root.inputs[1].criterion_id == "c3"
-    assert root.inputs[0].operator == CombineOp.INTERSECT  # inner fold
+    assert root.inputs[0].operator == CombineOp.INTERSECT
 
 
 def test_drop_criterion_removes_from_criteria_and_records() -> None:
@@ -252,3 +275,196 @@ async def test_set_criterion_binds_when_resolved_params_valid(
     assert result.resolved_params == {"organism": '["Pf3D7"]'}
     assert result.open_slots == []
     assert st.operational_spec_draft.criteria[0].id == "c1"
+
+
+class TestNestedBranches:
+    """A left fold cannot express a UNION branch on the secondary input.
+
+    FRAME's own instruction says "when a property has several evidence
+    sources, UNION them into one branch first, then INTERSECT that branch
+    with the others" -- which the flat criterion_ids/operators signature
+    could not encode. The real drug-target strategy needs
+
+        (A UNION B UNION C UNION D) -> TRANSFORM
+          INTERSECT (E UNION F)
+          INTERSECT G
+
+    and a left fold turns the (E UNION F) branch into
+    ``((... INTERSECT E) UNION F)``, which is a different question.
+    WDK step trees carry primary AND secondary inputs, so this shape is
+    representable end to end; only the tool was flattening it.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_union_branch_survives_on_the_secondary_input(self) -> None:
+        st = AgentToolState()
+
+        await set_structure(
+            _ctx(st),
+            root=StructureNode(
+                kind="combine",
+                operator=CombineOp.INTERSECT,
+                inputs=[
+                    StructureNode(kind="leaf", criterion_id="kinases"),
+                    StructureNode(
+                        kind="combine",
+                        operator=CombineOp.UNION,
+                        inputs=[
+                            StructureNode(kind="leaf", criterion_id="massspec"),
+                            StructureNode(kind="leaf", criterion_id="derisi"),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
+        root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
+        assert root.operator == CombineOp.INTERSECT
+        branch = root.inputs[1]
+        assert branch.kind == "combine"
+        assert branch.operator == CombineOp.UNION
+        assert [n.criterion_id for n in branch.inputs] == ["massspec", "derisi"]
+
+    @pytest.mark.asyncio
+    async def test_a_transform_can_sit_above_a_union_branch(self) -> None:
+        st = AgentToolState()
+
+        await set_structure(
+            _ctx(st),
+            root=StructureNode(
+                kind="transform",
+                criterion_id="orthologs",
+                inputs=[
+                    StructureNode(
+                        kind="combine",
+                        operator=CombineOp.UNION,
+                        inputs=[
+                            StructureNode(kind="leaf", criterion_id="ec"),
+                            StructureNode(kind="leaf", criterion_id="interpro"),
+                        ],
+                    )
+                ],
+            ),
+        )
+
+        root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
+        assert root.kind == "transform"
+        assert root.criterion_id == "orthologs"
+        assert root.inputs[0].operator == CombineOp.UNION
+
+    @pytest.mark.asyncio
+    async def test_a_single_leaf_is_still_valid(self) -> None:
+        st = AgentToolState()
+
+        result = await set_structure(
+            _ctx(st), root=StructureNode(kind="leaf", criterion_id="only")
+        )
+
+        root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
+        assert root.kind == "leaf"
+        assert root.criterion_id == "only"
+        assert result.criteria_combined == 1
+
+    @pytest.mark.asyncio
+    async def test_it_counts_every_criterion_in_the_tree(self) -> None:
+        st = AgentToolState()
+
+        result = await set_structure(
+            _ctx(st),
+            root=StructureNode(
+                kind="combine",
+                operator=CombineOp.INTERSECT,
+                inputs=[
+                    StructureNode(kind="leaf", criterion_id="a"),
+                    StructureNode(
+                        kind="combine",
+                        operator=CombineOp.UNION,
+                        inputs=[
+                            StructureNode(kind="leaf", criterion_id="b"),
+                            StructureNode(kind="leaf", criterion_id="c"),
+                        ],
+                    ),
+                ],
+            ),
+        )
+
+        assert result.criteria_combined == 3
+
+
+def _resolved_no_slots() -> ResolvedParams:
+    return ResolvedParams(params={}, open_slots=[])
+
+
+async def _noop_validate(*_args: object, **_kwargs: object) -> dict[str, object]:
+    return {}
+
+
+
+class TestMultiValueOverrides:
+    """A multi-pick slot must be answerable with a list.
+
+    ``param_overrides`` was ``dict[str, str]``, so answering a multi-pick
+    open slot with the natural ``["20 Hour", "21 Hour", ...]`` raised a
+    Pydantic ``string_type`` error before any WDK call. Observed live: the
+    model retried, then told the user "the API rejected the combined sample
+    encoding" and offered to build 13 separate search arms -- for a payload
+    WDK accepts (13 DeRisi time points, totalCount 841).
+
+    The tool surface, not WDK, could not express the value.
+
+    The first fix also encoded the list to WDK wire form here. That was wrong:
+    the resolver then matched the whole serialized array against the vocabulary
+    as ONE option, found nothing, and validation reported the model's own
+    correct answer as invalid. The list stays a list; the codec encodes it at
+    the wire, which is the only place that wants a string.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_list_override_is_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict[str, object] = {}
+
+        async def fake_resolve(**kwargs: object) -> ResolvedParams:
+            captured.update(kwargs)
+            return _resolved_no_slots()
+
+        monkeypatch.setattr(frame_spec, "resolve_search_params", fake_resolve)
+        monkeypatch.setattr(frame_spec, "validate_parameters", _noop_validate)
+
+        st = AgentToolState()
+        await frame_spec.set_criterion(
+            _ctx(st),
+            criterion_id="derisi",
+            text="top 10% expression 20-32h",
+            search_name="GenesByMicroarray",
+            param_overrides={"samples_percentile_generic": ["20 Hour", "21 Hour"]},
+        )
+
+        overrides = captured["overrides"]
+        assert isinstance(overrides, dict)
+        assert overrides["samples_percentile_generic"] == ["20 Hour", "21 Hour"]
+
+    @pytest.mark.asyncio
+    async def test_a_plain_string_override_is_unchanged(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        async def fake_resolve(**kwargs: object) -> ResolvedParams:
+            captured.update(kwargs)
+            return _resolved_no_slots()
+
+        monkeypatch.setattr(frame_spec, "resolve_search_params", fake_resolve)
+        monkeypatch.setattr(frame_spec, "validate_parameters", _noop_validate)
+
+        st = AgentToolState()
+        await frame_spec.set_criterion(
+            _ctx(st),
+            criterion_id="c",
+            text="t",
+            search_name="S",
+            param_overrides={"organism": "Plasmodium falciparum 3D7"},
+        )
+
+        overrides = captured["overrides"]
+        assert isinstance(overrides, dict)
+        assert overrides["organism"] == "Plasmodium falciparum 3D7"

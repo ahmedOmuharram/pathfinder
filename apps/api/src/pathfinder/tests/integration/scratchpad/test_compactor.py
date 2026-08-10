@@ -32,8 +32,6 @@ from pathfinder.platform.db import DBSessionFactory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:

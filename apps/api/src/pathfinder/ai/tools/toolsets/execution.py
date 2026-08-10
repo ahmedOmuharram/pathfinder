@@ -16,6 +16,7 @@ from pathfinder.ai.tools.standalone.escape_hatch import (
 )
 from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.strategy import (
+    apply_operations,
     build_strategy,
     delete_step,
     insert_saved_strategy,
@@ -103,6 +104,7 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
     base = FunctionToolset[AgentDeps](
         max_retries=3,
         tools=[
+            apply_operations,
             build_strategy,
             update_leaf_params,
             update_combine_operator,

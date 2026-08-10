@@ -78,7 +78,6 @@ export function useGraphConnections({
         recordType: recordType ?? null,
         primaryInputStepId: effect.sourceId,
         secondaryInputStepId: effect.targetId,
-        isBuilt: false,
         isFiltered: false,
       };
       addStep.mutate({ step: newStep });
@@ -122,7 +121,6 @@ export function useGraphConnections({
       recordType: recordType ?? null,
       primaryInputStepId: sourceId,
       secondaryInputStepId: targetId,
-      isBuilt: false,
       isFiltered: false,
     };
     addStep.mutate({ step: newStep });

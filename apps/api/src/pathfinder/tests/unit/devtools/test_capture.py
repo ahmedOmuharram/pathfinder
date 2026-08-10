@@ -208,3 +208,66 @@ def test_capture_tracebacks_captures_structlog_field_traceback(tmp_path: Path) -
     files = sorted((tmp_path / "errors").glob("*.txt"))
     assert len(files) == 1
     assert "AppNotOpen boom" in files[0].read_text()
+
+
+def _ledger(phase: str, zero_steps: list[str]) -> dict:
+    return {
+        "type": "data-ledger-update",
+        "data": {"phase": phase, "build": {"zeroResultSteps": zero_steps}},
+    }
+
+
+def _text(delta: str) -> dict:
+    return {"type": "text-delta", "delta": delta}
+
+
+class TestReplyCapture:
+    def test_deltas_reassemble_into_the_reply(self, tmp_path: Path) -> None:
+        cap = RunCapture(
+            conversation_id=uuid4(), turn_id=uuid4(), run_dir=tmp_path, quiet=True
+        )
+        for part in ("That step ", "returned 0 genes."):
+            _write(cap, _text(part))
+
+        assert cap.assistant_text() == "That step returned 0 genes."
+
+    def test_the_transcript_records_the_reply(self, tmp_path: Path) -> None:
+        # The transcript listed only tool calls, so the one thing the
+        # researcher actually read was missing from the run directory.
+        cap = RunCapture(
+            conversation_id=uuid4(), turn_id=uuid4(), run_dir=tmp_path, quiet=True
+        )
+        _write(cap, _text("No overlap between those sets."))
+        cap.flush()
+
+        assert "No overlap between those sets." in (
+            tmp_path / "transcript.md"
+        ).read_text()
+
+    def test_a_run_with_no_text_has_an_empty_reply(self, tmp_path: Path) -> None:
+        cap = RunCapture(
+            conversation_id=uuid4(), turn_id=uuid4(), run_dir=tmp_path, quiet=True
+        )
+        assert cap.assistant_text() == ""
+
+
+class TestDiagnosisReadsTheReply:
+    def test_zero_results_explained_in_the_reply_is_not_an_anomaly(
+        self, tmp_path: Path
+    ) -> None:
+        cap = RunCapture(
+            conversation_id=uuid4(), turn_id=uuid4(), run_dir=tmp_path, quiet=True
+        )
+        _write(cap, _ledger("execution", ["s1"]))
+        _write(cap, _text("The intersection returned 0 genes, so there is no overlap."))
+
+        assert not [a for a in cap.anomalies() if a.kind == "silent_zero"]
+
+    def test_zero_results_left_unsaid_is_still_an_anomaly(self, tmp_path: Path) -> None:
+        cap = RunCapture(
+            conversation_id=uuid4(), turn_id=uuid4(), run_dir=tmp_path, quiet=True
+        )
+        _write(cap, _ledger("execution", ["s1"]))
+        _write(cap, _text("Your strategy is ready."))
+
+        assert [a for a in cap.anomalies() if a.kind == "silent_zero"]

@@ -13,6 +13,7 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     get_graph,
     graph_not_found,
 )
+from pathfinder.domain.strategy.revision import strategy_revision
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload
@@ -32,6 +33,12 @@ class StrategySummaryResponse(CamelModel):
     step_count: int = 0
     description: str | None = None
     steps: list[StepResponse] | None = None
+    revision: str = ""
+    """Fingerprint of the strategy's inputs; pass to ``apply_operations``.
+
+    Hashes search names, parameters, operators and tree shape only, so a
+    refreshed count never looks like an edit. Empty for no strategy.
+    """
 
 
 async def get_strategy(
@@ -71,4 +78,5 @@ async def get_strategy(
         step_count=len(graph.steps),
         description=graph.description,
         steps=steps,
+        revision=strategy_revision(graph.to_strategy_ast(sync_state=sync_state)),
     )

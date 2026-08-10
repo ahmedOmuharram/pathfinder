@@ -159,34 +159,6 @@ class WDKError(AppError):
         )
 
 
-class PartialPushError(AppError):
-    """One or more steps failed to push to WDK during a strategy patch.
-
-    The successful step IDs are persisted before the error is raised, so
-    a retry will not re-create them. The failed step IDs are surfaced so
-    the client can inform the user which steps still need attention.
-    """
-
-    def __init__(
-        self,
-        succeeded_step_ids: list[str],
-        failed_step_ids: list[str],
-    ) -> None:
-        self.succeeded_step_ids = succeeded_step_ids
-        self.failed_step_ids = failed_step_ids
-        detail = (
-            f"WDK rejected {len(failed_step_ids)} step(s): "
-            f"{failed_step_ids}. The other {len(succeeded_step_ids)} step(s) "
-            "were saved; retry the patch to re-attempt the failed ones."
-        )
-        super().__init__(
-            code=ErrorCode.WDK_ERROR,
-            title="Partial WDK push",
-            status=502,
-            detail=detail,
-        )
-
-
 class StrategyCompilationError(AppError):
     """Strategy compilation or build failure.
 

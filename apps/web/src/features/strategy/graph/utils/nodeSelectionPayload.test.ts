@@ -1,10 +1,10 @@
+import { makeStrategy } from "@/lib/types/fixtures";
 import { describe, expect, test } from "vitest";
 import { buildNodeSelectionPayload } from "@/features/strategy/graph/utils/nodeSelectionPayload";
-import type { Strategy } from "@pathfinder/shared";
 
 describe("buildNodeSelectionPayload", () => {
   test("includes selected node(s) plus one-hop context (inputs + parents of selected inputs)", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s1",
       steps: [
         { id: "a", kind: "search", displayName: "A" },
@@ -18,7 +18,7 @@ describe("buildNodeSelectionPayload", () => {
           operator: "UNION",
         },
       ],
-    } as unknown as Strategy;
+    });
 
     const payload = buildNodeSelectionPayload(strategy, ["b"]);
     expect(payload.graphId).toBe("s1");

@@ -45,7 +45,11 @@ from pathfinder.platform.error_handlers import (
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger, setup_logging
 from pathfinder.platform.readiness import get_readiness, reset_readiness
-from pathfinder.platform.security import csrf_middleware, limiter
+from pathfinder.platform.security import (
+    RejectNullBytesMiddleware,
+    csrf_middleware,
+    limiter,
+)
 from pathfinder.transport.http.openapi import install_problem_responses
 from pathfinder.transport.http.routers import (
     _stream_parts_schemas,
@@ -242,6 +246,9 @@ def create_app() -> FastAPI:
     # CSRF protection — require X-Requested-With on state-changing requests.
     # Registered after CORSMiddleware so OPTIONS preflight passes through.
     app.middleware("http")(csrf_middleware)
+
+    # NUL is a 422, not a 500: PostgreSQL text cannot hold 0x00.
+    app.add_middleware(RejectNullBytesMiddleware)
 
     # Request ID middleware
     @app.middleware("http")

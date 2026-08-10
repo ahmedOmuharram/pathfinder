@@ -92,7 +92,7 @@ export const createLifecycleSlice: StateCreator<
       const next = { ...state.stepLifecycleById };
       for (const [stepId, count] of Object.entries(counts)) {
         const resolvedCount: number | null =
-          typeof count === "number" || count === null ? count : null;
+          typeof count === "number" ? count : null;
         const snapshot = next[stepId] ?? initialStepSnapshot({ state: "valid" });
         const running = transitionStep(snapshot, { type: "RUN_COUNTS" });
         const done = transitionStep(running, {

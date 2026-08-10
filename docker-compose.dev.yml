@@ -78,18 +78,3 @@ services:
         - action: rebuild
           path: ./apps/web/tsconfig.json
 
-  # Type codegen: fetches OpenAPI spec from API -> generates TypeScript types.
-  codegen:
-    profiles: ["dev"]
-    image: node:22-slim
-    depends_on:
-      api:
-        condition: service_healthy
-    volumes:
-      - .:/app
-    working_dir: /app
-    command: >
-      sh -c "apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1 &&
-             cd /app && corepack enable && yarn install > /dev/null 2>&1 &&
-             cd /app && sh scripts/sync-api-types.sh"
-    restart: "no"

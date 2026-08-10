@@ -16,7 +16,6 @@ from pathfinder.domain.strategy.operational_spec import (
     SpecStructure,
     StructureNode,
 )
-from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_dag import resolve_search_params
@@ -67,7 +66,7 @@ async def set_criterion(
     role: CriterionRole = "filter",
     organism_scope: str | None = None,
     direction: Literal["up", "down"] | None = None,
-    param_overrides: dict[str, str] | None = None,
+    param_overrides: dict[str, str | list[str]] | None = None,
 ) -> SetCriterionResult:
     """Bind a criterion to a real WDK search and auto-resolve its params
     (Tier-1 auto + Tier-2 intent). Required params that stay unresolved become
@@ -134,35 +133,37 @@ async def set_criterion(
     )
 
 
+def _count_criteria(node: StructureNode) -> int:
+    own = 1 if node.criterion_id else 0
+    return own + sum(_count_criteria(child) for child in node.inputs)
+
+
 async def set_structure(
     ctx: RunContext[AgentDeps],
     *,
-    criterion_ids: list[str],
-    operators: list[str],
+    root: StructureNode,
 ) -> SetStructureResult:
-    """Combine the bound criteria into the strategy tree (left-fold).
-    ``operators`` has ``len(criterion_ids) - 1`` entries, each INTERSECT | UNION
-    | MINUS | TRANSFORM. Use TRANSFORM when the next criterion's search MAPS the
-    accumulated result rather than boolean-combining with it — e.g. an ortholog
-    search (GenesByOrthologs) that takes the prior step's genes as its input and
-    returns their orthologs. A TRANSFORM step is wired to that input, not run
-    standalone."""
-    if not criterion_ids:
-        return SetStructureResult(criteria_combined=0)
-    valid = {o.value for o in CombineOp}
-    nodes = [StructureNode(kind="leaf", criterion_id=cid) for cid in criterion_ids]
-    root = nodes[0]
-    for i, node in enumerate(nodes[1:]):
-        raw = operators[i].upper() if i < len(operators) else "INTERSECT"
-        if raw == "TRANSFORM":
-            root = StructureNode(
-                kind="transform", criterion_id=node.criterion_id, inputs=[root]
-            )
-            continue
-        op = CombineOp(raw if raw in valid else "INTERSECT")
-        root = StructureNode(kind="combine", operator=op, inputs=[root, node])
+    """Set the strategy tree from the bound criteria.
+
+    ``root`` is a tree, not a list, because the shape carries meaning. Each
+    node is one of:
+
+    - ``{"kind": "leaf", "criterionId": "<id>"}`` -- one bound criterion.
+    - ``{"kind": "combine", "operator": "INTERSECT" | "UNION" | "MINUS",
+      "inputs": [<left>, <right>]}`` -- boolean-combine two subtrees.
+    - ``{"kind": "transform", "criterionId": "<id>", "inputs": [<subtree>]}``
+      -- a search that MAPS the subtree's genes rather than combining with
+      them (e.g. ``GenesByOrthologs`` returning orthologs in another
+      organism). It is wired to that input, never run standalone.
+
+    Nest freely. When a property has several alternative evidence sources,
+    UNION them into their own branch and INTERSECT that branch with the
+    others -- do not flatten it into a chain, which asks a different
+    question. WDK step trees carry a primary and a secondary input, so a
+    branch on either side is representable.
+    """
     ctx.deps.agent_state.frame_set_structure(SpecStructure(root=root))
-    return SetStructureResult(criteria_combined=len(criterion_ids))
+    return SetStructureResult(criteria_combined=_count_criteria(root))
 
 
 def drop_criterion(

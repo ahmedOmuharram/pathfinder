@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import Field, JsonValue
 
 from pathfinder.domain.parameters.values import ParamValue
+from pathfinder.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR, BooleanOperator
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.types import (
@@ -131,7 +132,7 @@ class RefineRequest(CamelModel):
     action: Literal["combine", "transform"]
     search_name: str = Field(default="")
     parameters: dict[str, ParamValue] = Field(default_factory=dict)
-    operator: str = Field(default="INTERSECT")
+    operator: BooleanOperator = Field(default=DEFAULT_COMBINE_OPERATOR)
     transform_name: str = Field(default="")
 
 

@@ -19,7 +19,7 @@ from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     walk_step_tree,
 )
-from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
+from pathfinder.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR, CombineOp
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.client import (
     VEuPathDBClient,
@@ -28,6 +28,7 @@ from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
     WDKSearchConfig,
 )
@@ -182,11 +183,12 @@ async def _create_combine_wdk_step(
             record_type="transcript",
         )
         return result.id
-    operator = get_wdk_operator(step.operator) if step.operator else "INTERSECT"
     result = await api.create_combined_step(
-        primary_step_id=primary_wdk_id,
-        secondary_step_id=secondary_wdk_id,
-        boolean_operator=operator,
+        CombinedStepSpec(
+            primary_step_id=primary_wdk_id,
+            secondary_step_id=secondary_wdk_id,
+            boolean_operator=step.operator or DEFAULT_COMBINE_OPERATOR,
+        ),
         record_type=record_type,
     )
     return result.id

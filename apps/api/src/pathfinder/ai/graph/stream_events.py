@@ -201,6 +201,27 @@ def turn_status_event(
     )
 
 
+class StrategyRevisionPayload(CamelModel):
+    """Payload for the ``data-strategy-revision`` chunk.
+
+    The fingerprint of the strategy this turn described. The UI compares it
+    against the conversation's live revision to mark a message's counts as
+    historical once the strategy is edited.
+    """
+
+    revision: str
+
+
+def strategy_revision_event(*, revision: str) -> DataChunk:
+    return DataChunk(
+        type="data-strategy-revision",
+        data=StrategyRevisionPayload(revision=revision).model_dump(
+            by_alias=True,
+            mode="json",
+        ),
+    )
+
+
 class SubAgentCallPayload(CamelModel):
     """Payload for the ``data-sub-agent-call`` chunk.
 

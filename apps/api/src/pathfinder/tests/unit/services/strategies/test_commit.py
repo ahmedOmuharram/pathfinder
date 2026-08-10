@@ -6,6 +6,7 @@ import pytest
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.operations import (
     DeleteResolution,
     DeleteStepOp,
@@ -92,8 +93,8 @@ def stub_api(monkeypatch: pytest.MonkeyPatch) -> _StubAPI:
     monkeypatch.setattr(step_wdk_push, "get_strategy_api", lambda _site_id: api)
     monkeypatch.setattr(sync_module, "get_strategy_api", lambda _site_id: api)
 
-    async def _noop_validate(*_args: Any, **_kwargs: Any) -> None:
-        return None
+    async def _noop_validate(*_args: Any, **_kwargs: Any) -> set[str]:
+        return set()
 
     monkeypatch.setattr(step_wdk_push, "_validate_plan_params", _noop_validate)
 
@@ -150,14 +151,7 @@ def _seed_session(root: StrategyStepNode, wdk_step_ids: dict[str, int]) -> Agent
     session = StrategySession(site_id="plasmodb")
     graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
     graph.record_type = "transcript"
-    stack = [root]
-    while stack:
-        node = stack.pop()
-        graph.steps[node.id] = node
-        if node.primary_input is not None:
-            stack.append(node.primary_input)
-        if node.secondary_input is not None:
-            stack.append(node.secondary_input)
+    graph.steps.update(flatten_tree(root))
     graph.recompute_roots()
     session.graph = graph
     session.sync_state = WDKSyncState(

@@ -21,7 +21,12 @@ from dataclasses import dataclass
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     generate_step_id,
-    walk_step_tree,
+)
+from pathfinder.domain.strategy.graph_model import (
+    flatten_tree,
+    rebuild_tree,
+    subtree_ids,
+    wdk_search_name,
 )
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -108,19 +113,23 @@ async def save_subtree_as_strategy(
             ),
         )
 
-    cloned_root = deep_clone_with_fresh_ids(source_node)
-    cloned_nodes = walk_step_tree(cloned_root)
+    # deep_clone works on the nested shape, so project this subtree first.
+    cloned_root = deep_clone_with_fresh_ids(
+        rebuild_tree(source_step_id, graph.steps)
+    )
+    cloned_steps = flatten_tree(cloned_root)
+    push_order = subtree_ids(cloned_root.id, cloned_steps)
 
     isolated_sync = WDKSyncState()
     record_type = graph.record_type or "transcript"
 
-    for node in cloned_nodes:
+    for node in (cloned_steps[sid] for sid in push_order):
         wdk_id, _validation, push_error = await push_step_to_wdk(
             sync_state=isolated_sync,
             step=node,
             site_id=site_id,
             record_type=record_type,
-            search_name=node.search_name,
+            search_name=wdk_search_name(node),
             parameters=dict(node.parameters),
         )
         if push_error or wdk_id is None:
@@ -146,7 +155,7 @@ async def save_subtree_as_strategy(
         "Saved substrategy",
         wdk_strategy_id=identifier.id,
         name=name,
-        steps=len(cloned_nodes),
+        steps=len(cloned_steps),
     )
 
     return SavedSubstrategyResult(

@@ -4,7 +4,7 @@ import type { Step, Strategy } from "@pathfinder/shared";
 
 /** Minimal Step with required boolean fields defaulted. */
 function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
-  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+  return { isFiltered: false, ...partial };
 }
 
 describe("core/strategyGraph/serialize", () => {

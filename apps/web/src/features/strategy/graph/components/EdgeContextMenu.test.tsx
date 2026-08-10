@@ -15,7 +15,6 @@ const COMBINE_STEP: Step = {
   primaryInputStepId: "step_a",
   secondaryInputStepId: "step_b",
   operator: CombineOperator.INTERSECT,
-  isBuilt: false,
   isFiltered: false,
 };
 
@@ -26,7 +25,6 @@ const SEARCH_STEP: Step = {
   searchName: "GenesByTaxon",
   recordType: "gene",
   parameters: {},
-  isBuilt: false,
   isFiltered: false,
 };
 

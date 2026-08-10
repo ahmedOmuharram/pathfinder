@@ -23,7 +23,6 @@ describe("flattenStrategyStepNode", () => {
       operator: null,
       primaryInputStepId: null,
       secondaryInputStepId: null,
-      isBuilt: false,
       isFiltered: false,
     });
   });

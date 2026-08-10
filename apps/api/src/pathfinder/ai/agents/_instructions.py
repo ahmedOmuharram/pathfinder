@@ -77,13 +77,16 @@ async def pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
 
 
 def pinned_discovered_searches(ctx: RunContext[AgentDeps]) -> str | None:
-    """Render the discovery gate's registered searches.
+    """Render the searches FRAME has inspected so far.
 
-    Discovery commits searches into ``agent_state.discovered_searches`` as
-    it inspects them. Planning + execution + verification all need to know
-    what's available without re-reading the discovery agent's tool trace.
-    Includes vocabulary snapshots captured by ``get_parameter_options`` so
-    planning can copy values verbatim instead of guessing.
+    FRAME's catalog tools commit each search into
+    ``agent_state.discovered_searches`` as they inspect it, and it is
+    persisted on the graph state so later turns see it too. This is a cache
+    of what the catalog returned, not the source of truth for the plan --
+    that is the ``OperationalSpec``. Recovery and verification read it to
+    know what is available without re-reading FRAME's tool trace. Includes
+    vocabulary snapshots captured by ``get_parameter_options`` so values are
+    copied verbatim instead of guessed.
     """
     searches = ctx.deps.agent_state.discovered_searches
     if not searches:

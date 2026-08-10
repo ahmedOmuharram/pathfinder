@@ -9,7 +9,8 @@ can appear in multiple tree positions (matching WDK's native behaviour).
 from dataclasses import dataclass
 
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode, generate_step_id
+from pathfinder.domain.strategy.graph_model import StrategyStep, subtree_ids
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.logging import get_logger
@@ -31,7 +32,7 @@ class StepInputs:
 def _validate_primary_input(
     graph: StrategyGraph,
     primary_input_step_id: str | None,
-) -> tuple[StrategyStepNode | None, ToolErrorPayload | None]:
+) -> tuple[StrategyStep | None, ToolErrorPayload | None]:
     """Resolve primary input step, returning (step, error_or_none)."""
     if not primary_input_step_id:
         return None, None
@@ -48,7 +49,7 @@ def _validate_primary_input(
 
 def _check_secondary_preconditions(
     graph: StrategyGraph,
-    primary_input: StrategyStepNode | None,
+    primary_input: StrategyStep | None,
     operator: str | None,
 ) -> ToolErrorPayload | None:
     """Check preconditions for secondary input: primary present and operator provided."""
@@ -69,10 +70,10 @@ def _check_secondary_preconditions(
 
 def _validate_secondary_input(
     graph: StrategyGraph,
-    primary_input: StrategyStepNode | None,
+    primary_input: StrategyStep | None,
     secondary_input_step_id: str | None,
     operator: str | None,
-) -> tuple[StrategyStepNode | None, ToolErrorPayload | None]:
+) -> tuple[StrategyStep | None, ToolErrorPayload | None]:
     """Resolve secondary input step and validate preconditions, returning (step, error_or_none)."""
     if not secondary_input_step_id:
         return None, None
@@ -93,7 +94,7 @@ def _validate_inputs(
     primary_input_step_id: str | None,
     secondary_input_step_id: str | None,
     operator: str | None,
-) -> tuple[StrategyStepNode | None, StrategyStepNode | None, ToolErrorPayload | None]:
+) -> tuple[StrategyStep | None, StrategyStep | None, ToolErrorPayload | None]:
     """Validate and resolve input step references.
 
     :returns: (primary_input, secondary_input, error_or_none).
@@ -113,36 +114,28 @@ def _validate_inputs(
 
 
 def _duplicate_subtree(
-    step: StrategyStepNode,
+    step: StrategyStep,
     graph: StrategyGraph,
-) -> StrategyStepNode:
-    """Deep-clone a step and its entire input subtree with fresh IDs.
+) -> StrategyStep:
+    """Copy a subtree under fresh ids so it can be used a second time.
 
-    All cloned nodes are registered in ``graph.steps``.  The clone root
-    is **not** added to ``graph.roots`` — the caller uses it as input to
-    a new step that will consume it immediately.
+    WDK requires a step to occupy exactly one position, so reusing the same
+    branch on both sides of a combine needs a real copy rather than a second
+    reference to it.
     """
-    cloned_primary = (
-        _duplicate_subtree(step.primary_input, graph) if step.primary_input else None
-    )
-    cloned_secondary = (
-        _duplicate_subtree(step.secondary_input, graph)
-        if step.secondary_input
-        else None
-    )
-    clone = StrategyStepNode(
-        search_name=step.search_name,
-        parameters=dict(step.parameters),
-        primary_input=cloned_primary,
-        secondary_input=cloned_secondary,
-        operator=step.operator,
-        colocation_params=step.colocation_params,
-        display_name=step.display_name,
-        filters=list(step.filters),
-        wdk_weight=step.wdk_weight,
-    )
-    graph.steps[clone.id] = clone
-    return clone
+    remap: dict[str, str] = {}
+    for old_id in subtree_ids(step.id, graph.steps):
+        remap[old_id] = generate_step_id()
+    for old_id, new_id in remap.items():
+        source = graph.steps[old_id]
+        graph.steps[new_id] = source.model_copy(
+            update={
+                "id": new_id,
+                "primary_input_id": remap.get(source.primary_input_id or ""),
+                "secondary_input_id": remap.get(source.secondary_input_id or ""),
+            }
+        )
+    return graph.steps[remap[step.id]]
 
 
 def validate_inputs_and_roots(
@@ -150,7 +143,7 @@ def validate_inputs_and_roots(
     primary_input_step_id: str | None,
     secondary_input_step_id: str | None,
     operator: str | None,
-) -> tuple[StrategyStepNode | None, StrategyStepNode | None, ToolErrorPayload | None]:
+) -> tuple[StrategyStep | None, StrategyStep | None, ToolErrorPayload | None]:
     """Resolve input steps and validate root status.
 
     When a referenced step is already consumed (not a subtree root),

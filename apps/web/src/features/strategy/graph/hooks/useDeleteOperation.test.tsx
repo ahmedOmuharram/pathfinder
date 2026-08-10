@@ -17,11 +17,10 @@ import { useStrategyStore } from "@/state/strategy/store";
 
 function step(partial: Partial<Step> & { id: string }): Step {
   return {
-    isBuilt: false,
     isFiltered: false,
     displayName: partial.id,
     ...partial,
-  } as Step;
+  };
 }
 
 function strategy(steps: Step[], rootStepId: string | null = null): Strategy {
@@ -38,7 +37,7 @@ function strategy(steps: Step[], rootStepId: string | null = null): Strategy {
     wdkUrl: null,
     createdAt: "t",
     updatedAt: "t",
-  } as Strategy;
+  };
 }
 
 beforeEach(() => {
@@ -68,7 +67,7 @@ describe("useDeleteOperation.requestDelete", () => {
     expect(harness.getStrategy("s")?.steps).toEqual([]);
   });
 
-  it("ambiguous (leaf of combine): opens dialog with three choices", () => {
+  it("ambiguous (leaf of combine): opens dialog with all three choices", () => {
     const initial = strategy(
       [
         step({ id: "a" }),
@@ -92,7 +91,11 @@ describe("useDeleteOperation.requestDelete", () => {
     });
 
     expect(result.current.dialogProps).not.toBeNull();
-    expect(result.current.dialogProps?.choices.length).toBe(3);
+    expect(result.current.dialogProps?.choices.map((c) => c.resolution)).toEqual([
+      "collapse-combine",
+      "orphan-sibling",
+      "delete-subtree",
+    ]);
   });
 
   it("ambiguous: dialog onConfirm with chosen resolution applies and pushes", async () => {

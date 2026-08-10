@@ -6,9 +6,9 @@ RONLY, COLOCATE, UNION. LONLY = left only (same as MINUS), RONLY = right only
 """
 
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import AfterValidator, Field
 
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -26,6 +26,28 @@ class CombineOp(StrEnum):
 
 
 DEFAULT_COMBINE_OPERATOR = CombineOp.INTERSECT
+
+BOOLEAN_OPERATORS = frozenset(CombineOp) - {CombineOp.COLOCATE}
+"""The operators WDK's boolean search accepts."""
+
+
+def _must_be_boolean(op: CombineOp) -> CombineOp:
+    if op not in BOOLEAN_OPERATORS:
+        msg = (
+            f"{op.value} is not a boolean operator; "
+            "WDK does colocation through GenesBySpanLogic"
+        )
+        raise ValueError(msg)
+    return op
+
+
+BooleanOperator = Annotated[CombineOp, AfterValidator(_must_be_boolean)]
+"""A CombineOp narrowed to what WDK's boolean search accepts.
+
+COLOCATE is a CombineOp but not a boolean one. Every field that ends up in a
+boolean search config uses this type, so the rule is stated once and a
+request carrying COLOCATE is a 422 rather than an opaque WDK error.
+"""
 
 # For AI param descriptions
 BOOLEAN_OPERATOR_OPTIONS_DESC = ", ".join(
@@ -108,22 +130,6 @@ _STRAND_TO_WDK: dict[str, str] = {
     "same strand": "same strand",
     "opposite strand": "opposite strand",
 }
-
-
-def get_wdk_operator(op: CombineOp) -> str:
-    """Get WDK boolean operator name.
-
-    Since enum values now match WDK values directly, this simply returns
-    ``op.value`` (with a guard for COLOCATE which is not a boolean operator).
-
-    :param op: Combine operator.
-    :returns: WDK boolean operator name.
-    :raises ValueError: If op is COLOCATE.
-    """
-    if op == CombineOp.COLOCATE:
-        msg = "COLOCATE requires special handling, not boolean operator"
-        raise ValueError(msg)
-    return op.value
 
 
 _OP_ALIASES: dict[str, CombineOp] = {

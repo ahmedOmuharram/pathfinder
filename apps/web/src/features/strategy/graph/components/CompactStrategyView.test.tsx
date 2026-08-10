@@ -31,7 +31,6 @@ const SIMPLE_STRATEGY: Strategy = {
       searchName: "GenesByTaxon",
       recordType: "gene",
       parameters: {},
-      isBuilt: true,
       isFiltered: false,
     },
   ],
@@ -54,7 +53,6 @@ const COMBINE_STRATEGY: Strategy = {
       searchName: "GenesByTaxon",
       recordType: "gene",
       parameters: {},
-      isBuilt: true,
       isFiltered: false,
     },
     {
@@ -64,7 +62,6 @@ const COMBINE_STRATEGY: Strategy = {
       searchName: "GenesByGoTerm",
       recordType: "gene",
       parameters: {},
-      isBuilt: true,
       isFiltered: false,
     },
     {
@@ -79,7 +76,6 @@ const COMBINE_STRATEGY: Strategy = {
       operator: "INTERSECT",
       primaryInputStepId: "step_a",
       secondaryInputStepId: "step_b",
-      isBuilt: true,
       isFiltered: false,
     },
   ],

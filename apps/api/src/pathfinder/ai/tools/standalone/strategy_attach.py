@@ -21,15 +21,15 @@ from pathfinder.domain.strategy.ast import (
     StepAnalysis,
     StepFilter,
     StepReport,
-    StrategyStepNode,
 )
+from pathfinder.domain.strategy.graph_model import StrategyStep
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.platform.tool_errors import ToolErrorPayload
 from pathfinder.platform.types import JSONObject
 
 
 def _step_updated_return(
-    session: StrategySession, graph: StrategyGraph, step: StrategyStepNode
+    session: StrategySession, graph: StrategyGraph, step: StrategyStep
 ) -> ToolReturn[StepOkResponse]:
     """Wrap an attachment-mutation success in a ToolReturn with one snapshot."""
     return ToolReturn(

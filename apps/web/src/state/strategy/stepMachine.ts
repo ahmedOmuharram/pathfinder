@@ -13,14 +13,17 @@ export interface StepMachineContext {
   lastError: string | null;
 }
 
-export type StepLifecycleStateName =
-  | "idle"
-  | "validating"
-  | "valid"
-  | "invalid"
-  | "running"
-  | "complete"
-  | "failed";
+export const STEP_LIFECYCLE_STATE_NAMES = [
+  "idle",
+  "validating",
+  "valid",
+  "invalid",
+  "running",
+  "complete",
+  "failed",
+] as const;
+
+export type StepLifecycleStateName = (typeof STEP_LIFECYCLE_STATE_NAMES)[number];
 
 export type StepMachineEvent =
   | { type: "VALIDATE" }
@@ -38,6 +41,7 @@ const INITIAL_CONTEXT: StepMachineContext = {
 };
 
 export const stepMachine = createMachine({
+  // Stryker disable next-line StringLiteral: inspector label only, no behavior
   id: "step",
   initial: "idle",
   types: {

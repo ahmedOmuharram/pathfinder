@@ -122,6 +122,7 @@ def _to_response(gs: GeneSet) -> GeneSetResponse:
         operation=operation,
         created_at=gs.created_at.isoformat(),
         step_count=gs.step_count,
+        enrichment_results=gs.enrichment_results,
     )
 
 

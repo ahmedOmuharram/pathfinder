@@ -79,6 +79,24 @@ class AgentToolState:
         spec.dropped.append(DroppedCriterion(text=match.text, reason=reason))
         return True
 
+    def resolved_params_for(self, search_name: str) -> dict[str, ParamValue]:
+        """Params the draft spec has already bound on ``search_name``.
+
+        A dependent param's vocabulary is only meaningful under its parents, and
+        WDK answers with the search's DEFAULTS when no context is supplied. The
+        three DeRisi profilesets carry genuinely different time points, so a
+        read with no context showed HB3's hours for a criterion bound to 3D7 and
+        the model concluded, correctly for what it was shown, that two of the
+        hours it wanted did not exist.
+        """
+        if not search_name:
+            return {}
+        merged: dict[str, ParamValue] = {}
+        for criterion in self.operational_spec_draft.criteria:
+            if criterion.search_name == search_name:
+                merged.update(criterion.resolved_params)
+        return merged
+
     @staticmethod
     def param_read_key(
         search_name: str,

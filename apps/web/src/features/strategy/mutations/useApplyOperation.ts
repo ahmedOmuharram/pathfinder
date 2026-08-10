@@ -7,6 +7,7 @@ import { applyOperationEndpoint } from "@pathfinder/shared/generated/hooks/useAp
 import { strategyQueryKey, toStrategy } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
 import { applyOperation, type GraphOperation } from "@/features/strategy/operations";
+import { toWireOperation } from "@/features/strategy/operations/toWire";
 import { useStrategyStore } from "@/state/strategy/store";
 
 export interface ApplyOperationVars {
@@ -60,7 +61,7 @@ export function useApplyOperation(conversationId: string) {
       const siteId = snapshot?.siteId ?? "";
       return await applyOperationEndpoint(
         conversationId,
-        { op } as Parameters<typeof applyOperationEndpoint>[1],
+        { op: toWireOperation(op) },
         { siteId },
       );
     },

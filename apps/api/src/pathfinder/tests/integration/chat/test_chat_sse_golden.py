@@ -33,8 +33,6 @@ from pathfinder.jobs.tasks import ensure_registered
 from pathfinder.platform.security import create_user_token
 from pathfinder.tests.integration.chat._helpers import parse_sse_body, redact
 
-pytestmark = pytest.mark.asyncio
-
 _FIXTURE_PATH = Path(__file__).parent / "_fixtures" / "chat_sse_golden_simple_turn.json"
 
 # The fixed prompt drives the mock supervisor into the ``question`` branch:

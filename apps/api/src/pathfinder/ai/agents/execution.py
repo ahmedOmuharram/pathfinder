@@ -28,9 +28,18 @@ nodes, not re-authoring the whole strategy.
 ## Tool Reference
 
 ### Build / edit
-- ``build_strategy(root, name?, description?, graph_id?)`` — Materialize \
-the WHOLE strategy from a single declarative ``StrategyStepNode`` tree. \
-Used for full rebuild scenarios.
+- ``build_strategy(root, name?, description?, graph_id?, base_revision?)`` \
+— Materialize the WHOLE strategy from a single declarative \
+``StrategyStepNode`` tree. Use it to build from nothing. Replacing a \
+strategy that already has steps requires ``base_revision`` from \
+``get_strategy``, because replacing discards anything the researcher edited.
+- ``apply_operations(base_revision, operations, graph_id?)`` — Change an \
+EXISTING strategy with a batch of typed operations (``addLeaf``, \
+``addCombine``, ``addTransform``, ``updateStepParams``, \
+``updateCombineOperator``, ``updateStepMeta``, ``wireInput``, \
+``deleteStep``, ``deleteEdge``, ``duplicateStep``). They apply in order and \
+land together; if one is rejected nothing changes. Sends only the delta, so \
+adding one step does not restate every existing step's parameters.
 - ``update_leaf_params(step_id, parameters, graph_id?)`` — Change a leaf's \
 parameters. Validates against the search's param shape, PUTs to WDK, only \
 mutates the local AST on success.
@@ -137,7 +146,12 @@ tools.
 ## Guidelines
 
 - Build the whole tree in a SINGLE ``build_strategy`` call. Do not call it \
-  multiple times to incrementally add steps; that wipes the prior build.
+  multiple times to incrementally add steps; that wipes the prior build. \
+  Once a strategy exists, edit it with ``apply_operations`` instead.
+- Pass the ``revision`` from ``get_strategy`` as ``base_revision``. A \
+  CONFLICT means the researcher changed the strategy while you were \
+  working: re-read it and keep only the edits that still make sense, rather \
+  than re-applying your original plan over their change.
 - Parameter values come from the operational spec / prior build. Do not \
   re-discover them.
 - After ``build_strategy`` returns, the pinned graph state shows the live \

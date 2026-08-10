@@ -3,7 +3,7 @@ import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "./store";
 
 function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
-  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+  return { isFiltered: false, ...partial };
 }
 
 function makeStrategy(steps: Step[]): Strategy {
@@ -210,5 +210,51 @@ describe("state/strategy/historySlice (TQ-cache aware: pure patch logic)", () =>
     ]);
     pushSnapshot({ strategy: a }, a);
     expect(useStrategyStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it("canUndo is false on an empty stack, true once a snapshot is pushed, false again after undoing it", () => {
+    expect(useStrategyStore.getState().canUndo()).toBe(false);
+    const a = makeStrategy([
+      step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const b = rename(a, "s1", "Renamed");
+    useStrategyStore.getState().pushSnapshot({ strategy: a }, b);
+    expect(useStrategyStore.getState().canUndo()).toBe(true);
+    useStrategyStore.getState().undo(b);
+    expect(useStrategyStore.getState().canUndo()).toBe(false);
+  });
+
+  it("canRedo is false until something has been undone, and false again once redone", () => {
+    expect(useStrategyStore.getState().canRedo()).toBe(false);
+    const a = makeStrategy([
+      step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const b = rename(a, "s1", "Renamed");
+    useStrategyStore.getState().pushSnapshot({ strategy: a }, b);
+    expect(useStrategyStore.getState().canRedo()).toBe(false);
+    const undone = useStrategyStore.getState().undo(b);
+    expect(useStrategyStore.getState().canRedo()).toBe(true);
+    useStrategyStore.getState().redo(undone);
+    expect(useStrategyStore.getState().canRedo()).toBe(false);
+  });
+
+  it("clearHistory empties both stacks but leaves step lifecycles alone", () => {
+    const a = makeStrategy([
+      step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const b = rename(a, "s1", "Renamed");
+    useStrategyStore.getState().pushSnapshot({ strategy: a }, b);
+    useStrategyStore.getState().undo(b);
+    useStrategyStore.getState().initStepLifecycle("s1", { state: "valid" });
+    expect(useStrategyStore.getState().undoStack).toHaveLength(0);
+    expect(useStrategyStore.getState().redoStack).toHaveLength(1);
+
+    useStrategyStore.getState().clearHistory();
+
+    expect(useStrategyStore.getState().undoStack).toEqual([]);
+    expect(useStrategyStore.getState().redoStack).toEqual([]);
+    expect(useStrategyStore.getState().canUndo()).toBe(false);
+    expect(useStrategyStore.getState().canRedo()).toBe(false);
+    expect(useStrategyStore.getState().getStepLifecycle("s1")?.value).toBe("valid");
   });
 });

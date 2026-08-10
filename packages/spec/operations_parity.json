@@ -5,70 +5,311 @@
       "name": "delete-leaf-of-nested-combine-collapse",
       "initial": {
         "steps": [
-          { "id": "A", "kind": "search" },
-          { "id": "B", "kind": "search" },
-          { "id": "D", "kind": "search" },
-          { "id": "C", "kind": "combine", "primaryInputStepId": "A", "secondaryInputStepId": "B" },
-          { "id": "R", "kind": "combine", "primaryInputStepId": "C", "secondaryInputStepId": "D" }
+          {
+            "id": "A",
+            "kind": "search"
+          },
+          {
+            "id": "B",
+            "kind": "search"
+          },
+          {
+            "id": "D",
+            "kind": "search"
+          },
+          {
+            "id": "C",
+            "kind": "combine",
+            "primaryInputStepId": "A",
+            "secondaryInputStepId": "B"
+          },
+          {
+            "id": "R",
+            "kind": "combine",
+            "primaryInputStepId": "C",
+            "secondaryInputStepId": "D"
+          }
         ],
         "rootStepId": "R"
       },
-      "op": { "kind": "deleteStep", "stepId": "A", "resolution": "collapse-combine" },
+      "op": {
+        "kind": "deleteStep",
+        "stepId": "A",
+        "resolution": "collapse-combine"
+      },
       "expected": {
-        "stepIds": ["B", "D", "R"],
-        "rootInputs": { "R": { "primary": "B", "secondary": "D" } },
-        "droppedStepIds": ["A", "C"]
+        "stepIds": [
+          "B",
+          "D",
+          "R"
+        ],
+        "rootInputs": {
+          "R": {
+            "primary": "B",
+            "secondary": "D"
+          }
+        },
+        "droppedStepIds": [
+          "A",
+          "C"
+        ]
       }
     },
     {
       "name": "delete-leaf-of-root-combine-collapse",
       "initial": {
         "steps": [
-          { "id": "a", "kind": "search" },
-          { "id": "b", "kind": "search" },
-          { "id": "c", "kind": "combine", "primaryInputStepId": "a", "secondaryInputStepId": "b" }
+          {
+            "id": "a",
+            "kind": "search"
+          },
+          {
+            "id": "b",
+            "kind": "search"
+          },
+          {
+            "id": "c",
+            "kind": "combine",
+            "primaryInputStepId": "a",
+            "secondaryInputStepId": "b"
+          }
         ],
         "rootStepId": "c"
       },
-      "op": { "kind": "deleteStep", "stepId": "a", "resolution": "collapse-combine" },
+      "op": {
+        "kind": "deleteStep",
+        "stepId": "a",
+        "resolution": "collapse-combine"
+      },
       "expected": {
-        "stepIds": ["b"],
+        "stepIds": [
+          "b"
+        ],
         "rootInputs": {},
-        "droppedStepIds": ["a", "c"]
+        "droppedStepIds": [
+          "a",
+          "c"
+        ]
       }
     },
     {
       "name": "promote-primary-on-root-combine",
       "initial": {
         "steps": [
-          { "id": "a", "kind": "search" },
-          { "id": "b", "kind": "search" },
-          { "id": "c", "kind": "combine", "primaryInputStepId": "a", "secondaryInputStepId": "b" }
+          {
+            "id": "a",
+            "kind": "search"
+          },
+          {
+            "id": "b",
+            "kind": "search"
+          },
+          {
+            "id": "c",
+            "kind": "combine",
+            "primaryInputStepId": "a",
+            "secondaryInputStepId": "b"
+          }
         ],
         "rootStepId": "c"
       },
-      "op": { "kind": "deleteStep", "stepId": "c", "resolution": "promote-primary" },
+      "op": {
+        "kind": "deleteStep",
+        "stepId": "c",
+        "resolution": "promote-primary"
+      },
       "expected": {
-        "stepIds": ["a"],
+        "stepIds": [
+          "a"
+        ],
         "rootInputs": {},
-        "droppedStepIds": ["b", "c"]
+        "droppedStepIds": [
+          "b",
+          "c"
+        ]
       }
     },
     {
       "name": "delete-subtree-cascades-transform",
       "initial": {
         "steps": [
-          { "id": "a", "kind": "search" },
-          { "id": "t", "kind": "transform", "primaryInputStepId": "a" },
-          { "id": "r", "kind": "search", "primaryInputStepId": "t" }
+          {
+            "id": "a",
+            "kind": "search"
+          },
+          {
+            "id": "t",
+            "kind": "transform",
+            "primaryInputStepId": "a"
+          },
+          {
+            "id": "r",
+            "kind": "search",
+            "primaryInputStepId": "t"
+          }
         ],
         "rootStepId": "r"
       },
-      "op": { "kind": "deleteStep", "stepId": "a", "resolution": "delete-subtree" },
+      "op": {
+        "kind": "deleteStep",
+        "stepId": "a",
+        "resolution": "delete-subtree"
+      },
       "expected": {
-        "stepIds": ["r"],
-        "rootInputs": { "r": { "primary": null } },
-        "droppedStepIds": ["a", "t"]
+        "stepIds": [
+          "r"
+        ],
+        "rootInputs": {
+          "r": {
+            "primary": null
+          }
+        },
+        "droppedStepIds": [
+          "a",
+          "t"
+        ]
+      }
+    },
+    {
+      "name": "orphan-sibling-on-secondary-of-root-combine",
+      "initial": {
+        "steps": [
+          {
+            "id": "A",
+            "kind": "search"
+          },
+          {
+            "id": "B",
+            "kind": "search"
+          },
+          {
+            "id": "C",
+            "kind": "combine",
+            "primaryInputStepId": "A",
+            "secondaryInputStepId": "B"
+          }
+        ],
+        "rootStepId": "C"
+      },
+      "op": {
+        "kind": "deleteStep",
+        "stepId": "B",
+        "resolution": "orphan-sibling"
+      },
+      "expected": {
+        "stepIds": [
+          "A",
+          "C"
+        ],
+        "rootInputs": {
+          "C": {
+            "primary": "A",
+            "secondary": null
+          }
+        },
+        "droppedStepIds": [
+          "B"
+        ]
+      }
+    },
+    {
+      "name": "orphan-sibling-on-primary-promotes-the-survivor",
+      "initial": {
+        "steps": [
+          {
+            "id": "A",
+            "kind": "search"
+          },
+          {
+            "id": "B",
+            "kind": "search"
+          },
+          {
+            "id": "C",
+            "kind": "combine",
+            "primaryInputStepId": "A",
+            "secondaryInputStepId": "B"
+          }
+        ],
+        "rootStepId": "C"
+      },
+      "op": {
+        "kind": "deleteStep",
+        "stepId": "A",
+        "resolution": "orphan-sibling"
+      },
+      "expected": {
+        "stepIds": [
+          "B",
+          "C"
+        ],
+        "rootInputs": {
+          "C": {
+            "primary": "B",
+            "secondary": null
+          }
+        },
+        "droppedStepIds": [
+          "A"
+        ]
+      }
+    },
+    {
+      "name": "orphan-sibling-detaches-the-parent-from-its-grandparent",
+      "initial": {
+        "steps": [
+          {
+            "id": "A",
+            "kind": "search"
+          },
+          {
+            "id": "B",
+            "kind": "search"
+          },
+          {
+            "id": "E",
+            "kind": "search"
+          },
+          {
+            "id": "C",
+            "kind": "combine",
+            "primaryInputStepId": "A",
+            "secondaryInputStepId": "B"
+          },
+          {
+            "id": "D",
+            "kind": "combine",
+            "primaryInputStepId": "C",
+            "secondaryInputStepId": "E"
+          }
+        ],
+        "rootStepId": "D"
+      },
+      "op": {
+        "kind": "deleteStep",
+        "stepId": "B",
+        "resolution": "orphan-sibling"
+      },
+      "expected": {
+        "stepIds": [
+          "A",
+          "C",
+          "D",
+          "E"
+        ],
+        "rootInputs": {
+          "C": {
+            "primary": "A",
+            "secondary": null
+          },
+          "D": {
+            "primary": "E",
+            "secondary": null
+          }
+        },
+        "droppedStepIds": [
+          "B"
+        ]
       }
     }
   ]

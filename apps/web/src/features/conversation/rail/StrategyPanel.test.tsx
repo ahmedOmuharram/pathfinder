@@ -42,7 +42,6 @@ const STRATEGY: Strategy = {
       searchName: "GenesByTaxon",
       recordType: "gene",
       parameters: {},
-      isBuilt: true,
       isFiltered: false,
     },
   ],

@@ -12,11 +12,10 @@ const step = (
     id,
     kind,
     displayName: id,
-    primaryInputStepId: primary,
-    secondaryInputStepId: secondary,
-    isBuilt: false,
+    primaryInputStepId: primary ?? null,
+    secondaryInputStepId: secondary ?? null,
     isFiltered: false,
-  }) as Step;
+  });
 
 describe("computeDeleteChoices", () => {
   test("sole leaf: only delete-strategy choice", () => {
@@ -32,15 +31,31 @@ describe("computeDeleteChoices", () => {
     const choices = computeDeleteChoices(steps, "a");
     const tokens = choices.map((c) => c.resolution);
     expect(tokens).toEqual(
-      expect.arrayContaining(["collapse-combine", "orphan-sibling", "delete-subtree"]),
+      expect.arrayContaining([
+        "collapse-combine",
+        "orphan-sibling",
+        "delete-subtree",
+      ]),
     );
     const def = choices.find((c) => c.isDefault);
     expect(def?.resolution).toBe("collapse-combine");
     const collapse = choices.find((c) => c.resolution === "collapse-combine")!;
     expect(collapse.willDelete.sort()).toEqual(["a", "c"]);
+  });
+
+  test("orphaning removes only the target branch", () => {
+    const steps = [step("a"), step("b"), step("c", "a", "b", "combine")];
+    const choices = computeDeleteChoices(steps, "a");
     const orphan = choices.find((c) => c.resolution === "orphan-sibling")!;
     expect(orphan.willDelete).toEqual(["a"]);
-    expect(orphan.willOrphan.sort()).toEqual(["b", "c"]);
+  });
+
+  test("every choice accounts for the steps it removes", () => {
+    const steps = [step("a"), step("b"), step("c", "a", "b", "combine")];
+
+    for (const choice of computeDeleteChoices(steps, "a")) {
+      expect(choice.willDelete.length).toBeGreaterThan(0);
+    }
   });
 
   test("leaf of nested combine: sibling reconnects to grandparent", () => {
@@ -54,7 +69,6 @@ describe("computeDeleteChoices", () => {
     const choices = computeDeleteChoices(steps, "A");
     const collapse = choices.find((c) => c.resolution === "collapse-combine")!;
     expect(collapse.willDelete.sort()).toEqual(["A", "C"]);
-    expect(collapse.willOrphan).toEqual([]);
   });
 
   test("root combine: promote-primary, delete-strategy", () => {

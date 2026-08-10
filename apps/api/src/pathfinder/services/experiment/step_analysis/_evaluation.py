@@ -3,11 +3,12 @@
 from dataclasses import dataclass, field
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
-    PatchStepSpec,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKSearchConfig,
@@ -87,11 +88,13 @@ async def _eval_control_set(
     controls_step_id = controls_step.id
 
     combined = await api.create_combined_step(
-        primary_step_id=root_tree.step_id,
-        secondary_step_id=controls_step_id,
-        boolean_operator="INTERSECT",
+        CombinedStepSpec(
+            primary_step_id=root_tree.step_id,
+            secondary_step_id=controls_step_id,
+            boolean_operator=CombineOp.INTERSECT,
+            custom_name=f"Tree \u2229 {label}",
+        ),
         record_type=ctx.record_type,
-        spec_overrides=PatchStepSpec(custom_name=f"Tree \u2229 {label}"),
     )
     combined_step_id = combined.id
 

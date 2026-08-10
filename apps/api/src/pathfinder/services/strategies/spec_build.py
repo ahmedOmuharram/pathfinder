@@ -25,7 +25,6 @@ from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import (
     COMBINE_SEARCH_NAME,
     StrategyStepNode,
-    walk_step_tree,
 )
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
@@ -33,6 +32,13 @@ from pathfinder.domain.strategy.build_outcome import (
     StepPushFailure,
     node_status,
 )
+from pathfinder.domain.strategy.graph_model import (
+    StrategyStep,
+    flatten_tree,
+    subtree_ids,
+    wdk_search_name,
+)
+from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.param_validation import validate_parameters
@@ -52,7 +58,7 @@ logger = get_logger(__name__)
 
 
 def _node_results(
-    nodes: list[StrategyStepNode],
+    nodes: list[StrategyStep],
     sync_state: WDKSyncState,
     outcome: BuildOutcome,
 ) -> list[NodeResult]:
@@ -70,6 +76,33 @@ def _node_results(
         )
         for node in nodes
     ]
+
+
+def _replace_graph_contents(
+    graph: StrategyGraph,
+    root: StrategyStepNode,
+    *,
+    name: str | None,
+    description: str | None,
+) -> None:
+    """Swap the graph for the spec's tree, keeping the old one undoable.
+
+    Materializing a spec is meant to replace what is there, so this stays
+    destructive. But the Lead may rebuild on a later turn - its own rule is
+    "not again unless the user changes the goal" - and by then the researcher
+    may have corrected a parameter by hand. Snapshotting first is what leaves
+    them a way back.
+    """
+    if graph.steps:
+        graph.save_history("Replaced by the operational spec")
+
+    graph.steps = flatten_tree(root)
+    graph.recompute_roots()
+    graph.last_step_id = root.id
+    if name is not None:
+        graph.name = name
+    if description is not None:
+        graph.description = description
 
 
 async def build_strategy_from_spec(
@@ -92,16 +125,9 @@ async def build_strategy_from_spec(
         msg = "no active strategy graph for the current conversation"
         raise RuntimeError(msg)
 
-    nodes = walk_step_tree(root)
-
-    graph.steps.clear()
-    graph.roots.clear()
-    for node in nodes:
-        graph.add_step(node)
-    if name is not None:
-        graph.name = name
-    if description is not None:
-        graph.description = description
+    steps_by_id = flatten_tree(root)
+    nodes = [steps_by_id[sid] for sid in subtree_ids(root.id, steps_by_id)]
+    _replace_graph_contents(graph, root, name=name, description=description)
 
     sync_state = ensure_sync_state(session)
     await reconcile_sync_state_with_wdk(
@@ -179,7 +205,7 @@ async def build_strategy_from_spec(
 
 async def _push_tree_to_wdk(
     *,
-    nodes: list[StrategyStepNode],
+    nodes: list[StrategyStep],
     graph_record_type: str,
     site_id: str,
     sync_state: WDKSyncState,
@@ -194,12 +220,13 @@ async def _push_tree_to_wdk(
     burn a roundtrip on a deterministic 422.
     """
     failed_node_ids: set[str] = set()
+    steps_by_id = {node.id: node for node in nodes}
     callbacks = make_validation_callbacks(site_id)
     for node in nodes:
-        if _has_failed_descendant(node, failed_node_ids):
+        if _has_failed_descendant(node, failed_node_ids, steps_by_id):
             outcome.skipped_step_ids.append(node.id)
             continue
-        search_name = node.search_name or COMBINE_SEARCH_NAME
+        search_name = wdk_search_name(node)
         push_parameters: dict[str, ParamValue] = dict(node.parameters)
         if search_name != COMBINE_SEARCH_NAME:
             try:
@@ -248,18 +275,15 @@ async def _push_tree_to_wdk(
 
 
 def _has_failed_descendant(
-    node: StrategyStepNode,
+    node: StrategyStep,
     failed_ids: set[str],
+    steps: dict[str, StrategyStep],
 ) -> bool:
     """True if any DFS-descendant of ``node`` already failed its push."""
-    if node.primary_input is not None:
-        if node.primary_input.id in failed_ids:
+    for input_id in node.inputs():
+        if input_id in failed_ids:
             return True
-        if _has_failed_descendant(node.primary_input, failed_ids):
-            return True
-    if node.secondary_input is not None:
-        if node.secondary_input.id in failed_ids:
-            return True
-        if _has_failed_descendant(node.secondary_input, failed_ids):
+        child = steps.get(input_id)
+        if child is not None and _has_failed_descendant(child, failed_ids, steps):
             return True
     return False

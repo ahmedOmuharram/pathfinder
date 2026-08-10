@@ -12,7 +12,12 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from pathfinder.ai.agents._history_processor import _collect_ids, pair_tool_calls
+from pathfinder.ai.agents._history_processor import (
+    KEEP_RECENT_TOOL_PAIRS,
+    _collect_ids,
+    elide_consumed_tool_results,
+    pair_tool_calls,
+)
 
 
 def _user(text: str) -> ModelRequest:
@@ -404,3 +409,92 @@ class TestPairToolCalls:
         _, _, has_dup_returns, has_dup_calls = _collect_ids(messages)
         assert has_dup_returns is False
         assert has_dup_calls is False
+
+
+def _call_and_return(tool: str, tcid: str, result: object) -> list[ModelResponse | ModelRequest]:
+    return [
+        ModelResponse(parts=[ToolCallPart(tool_name=tool, args={}, tool_call_id=tcid)]),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(tool_name=tool, content=result, tool_call_id=tcid)
+            ]
+        ),
+    ]
+
+
+def _returned_contents(messages: list[object]) -> list[object]:
+    return [
+        part.content
+        for msg in messages
+        if isinstance(msg, ModelRequest)
+        for part in msg.parts
+        if isinstance(part, ToolReturnPart)
+    ]
+
+
+class TestElisionDoesNotCauseRefetching:
+    """Eliding a result the agent still needs makes it call the tool again.
+
+    Measured on live runs: with elision on, a two-criterion turn issued 41
+    tool calls of which 12 were byte-identical re-calls
+    (``get_sample_records`` four times with the same arguments). With
+    elision off, the same query issued 18-22 calls and zero duplicates.
+    A count costs ~10 tokens to keep and a whole round trip to re-fetch.
+    """
+
+    def _history(self, results: list[object]) -> list[object]:
+        history: list[object] = [_user("find genes")]
+        for i, result in enumerate(results):
+            history.extend(_call_and_return(f"tool_{i}", f"call_{i}", result))
+        return history
+
+    def test_a_small_result_is_never_elided(self) -> None:
+        # get_estimated_size returns a bare count and was re-fetched three
+        # times in one run after being elided.
+        results: list[object] = [326] * (KEEP_RECENT_TOOL_PAIRS + 3)
+
+        kept = _returned_contents(elide_consumed_tool_results(self._history(results)))
+
+        assert kept == results
+
+    def test_a_bulky_result_is_still_compressed(self) -> None:
+        bulky = {"records": [{"id": f"PF3D7_{i:06d}"} for i in range(500)]}
+        results: list[object] = [bulky] * (KEEP_RECENT_TOOL_PAIRS + 2)
+
+        kept = _returned_contents(elide_consumed_tool_results(self._history(results)))
+
+        assert any(isinstance(k, str) and "elided" in k for k in kept), (
+            "large payloads must still be compressed"
+        )
+
+    def test_a_compressed_result_keeps_a_usable_digest(self) -> None:
+        bulky = {"estimatedSize": 326, "records": [{"id": f"g{i}"} for i in range(500)]}
+        results: list[object] = [bulky] * (KEEP_RECENT_TOOL_PAIRS + 2)
+
+        kept = _returned_contents(elide_consumed_tool_results(self._history(results)))
+        compressed = [k for k in kept if isinstance(k, str) and "elided" in k]
+
+        assert compressed, "expected at least one compressed result"
+        assert "326" in compressed[0], (
+            "the digest must carry the facts the agent would otherwise re-fetch"
+        )
+
+    def test_the_digest_does_not_invite_a_re_call(self) -> None:
+        # The old stub said "re-call the tool only if you need fresh data".
+        # The agent took that invitation.
+        bulky = {"records": [{"id": f"g{i}"} for i in range(500)]}
+        results: list[object] = [bulky] * (KEEP_RECENT_TOOL_PAIRS + 2)
+
+        kept = _returned_contents(elide_consumed_tool_results(self._history(results)))
+        compressed = [k for k in kept if isinstance(k, str) and "elided" in k]
+
+        assert compressed
+        assert "re-call" not in compressed[0].lower()
+
+    def test_recent_results_are_untouched(self) -> None:
+        bulky = {"records": [{"id": f"g{i}"} for i in range(500)]}
+        results: list[object] = [bulky] * (KEEP_RECENT_TOOL_PAIRS + 2)
+
+        kept = _returned_contents(elide_consumed_tool_results(self._history(results)))
+
+        assert kept[-KEEP_RECENT_TOOL_PAIRS:] == results[-KEEP_RECENT_TOOL_PAIRS:]

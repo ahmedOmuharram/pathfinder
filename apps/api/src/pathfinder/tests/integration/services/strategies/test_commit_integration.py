@@ -12,16 +12,21 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.domain.parameters.values import MultiPickValue
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
+from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.operations import (
+    AddLeafOp,
+    AttachNewRoot,
     DeleteResolution,
     DeleteStepOp,
     UpdateStepMetaOp,
 )
+from pathfinder.domain.strategy.operations.apply import ApplyError
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
     PatchStepSpec,
     WDKIdentifier,
@@ -30,6 +35,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories.conversation import ConversationRepository
+from pathfinder.platform.errors import WDKError
 from pathfinder.services.strategies import (
     commit as commit_module,
 )
@@ -39,11 +45,12 @@ from pathfinder.services.strategies import (
 from pathfinder.services.strategies import (
     sync as sync_module,
 )
-from pathfinder.services.strategies.commit import apply_and_commit
+from pathfinder.services.strategies.commit import (
+    apply_and_commit,
+    apply_operations_and_commit,
+)
 from pathfinder.services.strategies.sync import SyncResult
 from pathfinder.services.strategies.sync_state import WDKSyncState
-
-pytestmark = pytest.mark.asyncio
 
 
 @dataclass
@@ -82,20 +89,18 @@ class _CountingAPI:
 
     async def create_combined_step(
         self,
-        primary_step_id: int,
-        secondary_step_id: int,
-        boolean_operator: str,
+        spec: CombinedStepSpec,
         record_type: str,
-        **kwargs: Any,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
-        del kwargs
+        del user_id
         self.calls.append(
             _Call(
                 "create_combined_step",
                 {
-                    "primary_step_id": primary_step_id,
-                    "secondary_step_id": secondary_step_id,
-                    "boolean_operator": boolean_operator,
+                    "primary_step_id": spec.primary_step_id,
+                    "secondary_step_id": spec.secondary_step_id,
+                    "boolean_operator": spec.boolean_operator.value,
                     "record_type": record_type,
                 },
             ),
@@ -173,8 +178,9 @@ def stub_api(monkeypatch: pytest.MonkeyPatch) -> _CountingAPI:
     monkeypatch.setattr(step_wdk_push, "get_strategy_api", lambda _site_id: api)
     monkeypatch.setattr(sync_module, "get_strategy_api", lambda _site_id: api)
 
-    async def _noop_validate(*_args: Any, **_kwargs: Any) -> None:
-        return None
+    async def _noop_validate(*_args: Any, **_kwargs: Any) -> set[str]:
+        """No step is incomplete, so nothing is deferred as a draft."""
+        return set()
 
     monkeypatch.setattr(step_wdk_push, "_validate_plan_params", _noop_validate)
 
@@ -285,14 +291,7 @@ def _build_deps(
         graph_id=str(conv_id), name="Test strategy", site_id="plasmodb"
     )
     graph.record_type = "transcript"
-    stack = [root]
-    while stack:
-        node = stack.pop()
-        graph.steps[node.id] = node
-        if node.primary_input is not None:
-            stack.append(node.primary_input)
-        if node.secondary_input is not None:
-            stack.append(node.secondary_input)
+    graph.steps.update(flatten_tree(root))
     graph.recompute_roots()
     session.graph = graph
     session.sync_state = WDKSyncState(
@@ -354,6 +353,52 @@ async def test_delete_collapse_combine_drops_wdk_steps_and_persists_ast(
         assert ast.root.secondary_input is None
 
 
+async def test_deleting_the_whole_strategy_clears_the_persisted_ast(
+    db_session: AsyncSession,
+    session_maker: async_sessionmaker[AsyncSession],
+    seed_user: User,
+    stub_api: _CountingAPI,
+) -> None:
+    """An empty graph has no root, and a rootless AST is not representable.
+
+    ``persist`` used to return early on that, so "Delete strategy" pushed the
+    deletions to WDK and then left the old AST in the row: reopening the chat
+    brought the deleted strategy back while WDK no longer had it.
+    """
+    a = _leaf("step_a")
+    conv_id = await _seed_conversation(
+        db_session,
+        seed_user,
+        root=a,
+        wdk_step_ids={"step_a": 100},
+    )
+    deps = _build_deps(
+        conv_id=conv_id,
+        root=a,
+        wdk_step_ids={"step_a": 100},
+        db_session_factory=session_maker,
+    )
+
+    await apply_and_commit(
+        deps=deps,
+        op=DeleteStepOp(
+            step_id="step_a",
+            resolution=DeleteResolution.DELETE_STRATEGY,
+        ),
+    )
+
+    assert {c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"} == {
+        100
+    }
+
+    async with session_maker() as fresh:
+        repo = ConversationRepository(fresh)
+        refetched = await repo.get_by_id(conv_id)
+        assert refetched is not None
+        assert not refetched.strategy_ast
+        assert refetched.step_count == 0
+
+
 async def test_update_step_meta_persists_without_wdk_delete(
     db_session: AsyncSession,
     session_maker: async_sessionmaker[AsyncSession],
@@ -388,3 +433,296 @@ async def test_update_step_meta_persists_without_wdk_delete(
         assert refetched is not None
         ast = StrategyAst.model_validate(refetched.strategy_ast)
         assert ast.root.display_name == "Renamed step"
+
+
+async def test_a_batch_of_operations_lands_in_one_commit(
+    db_session: AsyncSession,
+    session_maker: async_sessionmaker[AsyncSession],
+    seed_user: User,
+    stub_api: _CountingAPI,
+) -> None:
+    """One edit used to mean re-sending the whole strategy. Operations carry
+    the intent instead, and the planner diffs trees, so N of them still cost a
+    single sync."""
+    a = _leaf("step_a")
+    conv_id = await _seed_conversation(
+        db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
+    )
+    deps = _build_deps(
+        conv_id=conv_id,
+        root=a,
+        wdk_step_ids={"step_a": 100},
+        db_session_factory=session_maker,
+    )
+
+    result = await apply_operations_and_commit(
+        deps=deps,
+        ops=[
+            UpdateStepMetaOp(step_id="step_a", display_name="Renamed once"),
+            UpdateStepMetaOp(step_id="step_a", display_name="Renamed twice"),
+        ],
+    )
+
+    assert "Renamed" not in result.description or result.description.count(";") == 1
+    graph = deps.strategy_session.get_graph(None)
+    assert graph is not None
+    assert graph.steps["step_a"].display_name == "Renamed twice"
+
+    async with session_maker() as fresh:
+        refetched = await ConversationRepository(fresh).get_by_id(conv_id)
+        assert refetched is not None
+        ast = StrategyAst.model_validate(refetched.strategy_ast)
+        assert ast.root.display_name == "Renamed twice"
+
+
+async def test_a_rejected_batch_changes_nothing(
+    db_session: AsyncSession,
+    session_maker: async_sessionmaker[AsyncSession],
+    seed_user: User,
+    stub_api: _CountingAPI,
+) -> None:
+    """``apply_operation`` edits live nodes, so an operation that fails partway
+    has already mutated the graph. The pre-batch tree is replayed so a rejected
+    batch is a no-op instead of a half-applied edit."""
+    a = _leaf("step_a")
+    conv_id = await _seed_conversation(
+        db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
+    )
+    deps = _build_deps(
+        conv_id=conv_id,
+        root=a,
+        wdk_step_ids={"step_a": 100},
+        db_session_factory=session_maker,
+    )
+
+    with pytest.raises(ApplyError):
+        await apply_operations_and_commit(
+            deps=deps,
+            ops=[
+                UpdateStepMetaOp(step_id="step_a", display_name="Applied first"),
+                UpdateStepMetaOp(step_id="ghost", display_name="never exists"),
+            ],
+        )
+
+    graph = deps.strategy_session.get_graph(None)
+    assert graph is not None
+    assert sorted(graph.steps) == ["step_a"]
+    # The first rename must not survive the rejected batch.
+    assert graph.steps["step_a"].display_name != "Applied first"
+
+    async with session_maker() as fresh:
+        refetched = await ConversationRepository(fresh).get_by_id(conv_id)
+        assert refetched is not None
+        ast = StrategyAst.model_validate(refetched.strategy_ast)
+        assert ast.root.display_name != "Applied first"
+
+
+async def test_a_rejected_batch_restores_a_multi_step_shape(
+    db_session: AsyncSession,
+    session_maker: async_sessionmaker[AsyncSession],
+    seed_user: User,
+    stub_api: _CountingAPI,
+) -> None:
+    """Restoring has to rebuild the tree, not just undo the last operation."""
+    a, b = _leaf("step_a"), _leaf("step_b")
+    c = _combine("step_c", a, b)
+    wdk_ids = {"step_a": 100, "step_b": 200, "step_c": 300}
+    conv_id = await _seed_conversation(
+        db_session, seed_user, root=c, wdk_step_ids=wdk_ids
+    )
+    deps = _build_deps(
+        conv_id=conv_id,
+        root=c,
+        wdk_step_ids=wdk_ids,
+        db_session_factory=session_maker,
+    )
+
+    with pytest.raises(ApplyError):
+        await apply_operations_and_commit(
+            deps=deps,
+            ops=[
+                DeleteStepOp(
+                    step_id="step_a", resolution=DeleteResolution.COLLAPSE_COMBINE
+                ),
+                UpdateStepMetaOp(step_id="ghost", display_name="never exists"),
+            ],
+        )
+
+    graph = deps.strategy_session.get_graph(None)
+    assert graph is not None
+    assert sorted(graph.steps) == ["step_a", "step_b", "step_c"]
+    assert graph.roots == {"step_c"}
+    assert graph.steps["step_c"].primary_input_id == "step_a"
+    assert graph.steps["step_c"].secondary_input_id == "step_b"
+
+
+async def test_adding_a_second_root_step_is_persisted(
+    db_session: AsyncSession,
+    session_maker: async_sessionmaker[AsyncSession],
+    seed_user: User,
+    stub_api: _CountingAPI,
+) -> None:
+    """Adding a search to an existing strategy leaves two roots until the user
+    combines them, and that intermediate state has to survive a reload.
+
+    ``to_strategy_ast`` returns None whenever there is more than one root, and
+    persist treated that as "nothing to write" - so the new step lived only in
+    memory and vanished when the conversation was reopened.
+    """
+    a = _leaf("step_a")
+    conv_id = await _seed_conversation(
+        db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
+    )
+    deps = _build_deps(
+        conv_id=conv_id,
+        root=a,
+        wdk_step_ids={"step_a": 100},
+        db_session_factory=session_maker,
+    )
+
+    await apply_and_commit(
+        deps=deps,
+        op=AddLeafOp(step=_leaf("step_b"), attach=AttachNewRoot()),
+    )
+
+    graph = deps.strategy_session.get_graph(None)
+    assert graph is not None
+    assert graph.roots == {"step_a", "step_b"}
+
+    async with session_maker() as fresh:
+        refetched = await ConversationRepository(fresh).get_by_id(conv_id)
+        assert refetched is not None
+        persisted = StrategyAst.model_validate(refetched.strategy_ast)
+        ids = {node.id for node in walk_step_tree(persisted.root)}
+        for detached in persisted.detached_roots:
+            ids |= {node.id for node in walk_step_tree(detached)}
+        assert ids == {"step_a", "step_b"}
+        assert refetched.step_count == 2
+
+
+async def test_the_operation_response_reflects_the_operation(
+    db_session: AsyncSession,
+    session_maker: async_sessionmaker[AsyncSession],
+    seed_user: User,
+    stub_api: _CountingAPI,
+) -> None:
+    """The route re-reads the row after committing, and the commit runs in its
+    own session. Without expiring the caller's identity map that re-read hands
+    back the cached pre-operation object, so the canvas replaces the user's
+    optimistic edit with the state from before it.
+    """
+    a = _leaf("step_a")
+    conv_id = await _seed_conversation(
+        db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
+    )
+    deps = _build_deps(
+        conv_id=conv_id,
+        root=a,
+        wdk_step_ids={"step_a": 100},
+        db_session_factory=session_maker,
+    )
+
+    # Read once through this session so the row is in its identity map, the
+    # way the route does before applying.
+    outer = ConversationRepository(db_session)
+    assert await outer.get_by_id(conv_id) is not None
+
+    await apply_and_commit(
+        deps=deps,
+        op=AddLeafOp(step=_leaf("step_b"), attach=AttachNewRoot()),
+    )
+
+    db_session.expire_all()
+    refreshed = await outer.get_by_id(conv_id)
+    assert refreshed is not None
+    persisted = StrategyAst.model_validate(refreshed.strategy_ast)
+    ids = {node.id for node in walk_step_tree(persisted.root)}
+    for detached in persisted.detached_roots:
+        ids |= {node.id for node in walk_step_tree(detached)}
+    assert ids == {"step_a", "step_b"}
+
+
+class _FailingAPI(_CountingAPI):
+    """Rejects one search name, the way WDK rejects one bad step."""
+
+    fail_search: str = "GenesByTaxon"
+
+    async def update_step_search_config(
+        self,
+        step_id: int,
+        search_config: WDKSearchConfig,
+        record_type: str,
+        search_name: str,
+        *,
+        user_id: str | None = None,
+    ) -> None:
+        if search_name == self.fail_search:
+            msg = "WDK rejected this step"
+            raise WDKError(msg, 422)
+        await super().update_step_search_config(
+            step_id, search_config, record_type, search_name, user_id=user_id
+        )
+
+
+async def test_a_partial_push_leaves_every_store_agreeing(
+    db_session: AsyncSession,
+    session_maker: async_sessionmaker[AsyncSession],
+    seed_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A step WDK rejects must not make the whole edit look like it failed.
+
+    The edit is applied in memory and written to Postgres, so raising made the
+    client roll back its optimistic state and show "Operation failed" while the
+    server had in fact kept the change - and the next read handed it straight
+    back. Memory, Postgres, WDK and the canvas told four different stories.
+
+    The edit is local truth. A rejected step is that STEP's problem, carried on
+    the step, not a failure of the operation.
+    """
+    api = _FailingAPI()
+    monkeypatch.setattr(commit_module, "get_strategy_api", lambda _s: api)
+    monkeypatch.setattr(step_wdk_push, "get_strategy_api", lambda _s: api)
+    monkeypatch.setattr(sync_module, "get_strategy_api", lambda _s: api)
+
+    async def _noop_validate(*_a: Any, **_k: Any) -> set[str]:
+        return set()
+
+    monkeypatch.setattr(step_wdk_push, "_validate_plan_params", _noop_validate)
+
+    async def _noop_reconcile(*_a: Any, **_k: Any) -> None:
+        return None
+
+    monkeypatch.setattr(commit_module, "reconcile_sync_state_with_wdk", _noop_reconcile)
+
+    a = _leaf("step_a")
+    conv_id = await _seed_conversation(
+        db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
+    )
+    deps = _build_deps(
+        conv_id=conv_id,
+        root=a,
+        wdk_step_ids={"step_a": 100},
+        db_session_factory=session_maker,
+    )
+
+    # No raise: the operation reports what landed instead of failing wholesale.
+    result = await apply_and_commit(
+        deps=deps,
+        op=UpdateStepMetaOp(step_id="step_a", display_name="Renamed"),
+    )
+
+    assert result.failed_step_ids == ["step_a"]
+
+    graph = deps.strategy_session.get_graph(None)
+    assert graph is not None
+    assert graph.steps["step_a"].display_name == "Renamed"
+
+    async with session_maker() as fresh:
+        refetched = await ConversationRepository(fresh).get_by_id(conv_id)
+        assert refetched is not None
+        ast = StrategyAst.model_validate(refetched.strategy_ast)
+        assert ast.root.display_name == "Renamed"
+        # The rejection is durable and attributed to the step that caused it,
+        # so reopening the conversation still shows which one needs attention.
+        assert (ast.wdk_push_errors or {}).get("step_a")

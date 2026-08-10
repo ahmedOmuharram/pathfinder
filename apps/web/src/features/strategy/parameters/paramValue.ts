@@ -1,6 +1,11 @@
 import type { Step } from "@pathfinder/shared";
 import type { FilterTermClause } from "@pathfinder/shared/generated/types/FilterTermClause";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
+import {
+  decodeRange,
+  encodeRange,
+  type RangeParts,
+} from "@/features/strategy/parameters/rangeCodec";
 
 export type ParamValue = NonNullable<Step["parameters"]>[string];
 export type ParamValueMap = NonNullable<Step["parameters"]>;
@@ -15,10 +20,10 @@ export function paramValueToRaw(v: ParamValue): string | string[] {
     case "number":
       return String(v.value);
     case "multi-pick-vocabulary":
-      return v.values;
+      return v.values ?? [];
     case "number-range":
     case "date-range":
-      return `${v.min ?? ""}-${v.max ?? ""}`;
+      return encodeRange(String(v.min ?? ""), String(v.max ?? ""));
     case "input-dataset":
       return v.datasetId;
     case "input-step":
@@ -28,11 +33,8 @@ export function paramValueToRaw(v: ParamValue): string | string[] {
   }
 }
 
-function parseRange(raw: string | string[]): { min: string; max: string } {
-  const s = typeof raw === "string" ? raw : "";
-  const idx = s.indexOf("-", 1);
-  if (idx <= 0) return { min: s, max: "" };
-  return { min: s.slice(0, idx), max: s.slice(idx + 1) };
+function parseRange(raw: string | string[]): RangeParts {
+  return decodeRange(typeof raw === "string" ? raw : "");
 }
 
 function toNumberOrNull(s: string): number | null {

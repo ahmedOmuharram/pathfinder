@@ -88,7 +88,6 @@ export function useDeleteOperation(conversationId: string): {
             "Apply the default resolution per step (combine collapses keep siblings reconnected).",
           isDefault: true,
           willDelete,
-          willOrphan: [],
         },
       ],
       onResolve: () => {

@@ -8,6 +8,7 @@ from http import HTTPStatus
 
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
     PatchStepSpec,
     WDKIdentifier,
@@ -190,25 +191,17 @@ class StepsMixin(StrategyAPIBase):
         )
         return WDKIdentifier.model_validate(raw)
 
-    async def create_combined_step(  # noqa: PLR0913
+    async def create_combined_step(
         self,
-        primary_step_id: int,
-        secondary_step_id: int,
-        boolean_operator: str,
+        spec: CombinedStepSpec,
         record_type: str,
-        *,
-        spec_overrides: PatchStepSpec | None = None,
-        wdk_weight: int | None = None,
         user_id: str | None = None,
     ) -> WDKIdentifier:
         """Create a combined step (boolean operation).
 
-        :param primary_step_id: ID of the primary (left) step.
-        :param secondary_step_id: ID of the secondary (right) step.
-        :param boolean_operator: One of INTERSECT, UNION, MINUS, RMINUS, LONLY, RONLY.
+        :param spec: Inputs, operator, and optional display fields.
         :param record_type: WDK record type.
-        :param spec_overrides: Optional display overrides (custom name, etc.).
-        :param wdk_weight: Optional WDK weight for result ranking in combined strategies.
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
         :returns: Created step identifier.
         """
         uid = await self._get_user_id(user_id)
@@ -222,23 +215,23 @@ class StepsMixin(StrategyAPIBase):
                 # WDK requires empty inputs here; inputs are wired via stepTree
                 left_param: "",
                 right_param: "",
-                op_param: boolean_operator,
+                op_param: spec.boolean_operator.value,
             },
         }
-        if wdk_weight is not None:
-            search_config["wdkWeight"] = wdk_weight
+        if spec.wdk_weight is not None:
+            search_config["wdkWeight"] = spec.wdk_weight
         payload: JSONObject = {
             "searchName": boolean_search,
             "searchConfig": search_config,
         }
-        if spec_overrides and spec_overrides.custom_name:
-            payload["customName"] = spec_overrides.custom_name
+        if spec.custom_name:
+            payload["customName"] = spec.custom_name
 
         logger.info(
             "Creating combined step",
-            primary=primary_step_id,
-            secondary=secondary_step_id,
-            operator=boolean_operator,
+            primary=spec.primary_step_id,
+            secondary=spec.secondary_step_id,
+            operator=spec.boolean_operator.value,
         )
 
         raw = await self.client.post(

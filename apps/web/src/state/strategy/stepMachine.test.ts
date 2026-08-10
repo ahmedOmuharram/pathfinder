@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createActor } from "xstate";
-import { stepMachine, seedStepMachine, type StepMachineContext } from "./stepMachine";
+import {
+  STEP_LIFECYCLE_STATE_NAMES,
+  initialStepSnapshot,
+  seedStepMachine,
+  stepMachine,
+  type StepMachineContext,
+} from "./stepMachine";
 import type { SearchValidationErrors } from "@pathfinder/shared";
 
 function startInState(
@@ -124,6 +130,19 @@ describe("stepMachine — RUN_COUNTS / COUNTS_READY transitions", () => {
     expect(actor.getSnapshot().value).toBe("running");
   });
 
+  it("failed → running on RUN_COUNTS so a failed count can be retried directly", () => {
+    const actor = startInState("failed", { lastError: "Network timeout" });
+    actor.send({ type: "RUN_COUNTS" });
+    expect(actor.getSnapshot().value).toBe("running");
+  });
+
+  it("idle → RUN_COUNTS is ignored: counts require a validated step", () => {
+    const actor = createActor(stepMachine);
+    actor.start();
+    actor.send({ type: "RUN_COUNTS" });
+    expect(actor.getSnapshot().value).toBe("idle");
+  });
+
   it("running → complete on COUNTS_READY, stores count", () => {
     const actor = startInState("valid", { estimatedSize: 5 });
     actor.send({ type: "RUN_COUNTS" });
@@ -210,6 +229,36 @@ describe("stepMachine — seedStepMachine", () => {
   });
 });
 
+describe("stepMachine — initialStepSnapshot", () => {
+  it("returns a pristine idle snapshot when given no seed", () => {
+    const snap = initialStepSnapshot();
+    expect(snap.value).toBe("idle");
+    expect(snap.context).toEqual({
+      estimatedSize: null,
+      validationErrors: null,
+      lastError: null,
+    });
+  });
+
+  it("merges a context-only seed onto the idle state, defaulting the untouched fields", () => {
+    const snap = initialStepSnapshot({ context: { estimatedSize: 7 } });
+    expect(snap.value).toBe("idle");
+    expect(snap.context.estimatedSize).toBe(7);
+    expect(snap.context.validationErrors).toBeNull();
+    expect(snap.context.lastError).toBeNull();
+  });
+
+  it("honours a seeded state together with its context", () => {
+    const snap = initialStepSnapshot({
+      state: "failed",
+      context: { lastError: "boom" },
+    });
+    expect(snap.value).toBe("failed");
+    expect(snap.context.lastError).toBe("boom");
+    expect(snap.context.estimatedSize).toBeNull();
+  });
+});
+
 describe("stepMachine — matches helper behavior", () => {
   it("snapshot.matches returns true for the current state", () => {
     const actor = createActor(stepMachine);
@@ -217,5 +266,16 @@ describe("stepMachine — matches helper behavior", () => {
     actor.send({ type: "VALIDATE" });
     expect(actor.getSnapshot().matches("validating")).toBe(true);
     expect(actor.getSnapshot().matches("idle")).toBe(false);
+  });
+});
+
+describe("stepMachine — the exported state names are the machine's own", () => {
+  it("lists exactly the states the machine defines", () => {
+    // useStepSnapshot narrows a raw StateValue against this list. A name that
+    // drifts out of the machine would silently read back as "idle", so the
+    // canvas would show a step as untouched while it was actually running.
+    expect([...STEP_LIFECYCLE_STATE_NAMES].sort()).toEqual(
+      Object.keys(stepMachine.states).sort(),
+    );
   });
 });

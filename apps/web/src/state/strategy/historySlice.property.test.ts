@@ -11,9 +11,8 @@ function makeStrategy(name: string): Strategy {
     displayName: name,
     searchName: "geneById",
     recordType: "gene",
-    isBuilt: false,
     isFiltered: false,
-  } as Step;
+  };
   return {
     id: "strategy-1",
     name: "Test",

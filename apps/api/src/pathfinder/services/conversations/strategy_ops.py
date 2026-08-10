@@ -128,6 +128,10 @@ async def apply_operation(
         db_session_factory=_get_session_factory(),
     )
     await apply_and_commit(deps=ctx, op=op)
+    # The commit ran in its own session, so this one still holds the
+    # pre-operation row in its identity map and would hand it straight back -
+    # making the response undo the edit the user just made.
+    repo.session.expire_all()
     refreshed = await repo.get_by_id(conversation_id)
     if refreshed is None:
         raise NotFoundError(

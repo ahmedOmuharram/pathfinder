@@ -363,13 +363,11 @@ Open `apps/api/docs/_build/html/index.html` in a browser.
 
 ## OpenAPI + shared types
 
-- OpenAPI spec: `packages/spec/openapi.yaml`
-- Generate/update shared TS types from the spec:
+- OpenAPI spec: `packages/spec/openapi.json`
+- Regenerate the spec and every generated TS artifact from the running API:
 
 ```bash
-cd packages/shared-ts
-yarn install
-yarn generate:openapi
+yarn generate:types
 ```
 
 The web app also uses path-based imports for shared TS types (see `apps/web/tsconfig.json`) and Next transpilation settings (`apps/web/next.config.js`).

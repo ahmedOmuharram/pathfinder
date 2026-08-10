@@ -24,6 +24,7 @@ from typing import Any
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 from pydantic_ai import AgentRunResultEvent
+from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import (
     AgentStreamEvent,
     FunctionToolCallEvent,
@@ -70,6 +71,9 @@ from pathfinder.ai.models.mock import (
 from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.ai.models.tiers import PhaseTierConfig, resolve_phase_tier_config
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.logging import get_logger
+
+logger = get_logger(__name__)
 
 PHASE_USAGE_LIMITS: UsageLimits = UsageLimits(
     request_limit=60,
@@ -369,39 +373,54 @@ async def _stream_sub_agent[OutputT: BaseModel](
         },
     )
     with override_ctx:
-        async with agent.run_stream_events(
-            work_order,
-            deps=agent_deps,
-            usage_limits=PHASE_USAGE_LIMITS,
-            usage=usage,
-        ) as events:
-            async for event in events:
-                if isinstance(event, AgentRunResultEvent):
-                    agent_output = event.result.output
-                    if isinstance(agent_output, expected_output_type):
-                        output = agent_output
-                    response = event.result.response
-                    deps.record_sub_agent_usage(
-                        SubAgentRunUsage(
-                            usage=event.result.usage,
-                            model_name=response.model_name,
-                            provider_name=response.provider_name,
-                            provider_url=response.provider_url,
-                            parent_tool_call_id=parent_tool_call_id,
-                        ),
+        try:
+            async with agent.run_stream_events(
+                work_order,
+                deps=agent_deps,
+                usage_limits=PHASE_USAGE_LIMITS,
+                usage=usage,
+            ) as events:
+                async for event in events:
+                    if isinstance(event, AgentRunResultEvent):
+                        agent_output = event.result.output
+                        if isinstance(agent_output, expected_output_type):
+                            output = agent_output
+                        response = event.result.response
+                        deps.record_sub_agent_usage(
+                            SubAgentRunUsage(
+                                usage=event.result.usage,
+                                model_name=response.model_name,
+                                provider_name=response.provider_name,
+                                provider_url=response.provider_url,
+                                parent_tool_call_id=parent_tool_call_id,
+                            ),
+                        )
+                        continue
+                    _forward_inner_event(
+                        parent_tool_call_id=parent_tool_call_id,
+                        writer=writer,
+                        inner_calls=inner_calls,
+                        event=event,
                     )
-                    continue
-                _forward_inner_event(
-                    parent_tool_call_id=parent_tool_call_id,
-                    writer=writer,
-                    inner_calls=inner_calls,
-                    event=event,
-                )
-                if isinstance(event, FunctionToolResultEvent):
-                    _emit_live_ledger(writer, deps, agent_deps)
-                    _emit_running_sub_agent_usage(
-                        writer, role, parent_tool_call_id, usage
-                    )
+                    if isinstance(event, FunctionToolResultEvent):
+                        _emit_live_ledger(writer, deps, agent_deps)
+                        _emit_running_sub_agent_usage(
+                            writer, role, parent_tool_call_id, usage
+                        )
+        except UsageLimitExceeded as exc:
+            # A sub-agent writes each result into the shared draft as it goes,
+            # so everything it bound before the ceiling is already durable.
+            # Letting this propagate threw all of it away -- eight of nine
+            # criteria on the observed run -- and ended the turn with nothing.
+            # A ceiling is a budget, not a correctness failure: stop here and
+            # let the Lead read the partial draft, as it would any other
+            # incomplete result.
+            logger.warning(
+                "sub-agent hit its usage ceiling; keeping partial progress",
+                role=role,
+                error=str(exc),
+            )
+            return None
     return output
 
 

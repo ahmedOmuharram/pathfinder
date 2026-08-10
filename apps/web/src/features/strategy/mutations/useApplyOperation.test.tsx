@@ -19,7 +19,7 @@ import { useApplyOperation } from "./useApplyOperation";
 import { makeQueryHarness } from "./__tests__/strategyTestUtils";
 
 function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
-  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+  return { isFiltered: false, ...partial };
 }
 
 function makeStrategy(steps: Step[]): Strategy {

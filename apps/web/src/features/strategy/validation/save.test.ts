@@ -35,10 +35,9 @@ function makeSearchStep(overrides?: Partial<Step>): Step {
     searchName: "GenesByKeyword",
     recordType: "gene",
     parameters: { keyword: { type: "string", value: "kinase" } },
-    isBuilt: false,
     isFiltered: false,
     ...overrides,
-  } as Step;
+  };
 }
 
 function makeTransformStep(overrides?: Partial<Step>): Step {
@@ -48,10 +47,9 @@ function makeTransformStep(overrides?: Partial<Step>): Step {
     searchName: "GenesByOrthology",
     primaryInputStepId: "step-1",
     recordType: "gene",
-    isBuilt: false,
     isFiltered: false,
     ...overrides,
-  } as Step;
+  };
 }
 
 function makeCombineStep(overrides?: Partial<Step>): Step {
@@ -61,10 +59,9 @@ function makeCombineStep(overrides?: Partial<Step>): Step {
     operator: "INTERSECT",
     primaryInputStepId: "step-1",
     secondaryInputStepId: "step-2",
-    isBuilt: false,
     isFiltered: false,
     ...overrides,
-  } as Step;
+  };
 }
 
 function makeStrategy(overrides?: Partial<Strategy>): Strategy {
@@ -343,7 +340,6 @@ describe("validateStepsForSave", () => {
         displayName: "No search name",
         // searchName intentionally omitted for a search step
         recordType: "gene",
-        isBuilt: false,
         isFiltered: false,
       };
 
@@ -383,7 +379,6 @@ describe("validateStepsForSave", () => {
         displayName: "Bad combine",
         primaryInputStepId: "step-1",
         secondaryInputStepId: "step-2",
-        isBuilt: false,
         isFiltered: false,
         // operator intentionally omitted
       };
@@ -406,7 +401,6 @@ describe("validateStepsForSave", () => {
         searchName: "GenesByOrthology",
         primaryInputStepId: "nonexistent",
         recordType: "gene",
-        isBuilt: false,
         isFiltered: false,
       };
 
@@ -433,7 +427,6 @@ describe("validateStepsForSave", () => {
         displayName: "Bad combine",
         primaryInputStepId: "step-1",
         secondaryInputStepId: "step-2",
-        isBuilt: false,
         isFiltered: false,
         // no operator
       };
@@ -456,7 +449,6 @@ describe("validateStepsForSave", () => {
         id: "step-1",
         displayName: "No search name",
         recordType: "gene",
-        isBuilt: false,
         isFiltered: false,
         // no searchName
       };
@@ -558,7 +550,6 @@ describe("validateStepsForSave", () => {
         searchName: "GenesByKeyword",
         recordType: "gene",
         primaryInputStepId: "s2",
-        isBuilt: false,
         isFiltered: false,
       };
       const s2: Step = {
@@ -567,7 +558,6 @@ describe("validateStepsForSave", () => {
         searchName: "GenesByKeyword",
         recordType: "gene",
         primaryInputStepId: "s1",
-        isBuilt: false,
         isFiltered: false,
       };
       mockValidateSearchParams.mockResolvedValue(validResponse());

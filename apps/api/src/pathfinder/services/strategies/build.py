@@ -7,7 +7,7 @@ respectively. This module retains root resolution and result count helpers.
 from dataclasses import dataclass
 from typing import Protocol
 
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import StrategyStep
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -68,7 +68,7 @@ class RootResolutionError(Exception):
 def resolve_root_step(
     graph: StrategyGraph,
     explicit_root_step_id: str | None,
-) -> StrategyStepNode:
+) -> StrategyStep:
     """Resolve the root step from the graph.
 
     :param graph: Strategy graph.
@@ -84,20 +84,15 @@ def resolve_root_step(
         msg = f"Explicit root step '{explicit_root_step_id}' not found in graph."
         raise RootResolutionError(msg)
 
-    if len(graph.roots) == 1:
-        step = graph.get_step(next(iter(graph.roots)))
+    # Several roots is an ordinary editing state: a search added but not yet
+    # combined, or a branch just detached. The WDK strategy is the primary
+    # component; the rest persist locally as detached roots and are not pushed
+    # (WDK rejects a step that has inputs but no strategy).
+    primary_id = graph.primary_root_id()
+    if primary_id is not None:
+        step = graph.get_step(primary_id)
         if step:
             return step
-
-    if len(graph.roots) > 1:
-        msg = (
-            f"Graph has {len(graph.roots)} subtree roots -- expected exactly 1 to build. "
-            "Combine them first, or specify root_step_id."
-        )
-        raise RootResolutionError(
-            msg,
-            root_count=len(graph.roots),
-        )
 
     msg = "No steps in graph. Create steps before building."
     raise RootResolutionError(msg)

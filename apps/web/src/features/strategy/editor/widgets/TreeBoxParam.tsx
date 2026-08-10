@@ -15,6 +15,37 @@ function collectLeaves(node: VocabNode): string[] {
   return node.children.flatMap(collectLeaves);
 }
 
+/**
+ * Expand any parent term in `values` to the leaves beneath it.
+ *
+ * FRAME binds organism scope as a species-level term (`"Plasmodium
+ * falciparum"`), and the backend expands parent terms to leaves before
+ * pushing, because WDK silently returns 0 genes for a parent node. The tree
+ * only ever matched leaves, so a correctly-scoped step opened reading
+ * "0 of 62 selected" on a required field -- and any interaction would have
+ * written the tree's state over the real scope. Expanding here keeps one
+ * representation: what the tree shows is what will be queried.
+ */
+function expandToLeaves(values: string[], nodes: VocabNode[]): string[] {
+  const byValue = new Map<string, VocabNode>();
+  const index = (node: VocabNode): void => {
+    byValue.set(node.value, node);
+    node.children?.forEach(index);
+  };
+  nodes.forEach(index);
+
+  const out = new Set<string>();
+  for (const value of values) {
+    const node = byValue.get(value);
+    if (node === undefined) {
+      out.add(value);
+      continue;
+    }
+    for (const leaf of collectLeaves(node)) out.add(leaf);
+  }
+  return [...out];
+}
+
 function collectAllLeaves(nodes: VocabNode[]): string[] {
   return nodes.flatMap(collectLeaves);
 }
@@ -108,15 +139,16 @@ function TreeBoxInner({
         )
       : []
     : [];
-  const selectedSet = new Set(currentValue);
+  const selectedLeaves = expandToLeaves(currentValue, vocabTree);
+  const selectedSet = new Set(selectedLeaves);
 
   const toggleBranch = (node: VocabNode) => {
     const leaves = collectLeaves(node);
     const allChecked = leaves.every((l) => selectedSet.has(l));
     if (allChecked) {
-      field.handleChange(currentValue.filter((v) => !leaves.includes(v)));
+      field.handleChange(selectedLeaves.filter((v) => !leaves.includes(v)));
     } else {
-      const next = [...currentValue];
+      const next = [...selectedLeaves];
       for (const l of leaves) {
         if (!next.includes(l)) next.push(l);
       }
@@ -126,9 +158,9 @@ function TreeBoxInner({
 
   const toggleLeaf = (leafValue: string) => {
     if (selectedSet.has(leafValue)) {
-      field.handleChange(currentValue.filter((v) => v !== leafValue));
+      field.handleChange(selectedLeaves.filter((v) => v !== leafValue));
     } else {
-      field.handleChange([...currentValue, leafValue]);
+      field.handleChange([...selectedLeaves, leafValue]);
     }
   };
 
@@ -203,7 +235,7 @@ function TreeBoxInner({
     );
   }
 
-  const selectedCount = currentValue.filter((v) => allLeaves.includes(v)).length;
+  const selectedCount = selectedLeaves.filter((v) => allLeaves.includes(v)).length;
 
   const treeBody = (
     <div

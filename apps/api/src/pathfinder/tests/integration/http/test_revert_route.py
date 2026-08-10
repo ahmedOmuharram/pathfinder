@@ -15,8 +15,6 @@ from pathfinder.persistence.models import Conversation, Message, User
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.security import create_user_token
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture(scope="module", autouse=True)
 async def _langgraph_checkpoint_tables(

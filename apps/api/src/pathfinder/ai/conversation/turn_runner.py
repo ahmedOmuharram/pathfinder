@@ -26,6 +26,7 @@ from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
 from pathfinder.ai.graph.stream_events import (
     conversation_title_event,
+    strategy_revision_event,
     turn_status_event,
     turn_stopped_event,
 )
@@ -36,6 +37,9 @@ from pathfinder.persistence.repositories import (
 from pathfinder.persistence.repositories.conversation import ConversationUpdate
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.conversations.responses import (
+    conversation_strategy_revision,
+)
 
 _CANCEL_POLL_INTERVAL_SECONDS = 1.0
 
@@ -180,6 +184,10 @@ async def run_turn(
                 exclude_none=True,
             ),
         )
+    await _emit_strategy_revision(
+        writer=writer,
+        conversation_id=body.conversation_id,
+    )
     await writer.write(
         FinishChunk(finish_reason=finish_reason).model_dump(
             by_alias=True,
@@ -189,6 +197,31 @@ async def run_turn(
     )
     await writer.write(
         DoneChunk().model_dump(by_alias=True, mode="json", exclude_none=True),
+    )
+
+
+async def _emit_strategy_revision(
+    *,
+    writer: ChatWriter,
+    conversation_id: UUID,
+) -> None:
+    """Stamp the finished turn with the strategy state it described.
+
+    Read after the graph has run so it reflects any build this turn did.
+    Nothing is emitted when the conversation has no strategy: a message that
+    quoted no strategy counts can never be superseded by an edit to one.
+    """
+    async with async_session_factory() as session:
+        conversation = await ConversationRepository(session).get_by_id(conversation_id)
+    revision = conversation_strategy_revision(conversation)
+    if not revision:
+        return
+    await writer.write(
+        strategy_revision_event(revision=revision).model_dump(
+            by_alias=True,
+            mode="json",
+            exclude_none=True,
+        ),
     )
 
 

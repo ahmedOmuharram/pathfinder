@@ -13,9 +13,15 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 class DeleteResolution(StrEnum):
     COLLAPSE_COMBINE = "collapse-combine"
+    ORPHAN_SIBLING = "orphan-sibling"
     DELETE_SUBTREE = "delete-subtree"
     PROMOTE_PRIMARY = "promote-primary"
     DELETE_STRATEGY = "delete-strategy"
+
+
+class DeleteEdgeResolution(StrEnum):
+    DETACH = "detach"
+    COLLAPSE = "collapse"
 
 
 class AttachNewRoot(CamelModel):
@@ -58,6 +64,21 @@ class DeleteStepOp(CamelModel):
     kind: Literal["deleteStep"] = "deleteStep"
     step_id: str
     resolution: DeleteResolution
+
+
+class DeleteEdgeOp(CamelModel):
+    """Remove one wire, addressed by the edge the canvas actually shows.
+
+    ``delete_step`` addresses a node; the graph canvas addresses an edge.
+    Keeping both endpoints lets the apply step reject a request built from a
+    stale canvas rather than detaching whatever now occupies the slot.
+    """
+
+    kind: Literal["deleteEdge"] = "deleteEdge"
+    source_id: str
+    target_id: str
+    slot: Literal["primary", "secondary"]
+    resolution: DeleteEdgeResolution
 
 
 class ReplaceSubtreeOp(CamelModel):
@@ -121,6 +142,7 @@ GraphOperation = Annotated[
     | AddTransformOp
     | DuplicateStepOp
     | DeleteStepOp
+    | DeleteEdgeOp
     | ReplaceSubtreeOp
     | UpdateStepParamsOp
     | UpdateCombineOperatorOp

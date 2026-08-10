@@ -29,10 +29,15 @@ from pydantic_ai.messages import (
 )
 
 from pathfinder.ai.agents._history_processor import (
-    _ELIDED_RESULT_STUB,
+    _ELIDED_MARKER,
     KEEP_RECENT_TOOL_PAIRS,
     elide_consumed_tool_results,
 )
+
+# Big enough to be worth eliding: results at or under the size guard are
+# deliberately kept whole, because re-fetching them costs more than storing.
+_BIG_RESULT_PAYLOAD = "BIG_RESULT_PAYLOAD " * 40
+
 
 
 def _user(text: str) -> ModelRequest:
@@ -57,7 +62,7 @@ def _assistant_text(text: str) -> ModelResponse:
 
 def _tool_return(
     call_id: str,
-    content: str = "BIG_RESULT_PAYLOAD",
+    content: str = _BIG_RESULT_PAYLOAD,
     name: str = "tool_x",
 ) -> ModelRequest:
     return ModelRequest(
@@ -74,7 +79,7 @@ def _tool_return(
 def _interleaved_tool_calls(
     n: int,
     *,
-    return_content: str = "BIG_RESULT_PAYLOAD",
+    return_content: str = _BIG_RESULT_PAYLOAD,
 ) -> list[ModelMessage]:
     """User prompt followed by ``n`` assistant→toolReturn round-trips."""
     out: list[ModelMessage] = [_user("kick off")]
@@ -126,7 +131,7 @@ def test_under_keep_threshold_is_no_op() -> None:
     msgs = _interleaved_tool_calls(KEEP_RECENT_TOOL_PAIRS)
     out = elide_consumed_tool_results(list(msgs))
     for ret in _returns_in_order(out):
-        assert ret.content == "BIG_RESULT_PAYLOAD"
+        assert ret.content == _BIG_RESULT_PAYLOAD
 
 
 def test_exactly_at_keep_threshold_is_no_op() -> None:
@@ -151,9 +156,9 @@ def test_older_returns_get_stub_recent_returns_keep_payload() -> None:
     elided_count = n - KEEP_RECENT_TOOL_PAIRS
     elided = returns[:elided_count]
     kept = returns[elided_count:]
-    assert all(r.content != "BIG_RESULT_PAYLOAD" for r in elided)
+    assert all(r.content != _BIG_RESULT_PAYLOAD for r in elided)
     assert all("elided" in str(r.content).lower() for r in elided)
-    assert all(r.content == "BIG_RESULT_PAYLOAD" for r in kept)
+    assert all(r.content == _BIG_RESULT_PAYLOAD for r in kept)
     assert len(kept) == KEEP_RECENT_TOOL_PAIRS
 
 
@@ -347,7 +352,9 @@ def test_older_structured_dict_returns_get_stubbed() -> None:
     elided_count = n - KEEP_RECENT_TOOL_PAIRS
     elided = returns[:elided_count]
     kept = returns[elided_count:]
-    assert all(r.content == _ELIDED_RESULT_STUB for r in elided)
+    assert all(
+        isinstance(r.content, str) and _ELIDED_MARKER in r.content for r in elided
+    )
     assert all(r.content == payload for r in kept)
     assert len(kept) == KEEP_RECENT_TOOL_PAIRS
 
@@ -362,7 +369,9 @@ def test_older_structured_list_returns_get_stubbed() -> None:
     returns = _returns_in_order(out)
     elided = returns[: n - KEEP_RECENT_TOOL_PAIRS]
     assert elided  # there ARE older returns to elide
-    assert all(r.content == _ELIDED_RESULT_STUB for r in elided)
+    assert all(
+        isinstance(r.content, str) and _ELIDED_MARKER in r.content for r in elided
+    )
 
 
 def test_older_pydantic_model_returns_get_stubbed() -> None:
@@ -377,7 +386,9 @@ def test_older_pydantic_model_returns_get_stubbed() -> None:
     elided = returns[: n - KEEP_RECENT_TOOL_PAIRS]
     kept = returns[n - KEEP_RECENT_TOOL_PAIRS :]
     assert elided
-    assert all(r.content == _ELIDED_RESULT_STUB for r in elided)
+    assert all(
+        isinstance(r.content, str) and _ELIDED_MARKER in r.content for r in elided
+    )
     assert all(r.content == payload for r in kept)
 
 

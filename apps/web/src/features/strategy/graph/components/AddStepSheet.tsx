@@ -64,7 +64,6 @@ export function AddStepSheet({
       searchName: selected.name,
       recordType: selected.recordType,
       parameters: {},
-      isBuilt: false,
       isFiltered: false,
     };
     addStep.mutate({ step: newStep });

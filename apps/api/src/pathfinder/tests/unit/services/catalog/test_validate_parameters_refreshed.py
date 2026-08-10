@@ -177,3 +177,95 @@ async def test_missing_required_error_serializes_refreshed_spec(
     taxon_spec = next(p for p in parameters_spec if p["name"] == "taxon")
     taxon_values = [v["value"] for v in taxon_spec["allowedValues"]]
     assert taxon_values == ["TaxonA"]
+
+
+def _hidden_parent(name: str, *, default: str, dependents: list[str]) -> WDKParameter:
+    raw: JSONObject = {
+        "type": "single-pick-vocabulary",
+        "name": name,
+        "display_name": name,
+        "vocabulary": cast("JsonValue", [[default, default, None]]),
+        "dependent_params": cast("JsonValue", list(dependents)),
+        "allow_empty_value": False,
+        "is_visible": False,
+        "initial_display_value": default,
+    }
+    return cast("WDKParameter", WDKEnumParam.model_validate(raw))
+
+
+class TestHiddenParentIsFilledBeforeRefresh:
+    """A hidden parent's default must be present when its child refreshes.
+
+    Live failure: `samples_percentile_generic` declares
+    `depends_on: ["profileset_generic", "channel"]`. `channel` is
+    `is_visible=False`, required, with `initial_display_value="Channel 1"`,
+    so `fill_hidden_required_defaults` supplies it -- but that ran *after*
+    `_refresh_dependent_vocabularies`, which skips any parent whose value is
+    empty. The child never refreshed against the channel dimension, and 13
+    DeRisi time points WDK accepts (totalCount 841) were reported invalid.
+    """
+
+    @pytest.fixture
+    def stub_with_hidden_parent(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        refreshed_parents: list[str] = []
+
+        channel = _hidden_parent(
+            "channel", default="Channel 1", dependents=["samples"]
+        )
+        samples = _enum_param(
+            "samples", type_="multi-pick-vocabulary", vocab=_STATIC_TAXON_VOCAB
+        )
+        response = _make_response([channel, samples])
+
+        async def _fake_expand(
+            ctx: SearchContext, raw_context: JSONObject
+        ) -> WDKSearchResponse:
+            del ctx, raw_context
+            return response
+
+        async def _fake_resolve_search(
+            ctx: SearchContext, *, resolved_record_type: str, parameters: JSONObject
+        ) -> WDKSearchResponse:
+            del ctx, resolved_record_type, parameters
+            return response
+
+        async def _fake_refresh(
+            ctx: SearchContext, *, parameter_name: str, context_values: JSONObject
+        ) -> list[WDKParameter]:
+            del ctx, context_values
+            refreshed_parents.append(parameter_name)
+            return []
+
+        monkeypatch.setattr(pv, "expand_search_details_with_params", _fake_expand)
+        monkeypatch.setattr(pv, "_resolve_search_details", _fake_resolve_search)
+        monkeypatch.setattr(pv, "get_refreshed_dependent_params", _fake_refresh)
+        return refreshed_parents
+
+    @pytest.mark.asyncio
+    async def test_the_hidden_parent_triggers_a_refresh(
+        self, stub_with_hidden_parent: list[str]
+    ) -> None:
+        # The caller never mentions `channel` -- exactly what the model sends.
+        await pv.validate_parameters(
+            SearchContext("plasmodb", "transcript", "GenesByMicroarray"),
+            parameters={"samples": SinglePickValue(value="TaxonA")},
+            callbacks=_callbacks(),
+        )
+
+        assert "channel" in stub_with_hidden_parent, (
+            "a hidden parent with a default must be filled before its child's "
+            "vocabulary is refreshed"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_filled_default_reaches_the_result(
+        self, stub_with_hidden_parent: list[str]
+    ) -> None:
+        del stub_with_hidden_parent
+        out = await pv.validate_parameters(
+            SearchContext("plasmodb", "transcript", "GenesByMicroarray"),
+            parameters={"samples": SinglePickValue(value="TaxonA")},
+            callbacks=_callbacks(),
+        )
+
+        assert "channel" in out

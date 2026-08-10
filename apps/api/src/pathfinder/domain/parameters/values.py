@@ -143,7 +143,11 @@ class SinglePickValue(CamelModel):
 
 class MultiPickValue(CamelModel):
     type: Literal["multi-pick-vocabulary"] = "multi-pick-vocabulary"
-    values: list[str] = Field(min_length=1)
+    # An empty list means "nothing selected", which is legal for any param
+    # whose spec allows it. Forbidding it here left callers no way to express
+    # an empty selection, so they sent the literal string "[]" and vocabulary
+    # matching rejected it. Required-ness is enforced per spec, not per type.
+    values: list[str] = Field(default_factory=list)
 
     def to_wire(self) -> str:
         return json.dumps(self.values)

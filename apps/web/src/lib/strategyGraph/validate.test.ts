@@ -10,7 +10,7 @@ import {
 import type { Step } from "@pathfinder/shared";
 
 function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
-  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+  return { isFiltered: false, ...partial };
 }
 
 describe("core/strategyGraph/validate", () => {

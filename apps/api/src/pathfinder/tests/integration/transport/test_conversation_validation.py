@@ -43,3 +43,22 @@ async def test_save_substrategy_on_empty_conversation_is_422(
     )
     assert resp.status_code == 422, resp.text
     assert resp.headers["content-type"].startswith("application/problem+json")
+
+
+async def test_open_on_unknown_site_is_404_not_502(
+    authed_client: httpx.AsyncClient,
+) -> None:
+    """An unknown siteId is the caller's mistake, not a WDK outage.
+
+    ``get_strategy_api`` raises ``NotFoundError(SITE_NOT_FOUND)`` for a site
+    that is not configured. It used to be called inside the block that
+    rewraps everything as a 502 ``WDKError``, so a typo in the site name
+    reported the upstream service as broken.
+    """
+    resp = await authed_client.post(
+        "/api/v1/conversations/open",
+        json={"siteId": "not-a-real-site", "wdkStrategyId": 12345},
+    )
+    assert resp.status_code == 404, resp.text
+    assert resp.headers["content-type"].startswith("application/problem+json")
+    assert resp.json()["code"] == "SITE_NOT_FOUND"

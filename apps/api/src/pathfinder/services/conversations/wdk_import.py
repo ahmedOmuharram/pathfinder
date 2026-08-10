@@ -85,15 +85,19 @@ async def open_strategy(
                 },
             ],
         )
+    # Resolving the site is the caller's business, not the upstream service's:
+    # an unconfigured siteId raises NotFoundError(SITE_NOT_FOUND). Kept out of
+    # the block below so a typo reports 404 instead of "VEuPathDB is down".
+    api = get_strategy_api(resolved_site)
     try:
         conversation = await sync_to_chat(
             wdk_id=wdk_strategy_id,
             site_id=resolved_site,
-            api=get_strategy_api(resolved_site),
+            api=api,
             conv_repo=conv_repo,
             user_id=user_id,
         )
-    except WDKError:
+    except AppError:
         logger.exception("WDK fetch failed")
         raise
     except Exception as e:

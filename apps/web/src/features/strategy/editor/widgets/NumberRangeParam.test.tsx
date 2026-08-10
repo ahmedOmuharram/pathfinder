@@ -65,9 +65,9 @@ describe("NumberRangeParam", () => {
     expect(maxInput.value).toBe("10");
   });
 
-  it("decodes existing 'min-max' value", () => {
+  it("decodes existing 'min:max' value", () => {
     render(
-      <WidgetTestForm name="r" defaultValue="3-7">
+      <WidgetTestForm name="r" defaultValue="3:7">
         {(field) => (
           <NumberRangeParam
             spec={makeSpec()}
@@ -111,11 +111,11 @@ describe("NumberRangeParam", () => {
       );
     }
 
-    const { rerender } = render(<ExternalDriver value="5-10" />);
+    const { rerender } = render(<ExternalDriver value="5:10" />);
     expect(getInputByLabel("r min").value).toBe("5");
     expect(getInputByLabel("r max").value).toBe("10");
 
-    rerender(<ExternalDriver value="100-200" />);
+    rerender(<ExternalDriver value="100:200" />);
     expect(getInputByLabel("r min").value).toBe("100");
     expect(getInputByLabel("r max").value).toBe("200");
   });

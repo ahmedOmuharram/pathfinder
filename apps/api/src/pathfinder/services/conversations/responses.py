@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import Field
 
 from pathfinder.domain.strategy.ast import walk_step_tree
+from pathfinder.domain.strategy.revision import strategy_revision
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import Conversation
 from pathfinder.platform.logging import get_logger
@@ -48,6 +49,7 @@ class ConversationResponse(CamelModel):
     total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
     parent_conversation_id: UUID | None = Field(default=None)
     parent_message_id: UUID | None = Field(default=None)
+    strategy_revision: str = Field(default="")
 
 
 def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
@@ -67,12 +69,18 @@ def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
 
 
 def derive_steps_from_strategy_ast(payload: StrategyAst | None) -> list[StepResponse]:
+    """Every step the canvas should draw, including ones not yet combined.
+
+    Detached components are part of what the researcher is working on even
+    though they are not in the pushed tree; leaving them out here makes them
+    disappear from the graph on the next read.
+    """
     if payload is None:
         return []
-    return [
-        step_response_from_strategy_ast(payload, step)
-        for step in walk_step_tree(payload.root)
-    ]
+    nodes = list(walk_step_tree(payload.root))
+    for detached in payload.detached_roots:
+        nodes.extend(walk_step_tree(detached))
+    return [step_response_from_strategy_ast(payload, step) for step in nodes]
 
 
 def extract_strategy_description(payload: StrategyAst | None) -> str | None:
@@ -98,6 +106,13 @@ def _parse_strategy_ast(plan_raw: JSONObject) -> StrategyAst | None:
     except (ValueError, KeyError, TypeError) as exc:
         logger.warning("Failed to parse plan payload", error=str(exc))
         return None
+
+
+def conversation_strategy_revision(conversation: Conversation | None) -> str:
+    """Fingerprint the conversation's persisted strategy; ``""`` when absent."""
+    if conversation is None:
+        return ""
+    return strategy_revision(_parse_strategy_ast(conversation.strategy_ast))
 
 
 def build_conversation_response(
@@ -132,6 +147,7 @@ def build_conversation_response(
         total_cost_usd=total_cost_usd if total_cost_usd is not None else Decimal(0),
         parent_conversation_id=conversation.parent_conversation_id,
         parent_message_id=conversation.parent_message_id,
+        strategy_revision=strategy_revision(payload),
     )
 
 
@@ -143,11 +159,13 @@ def build_conversation_summary(
     """Build a list-view ``ConversationResponse`` (steps=[]) from a ``Conversation``."""
     effective_site_id = site_id or conversation.site_id
     wdk_url = _compute_wdk_url(effective_site_id, conversation.wdk_strategy_id)
+    payload = _parse_strategy_ast(conversation.strategy_ast)
 
     return ConversationResponse(
         id=conversation.id,
         name=conversation.name,
         title=conversation.name,
+        description=extract_strategy_description(payload),
         site_id=effective_site_id,
         record_type=conversation.record_type,
         wdk_strategy_id=conversation.wdk_strategy_id,
@@ -162,4 +180,5 @@ def build_conversation_summary(
         dismissed_at=conversation.dismissed_at,
         parent_conversation_id=conversation.parent_conversation_id,
         parent_message_id=conversation.parent_message_id,
+        strategy_revision=strategy_revision(payload),
     )

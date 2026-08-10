@@ -1,3 +1,4 @@
+import { makeStep, makeStrategy } from "@/lib/types/fixtures";
 import { describe, expect, it } from "vitest";
 import { CombineOperator, type Step, type Strategy } from "@pathfinder/shared";
 
@@ -8,7 +9,7 @@ import { applyOperation } from "./apply";
 // param edit the drug-targets / workbench flows perform.
 
 function leaf(id: string, displayName: string): Step {
-  return {
+  return makeStep({
     id,
     kind: "search",
     displayName,
@@ -22,15 +23,14 @@ function leaf(id: string, displayName: string): Step {
     operator: null,
     primaryInputStepId: null,
     secondaryInputStepId: null,
-    isBuilt: false,
     isFiltered: false,
-  } as unknown as Step;
+  });
 }
 
 function strat(): Strategy {
   const a = leaf("a", "Kinases via InterPro");
   const b = leaf("b", "Kinases via EC 2.7");
-  const combine = {
+  const combine = makeStep({
     id: "c",
     kind: "combine",
     displayName: "InterPro OR EC kinases",
@@ -40,10 +40,9 @@ function strat(): Strategy {
     operator: CombineOperator.UNION,
     primaryInputStepId: "a",
     secondaryInputStepId: "b",
-    isBuilt: false,
     isFiltered: false,
-  } as unknown as Step;
-  return {
+  });
+  return makeStrategy({
     id: "s",
     name: "Drug targets",
     siteId: "plasmodb",
@@ -56,7 +55,7 @@ function strat(): Strategy {
     wdkUrl: null,
     createdAt: "t",
     updatedAt: "t",
-  } as unknown as Strategy;
+  });
 }
 
 function stepById(s: Strategy, id: string): Step {

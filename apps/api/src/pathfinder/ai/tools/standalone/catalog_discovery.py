@@ -31,6 +31,9 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _resolve_record_type,
 )
 from pathfinder.domain.parameters.values import coerce_context_values
+from pathfinder.integrations.veupathdb.search_context import (
+    get_search_params_under_context,
+)
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.overview_formatting import (
@@ -227,7 +230,13 @@ async def get_parameter_options(
             (e.g. query='cruzi' for T. cruzi).
     """
     deps = ctx.deps
-    typed_context = coerce_context_values(context_values) if context_values else None
+    explicit = coerce_context_values(context_values) if context_values else {}
+    # Parents the spec has already bound outrank the search's defaults, which is
+    # what WDK falls back to when context is absent. An explicit argument still
+    # wins -- that is the model deliberately exploring another parent value.
+    inherited = deps.agent_state.resolved_params_for(search_name)
+    merged = {**inherited, **explicit}
+    typed_context = merged or None
     read_key = deps.agent_state.param_read_key(
         search_name, parameter_id, context_values=typed_context, query=query
     )
@@ -242,26 +251,13 @@ async def get_parameter_options(
             parameter_id=parameter_id,
         )
     rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
-    has_context = bool(typed_context)
-
-    client = get_wdk_client(deps.site_id)
-
-    if has_context and typed_context is not None:
-        encoded_ctx = encode_wdk_params(dict(typed_context))
-        result = await client.get_search_details_with_params(
-            rt,
-            search_name,
-            context=encoded_ctx,
-            expand_params=True,
-        )
-        all_params = result.search_data.parameters or []
-    else:
-        details = await client.get_search_details(
-            rt,
-            search_name,
-            expand_params=True,
-        )
-        all_params = details.search_data.parameters or []
+    result = await get_search_params_under_context(
+        get_wdk_client(deps.site_id),
+        rt,
+        search_name,
+        encode_wdk_params(dict(typed_context)) if typed_context else {},
+    )
+    all_params = result.search_data.parameters or []
 
     depends_on: dict[str, list[str]] = {}
     controls: dict[str, list[str]] = {}
@@ -276,7 +272,10 @@ async def get_parameter_options(
         if p.name == parameter_id:
             filtered = _filter_vocab(p, query) if query else p
             info = format_typed_param(
-                filtered, depends_on=depends_on, controls=controls
+                filtered,
+                depends_on=depends_on,
+                controls=controls,
+                applied_context=typed_context,
             )
             _snapshot_param_vocab(deps, search_name, info)
             deps.agent_state.mark_param_read(read_key)

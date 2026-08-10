@@ -18,11 +18,14 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
+    ToolApprovalRequestChunk,
     ToolInputAvailableChunk,
     ToolInputDeltaChunk,
     ToolInputErrorChunk,
     ToolInputStartChunk,
     ToolOutputAvailableChunk,
+    ToolOutputDeniedChunk,
+    ToolOutputErrorChunk,
 )
 
 from pathfinder.ai.graph._lead_capture import _emit_chunk
@@ -42,13 +45,29 @@ _SUB_AGENT_TOOL_TO_PHASE: dict[str, str] = {
 }
 _SUB_AGENT_TOOL_NAMES = frozenset(_SUB_AGENT_TOOL_TO_PHASE.keys())
 
-_SUPPRESSED_SUB_AGENT_CHUNKS = (
+# Every chunk that names a tool call, and so must follow that call's rendering.
+# Suppression is keyed on WHAT a chunk refers to rather than on a remembered
+# list of types: ``ToolOutputErrorChunk`` was absent from the old list because
+# it only appears when a run raises, and the resulting orphan crashed the turn.
+# ``test_every_tool_chunk_type_is_classified`` fails if pydantic-ai adds one
+# nobody classified.
+_TOOL_CALL_CHUNKS = (
     ToolInputStartChunk,
     ToolInputDeltaChunk,
     ToolInputAvailableChunk,
     ToolInputErrorChunk,
     ToolOutputAvailableChunk,
+    ToolOutputErrorChunk,
 )
+
+# Deliberately NOT suppressed: an approval question the user never sees is a
+# turn that waits forever. No sub-agent dispatch is gated on approval today,
+# so this costs nothing and keeps the failure mode obvious if one ever is.
+_CHUNKS_EXEMPT_FROM_SUPPRESSION = (
+    ToolApprovalRequestChunk,
+    ToolOutputDeniedChunk,
+)
+
 _NAMED_SUB_AGENT_CHUNKS = (
     ToolInputStartChunk,
     ToolInputAvailableChunk,
@@ -60,16 +79,23 @@ def is_suppressed_sub_agent_chunk(
     chunk: BaseChunk,
     sub_agent_tool_calls: dict[str, str],
 ) -> bool:
-    """Hide the default tool-input/output chunks for a sub-agent dispatch so
-    the rich ``data-sub-agent-call`` card is the only inline rendering.
+    """Hide the native tool chunks for a sub-agent dispatch so the rich
+    ``data-sub-agent-call`` card is the only inline rendering.
 
     Classifies a dispatch from ``tool_name`` on its first chunk and primes
     ``sub_agent_tool_calls``. The raw input chunks stream from the model's
     part events *before* ``FunctionToolCallEvent`` records the id, so keying
     only off the recorded id leaks them — the raw tool card renders and hangs
     on "Running" because its later output chunk *is* suppressed.
+
+    This has to hold on the failure path too. When a run raises, pydantic-ai
+    closes each pending tool call with a tool output; for a dispatch, that
+    output names a call the client was never shown, and the AI SDK throws
+    ``UIMessageStreamError`` and fails the entire response.
     """
-    if not isinstance(chunk, _SUPPRESSED_SUB_AGENT_CHUNKS):
+    if isinstance(chunk, _CHUNKS_EXEMPT_FROM_SUPPRESSION):
+        return False
+    if not isinstance(chunk, _TOOL_CALL_CHUNKS):
         return False
     if (
         isinstance(chunk, _NAMED_SUB_AGENT_CHUNKS)
@@ -142,6 +168,22 @@ def _summarize_delta_dict(data: dict[str, Any]) -> str:
     return ""
 
 
+def sub_agent_result_failed(result: ToolReturnPart | RetryPromptPart) -> bool:
+    """Whether a sub-agent dispatch ended badly.
+
+    Two shapes mean failure and only one is obvious. A ``RetryPromptPart`` is
+    the sub-agent asking to be re-run. The other is pydantic-ai closing a
+    pending tool call when the run raises: it synthesizes a ``ToolReturnPart``
+    with ``outcome="failed"`` and the content "Tool execution was interrupted
+    by an error." Reading only the retry case rendered an interrupted sub-agent
+    as "completed" -- a false success, which is worse than the crash that
+    suppressing its orphan chunk removed.
+    """
+    if isinstance(result, RetryPromptPart):
+        return True
+    return result.outcome == "failed"
+
+
 def handle_sub_agent_event(
     deps: LeadDeps,
     writer: Any,
@@ -187,10 +229,9 @@ def handle_sub_agent_event(
                 if isinstance(content, str)
                 else "retry requested"
             )
-            is_retry = True
         else:
             summary = _summarize_sub_agent_result(result)
-            is_retry = False
+        failed = sub_agent_result_failed(result)
         tokens, cost_usd = sub_agent_usage.get(event.tool_call_id, (0, "0"))
         _emit_chunk(
             writer,
@@ -199,10 +240,10 @@ def handle_sub_agent_event(
                     tool_call_id=event.tool_call_id,
                     sub_agent=result_tool_name,
                     phase=_SUB_AGENT_TOOL_TO_PHASE[result_tool_name],
-                    state="failed" if is_retry else "completed",
+                    state="failed" if failed else "completed",
                     model_id=sub_agent_model_id(result_tool_name),
                     summary=summary,
-                    succeeded=not is_retry,
+                    succeeded=not failed,
                     tokens=tokens,
                     cost_usd=cost_usd,
                 )

@@ -2,8 +2,12 @@
 
 from dataclasses import dataclass
 
+from pydantic import JsonValue
+
+from pathfinder.domain.parameters.values import to_decoded_map
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
+from pathfinder.domain.strategy.organism import extract_output_organisms
 
 
 @dataclass
@@ -81,6 +85,85 @@ class StrategyValidator:
             else ValidationResult.failure(errors)
         )
 
+    def _validate_contrast_samples(
+        self,
+        node: StrategyStepNode,
+        path: str,
+        errors: list[StepValidationIssue],
+    ) -> None:
+        """Reject a differential search contrasting a group against itself.
+
+        Any ``*_ref_*`` / ``*_comp_*`` pair (fold change ``samples_fc_*``,
+        DESeq ``samples_de_*``, and the percentile variant) names the two
+        sides of a contrast. Setting both to the same group pushes and runs;
+        it just cannot mean anything, which is why it needs catching here
+        rather than in the results.
+        """
+        decoded = to_decoded_map(node.parameters)
+        pairs: list[tuple[str, JsonValue, JsonValue]] = []
+        for ref_name, ref_value in decoded.items():
+            if "_ref_" not in ref_name:
+                continue
+            comp_value = decoded.get(ref_name.replace("_ref_", "_comp_"))
+            if comp_value is not None:
+                pairs.append((ref_name, ref_value, comp_value))
+        percentile = decoded.get("samples_percentile_generic")
+        comp = decoded.get("samples_fc_comp_generic")
+        if percentile is not None and comp is not None:
+            pairs.append(("samples_percentile_generic", percentile, comp))
+
+        for param_name, ref_value, comp_value in pairs:
+            if ref_value and comp_value and str(ref_value) == str(comp_value):
+                errors.append(
+                    StepValidationIssue(
+                        path=f"{path}.parameters.{param_name}",
+                        message=(
+                            "Reference and comparison samples are identical "
+                            f"({ref_value}) - this contrasts a group against "
+                            "itself and produces meaningless differential "
+                            "results. Set different samples for reference vs "
+                            "comparison."
+                        ),
+                        code="IDENTICAL_CONTRAST_SAMPLES",
+                    )
+                )
+
+    def _validate_cross_organism_intersect(
+        self,
+        node: StrategyStepNode,
+        path: str,
+        errors: list[StepValidationIssue],
+    ) -> None:
+        """Reject INTERSECT between disjoint organism scopes.
+
+        Gene IDs from different species never match, so the result is always
+        zero. Only fires when both sides have a known scope; an unknown scope
+        must not block a legitimate strategy. UNION is left alone - combining
+        species is meaningful.
+        """
+        if node.operator is not CombineOp.INTERSECT:
+            return
+        if node.primary_input is None or node.secondary_input is None:
+            return
+        primary = extract_output_organisms(node.primary_input)
+        secondary = extract_output_organisms(node.secondary_input)
+        if primary is None or secondary is None or not primary.isdisjoint(secondary):
+            return
+        errors.append(
+            StepValidationIssue(
+                path=f"{path}.operator",
+                message=(
+                    "Cannot INTERSECT steps with different organism scopes "
+                    f"({', '.join(sorted(primary))} vs "
+                    f"{', '.join(sorted(secondary))}). Gene IDs from different "
+                    "species never match, so this always returns 0 results. "
+                    "Apply organism-specific filters BEFORE any ortholog "
+                    "transform, not after."
+                ),
+                code="CROSS_ORGANISM_INTERSECT",
+            )
+        )
+
     def _validate_combine_node(
         self,
         node: StrategyStepNode,
@@ -156,8 +239,11 @@ class StrategyValidator:
                     )
                 )
 
+        self._validate_contrast_samples(node, path, errors)
+
         if node.infer_kind() == "combine":
             self._validate_combine_node(node, path, errors)
+            self._validate_cross_organism_intersect(node, path, errors)
 
         if node.secondary_input is not None:
             self._validate_node(

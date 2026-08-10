@@ -12,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.parameters.values import MultiPickValue, StringValue
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
-from pathfinder.domain.strategy.operations import DeleteResolution, DeleteStepOp
+from pathfinder.domain.strategy.operations import (
+    DeleteEdgeOp,
+    DeleteEdgeResolution,
+    DeleteResolution,
+    DeleteStepOp,
+)
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph, StrategyAst
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -143,6 +148,82 @@ async def test_collapse_delete_drops_step_and_combine_no_orphans(
         deps=built_nested_conv.deps,
         op=DeleteStepOp(
             step_id="pf_taxon", resolution=DeleteResolution.COLLAPSE_COMBINE
+        ),
+    )
+
+    graph = built_nested_conv.deps.strategy_session.get_graph(None)
+    assert graph is not None
+    assert sorted(graph.steps.keys()) == [
+        "go_kinase_genes",
+        "text_kinases",
+        "text_or_go",
+    ]
+    assert await _persisted_step_ids(built_nested_conv) == [
+        "go_kinase_genes",
+        "text_kinases",
+        "text_or_go",
+    ]
+
+
+async def test_delete_edge_detaches_against_live_wdk(
+    require_wdk_creds: None,
+    built_nested_conv: _BuiltConv,
+) -> None:
+    """Deleting an edge on the canvas used to 422 before reaching WDK.
+
+    The operation kind existed only on the frontend, so the discriminated
+    union rejected it and the optimistic apply rolled back. This drives the
+    real commit pipeline: detach the root combine's secondary input and
+    confirm the freed subtree survives while the strategy still pushes.
+    """
+    del require_wdk_creds
+    assert await _persisted_step_ids(built_nested_conv) == [
+        "go_kinase_genes",
+        "narrowed",
+        "pf_taxon",
+        "text_kinases",
+        "text_or_go",
+    ]
+
+    await apply_and_commit(
+        deps=built_nested_conv.deps,
+        op=DeleteEdgeOp(
+            source_id="pf_taxon",
+            target_id="narrowed",
+            slot="secondary",
+            resolution=DeleteEdgeResolution.DETACH,
+        ),
+    )
+
+    graph = built_nested_conv.deps.strategy_session.get_graph(None)
+    assert graph is not None
+    # Detach is not delete: pf_taxon stays, now as its own root.
+    assert sorted(graph.steps.keys()) == [
+        "go_kinase_genes",
+        "narrowed",
+        "pf_taxon",
+        "text_kinases",
+        "text_or_go",
+    ]
+    assert graph.steps["narrowed"].secondary_input_id is None
+    assert graph.steps["narrowed"].operator is None
+    assert graph.roots == {"narrowed", "pf_taxon"}
+
+
+async def test_delete_edge_collapse_against_live_wdk(
+    require_wdk_creds: None,
+    built_nested_conv: _BuiltConv,
+) -> None:
+    """Collapse resolves to the same shape the delete dialog produces."""
+    del require_wdk_creds
+
+    await apply_and_commit(
+        deps=built_nested_conv.deps,
+        op=DeleteEdgeOp(
+            source_id="narrowed",
+            target_id="narrowed",
+            slot="secondary",
+            resolution=DeleteEdgeResolution.COLLAPSE,
         ),
     )
 

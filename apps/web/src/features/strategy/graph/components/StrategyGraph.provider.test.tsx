@@ -94,7 +94,6 @@ const STRATEGY: Strategy = {
           value: "Plasmodium falciparum 3D7",
         },
       },
-      isBuilt: false,
       isFiltered: false,
     },
   ],

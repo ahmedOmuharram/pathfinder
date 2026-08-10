@@ -16,6 +16,7 @@ from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.errors import AppError, InternalError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.gene_sets import GeneSet, GeneSetService
+from pathfinder.services.gene_sets.operations import EmptyGeneSetError
 from pathfinder.services.gene_sets.store import get_gene_set_store
 from pathfinder.services.gene_sets.wdk_helpers import GeneSetWdkContext
 
@@ -110,6 +111,13 @@ async def auto_import_gene_sets(
                 gene_set_id=gs.id,
                 wdk_strategy_id=wdk_id,
                 gene_count=len(gs.gene_ids),
+            )
+        except EmptyGeneSetError:
+            # Expected, not a failure: leave the latch off so a later build
+            # that actually returns genes still gets imported.
+            logger.info(
+                "Skipped gene set auto-import: strategy returned 0 genes",
+                wdk_strategy_id=wdk_id,
             )
         except (AppError, RuntimeError) as exc:
             logger.warning(

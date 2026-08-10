@@ -115,3 +115,67 @@ async def test_semantic_match_picks_best_option() -> None:
 async def test_no_rule_no_options_returns_none() -> None:
     pi = _pi("mystery_param", "single-pick-vocabulary", allowed=[])
     assert await map_intent_to_value(pi, ParamIntent(text=""), embed=_embed) is None
+
+
+class TestAnExplicitAccessionBlocksGuessing:
+    """A named accession that is not in the vocabulary must not fall through.
+
+    Observed live: "InterPro domain PF00069" bound
+    ``IPR000023 : Phosphofructokinase_dom``. PF00069 is a *Pfam* accession,
+    so once FRAME set ``domain_database=INTERPRO`` the dependent vocabulary
+    refreshed to 5,405 IPR entries and PF00069 was genuinely absent. The
+    accession check found nothing and the semantic tier then matched on the
+    substring "kinase" inside "Phosphofructokinase".
+
+    The strategy searched the wrong domain, returned 2 genes instead of 87,
+    and verification reported success. FRAME's own instruction says that when
+    the value is not in the vocabulary the search CANNOT realize the
+    criterion -- never guess. So an unmatched explicit accession has to stop
+    the chain, not hand it to the fuzzy tier.
+    """
+
+    @staticmethod
+    def _interpro_vocab() -> list[VocabOption]:
+        return [
+            VocabOption(
+                value="IPR000023 : Phosphofructokinase_dom",
+                display="IPR000023 : Phosphofructokinase_dom",
+            ),
+            VocabOption(value="IPR000719 : Prot_kinase_dom", display="IPR000719"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_an_absent_accession_does_not_bind_a_lookalike(self) -> None:
+        pi = _pi("domain_typeahead", "multi-pick-vocabulary", self._interpro_vocab())
+
+        out = await map_intent_to_value(
+            pi,
+            ParamIntent(text="InterPro domain PF00069 (protein kinase domain)"),
+            embed=_embed,
+        )
+
+        assert out is None, f"expected a Tier-3 slot, guessed {out!r}"
+
+    @pytest.mark.asyncio
+    async def test_a_present_accession_still_binds(self) -> None:
+        pi = _pi("domain_typeahead", "multi-pick-vocabulary", self._interpro_vocab())
+
+        out = await map_intent_to_value(
+            pi, ParamIntent(text="InterPro domain IPR000719"), embed=_embed
+        )
+
+        assert out == "IPR000719 : Prot_kinase_dom"
+
+    @pytest.mark.asyncio
+    async def test_text_without_an_accession_still_uses_the_other_tiers(self) -> None:
+        # No explicit identifier means nothing was overridden; the semantic
+        # and rule tiers remain the right answer.
+        pi = _pi("organism", "multi-pick-vocabulary")
+
+        out = await map_intent_to_value(
+            pi,
+            ParamIntent(organism_scope="Plasmodium falciparum", text="kinases"),
+            embed=_embed,
+        )
+
+        assert out == "Plasmodium falciparum 3D7"

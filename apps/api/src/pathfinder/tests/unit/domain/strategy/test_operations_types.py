@@ -90,12 +90,32 @@ class TestDiscriminatorParsing:
     def test_delete_step_rejects_unknown_resolution(self) -> None:
         try:
             _ADAPTER.validate_python(
-                {"kind": "deleteStep", "stepId": "a", "resolution": "orphan-sibling"}
+                {"kind": "deleteStep", "stepId": "a", "resolution": "vaporize"}
             )
         except ValueError:
             return
         msg = "expected ValueError on unknown resolution"
         raise AssertionError(msg)
+
+    def test_delete_step_accepts_every_resolution_the_delete_dialog_offers(
+        self,
+    ) -> None:
+        """Every resolution the delete dialog can build must round-trip.
+
+        ``computeDeleteChoices`` on the frontend is the only producer; its
+        counterpart test asserts it never emits a value outside this set.
+        """
+        for resolution in (
+            "collapse-combine",
+            "delete-subtree",
+            "promote-primary",
+            "delete-strategy",
+        ):
+            op = _ADAPTER.validate_python(
+                {"kind": "deleteStep", "stepId": "a", "resolution": resolution}
+            )
+            assert isinstance(op, DeleteStepOp)
+            assert op.resolution == resolution
 
     def test_replace_subtree(self) -> None:
         op = _ADAPTER.validate_python(

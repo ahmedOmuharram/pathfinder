@@ -1,4 +1,5 @@
 """WDK parameter fetching, caching, and expansion."""
+from collections.abc import Callable, Mapping
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import find_input_step_param
@@ -102,6 +103,25 @@ async def get_search_parameters_tool(
         )
 
 
+def drop_unusable_context_values(
+    context: Mapping[str, ParamValue],
+    canonicalize: Callable[[dict[str, ParamValue]], dict[str, ParamValue]],
+) -> dict[str, ParamValue]:
+    """Canonicalize context, discarding values that cannot be canonicalized.
+
+    Context values only prime the form with what the step already had. A
+    single stale one must not make the editor unopenable, which would leave
+    the user no way to reach the field and fix it.
+    """
+    remaining = dict(context)
+    while remaining:
+        try:
+            return canonicalize(remaining)
+        except (CoreValidationError, ValueError):
+            remaining.pop(next(reversed(remaining)))
+    return {}
+
+
 async def expand_search_details_with_params(
     ctx: SearchContext,
     context_values: dict[str, ParamValue] | None,
@@ -133,7 +153,9 @@ async def expand_search_details_with_params(
             )
             specs = adapt_param_specs_from_search(fallback_response.search_data)
             canonicalizer = ParameterCanonicalizer(specs)
-            normalized_context = canonicalizer.canonicalize(filtered_context)
+            normalized_context = drop_unusable_context_values(
+                filtered_context, canonicalizer.canonicalize
+            )
     else:
         normalized_context = filtered_context
 
@@ -188,6 +210,21 @@ async def _load_discovery_details_and_allowed(
         return None, set()
 
 
+def prefer_original_wdk_error(original: WDKError, fallback: WDKError) -> WDKError:
+    """Keep the component site's error when the portal retry also fails.
+
+    Not every component-site search exists on veupathdb.org, so the retry
+    often fails with an unrelated 500. Letting that replace the original turns
+    a specific, actionable message into a generic one and leaves the editor
+    saying only "Failed to load parameters for this search".
+    """
+    return WDKError(
+        f"{original.detail} (retry against the veupathdb portal also failed: "
+        f"{fallback.detail})",
+        original.status,
+    )
+
+
 async def _get_search_details_with_portal_fallback(
     *,
     site_id: str,
@@ -203,15 +240,18 @@ async def _get_search_details_with_portal_fallback(
             search_name,
             context_values,
         )
-    except WDKError:
-        if site_id != "veupathdb":
-            portal_client = get_wdk_client("veupathdb")
+    except WDKError as site_error:
+        if site_id == "veupathdb":
+            raise
+        portal_client = get_wdk_client("veupathdb")
+        try:
             return await portal_client.get_search_details_with_params(
                 record_type,
                 search_name,
                 context_values,
             )
-        raise
+        except WDKError as portal_error:
+            raise prefer_original_wdk_error(site_error, portal_error) from site_error
 
 
 async def get_refreshed_dependent_params(
@@ -235,16 +275,19 @@ async def get_refreshed_dependent_params(
             parameter_name,
             encoded,
         )
-    except WDKError:
-        if ctx.site_id != "veupathdb":
-            portal_client = get_wdk_client("veupathdb")
+    except WDKError as site_error:
+        if ctx.site_id == "veupathdb":
+            raise
+        portal_client = get_wdk_client("veupathdb")
+        try:
             return await portal_client.get_refreshed_dependent_params(
                 ctx.record_type,
                 ctx.search_name,
                 parameter_name,
                 encoded,
             )
-        raise
+        except WDKError as portal_error:
+            raise prefer_original_wdk_error(site_error, portal_error) from site_error
 
 
 def _extract_param_names_from_response(response: WDKSearchResponse) -> set[str]:

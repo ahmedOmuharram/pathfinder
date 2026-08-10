@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 from collections.abc import Sequence
 
 from pydantic_ai.messages import (
@@ -24,10 +25,48 @@ _PLACEHOLDER_CONTENT = (
 
 KEEP_RECENT_TOOL_PAIRS = 3
 
-_ELIDED_RESULT_STUB = (
-    "<elided to control context size; the agent has already acted on "
-    "this result — re-call the tool only if you need fresh data>"
-)
+_ELIDE_MIN_CHARS = 400
+"""Results at or below this stay whole.
+
+A count or an id costs a few tokens to keep and a whole round trip to
+re-fetch. Eliding them is what made ``get_estimated_size`` get called three
+times with identical arguments in one measured run.
+"""
+
+_ELIDE_DIGEST_CHARS = 220
+
+_ELIDED_MARKER = "<elided to control context size"
+
+
+def _digest(content: object) -> str:
+    """Compress a bulky result, keeping the head so its facts survive.
+
+    The old stub replaced the result outright and told the agent to
+    "re-call the tool only if you need fresh data". It took the invitation:
+    12 of 41 tool calls in one turn were byte-identical re-fetches. Keeping
+    a readable head means counts and ids stay answerable from history.
+    """
+    try:
+        rendered = content if isinstance(content, str) else json.dumps(content)
+    except (TypeError, ValueError):
+        rendered = str(content)
+    head = rendered[:_ELIDE_DIGEST_CHARS]
+    return f"{head}... {_ELIDED_MARKER}; already acted on, do not fetch again>"
+
+
+def _already_elided(content: object) -> bool:
+    """Idempotent: a digest must not be digested again on the next pass."""
+    return isinstance(content, str) and content.endswith(
+        "already acted on, do not fetch again>"
+    )
+
+
+def _too_small_to_elide(content: object) -> bool:
+    try:
+        rendered = content if isinstance(content, str) else json.dumps(content)
+    except (TypeError, ValueError):
+        rendered = str(content)
+    return len(rendered) <= _ELIDE_MIN_CHARS
 
 
 def _collect_ids(
@@ -215,10 +254,11 @@ def _elide_returns_in_message(
             isinstance(part, ToolReturnPart)
             and part.tool_call_id in elide_ids
             and not part.files
-            and part.content != _ELIDED_RESULT_STUB
+            and not _already_elided(part.content)
+            and not _too_small_to_elide(part.content)
         ):
             new_parts.append(
-                dataclasses.replace(part, content=_ELIDED_RESULT_STUB),
+                dataclasses.replace(part, content=_digest(part.content)),
             )
             changed = True
         else:

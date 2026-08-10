@@ -61,8 +61,14 @@ async def compare_search_variants(
 
     Provide at least two variants; each is one search with one set of
     parameter values, given a short human ``label`` (e.g. "2-fold",
-    "5-fold"). This does NOT score or pick a winner — there are no control
-    sets; the user judges from the differences.
+    "5-fold"). This does NOT score or pick a winner; the user judges from
+    the differences.
+
+    If a winner matters, prefer ``compare_variants_scored``: given a control
+    set (see ``build_control_set`` / ``list_control_sets``) it runs the same
+    variants, scores each against known positives and negatives, and ranks
+    them by MCC. Use this unscored tool when no control set exists or the
+    user only wants to see how the results differ.
     """
     if len(variants) < _MIN_VARIANTS:
         msg = (

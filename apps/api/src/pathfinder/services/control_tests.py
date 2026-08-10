@@ -4,19 +4,19 @@ These helpers run *temporary* WDK steps/strategies to evaluate whether known
 positive controls are returned and known negative controls are excluded.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.values import ParamValue, StringValue
 from pathfinder.domain.search import SearchContext
-from pathfinder.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
+from pathfinder.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR, CombineOp
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
+    CombinedStepSpec,
     NewStepSpec,
-    PatchStepSpec,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKSearchConfig,
@@ -75,9 +75,7 @@ class IntersectionConfig:
     controls_param_name: str
     controls_value_format: ControlValueFormat = "newline"
     controls_extra_parameters: dict[str, ParamValue] | None = None
-    boolean_operator: str = field(
-        default_factory=lambda: DEFAULT_COMBINE_OPERATOR.value
-    )
+    boolean_operator: CombineOp = DEFAULT_COMBINE_OPERATOR
     id_field: str | None = None
 
     @classmethod
@@ -248,11 +246,13 @@ async def _run_intersection_control(
     controls_step_id = controls_step.id
 
     combined_step = await api.create_combined_step(
-        primary_step_id=target_step_id,
-        secondary_step_id=controls_step_id,
-        boolean_operator=config.boolean_operator,
+        CombinedStepSpec(
+            primary_step_id=target_step_id,
+            secondary_step_id=controls_step_id,
+            boolean_operator=config.boolean_operator,
+            custom_name=f"{config.boolean_operator} controls",
+        ),
         record_type=target_rt,
-        spec_overrides=PatchStepSpec(custom_name=f"{config.boolean_operator} controls"),
     )
     combined_step_id = combined_step.id
 

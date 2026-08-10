@@ -10,6 +10,7 @@ per-request thinking effort.
 """
 
 from pydantic_ai.models.anthropic import AnthropicModelSettings
+from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 from pydantic_ai.settings import ModelSettings
 
 from pathfinder.platform.types import ReasoningEffort
@@ -45,7 +46,22 @@ def build_model_settings(
             anthropic_cache_messages=True,
         )
     else:
-        settings = ModelSettings()
+        settings = OpenAIResponsesModelSettings(
+            # The Responses API validates every item ID we echo back against
+            # what it stored. ``openai_send_reasoning_ids`` defaults to True
+            # for reasoning models and sends the IDs of reasoning, text and
+            # function-call parts from history -- but every agent here runs
+            # history processors (pair_tool_calls, elide_consumed_tool_results),
+            # so our history never matches byte for byte. OpenAI then rejects
+            # the request with "No tool invocation found for tool call ID ...".
+            #
+            # That is the crash seen on branching, reverting to a message,
+            # cancel-then-send, and long tool loops: all of them hand OpenAI a
+            # history it did not produce. Sending content without item IDs
+            # makes each request self-contained, which is what a rewritten
+            # history needs.
+            openai_send_reasoning_ids=False,
+        )
     if thinking is not None and thinking != "none":
         settings["thinking"] = thinking
     return settings

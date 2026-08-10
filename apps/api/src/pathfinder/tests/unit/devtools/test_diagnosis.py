@@ -240,3 +240,89 @@ def test_clean_run_has_no_anomalies() -> None:
     ]
     summary = RunSummary(status="ok", tokens=20000)
     assert diagnose(calls, {}, summary) == []
+
+
+_SUBSTITUTED_LEDGER = {
+    "verification": {
+        "constraints": {
+            "blocking": True,
+            "unmetCount": 1,
+            "grounded": [
+                {
+                    "constraint": {
+                        "kind": "data_type",
+                        "requestedValue": "RNA-Seq",
+                        "label": "data type",
+                        "source": "user_explicit",
+                    },
+                    "status": "substituted",
+                    "realizedValue": "microarray",
+                    "note": "x",
+                }
+            ],
+        }
+    }
+}
+
+
+class TestConstraintHandledInProse:
+    """The anomaly's claim is that the turn never told the user. Prose is
+    where a Lead usually tells them, so the detector has to read it."""
+
+    def test_silent_when_the_reply_never_mentions_it(self) -> None:
+        anomalies = diagnose(
+            [],
+            _SUBSTITUTED_LEDGER,
+            RunSummary(status="ok"),
+            assistant_text="Here are the 132 genes you asked for.",
+        )
+        assert [a for a in anomalies if a.kind == "silent_constraint_violation"]
+
+    def test_not_silent_when_the_reply_names_the_constraint(self) -> None:
+        anomalies = diagnose(
+            [],
+            _SUBSTITUTED_LEDGER,
+            RunSummary(status="ok"),
+            assistant_text=(
+                "Note: no RNA-Seq dataset covers this, so I used a microarray "
+                "one instead. The data type you asked for was not available."
+            ),
+        )
+        assert not [a for a in anomalies if a.kind == "silent_constraint_violation"]
+
+    def test_absent_prose_is_still_silent(self) -> None:
+        # A run captured with no reply text must not be quietly excused.
+        anomalies = diagnose([], _SUBSTITUTED_LEDGER, RunSummary(status="ok"))
+        assert [a for a in anomalies if a.kind == "silent_constraint_violation"]
+
+
+class TestZeroHandledInProse:
+    def test_silent_when_the_reply_never_mentions_zero(self) -> None:
+        anomalies = diagnose(
+            [],
+            {"execution": {"build": {"zeroResultSteps": ["s1"]}}},
+            RunSummary(),
+            assistant_text="Your strategy is ready.",
+        )
+        assert [a for a in anomalies if a.kind == "silent_zero"]
+
+    def test_not_silent_when_the_reply_reports_the_empty_result(self) -> None:
+        anomalies = diagnose(
+            [],
+            {"execution": {"build": {"zeroResultSteps": ["s1"]}}},
+            RunSummary(),
+            assistant_text=(
+                "That intersection returned 0 genes, so there is no overlap "
+                "between the two sets."
+            ),
+        )
+        assert not [a for a in anomalies if a.kind == "silent_zero"]
+
+    def test_a_reply_naming_the_step_also_counts(self) -> None:
+        anomalies = diagnose(
+            [],
+            {"execution": {"build": {"zeroResultSteps": ["s1"]}}},
+            RunSummary(),
+            assistant_text="Step s1 came back empty.",
+        )
+        assert not [a for a in anomalies if a.kind == "silent_zero"]

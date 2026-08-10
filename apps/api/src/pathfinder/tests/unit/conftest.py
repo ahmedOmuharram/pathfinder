@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories import ConversationRepository
@@ -40,5 +41,5 @@ async def user_id(db_session: AsyncSession) -> UUID:
 def populate_graph(graph: StrategyGraph, *steps: StrategyStepNode) -> None:
     """Add steps to graph bypassing single-root invariant for test setup."""
     for step in steps:
-        graph.steps[step.id] = step
+        graph.steps.update(flatten_tree(step))
     graph.recompute_roots()

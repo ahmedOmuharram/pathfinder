@@ -13,11 +13,10 @@ function makeStep(overrides: Partial<Step> = {}): Step {
     recordType: "gene",
     parameters: {},
     estimatedSize: 0,
-    isBuilt: false,
     isFiltered: false,
     validation: null,
     ...overrides,
-  } as Step;
+  };
 }
 
 describe("ZeroResultHoverCard", () => {

@@ -1,5 +1,4 @@
 import type { Step, Strategy, StrategyStepNode } from "@pathfinder/shared";
-import { findParent, walkSubtreeIds } from "./utils";
 import { patchSteps } from "./_patch";
 import type { ApplyResult, GraphOperation } from "./types";
 
@@ -7,7 +6,6 @@ type UpdateParamsOp = Extract<GraphOperation, { kind: "updateStepParams" }>;
 type UpdateOpOp = Extract<GraphOperation, { kind: "updateCombineOperator" }>;
 type UpdateMetaOp = Extract<GraphOperation, { kind: "updateStepMeta" }>;
 type UpdateStrategyMetaOp = Extract<GraphOperation, { kind: "updateStrategyMeta" }>;
-type ReplaceOp = Extract<GraphOperation, { kind: "replaceSubtree" }>;
 type DeleteEdgeOp = Extract<GraphOperation, { kind: "deleteEdge" }>;
 type WireInputOp = Extract<GraphOperation, { kind: "wireInput" }>;
 type ReplaceStrategyOp = Extract<GraphOperation, { kind: "replaceStrategy" }>;
@@ -106,7 +104,7 @@ function treeToFlatSteps(root: StrategyStepNode, strategy: Strategy): Step[] {
     const nodeId = node.id ?? "";
     const existing = existingById.get(nodeId);
     const flat: Step = {
-      ...(existing ?? ({ id: nodeId } as Step)),
+      ...(existing ?? { id: nodeId }),
       id: nodeId,
       kind:
         node.primaryInput !== undefined && node.secondaryInput !== undefined
@@ -143,29 +141,6 @@ export function applyWireInput(strategy: Strategy, op: WireInputOp): ApplyResult
       }),
     },
     description: `Wired ${op.sourceStepId} → ${op.targetStepId}`,
-  };
-}
-
-export function applyReplaceSubtree(strategy: Strategy, op: ReplaceOp): ApplyResult {
-  const newRoot = op.subtree[op.subtree.length - 1];
-  if (newRoot === undefined)
-    return {
-      kind: "rejected",
-      reason: "replaceSubtree requires non-empty subtree",
-    };
-  const oldSubtree = new Set(walkSubtreeIds(strategy.steps, op.stepId));
-  const parentInfo = findParent(strategy.steps, op.stepId);
-  let next = strategy.steps.filter((s) => !oldSubtree.has(s.id));
-  next = [...next, ...op.subtree];
-  if (parentInfo !== null) {
-    const slotKey =
-      parentInfo.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
-    next = patchSteps(next, parentInfo.parent.id, { [slotKey]: newRoot.id });
-  }
-  return {
-    kind: "applied",
-    next: { ...strategy, steps: next },
-    description: `Replaced subtree at ${op.stepId}`,
   };
 }
 

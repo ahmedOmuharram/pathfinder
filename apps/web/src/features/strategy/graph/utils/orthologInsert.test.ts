@@ -4,16 +4,10 @@ import { computeOrthologInsert } from "@/features/strategy/graph/utils/orthologI
 
 function step(partial: Partial<Step> & { id: string }): Step {
   return {
-    id: partial.id,
-    kind: partial.kind ?? "search",
-    displayName: partial.displayName ?? partial.id,
-    searchName: partial.searchName,
-    recordType: partial.recordType,
-    parameters: partial.parameters,
-    primaryInputStepId: partial.primaryInputStepId,
-    secondaryInputStepId: partial.secondaryInputStepId,
-    operator: partial.operator,
-  } as Step;
+    kind: "search",
+    displayName: partial.id,
+    ...partial,
+  };
 }
 
 describe("computeOrthologInsert", () => {

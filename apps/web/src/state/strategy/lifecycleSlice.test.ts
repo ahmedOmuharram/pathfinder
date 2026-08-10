@@ -132,6 +132,97 @@ describe("lifecycleSlice — batch helpers", () => {
   });
 });
 
+describe("lifecycleSlice — no-op updates never churn state identity", () => {
+  beforeEach(resetStore);
+
+  it("an event the current state ignores leaves stepLifecycleById identical", () => {
+    const api = useStrategyStore.getState();
+    api.initStepLifecycle("s1");
+    const before = useStrategyStore.getState().stepLifecycleById;
+    api.dispatchStepEvent("s1", { type: "COUNTS_READY", count: 5 });
+    const after = useStrategyStore.getState().stepLifecycleById;
+    expect(after).toBe(before);
+    expect(after["s1"]!.value).toBe("idle");
+    expect(after["s1"]!.context.estimatedSize).toBeNull();
+  });
+
+  it("removing a step id with no lifecycle leaves stepLifecycleById identical", () => {
+    const api = useStrategyStore.getState();
+    api.initStepLifecycle("s1");
+    const before = useStrategyStore.getState().stepLifecycleById;
+    api.removeStepLifecycle("never-existed");
+    const after = useStrategyStore.getState().stepLifecycleById;
+    expect(after).toBe(before);
+    expect(after["s1"]).toBeDefined();
+  });
+
+  it("applyStepValidationErrors with an empty batch leaves stepLifecycleById identical", () => {
+    const api = useStrategyStore.getState();
+    api.initStepLifecycle("s1");
+    const before = useStrategyStore.getState().stepLifecycleById;
+    api.applyStepValidationErrors({});
+    expect(useStrategyStore.getState().stepLifecycleById).toBe(before);
+  });
+
+  it("applyStepCounts with an empty batch leaves stepLifecycleById identical", () => {
+    const api = useStrategyStore.getState();
+    api.initStepLifecycle("s1", { state: "valid" });
+    const before = useStrategyStore.getState().stepLifecycleById;
+    api.applyStepCounts({});
+    expect(useStrategyStore.getState().stepLifecycleById).toBe(before);
+  });
+
+  it("validation results arriving for a step that is running counts are discarded", () => {
+    const api = useStrategyStore.getState();
+    api.initStepLifecycle("s1", { state: "valid" });
+    api.dispatchStepEvent("s1", { type: "RUN_COUNTS" });
+    const before = useStrategyStore.getState().stepLifecycleById;
+    api.applyStepValidationErrors({ s1: "stale error" });
+    const after = useStrategyStore.getState().stepLifecycleById;
+    expect(after).toBe(before);
+    expect(after["s1"]!.value).toBe("running");
+    expect(after["s1"]!.context.validationErrors).toBeNull();
+  });
+
+  it("counts arriving for a step that has been marked invalid are discarded", () => {
+    const api = useStrategyStore.getState();
+    api.initStepLifecycle("s1");
+    api.dispatchStepEvent("s1", { type: "VALIDATE" });
+    api.dispatchStepEvent("s1", {
+      type: "VALIDATION_ERROR",
+      errors: { general: ["Missing taxon"], byKey: {} },
+    });
+    const before = useStrategyStore.getState().stepLifecycleById;
+    api.applyStepCounts({ s1: 100 });
+    const after = useStrategyStore.getState().stepLifecycleById;
+    expect(after).toBe(before);
+    expect(after["s1"]!.value).toBe("invalid");
+    expect(after["s1"]!.context.estimatedSize).toBeNull();
+  });
+
+  it("a mixed batch applies only to the steps whose state accepts counts", () => {
+    const api = useStrategyStore.getState();
+    api.initStepLifecycle("s1", { state: "valid" });
+    api.initStepLifecycle("s2");
+    api.dispatchStepEvent("s2", { type: "VALIDATE" });
+    api.applyStepCounts({ s1: 7, s2: 9 });
+    const map = useStrategyStore.getState().stepLifecycleById;
+    expect(map["s1"]!.value).toBe("complete");
+    expect(map["s1"]!.context.estimatedSize).toBe(7);
+    expect(map["s2"]!.value).toBe("validating");
+    expect(map["s2"]!.context.estimatedSize).toBeNull();
+  });
+
+  it("treats an undefined count as no count while still completing the step", () => {
+    const api = useStrategyStore.getState();
+    api.initStepLifecycle("s1", { state: "valid", context: { estimatedSize: 42 } });
+    api.applyStepCounts({ s1: undefined });
+    const snap = useStrategyStore.getState().getStepLifecycle("s1");
+    expect(snap!.value).toBe("complete");
+    expect(snap!.context.estimatedSize).toBeNull();
+  });
+});
+
 describe("lifecycleSlice — clear resets everything", () => {
   beforeEach(resetStore);
 

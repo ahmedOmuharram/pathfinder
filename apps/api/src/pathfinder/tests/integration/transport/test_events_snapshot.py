@@ -19,8 +19,6 @@ from pathfinder.ai.conversation.ui_message_reducer import (
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.platform.security import create_user_token
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 async def db_session(

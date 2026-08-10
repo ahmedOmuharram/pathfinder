@@ -17,8 +17,6 @@ from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.platform.db import DBSessionFactory
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:

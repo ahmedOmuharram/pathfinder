@@ -1,7 +1,7 @@
+import { makeStrategy } from "@/lib/types/fixtures";
 import { describe, expect, test } from "vitest";
 import { deserializeStrategyToGraph } from "@/lib/strategyGraph/deserialize";
 import type { StepPositions } from "@/lib/strategyGraph/layout";
-import type { Strategy } from "@pathfinder/shared";
 
 // Synthetic positions grid — each step gets a distinct (x,y) so tests can
 // assert on position preservation without depending on a real layout engine.
@@ -16,20 +16,20 @@ function syntheticPositions(stepIds: string[]): StepPositions {
 describe("deserializeStrategyToGraph", () => {
   test("returns empty graph for null/empty strategy", () => {
     expect(deserializeStrategyToGraph(null)).toEqual({ nodes: [], edges: [] });
-    expect(deserializeStrategyToGraph({ steps: [] } as unknown as Strategy)).toEqual({
+    expect(deserializeStrategyToGraph(makeStrategy({ steps: [] }))).toEqual({
       nodes: [],
       edges: [],
     });
   });
 
   test("creates nodes + primary edge and sets connection affordances", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s1",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B", primaryInputStepId: "a" },
       ],
-    } as unknown as Strategy;
+    });
 
     const { nodes, edges } = deserializeStrategyToGraph(
       strategy,
@@ -55,13 +55,13 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("shows output handles when there are multiple roots", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s2",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B" },
       ],
-    } as unknown as Strategy;
+    });
 
     const { nodes } = deserializeStrategyToGraph(
       strategy,
@@ -77,7 +77,7 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("combine creates primary/secondary edges with L/R labels and hides filled input handles", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s4",
       steps: [
         { id: "left", displayName: "Left" },
@@ -90,7 +90,7 @@ describe("deserializeStrategyToGraph", () => {
           operator: "UNION",
         },
       ],
-    } as unknown as Strategy;
+    });
 
     const { nodes, edges } = deserializeStrategyToGraph(
       strategy,
@@ -126,7 +126,7 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("combine with missing secondary input shows secondary input handle affordance", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s5",
       steps: [
         { id: "left", displayName: "Left" },
@@ -138,7 +138,7 @@ describe("deserializeStrategyToGraph", () => {
           operator: "UNION",
         },
       ],
-    } as unknown as Strategy;
+    });
 
     const { nodes, edges } = deserializeStrategyToGraph(
       strategy,
@@ -155,13 +155,13 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("preserves existing positions when provided; forceRelayout overrides", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s3",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B" },
       ],
-    } as unknown as Strategy;
+    });
 
     const existingPositions = new Map<string, { x: number; y: number }>([
       ["a", { x: 100, y: 200 }],
@@ -193,13 +193,13 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("passes unsavedStepIds to node data as isUnsaved flag", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s6",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B" },
       ],
-    } as unknown as Strategy;
+    });
 
     const unsaved = new Set(["b"]);
     const { nodes } = deserializeStrategyToGraph(
@@ -216,10 +216,10 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("skips edges for primary/secondary inputs that reference missing steps", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s7",
       steps: [{ id: "a", displayName: "A", primaryInputStepId: "missing" }],
-    } as unknown as Strategy;
+    });
 
     const { nodes, edges } = deserializeStrategyToGraph(
       strategy,
@@ -234,13 +234,13 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("primary edge does not get L label when step has no secondary input", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s8",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B", primaryInputStepId: "a" },
       ],
-    } as unknown as Strategy;
+    });
 
     const { edges } = deserializeStrategyToGraph(
       strategy,
@@ -255,10 +255,10 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("all nodes have type='step' and correct source/target positions", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s9",
       steps: [{ id: "a", displayName: "A" }],
-    } as unknown as Strategy;
+    });
 
     const { nodes } = deserializeStrategyToGraph(
       strategy,
@@ -274,10 +274,10 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("passes callback functions into node data", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s10",
       steps: [{ id: "a", displayName: "A" }],
-    } as unknown as Strategy;
+    });
 
     const onOperatorChange = () => {};
     const onAddToChat = () => {};
@@ -297,10 +297,10 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("transform node with missing primary input shows primary input handle", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s11",
       steps: [{ id: "t", displayName: "T", kind: "transform" }],
-    } as unknown as Strategy;
+    });
 
     const { nodes } = deserializeStrategyToGraph(
       strategy,
@@ -316,7 +316,7 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("secondary edge always gets R label", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s12",
       steps: [
         { id: "a", displayName: "A" },
@@ -329,7 +329,7 @@ describe("deserializeStrategyToGraph", () => {
           operator: "UNION",
         },
       ],
-    } as unknown as Strategy;
+    });
 
     const { edges } = deserializeStrategyToGraph(
       strategy,
@@ -345,10 +345,10 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("isUnsaved defaults to false when unsavedStepIds is not provided", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s13",
       steps: [{ id: "a", displayName: "A" }],
-    } as unknown as Strategy;
+    });
 
     const { nodes } = deserializeStrategyToGraph(
       strategy,
@@ -362,13 +362,13 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("nodes without a computed position are omitted", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s-missing",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B" },
       ],
-    } as unknown as Strategy;
+    });
 
     const partialPositions: StepPositions = new Map([["a", { x: 100, y: 100 }]]);
 
@@ -384,14 +384,14 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("tags unreachable steps with data.isOrphan when rootStepId is set", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s-orphan",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B" },
       ],
       rootStepId: "a",
-    } as unknown as Strategy;
+    });
 
     const { nodes } = deserializeStrategyToGraph(
       strategy,
@@ -407,14 +407,14 @@ describe("deserializeStrategyToGraph", () => {
   });
 
   test("connected steps are not flagged as orphans", () => {
-    const strategy = {
+    const strategy = makeStrategy({
       id: "s-conn",
       steps: [
         { id: "a", displayName: "A" },
         { id: "b", displayName: "B", primaryInputStepId: "a" },
       ],
       rootStepId: "b",
-    } as unknown as Strategy;
+    });
 
     const { nodes } = deserializeStrategyToGraph(
       strategy,

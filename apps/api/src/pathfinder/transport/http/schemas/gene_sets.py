@@ -5,7 +5,10 @@ from pydantic import Field
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
-from pathfinder.services.enrichment.types import EnrichmentAnalysisType
+from pathfinder.services.enrichment.types import (
+    EnrichmentAnalysisType,
+    EnrichmentResult,
+)
 from pathfinder.services.gene_sets.types import GeneSetSource
 from pathfinder.services.gene_sets.wdk_helpers import SetOperation
 
@@ -42,6 +45,9 @@ class GeneSetResponse(CamelModel):
     operation: SetOperation | None = None
     created_at: str
     step_count: int = Field(1)
+    enrichment_results: list[EnrichmentResult] = Field(default_factory=list)
+    """Enrichment already run on this set, so reopening the workbench shows it
+    instead of silently offering to recompute."""
 
 
 class SetOperationRequest(CamelModel):

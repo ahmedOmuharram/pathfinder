@@ -41,14 +41,17 @@ yarn install
 yarn build
 ```
 
-Regenerate OpenAPI types from the spec:
+Regenerate from an already-dumped spec:
 
 ```bash
-yarn generate:openapi
+yarn generate
 ```
+
+To refresh the spec itself from the running API and regenerate in one step, run
+`yarn generate:types` from the repo root.
 
 Validate that generated types match the spec:
 
 ```bash
-yarn check:openapi
+yarn check:generated
 ```

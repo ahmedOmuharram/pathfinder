@@ -155,3 +155,66 @@ def test_seam_unbound_criterion_raises() -> None:
     )
     with pytest.raises(ValueError, match="unbound"):
         operational_spec_to_step_tree(spec)
+
+
+class TestNestedBranchesReachWdk:
+    """A UNION branch on the secondary input must survive to the step tree.
+
+    WDK step trees carry a primary and a secondary input, so
+    ``A INTERSECT (B UNION C)`` is representable. Flattening it to
+    ``(A INTERSECT B) UNION C`` asks a different question and would silently
+    change the science. FRAME's set_structure used to left-fold, which made
+    the nested form unreachable; the seam itself was always general, and
+    this pins that.
+    """
+
+    def _spec(self) -> OperationalSpec:
+        return OperationalSpec(
+            goal="drug targets",
+            criteria=[
+                Criterion(id="kinases", text="kinases", search_name="GenesByInterpro"),
+                Criterion(id="ms", text="mass spec", search_name="GenesByMassSpec"),
+                Criterion(id="derisi", text="derisi", search_name="GenesByMicroarray"),
+            ],
+            structure=SpecStructure(
+                root=StructureNode(
+                    kind="combine",
+                    operator=CombineOp.INTERSECT,
+                    inputs=[
+                        StructureNode(kind="leaf", criterion_id="kinases"),
+                        StructureNode(
+                            kind="combine",
+                            operator=CombineOp.UNION,
+                            inputs=[
+                                StructureNode(kind="leaf", criterion_id="ms"),
+                                StructureNode(kind="leaf", criterion_id="derisi"),
+                            ],
+                        ),
+                    ],
+                )
+            ),
+        )
+
+    def test_the_union_stays_on_the_secondary_input(self) -> None:
+        root = operational_spec_to_step_tree(self._spec())
+
+        assert root.operator == CombineOp.INTERSECT
+        branch = root.secondary_input
+        assert branch is not None
+        assert branch.operator == CombineOp.UNION
+
+    def test_the_branch_keeps_both_of_its_own_leaves(self) -> None:
+        root = operational_spec_to_step_tree(self._spec())
+        branch = root.secondary_input
+        assert branch is not None
+
+        assert branch.primary_input is not None
+        assert branch.secondary_input is not None
+        assert branch.primary_input.search_name == "GenesByMassSpec"
+        assert branch.secondary_input.search_name == "GenesByMicroarray"
+
+    def test_the_intersect_side_is_not_rewritten(self) -> None:
+        root = operational_spec_to_step_tree(self._spec())
+
+        assert root.primary_input is not None
+        assert root.primary_input.search_name == "GenesByInterpro"

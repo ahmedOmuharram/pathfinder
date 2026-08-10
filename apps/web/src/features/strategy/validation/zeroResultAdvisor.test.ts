@@ -12,7 +12,6 @@ function makeSearchStep(overrides?: Partial<Step>): Step {
     id: "s1",
     displayName: "Gene search",
     searchName: "GenesByKeyword",
-    isBuilt: false,
     isFiltered: false,
     ...overrides,
   };
@@ -24,7 +23,6 @@ function makeTransformStep(overrides?: Partial<Step>): Step {
     displayName: "Transform step",
     searchName: "GenesByOrthology",
     primaryInputStepId: "s1",
-    isBuilt: false,
     isFiltered: false,
     ...overrides,
   };
@@ -40,7 +38,6 @@ function makeCombineStep(
     primaryInputStepId: "s1",
     secondaryInputStepId: "s2",
     operator,
-    isBuilt: false,
     isFiltered: false,
     ...overrides,
   };
@@ -177,7 +174,6 @@ describe("getZeroResultSuggestions", () => {
         kind: "combine",
         primaryInputStepId: "s1",
         secondaryInputStepId: "s2",
-        isBuilt: false,
         isFiltered: false,
       };
       const suggestions = getZeroResultSuggestions(step);
@@ -200,7 +196,6 @@ describe("getZeroResultSuggestions", () => {
         displayName: "Explicit search",
         kind: "search",
         searchName: "GenesByKeyword",
-        isBuilt: false,
         isFiltered: false,
       };
       const suggestions = getZeroResultSuggestions(step);
@@ -214,7 +209,6 @@ describe("getZeroResultSuggestions", () => {
         kind: "transform",
         searchName: "GenesByOrthology",
         primaryInputStepId: "s1",
-        isBuilt: false,
         isFiltered: false,
       };
       const suggestions = getZeroResultSuggestions(step);
