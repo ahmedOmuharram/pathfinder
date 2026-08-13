@@ -1,6 +1,6 @@
 """An identifier stated in the request answers a param that has no vocabulary.
 
-Live PlasmoDB, the 16-step prompt: "Identify kinases ... **EC number 2.7.-.-**".
+Observed on a multi-criterion request: "Identify kinases ... **EC number 2.7.-.-**".
 FRAME bound the criterion, then BUILD stopped:
 
     These criteria still need user-supplied parameters: kinase_ec.ec_wildcard
@@ -47,8 +47,9 @@ async def _embed(texts: Sequence[str]) -> list[list[float]]:
     return [[0.0, 0.0] for _ in texts]
 
 
-async def _resolve(param: ParameterInfo, text: str) -> str | None:
-    return await map_intent_to_value(param, ParamIntent(text=text), embed=_embed)
+async def _resolve(param: ParameterInfo, text: str) -> str | list[str] | None:
+    match = await map_intent_to_value(param, ParamIntent(text=text), embed=_embed)
+    return match.value if match else None
 
 
 class TestTheIdentifierIsTaken:
@@ -74,7 +75,10 @@ class TestItStillAsksWhenItShould:
     async def test_no_identifier_means_no_answer(self) -> None:
         # A free-text query ("text search for 'kinase'") carries no identifier,
         # so it stays a question rather than inheriting WDK's example default.
-        assert await _resolve(_vocabless("text_expression"), "text search for kinase") is None
+        assert (
+            await _resolve(_vocabless("text_expression"), "text search for kinase")
+            is None
+        )
 
     @pytest.mark.asyncio
     async def test_two_identifiers_are_ambiguous(self) -> None:

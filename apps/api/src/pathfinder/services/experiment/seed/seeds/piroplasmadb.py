@@ -1,17 +1,5 @@
-"""Seed definitions for PiroplasmaDB.
-
-Covers Babesia bovis T2Bo — the bovine babesiosis reference genome.
-
-Strategies model real research questions:
-  1. VESA Immune Evasion Surface Proteins (5 nodes)
-  2. Drug Target Discovery (9 nodes)
-  3. Secreted Virulence Factors (7 nodes)
-  4. Membrane Transport Network (7 nodes)
-  5. Surface Antigen Repertoire (9 nodes)
-  6. Erythrocyte Invasion Machinery (9 nodes)
-
-All gene IDs verified against live PiroplasmaDB API (March 2026).
-"""
+"""Seed definitions for PiroplasmaDB, scoped to the Babesia bovis T2Bo
+reference genome."""
 
 from pathfinder.services.experiment.seed.helpers import (
     go_search_params,
@@ -21,17 +9,9 @@ from pathfinder.services.experiment.seed.helpers import (
 )
 from pathfinder.services.experiment.seed.types import ControlSetDef, SeedDef
 
-# ---------------------------------------------------------------------------
-# Organism constants
-# ---------------------------------------------------------------------------
-
 BB_ORG = "Babesia bovis T2Bo"
 
-# ---------------------------------------------------------------------------
-# Gene data - ALL IDs verified against live PiroplasmaDB API (Mar 2026)
-# ---------------------------------------------------------------------------
-
-# VESA (variant erythrocyte surface antigens, immune evasion) - 147 total, using 50
+# Variant erythrocyte surface antigens, which drive immune evasion.
 BB_VESA = [
     "BBOV_I000010",
     "BBOV_I000020",
@@ -85,7 +65,7 @@ BB_VESA = [
     "BBOV_II000100",
 ]
 
-# Kinases (GO:0004672 protein kinase activity) - all 49
+# Kinases, GO:0004672 (protein kinase activity).
 BB_KINASES = [
     "BBOV_I000170",
     "BBOV_I000350",
@@ -138,7 +118,7 @@ BB_KINASES = [
     "BBOV_IV012050",
 ]
 
-# Peptidases (GO:0008233 peptidase activity) - 67 total, using 50
+# Peptidases, GO:0008233 (peptidase activity).
 BB_PEPTIDASES = [
     "BBOV_I000200",
     "BBOV_I000540",
@@ -192,7 +172,7 @@ BB_PEPTIDASES = [
     "BBOV_IV003850",
 ]
 
-# Ribosomal (GO:0003735 structural constituent of ribosome) - 137 total, using 50
+# Ribosomal proteins, GO:0003735 (structural constituent of ribosome).
 BB_RIBOSOMAL = [
     "BBOV_I000230",
     "BBOV_I000700",
@@ -246,7 +226,7 @@ BB_RIBOSOMAL = [
     "BBOV_III001970",
 ]
 
-# Heat shock proteins - all 8
+# Heat shock proteins.
 BB_HEAT_SHOCK = [
     "BBOV_II003640",
     "BBOV_II003920",
@@ -258,7 +238,7 @@ BB_HEAT_SHOCK = [
     "BBOV_IV010880",
 ]
 
-# Spherical body proteins - all 15
+# Spherical body proteins.
 BB_SPHERICAL_BODY = [
     "BBOV_I004210",
     "BBOV_II000680",
@@ -277,7 +257,7 @@ BB_SPHERICAL_BODY = [
     "BBOV_IV005390",
 ]
 
-# Merozoite surface proteins - all 5
+# Merozoite surface proteins.
 BB_MEROZOITE = [
     "BBOV_I002990",
     "BBOV_I003000",
@@ -286,7 +266,7 @@ BB_MEROZOITE = [
     "BBOV_I003060",
 ]
 
-# Rhoptry proteins - all 4
+# Rhoptry proteins.
 BB_RHOPTRY = [
     "BBOV_I001630",
     "BBOV_IV009860",
@@ -295,14 +275,7 @@ BB_RHOPTRY = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Seeds
-# ---------------------------------------------------------------------------
-
 SEEDS: list[SeedDef] = [
-    # ===================================================================
-    # 1) VESA Immune Evasion Surface Proteins (5 nodes)
-    # ===================================================================
     SeedDef(
         name="BB VESA Immune Evasion Surface Proteins",
         description=(
@@ -357,9 +330,6 @@ SEEDS: list[SeedDef] = [
             tags=["babesia", "vesa", "immune-evasion", "seed"],
         ),
     ),
-    # ===================================================================
-    # 2) Drug Target Discovery (9 nodes)
-    # ===================================================================
     SeedDef(
         name="BB Drug Target Discovery",
         description=(
@@ -434,9 +404,6 @@ SEEDS: list[SeedDef] = [
             tags=["babesia", "drug-target", "seed"],
         ),
     ),
-    # ===================================================================
-    # 3) Secreted Virulence Factors (7 nodes)
-    # ===================================================================
     SeedDef(
         name="BB Secreted Virulence Factors",
         description=(
@@ -500,9 +467,6 @@ SEEDS: list[SeedDef] = [
             tags=["babesia", "virulence", "secreted", "seed"],
         ),
     ),
-    # ===================================================================
-    # 4) Membrane Transport Network (7 nodes)
-    # ===================================================================
     SeedDef(
         name="BB Membrane Transport Network",
         description=(
@@ -565,9 +529,6 @@ SEEDS: list[SeedDef] = [
             tags=["babesia", "transport", "stress", "seed"],
         ),
     ),
-    # ===================================================================
-    # 5) Surface Antigen Repertoire (9 nodes)
-    # ===================================================================
     SeedDef(
         name="BB Surface Antigen Repertoire",
         description=(
@@ -643,9 +604,6 @@ SEEDS: list[SeedDef] = [
             tags=["babesia", "surface-antigen", "seed"],
         ),
     ),
-    # ===================================================================
-    # 6) Erythrocyte Invasion Machinery (9 nodes)
-    # ===================================================================
     SeedDef(
         name="BB Erythrocyte Invasion Machinery",
         description=(

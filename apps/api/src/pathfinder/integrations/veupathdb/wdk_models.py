@@ -1,19 +1,14 @@
 """Pydantic models for WDK REST API responses.
 
-Parsed at the integration boundary (VEuPathDBClient) so the service layer
-receives typed, validated data instead of raw JSONObject dicts.  Models
-use ``extra="ignore"`` for forward compatibility and ``frozen=True`` for
-immutability.
-
-Field names use snake_case in Python; ``alias_generator=to_camel`` maps
-them to the camelCase keys in WDK JSON.
+Python field names are snake_case; the camelCase keys in WDK JSON come from
+the alias generator.
 """
 
 from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import ConfigDict, Discriminator, Field, JsonValue
+from pydantic import ConfigDict, Discriminator, Field, JsonValue, field_validator
 from pydantic.alias_generators import to_camel
 
 from pathfinder.domain.parameters.values import ParamValue
@@ -54,11 +49,9 @@ class WDKFilterValue(WDKModel):
 
 
 class WDKSearchConfig(WDKModel):
-    """Search configuration: parameters + filters + weight.
+    """Search configuration: parameters, filters, and weight.
 
-    ``coerce_numbers_to_str`` handles int/float → str automatically.
-    Callers must not pass None values — use ``model_dump(exclude_none=True)``
-    on upstream Pydantic models to produce clean parameter dicts.
+    Parameter values are never None.
     """
 
     model_config = ConfigDict(
@@ -73,10 +66,6 @@ class WDKSearchConfig(WDKModel):
     view_filters: list[WDKFilterValue] = Field(default_factory=list)
     column_filters: JSONObject | None = None
     wdk_weight: int = 0
-
-
-# StepValidation and StepValidationErrors are defined in
-# pathfinder.domain.strategy.validation — imported above.
 
 
 class WDKStepTree(WDKModel):
@@ -94,6 +83,13 @@ class WDKDisplayPreferences(WDKModel):
     sort_columns: list[JSONObject] | None = None
 
 
+def _size_or_none(value: object) -> object:
+    """A negative size is the absence of a count. Zero is a real result."""
+    if isinstance(value, int) and value < 0:
+        return None
+    return value
+
+
 class WDKStep(WDKModel):
     """A WDK step (search execution unit)."""
 
@@ -104,6 +100,8 @@ class WDKStep(WDKModel):
     validation: StepValidation = Field(default_factory=StepValidation)
     estimated_size: int | None = None
     strategy_id: int | None = None
+
+    _no_negative_size = field_validator("estimated_size", mode="before")(_size_or_none)
     display_name: str = ""
     short_display_name: str = ""
     custom_name: str | None = None
@@ -156,10 +154,7 @@ class WDKStrategyDetails(WDKStrategySummary):
 
 
 class WDKIdentifier(WDKModel):
-    """Generic WDK ``{"id": <int>}`` response.
-
-    Returned by POST endpoints that create a resource (strategy, step, etc.).
-    """
+    """Generic WDK ``{"id": <int>}`` response from resource-creating POSTs."""
 
     id: int
 
@@ -186,10 +181,7 @@ class WDKReporter(WDKModel):
 
 
 class WDKAttributeField(WDKModel):
-    """WDK attribute field metadata (matches wdk-client AttributeField).
-
-    Used in record type expanded responses (``GET /record-types/{type}?format=expanded``).
-    """
+    """WDK attribute field metadata, from expanded record-type responses."""
 
     name: str
     display_name: str = ""
@@ -258,10 +250,8 @@ class WDKSearchResponse(WDKModel):
 class WDKRecordType(WDKModel):
     """WDK record type metadata.
 
-    The expanded single record type endpoint (``GET /record-types/{type}?format=expanded``)
-    includes ``attributes`` as a list of ``WDKAttributeField`` objects.  Some WDK
-    deployments return ``attributesMap`` (a dict keyed by attribute name) instead.
-    Both are typed so callers receive validated attribute metadata.
+    A deployment returns attribute metadata as ``attributes`` or as
+    ``attributesMap``.
     """
 
     url_segment: str
@@ -282,20 +272,47 @@ class WDKRecordType(WDKModel):
 
 
 class WDKAnswerMeta(WDKModel):
-    """Answer/report metadata with counts."""
+    """Answer metadata. Only the view pair reflects the view filters."""
 
-    total_count: int = 0
+    total_count: int | None = None
     response_count: int = 0
-    display_total_count: int = 0
-    view_total_count: int = 0
-    display_view_total_count: int = 0
+    display_total_count: int | None = None
+    view_total_count: int | None = None
+    display_view_total_count: int | None = None
     record_class_name: str = ""
     attributes: list[str] = Field(default_factory=list)
     tables: list[str] = Field(default_factory=list)
 
+    def records_returned(self) -> int:
+        """The count describing the records this answer carries.
+
+        Raises when WDK published none; zero would state a result nobody measured.
+        """
+        for count in (
+            self.display_view_total_count,
+            self.view_total_count,
+            self.display_total_count,
+            self.total_count,
+        ):
+            if count is not None:
+                return count
+        msg = "WDK answer carries no result count"
+        raise ValueError(msg)
+
+
+class WDKLinkAttribute(WDKModel):
+    """A link attribute value: the text a reader sees, and where it points."""
+
+    url: str = ""
+    display_text: str = ""
+
 
 class WDKRecordInstance(WDKModel):
-    """A single record from a WDK answer/report."""
+    """A single record from a WDK answer/report.
+
+    ``record_class_name`` is the full name here; ``WDKAnswerMeta`` carries the
+    url segment under the same key.
+    """
 
     display_name: str = ""
     id: list[WDKRecordIdPart] = Field(default_factory=list)
@@ -303,6 +320,20 @@ class WDKRecordInstance(WDKModel):
     attributes: dict[str, JsonValue] = Field(default_factory=dict)
     tables: dict[str, JsonValue] = Field(default_factory=dict)
     table_errors: list[str] = Field(default_factory=list)
+
+    def attribute_text(self, name: str) -> str | None:
+        """The comparable text of one attribute.
+
+        A link attribute arrives as an object, so a direct comparison against a
+        string never matches.
+        """
+        match self.attributes.get(name):
+            case None:
+                return None
+            case {**fields}:
+                return WDKLinkAttribute.model_validate(fields).display_text or None
+            case value:
+                return str(value)
 
 
 class WDKAnswer(WDKModel):
@@ -327,12 +358,7 @@ class WDKStepAnalysisType(WDKModel):
 
 
 class WDKStepAnalysisTypeResponse(WDKModel):
-    """Envelope for the single analysis-type detail endpoint.
-
-    ``GET /users/{uid}/steps/{stepId}/analysis-types/{name}`` returns
-    ``{"searchData": {...}, "validation": {...}}``, mirroring the
-    :class:`WDKSearchResponse` pattern.
-    """
+    """Envelope for the single analysis-type detail endpoint."""
 
     search_data: WDKStepAnalysisType
     validation: StepValidation
@@ -396,9 +422,7 @@ class WDKUserInfo(WDKModel):
     properties: dict[str, str] = Field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
-# WDKDatasetConfig — discriminated union (5 source types)
-# ---------------------------------------------------------------------------
+# Dataset config: discriminated union over the source types.
 
 
 class WDKDatasetIdListContent(WDKModel):
@@ -482,18 +506,13 @@ WDKDatasetConfig = Annotated[
 ]
 """Discriminated union of WDK dataset config source types."""
 
-# ---------------------------------------------------------------------------
-# Enrichment response models (step-analysis plugin output)
-# ---------------------------------------------------------------------------
+# Enrichment response models (step-analysis plugin output).
 
 
 class WDKEnrichmentRowBase(WDKModel):
-    """Shared statistical fields across GO, Pathway, and Word enrichment plugins.
+    """Statistical fields shared by the GO, pathway, and word enrichment plugins.
 
-    ALL values are strings — WDK Java plugins serialize every field via
-    ``json.put(key, stringValue)``.  Verified from GoEnrichmentPlugin.java,
-    PathwaysEnrichmentPlugin.java, WordEnrichmentPlugin.java in
-    VEuPathDB/ApiCommonWebsite.
+    Every value arrives as a string, including the numeric ones.
     """
 
     bgd_genes: str = "0"
@@ -522,10 +541,9 @@ class WDKPathwayEnrichmentRow(WDKEnrichmentRowBase):
 
 
 class WDKWordEnrichmentRow(WDKEnrichmentRowBase):
-    """Word enrichment result row (WordEnrichmentPlugin.java).
+    """Word enrichment result row.
 
-    WDK Java field ``_descrip`` serializes to JSON key ``pathwayName``.
-    Verified from live PlasmoDB word enrichment response (2026-03-22).
+    The word description arrives under the JSON key ``pathwayName``.
     """
 
     word: str
@@ -533,25 +551,18 @@ class WDKWordEnrichmentRow(WDKEnrichmentRowBase):
 
 
 class WDKEnrichmentResponse(WDKModel):
-    """Envelope returned by ``GET .../analyses/{id}/result``.
-
-    Contains ``resultData`` (list of raw row dicts), ``downloadPath``,
-    and ``pvalueCutoff``.  Plugin-specific keys (``goTermBaseUrl``,
-    ``accessToken``, ``contextHash``) are dropped via ``extra="ignore"``.
-    """
+    """Envelope returned by the analysis result endpoint."""
 
     result_data: list[JSONObject] = Field(default_factory=list)
     download_path: str = ""
     pvalue_cutoff: str = ""
 
 
-# ---------------------------------------------------------------------------
-# Request models (mutable — NOT frozen)
-# ---------------------------------------------------------------------------
+# Request models. These are mutable, not frozen.
 
 
 class PatchStepSpec(CamelModel):
-    """Fields for updating an existing step. Matches monorepo's PatchStepSpec."""
+    """Fields for updating an existing step."""
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -565,11 +576,7 @@ class PatchStepSpec(CamelModel):
 
 
 class NewStepSpec(PatchStepSpec):
-    """Full spec for creating a new step. Matches monorepo's NewStepSpec.
-
-    Combines PatchStepSpec (optional display fields) with AnswerSpec
-    (searchName + searchConfig).
-    """
+    """Full spec for creating a new step."""
 
     search_name: str
     search_config: WDKSearchConfig
@@ -578,12 +585,8 @@ class NewStepSpec(PatchStepSpec):
 class CombinedStepSpec(PatchStepSpec):
     """Spec for creating a boolean combine step.
 
-    WDK models a combine as an ordinary step whose search is the record
-    type's ``boolean_question_*`` and whose config carries the operator, so
-    this could in principle be a ``NewStepSpec``. It cannot be: that search
-    name and its three parameter names are resolved per record type at call
-    time, and a caller has no way to know them. The caller supplies what it
-    does know, and ``create_combined_step`` fills the rest.
+    The boolean search name and its parameter names depend on the record type
+    and are resolved at call time.
     """
 
     primary_step_id: int
@@ -592,7 +595,7 @@ class CombinedStepSpec(PatchStepSpec):
     wdk_weight: int | None = None
 
 
-# Resolve forward reference: WDKSearch.parameters uses WDKParameter
+# Imported last to resolve the WDKParameter forward reference.
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter  # noqa: E402, I001
 
 WDKSearch.model_rebuild()

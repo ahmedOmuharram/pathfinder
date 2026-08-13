@@ -1,4 +1,4 @@
-"""Results endpoints: records, record detail, attributes, distributions, refine."""
+"""HTTP endpoints for experiment results: records, attributes, distributions, refine."""
 
 from dataclasses import dataclass
 from typing import Annotated
@@ -41,14 +41,10 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Query parameter groups
-# ---------------------------------------------------------------------------
-
 
 @dataclass
 class RecordQueryParams:
-    """Grouped query parameters for record listing endpoints."""
+    """The query parameters that the record listing endpoints take."""
 
     offset: int = Query(0, ge=0)
     limit: int = Query(50, ge=1, le=500)
@@ -59,13 +55,8 @@ class RecordQueryParams:
     filter_value: str | None = Query(None, alias="filterValue")
 
 
-# ---------------------------------------------------------------------------
-# Route handlers
-# ---------------------------------------------------------------------------
-
-
 def _require_step(exp: ExperimentDep) -> StepResultsService:
-    """Create a StepResultsService, raising 404 if no WDK step."""
+    """Builds a StepResultsService. An experiment with no WDK step raises not found."""
     if not exp.wdk_step_id:
         raise NotFoundError(title="No WDK strategy for this experiment")
     api = get_strategy_api(exp.config.site_id)
@@ -79,7 +70,7 @@ async def get_experiment_attributes(
     exp: ExperimentDep,
     user_id: CurrentUser,
 ) -> AttributesResponse:
-    """Get available attributes for an experiment's record type."""
+    """Returns the available attributes for the experiment record type."""
     api = get_strategy_api(exp.config.site_id)
     svc = StepResultsService(
         api,
@@ -95,7 +86,7 @@ async def get_experiment_records(
     user_id: CurrentUser,
     params: Annotated[RecordQueryParams, Depends()],
 ) -> RecordsResponse:
-    """Get paginated result records for an experiment."""
+    """Returns one page of classified result records."""
     if not exp.wdk_step_id or not exp.wdk_strategy_id:
         raise NotFoundError(
             title="No WDK strategy",
@@ -123,7 +114,7 @@ async def get_experiment_records(
         filtered_records = [
             rec
             for rec in answer.records
-            if rec.attributes.get(params.filter_attribute) == params.filter_value
+            if rec.attribute_text(params.filter_attribute) == params.filter_value
         ]
         classified_dicts = classify_records(
             filtered_records,
@@ -164,7 +155,7 @@ async def get_experiment_records(
     return RecordsResponse(
         records=[ClassifiedRecord.model_validate(r) for r in classified_dicts],
         meta=RecordsMeta(
-            total_count=answer.meta.total_count,
+            total_count=answer.meta.records_returned(),
             display_total_count=answer.meta.display_total_count,
             response_count=answer.meta.response_count,
             pagination=RecordsPagination(
@@ -182,7 +173,7 @@ async def get_experiment_record_detail(
     body: RecordDetailRequest,
     user_id: CurrentUser,
 ) -> RecordDetailResponse:
-    """Get a single record's full details by primary key."""
+    """Returns the full detail of one record, selected by primary key."""
     pk_parts: list[dict[str, str]] = [
         {"name": part.name, "value": part.value} for part in body.primary_key
     ]
@@ -205,7 +196,7 @@ async def get_experiment_distribution(
     attribute_name: str,
     user_id: CurrentUser,
 ) -> DistributionResponse:
-    """Get distribution data for an attribute using the byValue column reporter."""
+    """Returns the distribution of one attribute from the byValue column reporter."""
     svc = _require_step(exp)
     dist = await svc.get_distribution(attribute_name)
     return DistributionResponse(histogram=dist.histogram, statistics=dist.statistics)
@@ -217,7 +208,7 @@ async def refine_experiment(
     request: RefineRequest,
     user_id: CurrentUser,
 ) -> RefineResponse:
-    """Add a step to the experiment's strategy (combine, transform, etc.)."""
+    """Adds a combine or transform step to the experiment strategy."""
     api = get_strategy_api(exp.config.site_id)
     store = get_experiment_store()
 

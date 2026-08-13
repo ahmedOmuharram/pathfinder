@@ -1,12 +1,5 @@
-"""Parsed paper domain models and per-API raw paper models.
-
-These models replace manual isinstance/dict.get() chains in literature
-search clients by providing typed Pydantic models that normalize raw API
-responses into a shared ``ParsedPaper`` representation.
-
-Each API's nested structures (authors, journals, external IDs) are modeled
-as typed Pydantic sub-models with ``extra="ignore"``, so ``model_validate``
-handles all type coercion and unknown-field filtering.
+"""Raw paper models for each literature API, and the shared ``ParsedPaper``
+normal form they all convert to.
 """
 
 from __future__ import annotations
@@ -20,11 +13,7 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 
 class ParsedPaper(CamelModel):
-    """Normalized paper representation shared across all literature clients.
-
-    All fields have safe defaults so partial API responses are handled
-    gracefully.  ``extra="ignore"`` allows forward-compatible parsing.
-    """
+    """Normalized paper representation shared across all literature clients."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -39,7 +28,7 @@ class ParsedPaper(CamelModel):
     snippet: str | None = None
 
 
-# ── Semantic Scholar ────────────────────────────────────────────────────
+# Semantic Scholar
 
 
 class _S2Author(BaseModel):
@@ -59,11 +48,7 @@ class _S2ExternalIds(BaseModel):
 
 
 class SemanticScholarRawPaper(BaseModel):
-    """Raw paper from the Semantic Scholar API.
-
-    Nested ``externalIds``, ``journal``, and ``authors`` are parsed via
-    typed sub-models — no isinstance chains needed.
-    """
+    """Raw paper from the Semantic Scholar API."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -76,7 +61,6 @@ class SemanticScholarRawPaper(BaseModel):
     external_ids: _S2ExternalIds | None = Field(None)
 
     def to_parsed_paper(self) -> ParsedPaper:
-        """Convert to the shared normalized ParsedPaper model."""
         title = (self.title or "").strip()
         doi = self.external_ids.doi if self.external_ids else None
         pmid = self.external_ids.pub_med if self.external_ids else None
@@ -96,7 +80,7 @@ class SemanticScholarRawPaper(BaseModel):
         )
 
 
-# ── OpenAlex ────────────────────────────────────────────────────────────
+# OpenAlex
 
 
 class _OAAuthorInfo(BaseModel):
@@ -117,8 +101,7 @@ class _OAHostVenue(BaseModel):
 class OpenAlexRawWork(BaseModel):
     """Raw work from the OpenAlex API.
 
-    Handles DOI prefix stripping, inverted-index abstract reconstruction,
-    nested authorships, and host_venue journal extraction via typed sub-models.
+    The abstract arrives as an inverted index, not as text.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -134,13 +117,11 @@ class OpenAlexRawWork(BaseModel):
     @field_validator("doi", mode="after")
     @classmethod
     def _strip_doi_prefix(cls, v: str | None) -> str | None:
-        """Strip https://doi.org/ prefix from DOI if present."""
         if v is None:
             return None
         return v.removeprefix("https://doi.org/")
 
     def _reconstruct_abstract(self) -> str | None:
-        """Reconstruct abstract text from OpenAlex inverted index."""
         inv = self.abstract_inverted_index
         if not inv:
             return None
@@ -153,7 +134,6 @@ class OpenAlexRawWork(BaseModel):
         return " ".join(w for _, w in pairs)
 
     def to_parsed_paper(self) -> ParsedPaper:
-        """Convert to the shared normalized ParsedPaper model."""
         title = (self.title or "").strip()
         result_url = f"https://doi.org/{self.doi}" if self.doi else self.id
         author_names = [
@@ -177,7 +157,7 @@ class OpenAlexRawWork(BaseModel):
         )
 
 
-# ── CrossRef ────────────────────────────────────────────────────────────
+# CrossRef
 
 
 class _CRAuthor(BaseModel):
@@ -206,11 +186,7 @@ class _CRDateParts(BaseModel):
 
 
 class CrossRefRawWork(BaseModel):
-    """Raw work from the CrossRef API.
-
-    Nested structures (date-parts, title array, author array,
-    container-title) are parsed via typed sub-models.
-    """
+    """Raw work from the CrossRef API."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -223,7 +199,6 @@ class CrossRefRawWork(BaseModel):
     published_online: _CRDateParts | None = Field(None, alias="published-online")
 
     def to_parsed_paper(self) -> ParsedPaper:
-        """Convert to the shared normalized ParsedPaper model."""
         title = self.title[0].strip() if self.title else ""
         journal = self.container_title[0].strip() if self.container_title else None
         date_source = self.published_print or self.published_online
@@ -241,16 +216,14 @@ class CrossRefRawWork(BaseModel):
         )
 
 
-# ── Europe PMC ──────────────────────────────────────────────────────────
+# Europe PMC
 
 
 class EuropePmcRawResult(BaseModel):
     """Raw result from the Europe PMC API.
 
-    Field aliases map EuropePMC's camelCase keys to Python names.
-    ``pubYear`` is coerced from str via a before-validator that gracefully
-    handles non-numeric strings (e.g. ``"2020-2021"``) by returning None.
-    ``authorString`` is split in a model_validator.
+    ``pubYear`` arrives as a string and can hold a range such as
+    ``"2020-2021"``, which has no single year.
     """
 
     model_config = ConfigDict(extra="ignore", coerce_numbers_to_str=False)
@@ -264,7 +237,6 @@ class EuropePmcRawResult(BaseModel):
     abstract_text: str | None = Field(None)
 
     def to_parsed_paper(self) -> ParsedPaper:
-        """Convert to the shared normalized ParsedPaper model."""
         title = (self.title or "").strip()
         link: str | None = None
         if self.doi:
@@ -291,7 +263,7 @@ class EuropePmcRawResult(BaseModel):
         )
 
 
-# ── PubMed ─────────────────────────────────────────────────────────────
+# PubMed
 
 
 class _PubMedSummaryAuthor(BaseModel):
@@ -301,18 +273,14 @@ class _PubMedSummaryAuthor(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _coerce_str(cls, data: object) -> object:
-        """Allow plain strings (e.g. from PubMed summary author lists)."""
+        """A PubMed summary author list holds plain strings."""
         if isinstance(data, str):
             return {"name": data}
         return data
 
 
 class PubMedRawArticle(BaseModel):
-    """Raw article assembled from PubMed esummary + optional efetch abstract.
-
-    Fields are populated directly by ``PubmedClient._fetch_raw`` which
-    builds flat dicts from the esummary/efetch responses.
-    """
+    """Raw article assembled from the PubMed esummary and efetch responses."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -324,7 +292,6 @@ class PubMedRawArticle(BaseModel):
     abstract: str | None = None
 
     def to_parsed_paper(self) -> ParsedPaper:
-        """Convert to the shared normalized ParsedPaper model."""
         year: int | None = None
         m = re.search(r"(\d{4})", self.pubdate)
         if m:
@@ -342,17 +309,14 @@ class PubMedRawArticle(BaseModel):
         )
 
 
-# ── arXiv ─────────────────────────────────────────────────────────────
+# arXiv
 
 
 class ArxivRawEntry(BaseModel):
-    """Raw arXiv entry wrapper from _fetch_raw (XML string in _xml key)."""
+    """Raw arXiv entry. The arXiv API returns XML, not JSON."""
 
     model_config = ConfigDict(extra="ignore")
     xml: str = Field(alias="_xml")
-
-
-# ── Preprints (bioRxiv / medRxiv) ─────────────────────────────────────
 
 
 class PreprintRawResult(BaseModel):

@@ -1,8 +1,4 @@
-"""Step analysis lifecycle for the Strategy API.
-
-Provides :class:`AnalysisMixin` with methods to list analysis types,
-create, run, poll, and retrieve step analysis results.
-"""
+"""Step analysis lifecycle for the Strategy API."""
 
 import asyncio
 from dataclasses import dataclass
@@ -23,49 +19,48 @@ logger = get_logger(__name__)
 
 @dataclass
 class AnalysisPollConfig:
-    """Polling options for :meth:`AnalysisMixin.run_step_analysis`."""
+    """Polling options for a step analysis run."""
 
     poll_interval: float = 2.0
     max_wait: float = 300.0
     max_retries: int = 3
 
 
-# Background tasks kept alive to prevent garbage collection.
+# A task set keeps each background task alive until it ends.
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
 class AnalysisMixin(StrategyAPIBase):
-    """Mixin providing step analysis lifecycle methods."""
+    """Step analysis lifecycle methods."""
 
     _RETRIABLE_STATUSES = frozenset({"ERROR", "OUT_OF_DATE", "STEP_REVISED"})
 
     async def list_analysis_types(
         self, step_id: int, user_id: str | None = None
     ) -> list[WDKStepAnalysisType]:
-        """List available analysis types for a step."""
+        """Lists the analysis types that are available for a step."""
         uid = await self._get_user_id(user_id)
         return await self.client.list_analysis_types(uid, step_id)
 
     async def get_analysis_type(
         self, step_id: int, analysis_type: str, user_id: str | None = None
     ) -> WDKStepAnalysisTypeResponse:
-        """Get analysis form metadata for a step."""
+        """Returns the analysis form metadata for a step."""
         uid = await self._get_user_id(user_id)
         return await self.client.get_analysis_type(uid, step_id, analysis_type)
 
     async def list_step_analyses(
         self, step_id: int, user_id: str | None = None
     ) -> list[WDKStepAnalysisConfig]:
-        """List analyses that have been run on a step."""
+        """Lists the analyses that already ran on a step."""
         uid = await self._get_user_id(user_id)
         return await self.client.list_step_analyses(uid, step_id)
 
     async def _warmup_step(self, step_id: int) -> None:
-        """Warm up the step answer before running an analysis.
+        """Makes WDK compute the answer of a step before an analysis runs.
 
-        Boolean/combined steps need their answer materialized before WDK
-        will run analyses.  A zero-record standard report forces WDK to
-        compute and cache the answer for the step (and all sub-steps).
+        WDK runs an analysis only on a step that has a cached answer. A
+        report with zero records builds that cache for the step and its inputs.
         """
         logger.info("Warming up step answer", step_id=step_id)
         warmup = await self._standard_report(
@@ -74,7 +69,7 @@ class AnalysisMixin(StrategyAPIBase):
         logger.info(
             "Step answer warmed up",
             step_id=step_id,
-            total_count=warmup.meta.total_count,
+            total_count=warmup.meta.records_returned(),
         )
 
     async def _create_analysis(
@@ -85,15 +80,7 @@ class AnalysisMixin(StrategyAPIBase):
         parameters: JSONObject | None = None,
         custom_name: str | None = None,
     ) -> WDKStepAnalysisConfig:
-        """Create a step analysis instance and return its config.
-
-        :param uid: Resolved user ID.
-        :param step_id: WDK step ID.
-        :param analysis_type: Analysis plugin name (e.g. ``go-enrichment``).
-        :param parameters: Analysis parameters.
-        :param custom_name: Optional display name.
-        :returns: The ``WDKStepAnalysisConfig`` from WDK.
-        """
+        """Creates a step analysis instance and returns the config that WDK sends."""
         payload: JSONObject = {
             "analysisName": analysis_type,
             "parameters": parameters or {},
@@ -120,15 +107,10 @@ class AnalysisMixin(StrategyAPIBase):
         max_wait: float,
         max_retries: int,
     ) -> None:
-        """Poll an analysis instance until completion, retrying on transient errors.
+        """Polls an analysis instance until it completes.
 
-        :param uid: Resolved user ID.
-        :param step_id: WDK step ID.
-        :param analysis_id: Analysis instance ID.
-        :param poll_interval: Seconds between status polls.
-        :param max_wait: Maximum seconds to wait before giving up.
-        :param max_retries: Maximum re-run attempts for retriable statuses.
-        :raises InternalError: If the analysis fails, expires, or times out.
+        A retriable status starts a new run. A failure, an expiry or a
+        timeout raises an error.
         """
         elapsed = 0.0
         retries = 0
@@ -170,8 +152,7 @@ class AnalysisMixin(StrategyAPIBase):
                             f"small or lacks the required annotations."
                         ),
                     )
-                # WDK's requiresRerun flag means re-running the same instance
-                # resets it to PENDING and re-executes automatically.
+                # A new run of the same instance resets it to PENDING.
                 logger.warning(
                     "Re-running same analysis instance",
                     analysis_id=analysis_id,
@@ -186,10 +167,9 @@ class AnalysisMixin(StrategyAPIBase):
         )
 
     def _log_analysis_failure(self, uid: str, step_id: int, analysis_id: int) -> None:
-        """Best-effort logging of analysis failure details.
+        """Logs the details of a failed analysis in the background.
 
-        Fires off async tasks to fetch the analyses list and error result
-        for debugging. Exceptions are caught and logged rather than propagated.
+        The fetch errors are logged, not raised.
         """
 
         async def _fetch_debug_info() -> None:
@@ -222,8 +202,7 @@ class AnalysisMixin(StrategyAPIBase):
                     error=str(exc),
                 )
 
-        # Schedule but don't await -- fire and forget for debugging.
-        # Store a reference to prevent garbage collection (RUF006).
+        # The caller does not wait for this task. The set holds the reference.
         task = asyncio.create_task(_fetch_debug_info())
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
@@ -237,51 +216,27 @@ class AnalysisMixin(StrategyAPIBase):
         poll_config: AnalysisPollConfig | None = None,
         user_id: str | None = None,
     ) -> JSONObject:
-        """Create, run, and wait for a WDK step analysis to complete.
+        """Creates a step analysis, runs it, and waits for the result.
 
-        WDK step analysis is a multi-phase process:
-
-        1. ``POST .../analyses`` -- create instance (returns ``analysisId``)
-        2. ``POST .../analyses/{id}/result`` -- kick off execution
-        3. ``GET  .../analyses/{id}/result/status`` -- poll until COMPLETE
-        4. ``GET  .../analyses/{id}/result`` -- retrieve results
-
-        Boolean/combined steps may return ``ERROR`` on the first run because
-        sub-step answers haven't been computed yet.  Per the WDK source
-        (``ExecutionStatus.requiresRerun``), the correct strategy is to
-        re-run the **same** instance -- the WDK backend resets to ``PENDING``
-        and re-executes.
-
-        :param step_id: WDK step ID (must be part of a strategy).
-        :param analysis_type: Analysis plugin name (e.g. ``go-enrichment``).
-        :param parameters: Analysis parameters.
-        :param custom_name: Optional display name.
-        :param poll_config: Polling options (interval, max_wait, max_retries).
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: Analysis result JSON.
-        :raises InternalError: If the analysis fails or times out.
+        The step must belong to a strategy. A failure or a timeout raises
+        an error.
         """
         uid = await self._get_user_id(user_id)
         cfg = poll_config or AnalysisPollConfig()
 
-        # Phase 0: Warm up step answer
         await self._warmup_step(step_id)
 
-        # Phase 1: Create analysis instance
         instance = await self._create_analysis(
             uid, step_id, analysis_type, parameters, custom_name
         )
         analysis_id = instance.analysis_id
 
-        # Phase 2: Kick off execution
         await self.client.run_analysis_instance(uid, step_id, analysis_id)
 
-        # Phase 3: Poll for completion (raises on failure/timeout)
         await self._poll_analysis(
             uid, step_id, analysis_id, cfg.poll_interval, cfg.max_wait, cfg.max_retries
         )
 
-        # Phase 4: Retrieve results
         return await self.client.get_analysis_result(uid, step_id, analysis_id)
 
     async def get_analysis_status(
@@ -290,13 +245,7 @@ class AnalysisMixin(StrategyAPIBase):
         analysis_id: int,
         user_id: str | None = None,
     ) -> WDKAnalysisStatus:
-        """Get execution status of a step analysis instance.
-
-        :param step_id: WDK step ID.
-        :param analysis_id: Analysis instance ID.
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: Typed status literal (e.g. ``"COMPLETE"``, ``"RUNNING"``).
-        """
+        """Returns the execution status of a step analysis instance."""
         uid = await self._get_user_id(user_id)
         return await self.client.get_analysis_status(uid, step_id, analysis_id)
 
@@ -306,12 +255,6 @@ class AnalysisMixin(StrategyAPIBase):
         analysis_id: int,
         user_id: str | None = None,
     ) -> JSONObject:
-        """Get the result of a completed step analysis instance.
-
-        :param step_id: WDK step ID.
-        :param analysis_id: Analysis instance ID.
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: Analysis result JSON dict.
-        """
+        """Returns the result of a completed step analysis instance."""
         uid = await self._get_user_id(user_id)
         return await self.client.get_analysis_result(uid, step_id, analysis_id)

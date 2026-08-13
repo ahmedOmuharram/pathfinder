@@ -1,13 +1,7 @@
-"""Semantic search index for WDK search discovery.
+"""Semantic search index over enriched WDK search descriptions.
 
-Uses fastembed (nomic-embed-text-v1.5, ONNX Runtime, 8192 context) to embed enriched
-search descriptions.  Embeddings are cached to disk as .npz files keyed by a
-hash of the search names — so startup loads from cache in milliseconds
-and only re-embeds when the catalog actually changes.
-
-Pre-computed caches are committed to the repo under
-``data/embeddings/``.  At runtime, caches are read/written to a
-configurable directory (default: same ``data/embeddings/``).
+Embeddings are cached to disk per site and are re-encoded only when the search
+catalog changes.
 """
 
 from __future__ import annotations
@@ -44,7 +38,7 @@ _BUNDLED_CACHE_DIR = (
 
 
 class _CacheConfig:
-    """Mutable container for the runtime cache directory (avoids global reassignment)."""
+    """Holds the runtime cache directory."""
 
     dir: Path = _BUNDLED_CACHE_DIR
 
@@ -53,7 +47,7 @@ _cache_config = _CacheConfig()
 
 
 class _ModelState:
-    """Thread-safe singleton container for the fastembed TextEmbedding model."""
+    """Thread-safe singleton holder for the fastembed model."""
 
     _instance: TextEmbedding | None = None
     _lock: threading.Lock = threading.Lock()
@@ -74,7 +68,7 @@ class _ModelState:
 
 
 def set_cache_dir(path: Path) -> None:
-    """Override the runtime cache directory used at runtime."""
+    """Set the runtime cache directory."""
     _cache_config.dir = path
     _cache_config.dir.mkdir(parents=True, exist_ok=True)
 
@@ -85,7 +79,7 @@ def get_embedding_model() -> TextEmbedding:
 
 
 def warm_up_model() -> None:
-    """Eagerly load the embedding model so the first request doesn't pay for it."""
+    """Load the embedding model before the first request."""
     get_embedding_model()
 
 
@@ -102,7 +96,7 @@ def _format_param_names(param_names: list[str]) -> str:
 
 
 def _catalog_hash(entries: list[SearchIndexEntry]) -> str:
-    """Stable hash of search names — changes when the catalog changes."""
+    """Return a stable hash of the catalog entries."""
     key = json.dumps(
         [(e.search_name, e.record_type) for e in entries],
         sort_keys=True,
@@ -116,7 +110,7 @@ def _cache_path(site_id: str) -> Path:
 
 
 def _try_load_cache(site_id: str, catalog_hash: str) -> NDArray[Any] | None:
-    """Try loading cached embeddings, checking both runtime and bundled dirs."""
+    """Load cached embeddings from the runtime or the bundled directory."""
     for cache_dir in (_cache_config.dir, _BUNDLED_CACHE_DIR):
         path = cache_dir / f"{site_id}.npz"
         if not path.exists():
@@ -166,8 +160,7 @@ class SemanticSearchIndex:
     ) -> None:
         """Build the index from search catalog data.
 
-        Checks the disk cache first.  Only encodes with the model if
-        the cache is missing or stale.
+        The model runs only when the disk cache is missing or stale.
         """
         cats = category_labels or {}
         self.entries = []
@@ -188,7 +181,6 @@ class SemanticSearchIndex:
 
         h = _catalog_hash(self.entries)
 
-        # Try loading from cache.
         cached = _try_load_cache(self.site_id, h)
         if cached is not None and cached.shape[0] == len(self.entries):
             self.embeddings = cached
@@ -199,12 +191,11 @@ class SemanticSearchIndex:
             )
             return
 
-        # Cache miss — encode with fastembed.
         model = get_embedding_model()
         texts = [f"{SEARCH_DOCUMENT_PREFIX}{e.enriched_text}" for e in self.entries]
         self.embeddings = np.array(list(model.embed(texts, batch_size=8)))
         _save_cache(self.site_id, h, self.embeddings)
-        # Free encoding intermediates before moving to the next site.
+        # Release the encoding intermediates before the next site.
         del texts
         gc.collect()
         logger.info(
@@ -242,34 +233,22 @@ class SemanticSearchIndex:
         search: WDKSearch,
         category_labels: dict[str, str],
     ) -> str:
-        """Build enriched text blob for a search.
+        """Build the enriched text for a search.
 
-        Structures the text to front-load discriminating signals:
-        1. Ontology category label (top-level biological domain)
-        2. Search properties (displayCategory, organisms — from WDK metadata)
-        3. Display name + short display name
-        4. Summary
-        5. Parameter group display names
-        6. Parameter names (split from snake_case)
-        7. CamelCase-split search name
-        8. Description (HTML-stripped)
-        9. Dynamic attribute display names (result column labels)
+        The most discriminating signals come first.
         """
         parts: list[str] = []
 
-        # 1. Ontology category label (e.g. "Protein features and properties")
         cat = category_labels.get(search.url_segment, "")
         if cat:
             parts.append(cat)
 
-        # 2. All properties as readable text (displayCategory, organisms, etc.)
         parts.extend(
             " ".join(str(v) for v in prop_values)
             for prop_values in search.properties.values()
             if prop_values
         )
 
-        # 3. Display names
         parts.append(search.display_name)
         if (
             search.short_display_name
@@ -277,28 +256,22 @@ class SemanticSearchIndex:
         ):
             parts.append(search.short_display_name)
 
-        # 4. Summary
         if search.summary:
             parts.append(search.summary)
 
-        # 5. Parameter group display names
         parts.extend(g.display_name for g in search.groups if g.display_name)
 
-        # 6. Parameter names (snake_case → readable words)
         param_text = _format_param_names(search.param_names)
         if param_text:
             parts.append(param_text)
 
-        # 7. CamelCase-split search name
         name_words = " ".join(
             re.findall(r"[A-Z][a-z]+|[a-z]+|[A-Z]+|\d+", search.url_segment)
         )
         parts.append(name_words)
 
-        # 8. Description (HTML-stripped)
         parts.append(_strip_html(search.description))
 
-        # 9. Dynamic attribute display names (result column labels)
         for attr in search.dynamic_attributes:
             attr_name = attr.get("displayName", "") if hasattr(attr, "get") else ""
             if attr_name and attr_name != "Search Weight":

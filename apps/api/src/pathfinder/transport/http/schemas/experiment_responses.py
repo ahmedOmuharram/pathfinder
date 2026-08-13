@@ -1,10 +1,7 @@
 """Pydantic response models for experiment types.
 
-These models mirror the dataclasses in ``services.experiment.types`` but exist
-in the transport layer so they appear in the OpenAPI schema and get
-auto-generated as TypeScript types.
-
-All field aliases use camelCase to match the existing ``to_json`` codec output.
+These models mirror ``services.experiment.types`` and live in the transport
+layer so they appear in the OpenAPI schema. Field aliases are camelCase.
 """
 
 from pydantic import ConfigDict, Field, JsonValue
@@ -23,10 +20,6 @@ from pathfinder.services.experiment.types.core import (
 from pathfinder.transport.http.schemas.optimization import OptimizationTrialData
 
 _MODEL_CONFIG = ConfigDict(from_attributes=True)
-
-# ---------------------------------------------------------------------------
-# metrics.py
-# ---------------------------------------------------------------------------
 
 
 class ConfusionMatrixResponse(CamelModel):
@@ -96,11 +89,6 @@ class CrossValidationResultResponse(CamelModel):
     model_config = _MODEL_CONFIG
 
 
-# ---------------------------------------------------------------------------
-# enrichment.py
-# ---------------------------------------------------------------------------
-
-
 class EnrichmentTermResponse(CamelModel):
     """Single enriched term from WDK analysis."""
 
@@ -128,11 +116,6 @@ class EnrichmentResultResponse(CamelModel):
     error: str | None = None
 
     model_config = _MODEL_CONFIG
-
-
-# ---------------------------------------------------------------------------
-# rank.py
-# ---------------------------------------------------------------------------
 
 
 class RankMetricsResponse(CamelModel):
@@ -181,11 +164,6 @@ class BootstrapResultResponse(CamelModel):
     )
 
     model_config = _MODEL_CONFIG
-
-
-# ---------------------------------------------------------------------------
-# step_analysis.py
-# ---------------------------------------------------------------------------
 
 
 class StepEvaluationResponse(CamelModel):
@@ -295,11 +273,6 @@ class StepAnalysisResultResponse(CamelModel):
     model_config = _MODEL_CONFIG
 
 
-# ---------------------------------------------------------------------------
-# optimization.py
-# ---------------------------------------------------------------------------
-
-
 class OptimizationSpecResponse(CamelModel):
     """Describes a single parameter to optimise."""
 
@@ -355,11 +328,6 @@ class TreeOptimizationResultResponse(CamelModel):
     objective: str = ""
 
     model_config = _MODEL_CONFIG
-
-
-# ---------------------------------------------------------------------------
-# experiment.py — ExperimentConfig and Experiment
-# ---------------------------------------------------------------------------
 
 
 class ExperimentConfigResponse(CamelModel):
@@ -461,11 +429,6 @@ class ExperimentSummaryResponse(CamelModel):
     model_config = _MODEL_CONFIG
 
 
-# ---------------------------------------------------------------------------
-# Progress data models
-# ---------------------------------------------------------------------------
-
-
 class TrialProgressDataResponse(CamelModel):
     """Progress data for a single optimization trial."""
 
@@ -520,11 +483,6 @@ class OptimizationResultResponse(CamelModel):
     total_trials: int = Field(default=0)
 
     model_config = _MODEL_CONFIG
-
-
-# ---------------------------------------------------------------------------
-# Control set summary
-# ---------------------------------------------------------------------------
 
 
 class ControlSetSummaryResponse(CamelModel):

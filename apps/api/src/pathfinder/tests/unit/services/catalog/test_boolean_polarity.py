@@ -1,6 +1,6 @@
 """A yes/no param named for the positive must read a negated request.
 
-Live PlasmoDB, the 16-step prompt: "transform to P. falciparum 3D7 **non-syntenic**
+Observed on a multi-criterion request: "transform to P. falciparum 3D7 **non-syntenic**
 orthologs". `GenesByOrthologs.isSyntenic` is a single-pick vocabulary of exactly
 `['yes', 'no']`. Nothing mapped the phrasing to the vocabulary, so the model
 supplied its own wording and WDK answered:
@@ -49,10 +49,11 @@ async def _embed(texts: Sequence[str]) -> list[list[float]]:
     return [[0.0, 0.0] for _ in texts]
 
 
-async def _resolve(name: str, text: str) -> str | None:
-    return await map_intent_to_value(
+async def _resolve(name: str, text: str) -> str | list[str] | None:
+    match = await map_intent_to_value(
         _yes_no(name), ParamIntent(text=text), embed=_embed
     )
+    return match.value if match else None
 
 
 class TestNegatedRequest:

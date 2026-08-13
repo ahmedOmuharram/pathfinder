@@ -1,8 +1,4 @@
-"""Gene set management endpoints.
-
-Thin transport layer: parse HTTP request, call service, return HTTP response.
-All business logic lives in ``services.gene_sets.operations``.
-"""
+"""Gene set HTTP endpoints. Business logic lives in ``services.gene_sets``."""
 
 import re
 from dataclasses import dataclass
@@ -65,8 +61,7 @@ from pathfinder.transport.http.schemas.step_results import (
 )
 from pathfinder.transport.http.schemas.steps import RecordDetailRequest
 
-# Gene sets materialize as WDK datasets — pin the durable WDK identity so
-# datasets created here are usable by worker-built strategies (and vice versa).
+# Gene sets materialize as WDK datasets, so every route needs the durable WDK identity.
 router = APIRouter(
     prefix="/api/v1/gene-sets",
     tags=["gene-sets"],
@@ -439,7 +434,7 @@ async def get_gene_set_records(
         filtered = [
             rec
             for rec in answer.records
-            if rec.attributes.get(params.filter_attribute) == params.filter_value
+            if rec.attribute_text(params.filter_attribute) == params.filter_value
         ]
         page = filtered[params.offset : params.offset + params.limit]
         return RecordsResponse(
@@ -486,7 +481,7 @@ async def get_gene_set_records(
             for r in answer.records
         ],
         meta=RecordsMeta(
-            total_count=answer.meta.total_count,
+            total_count=answer.meta.records_returned(),
             display_total_count=answer.meta.display_total_count,
             response_count=answer.meta.response_count,
             pagination=RecordsPagination(

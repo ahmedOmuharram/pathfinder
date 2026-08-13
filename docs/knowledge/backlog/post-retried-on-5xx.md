@@ -48,7 +48,7 @@ strategy list. Clutter, wasted WDK writes, and confusing history.
 Being exact about the blast radius, because the ranking matters: on the paths traced this
 does **not** silently change a gene count. The duplicates are unreferenced rather than
 wired into the tree. It is ranked below
-[the delayed-result sentinel](delayed-result-sentinel-unhandled.md) for that reason - but
+the delayed-result sentinel for that reason - but
 it is ranked as a real item rather than tidiness because the retry is verb-blind *by
 construction*, so every non-idempotent POST added to this client from now on inherits it
 silently. That is the part that gets worse over time.

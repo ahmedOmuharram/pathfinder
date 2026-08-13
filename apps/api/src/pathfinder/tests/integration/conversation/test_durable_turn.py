@@ -1,20 +1,4 @@
-"""End-to-end tests for the POST /chat → enqueue → worker → SSE + GET /events cycle.
-
-Covers:
-- POST /chat enqueues a job, the in-process worker drains it, and the POST
-  streaming response contains [DONE] + ≥ 3 ``data:`` frames.
-- POST /chat on a conversation that already has a completed prior turn uses
-  a fresh baseline cursor — the new response does NOT replay prior events.
-- GET /conversations/{id}/events returns 204 when the latest event is ``done``
-  (or when there are no events). Matches the AI SDK v6 ``reconnectToStream``
-  contract: nothing to resume.
-- GET /conversations/{id}/events streams when the latest event is not
-  ``done`` (turn in-flight, reconnect should tail live).
-- Two concurrent GETs are consistent: both 204 when caught up.
-
-LLM provider: the conftest sets ``PATHFINDER_CHAT_PROVIDER=mock`` before any
-pathfinder import, so no real LLM calls are made.
-"""
+"""Tests the full chat turn cycle, from the post to the worker to the event stream."""
 
 from __future__ import annotations
 
@@ -45,11 +29,9 @@ def _event_ids(body: str) -> list[int]:
 
 @pytest.fixture
 async def in_memory_jobs() -> AsyncIterator[InMemoryConnector]:
-    """Swap procrastinate connector to InMemoryConnector for the duration of the test.
+    """Points the job connector at an in-memory queue for one test.
 
-    Mirrors the existing ``patch_app_db_engine`` pattern — rebinds both
-    ``procrastinate_app.connector`` and ``procrastinate_app.job_manager.connector``.
-    Restores on teardown so other tests in the session aren't affected.
+    The teardown restores the original connector.
     """
     original_connector = procrastinate_app.connector
     original_jm_connector = procrastinate_app.job_manager.connector
@@ -65,7 +47,7 @@ async def in_memory_jobs() -> AsyncIterator[InMemoryConnector]:
 
 
 async def _drain() -> None:
-    """Run all queued chat_turn jobs in-process and return."""
+    """Runs every queued chat turn job in this process."""
     async with procrastinate_app.open_async():
         await procrastinate_app.run_worker_async(
             queues=["chat_turn"],
@@ -76,12 +58,10 @@ async def _drain() -> None:
 
 
 async def _wait_until_enqueued(connector: InMemoryConnector) -> None:
-    """Poll the InMemoryConnector until POST has enqueued a chat_turn job.
+    """Waits until the request has queued a chat turn job.
 
-    Replaces a bare ``sleep(0.3)`` that went flaky on cold-start runs where
-    the POST handler hadn't finished ``defer_async`` before drain kicked in
-    (drain would see zero jobs and return immediately, hanging the POST tail).
-    Wrap the caller with ``asyncio.timeout(...)`` to bound the wait.
+    A drain that starts before the job exists returns at once, so the caller
+    must wait here. The caller must also bound the wait with a timeout.
     """
     while True:
         if any(j["task_name"] == "chat_turn:run" for j in connector.jobs.values()):
@@ -107,8 +87,7 @@ def _post_body(conv_id: UUID) -> dict:
 
 
 async def _seed_conversation(user_id: UUID) -> UUID:
-    """Insert a conversation row for a pre-existing user id. Used when we
-    want to attach events without going through the POST /chat path."""
+    """Inserts a conversation row for a user that already exists."""
     conv_id = uuid4()
     async with session_module.async_session_factory() as session:
         session.add(
@@ -164,12 +143,9 @@ async def test_post_chat_does_not_replay_prior_turn_events(
     authed_user_id: UUID,
     in_memory_jobs: InMemoryConnector,
 ) -> None:
-    """Seed a completed prior turn, POST a new turn, verify the POST
-    response only contains new-turn event ids (no replay + no early termination
-    on the prior turn's DoneChunk)."""
+    """A new turn streams only its own events, never the events of an earlier turn."""
     del patch_app_db_engine, db_cleaner
     conv_id = await _seed_conversation(authed_user_id)
-    # Simulate a prior completed turn: 3 non-done chunks + 1 done chunk.
     prior_writer = ChatEventWriter(
         conversation_id=conv_id,
         turn_id=uuid4(),
@@ -200,7 +176,6 @@ async def test_post_chat_does_not_replay_prior_turn_events(
 
     assert post_res.status_code == 200
     ids = _event_ids(post_res.text)
-    # Every streamed id must be past the prior ``done``.
     assert len(ids) >= 1
     assert all(i > prior_done_id for i in ids), (
         f"POST replayed prior events (ids ≤ {prior_done_id}): {ids}"
@@ -214,8 +189,7 @@ async def test_events_endpoint_returns_204_when_turn_complete(
     authed_user_id: UUID,
     in_memory_jobs: InMemoryConnector,
 ) -> None:
-    """After the POST completes (latest event = ``done``), GET /events returns
-    204 per the AI SDK v6 ``reconnectToStream`` contract — nothing to replay."""
+    """The events endpoint returns no content when the last event is a done chunk."""
     del patch_app_db_engine, db_cleaner
     conv_id = uuid4()
     token = create_user_token(authed_user_id)
@@ -279,8 +253,7 @@ async def test_events_endpoint_streams_when_last_event_is_not_done(
     db_cleaner: None,
     authed_user_id: UUID,
 ) -> None:
-    """If the latest event is a non-done chunk (turn in-flight), the endpoint
-    streams. We terminate the stream by writing a ``done`` chunk mid-tail."""
+    """The events endpoint streams while the last event is not a done chunk."""
     del patch_app_db_engine, db_cleaner
     conv_id = await _seed_conversation(authed_user_id)
     writer = ChatEventWriter(conversation_id=conv_id, turn_id=uuid4())
@@ -310,9 +283,7 @@ async def test_events_endpoint_streams_when_last_event_is_not_done(
 
     assert res.status_code == 200
     assert "[DONE]" in res.text
-    assert (
-        res.text.count("data:") >= 4
-    )  # start + text-start + text-delta + text-end + [DONE]
+    assert res.text.count("data:") >= 4
 
 
 async def test_two_concurrent_subscribers_consistent_204_when_complete(
@@ -322,7 +293,7 @@ async def test_two_concurrent_subscribers_consistent_204_when_complete(
     authed_user_id: UUID,
     in_memory_jobs: InMemoryConnector,
 ) -> None:
-    """Two subscribers connecting after the turn completes both get 204."""
+    """Two subscribers that connect after the turn ends both get no content."""
     del patch_app_db_engine, db_cleaner
     conv_id = uuid4()
     token = create_user_token(authed_user_id)

@@ -1,7 +1,4 @@
-"""Validation helpers for strategy tool implementations.
-
-Error payloads, graph/step lookup, and validation utilities.
-"""
+"""Shared error payloads, graph and step lookup, and result models for strategy tools."""
 
 import json
 
@@ -19,23 +16,16 @@ from pathfinder.services.strategies.schemas import StepResponse
 
 
 class GraphEdge(CamelModel):
-    """Edge in a strategy-graph snapshot.
-
-    Moved here from the deleted ``platform.event_schemas`` module — the snapshot
-    is now an internal tool-result payload (``StepOkResponse.graph_snapshot``),
-    not a wire event. Uses the WDK-style ``source_id`` / ``target_id`` + ``kind``
-    (``primary``/``secondary``) rather than the newer operator-labeled
-    ``shared_py.stream_parts.graph.GraphEdge``, because the consumer here is the
-    LLM tool-return, not the UI graph renderer.
-    """
+    """One edge in a strategy graph snapshot. The snapshot is a tool result that the
+    model reads, not a wire event, so the shape follows the WDK slot names."""
 
     source_id: str
     target_id: str
-    kind: str  # "primary" | "secondary"
+    kind: str
 
 
 class GraphSnapshotContent(CamelModel):
-    """Snapshot of a strategy graph, embedded in step-mutation tool results."""
+    """A strategy graph snapshot that step mutation results carry."""
 
     graph_id: str | None = None
     graph_name: str | None = None
@@ -48,25 +38,15 @@ class GraphSnapshotContent(CamelModel):
     strategy_ast: StrategyAst | None = None
 
 
-# ---------------------------------------------------------------------------
-# Private parsing model (replace isinstance/dict.get chains per CLAUDE.md)
-# ---------------------------------------------------------------------------
-
-
 class _ValidationErrorEntry(BaseModel):
-    """A single entry in a ``ValidationError.errors`` list."""
+    """One entry in a validation error list."""
 
     model_config = ConfigDict(extra="ignore")
     context: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
-# Models (used by tool modules)
-# ---------------------------------------------------------------------------
-
-
 class ContextStrategyAstPayload(CamelModel):
-    """Typed payload returned by build_context_strategy_ast."""
+    """The strategy tree plus the graph identity that a tool returns with it."""
 
     graph_id: str
     graph_name: str | None = None
@@ -77,7 +57,7 @@ class ContextStrategyAstPayload(CamelModel):
 
 
 class StepOkResponse(CamelModel):
-    """Typed response for successful step mutations."""
+    """The response a successful step mutation returns."""
 
     ok: bool = True
     step: StepResponse
@@ -90,17 +70,10 @@ class StepOkResponse(CamelModel):
     graph_snapshot: GraphSnapshotContent
 
 
-# ---------------------------------------------------------------------------
-# Validation helpers
-# ---------------------------------------------------------------------------
-
-
 def get_graph(session: StrategySession, graph_id: str | None) -> StrategyGraph | None:
-    """Return the graph with ``graph_id`` (or the active graph when ``None``).
+    """Returns the named graph, or the active graph when no id is given.
 
-    Returns ``None`` when ``graph_id`` is supplied but no matching graph
-    exists — callers then surface :func:`graph_not_found`. No silent
-    substitution; an unknown id is a caller bug we want visible.
+    An unknown id returns None. The active graph is never substituted for it.
     """
     return session.get_graph(graph_id)
 
@@ -114,7 +87,7 @@ def graph_not_found(graph_id: str | None) -> ToolErrorPayload:
 
 
 def step_not_found(step_id: str) -> ToolErrorPayload:
-    """Standard error payload for a missing step."""
+    """Builds the error payload for a missing step."""
     return tool_error(
         ErrorCode.STEP_NOT_FOUND, f"Step not found: {step_id}", stepId=step_id
     )
@@ -123,12 +96,8 @@ def step_not_found(step_id: str) -> ToolErrorPayload:
 def get_graph_and_step(
     session: StrategySession, graph_id: str | None, step_id: str
 ) -> tuple[StrategyGraph, StrategyStep] | ToolErrorPayload:
-    """Look up graph and step, returning an error payload on failure.
-
-    Callers should check ``isinstance(result, ToolErrorPayload)`` -- if
-    True the result is a ready-to-return error payload.  Otherwise it is
-    a ``(graph, step)`` tuple.
-    """
+    """Looks up the graph and the step. A failure returns an error payload that the
+    caller can return without change."""
     graph = get_graph(session, graph_id)
     if not graph:
         return graph_not_found(graph_id)

@@ -253,8 +253,7 @@ the parameter's regex at all.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/QuestionService.java#L176-L213
 - anchor: apps/api/src/pathfinder/domain/parameters/values.py:to_wire
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/catalog/test_wdk_substitution.py::TestWhatWDKFilledIn::test_a_value_wdk_replaced_counts_as_substituted
 `getQuestionRevise` validates the posted values at `SEMANTIC` with `NO_FILL`,
 **keeps that validation bundle**, and then - if the spec was invalid - builds a
 second spec with `FILL_PARAM_IF_MISSING_OR_INVALID` and renders *that* one. The
@@ -312,8 +311,7 @@ conformance column is worth exactly as much as its worst entry.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/param/TreeBoxEnumParamFormatter.java#L30-L51
 - anchor: apps/api/src/pathfinder/domain/parameters/wdk_vocab.py:WDKTreeBoxVocabNode
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/catalog/test_synthetic_root_is_not_offered.py::TestTheSystemRefusesIt::test_a_bare_sentinel_is_rejected
 `getVocabularyObject` returns the single real root only when there is exactly
 one and it has children. Otherwise it builds a new `EnumParamTermNode` whose
 term and display are both the constant `@@fake@@`, hangs every real root off it,
@@ -327,16 +325,25 @@ at `@@fake@@`. Sending `["@@fake@@"]` is rejected - but as
 `Number of selected values (0) is not allowed`, not as an unknown term, so the
 error does not name the thing that was wrong.
 
+**That rejection is conditional, which is what makes this `SILENT` rather than
+`HARD`.** The synthetic root selects zero leaves, and whether zero is refused
+depends on the same branch as
+[WDK-VOCAB-002](#wdk-vocab-002---under-countonlyleaves-selecting-a-branch-term-counts-as-selecting-nothing):
+`getMinSelectedCount` yields 0 on an `allowEmpty` parameter with no explicit
+minimum, so `@@fake@@` is accepted there and the search runs against an empty
+selection. `GenesByMolecularWeight.organism` happens to set a minimum. A rule
+converted from the 422 alone would miss the case that produces a wrong number.
+
 A client that flattens the tree by walking every node picks up a term that
-cannot be sent. Skip the root or drop `@@fake@@` by name; there is no flag to
-test.
+cannot be sent - and, on the wrong parameter, one that *can* be sent and means
+nothing. Skip the root or drop `@@fake@@` by name; there is no flag to test.
 
 ### WDK-VOCAB-002 - Under `countOnlyLeaves`, selecting a branch term counts as selecting nothing
 
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AbstractEnumParam.java#L457-L467
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/base.py:_expand_tree_params_to_leaves
-- status: ENFORCED by apps/api/src/pathfinder/tests/unit/test_push_canonicalization.py::test_canonicalize_expands_parent_to_leaves
+- status: PARTIAL by apps/api/src/pathfinder/tests/unit/test_push_canonicalization.py::test_canonicalize_expands_parent_to_leaves
 
 `getNumSelected` builds the parameter tree, marks the selected terms on it, and
 returns `tree.getSelectedLeaves().size()` when the parameter is a `treeBox` with
@@ -354,11 +361,40 @@ returns `Number of selected values (0) is not allowed. Must be within
 the vocabulary at all and for `@@fake@@`. Three different mistakes, one message,
 and the message names none of them.
 
+**Why this is `SILENT` and not `HARD`, given that every measurement above is a
+422.** The rejection is not unconditional - it depends on a branch neither the
+count check nor the message mentions.
+[`getMinSelectedCount`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AbstractEnumParam.java#L228-L229)
+returns `_minSelectedCount > 0 ? _minSelectedCount : _allowEmpty ? 0 : 1`, and
+validation
+[compares `numSelected < getMinSelectedCount()`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AbstractEnumParam.java#L425-L428).
+So on a parameter that sets no explicit minimum and has
+[`allowEmpty`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/Param.java#L384-L391),
+the minimum is **0**, `0 < 0` is false, and a branch-only selection **passes
+validation and runs the search with nothing selected**. `GenesByMolecularWeight.organism`
+sets a minimum, which is why it 422s; a parameter that does not is where the
+silent case lives.
+
+A converter must not read the 422 above as the whole rule. A test that only
+asserts the rejection pins the loud path and leaves the silent one open, which is
+how a `SILENT` rule gets marked enforced by a test that cannot see its hazard.
+
 So "0 selected" from a tree parameter means *the terms you sent matched no
 leaves*, not *you sent nothing*. PathFinder expands parent terms to leaves at
 the WDK boundary for this reason, and its tree widget had to be taught the same
 rule after a correctly-scoped step rendered as an empty required field
 ([parent-term-is-a-selection](../../decisions/parent-term-is-a-selection.md)).
+
+**PathFinder expands in two independent places, and the named test covers one of
+them.** The test drives `canonicalize_strategy_ast_parameters`, which delegates
+leaf enforcement to `ParameterCanonicalizer` in `domain/parameters/`; it asserts a
+parent term becomes `["Pf3D7", "PvP01"]`, so that path fails loudly if the
+expansion is lost. **The uncovered half is the anchor itself.**
+`_expand_tree_params_to_leaves` is a second, separate implementation in
+`integrations/`, reached from `_prepare_search_config` on every `create_step`, and
+no test names it or `_expand_specs`. Delete the expansion there and the named test
+stays green while every step created through the strategy API sends a branch term
+to WDK, which is exactly the silent zero this rule is about.
 
 ### WDK-VOCAB-003 - `dependentParams` lists the parameters that depend on this one, and its order is meaningless
 
@@ -424,7 +460,7 @@ context returns the search's defaults rather than the bound parent's list
 and an accession absent from the refreshed vocabulary fell through to similarity
 matching and produced the wrong protein domain
 ([unmatched-accession-stops-the-chain](../../decisions/unmatched-accession-stops-the-chain.md)).
-`GenesByInterproDomain.domain_typeahead` holds 2,364 terms under `PFAM` and
+`GenesByInterproDomain.domain_typeahead` holds thousands terms under `PFAM` and
 5,405 under `INTERPRO` on plasmodb.org, 2,916 and 6,592 on toxodb.org,
 re-measured on both sites on 2026-08-10.
 
@@ -437,7 +473,7 @@ both.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/QuestionService.java#L295-L302
 - anchor: apps/api/src/pathfinder/services/catalog/param_validation.py:_refresh_dependent_vocabularies
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/catalog/test_refresh_returns_only_the_stale.py::TestWhatDoesNotComeBackIsLeftAlone::test_an_empty_array_changes_nothing
 
 The response is a JSON array of parameter documents, and the service builds it
 from `changedParam.getStaleDependentParams()` with an explicit instruction to

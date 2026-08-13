@@ -19,6 +19,10 @@ from pathfinder.integrations.veupathdb._observability import (
     WdkRequestTelemetry,
     log_wdk_retry,
 )
+from pathfinder.integrations.veupathdb.delayed_result import (
+    WDKDelayedResultError,
+    is_delayed_result,
+)
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.errors import WDKError
@@ -32,18 +36,11 @@ _HTTP_SERVER_ERROR = 500
 
 
 def _inject_auth_cookie(request: httpx.Request, auth_token: str) -> None:
-    """Set the ``Authorization`` cookie on a built request, replacing any
-    jar-held value.
+    """Set the ``Authorization`` cookie on a built request, replacing any jar value.
 
-    Modifies only the per-request :class:`httpx.Request` object — never the
-    shared :class:`httpx.AsyncClient` cookie jar — so concurrent requests
-    with different auth tokens cannot interfere with each other.
-
-    WDK sets ``Authorization=<guest jwt>`` on every response (including
-    unauthenticated boot-time warmup calls), and ``build_request`` merges the
-    shared jar into the header BEFORE this runs. Appending would send two
-    ``Authorization`` pairs and Tomcat honors the first — silently acting as
-    the jar's stale guest instead of the injected user.
+    Only the per-request object changes, so concurrent requests with different
+    tokens stay independent. Tomcat honors the first of two ``Authorization``
+    pairs, so the jar value must be removed and not appended to.
     """
     existing = request.headers.get("cookie", "")
     kept = [
@@ -63,11 +60,7 @@ def _convert_params_for_httpx(
     ]
     | None
 ):
-    """Convert JSONObject params to format httpx expects.
-
-    :param params: Optional params dict.
-    :returns: Mapping suitable for httpx, or None if params is None.
-    """
+    """Convert JSON params into the mapping shape that httpx accepts."""
     if params is None:
         return None
     result: dict[
@@ -79,7 +72,6 @@ def _convert_params_for_httpx(
         elif isinstance(v, (str, int, float, bool)):
             result[k] = v
         elif isinstance(v, list):
-            # Convert list to sequence of compatible types
             converted_list: list[str | int | float | bool | None] = []
             for item in v:
                 if isinstance(item, (str, int, float, bool)) or item is None:
@@ -88,7 +80,6 @@ def _convert_params_for_httpx(
                     converted_list.append(str(item))
             result[k] = converted_list
         else:
-            # Convert other types to string
             result[k] = str(v)
     return result
 
@@ -112,15 +103,12 @@ class HTTPClient:
         self.max_keepalive_connections = int(max_keepalive_connections)
         self._client: httpx.AsyncClient | None = None
         self._client_lock = asyncio.Lock()
-        # Track which auth token initialized the current session. When the
-        # effective token changes (different user on a shared client), we
-        # re-init so the ``JSESSIONID`` cookie in the shared jar matches
-        # the new identity — otherwise WDK process queries silently return
-        # results scoped to the *previous* user.
+        # The JSESSIONID cookie in the shared jar is scoped to one identity.
+        # A change of token requires a new session.
         self._initialized_for_token: str | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client."""
+        """Return the shared HTTP client, creating it on first use."""
         if self._client is not None and not self._client.is_closed:
             return self._client
         async with self._client_lock:
@@ -145,11 +133,10 @@ class HTTPClient:
     async def _init_wdk_session(
         self, client: httpx.AsyncClient, auth_token: str
     ) -> None:
-        """Initialize a server-side WDK session (JSESSIONID).
+        """Establish a server-side WDK session through the webapp.
 
-        WDK process queries (e.g. GenesByOrthologPattern) require a Tomcat
-        ``JSESSIONID`` established through the webapp.  Without it, process
-        queries silently return 0 results.
+        WDK process queries need a Tomcat ``JSESSIONID``. Without one they
+        return zero results and no error.
         """
         webapp_url = self.base_url.replace("/service", "/app")
         try:
@@ -164,11 +151,10 @@ class HTTPClient:
             logger.debug("Failed to initialize WDK session (non-fatal)")
 
     async def close(self) -> None:
-        """Close HTTP client and reset session state.
+        """Close the HTTP client and clear session state.
 
-        The JSESSIONID lives on the httpx client's cookie jar, so a new
-        client must re-initialize the WDK session to avoid process queries
-        silently returning 0 results.
+        The JSESSIONID lives on the client cookie jar, so a new client must
+        establish a new WDK session.
         """
         if self._client and not self._client.is_closed:
             await self._client.aclose()
@@ -177,7 +163,12 @@ class HTTPClient:
 
     @retry(
         retry=retry_if_exception_type(
-            (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)
+            (
+                httpx.TimeoutException,
+                httpx.ConnectError,
+                httpx.HTTPStatusError,
+                WDKDelayedResultError,
+            )
         ),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -190,7 +181,7 @@ class HTTPClient:
         params: JSONObject | None = None,
         json: object = None,
     ) -> JsonValue:
-        """Single HTTP request attempt (tenacity handles retries)."""
+        """Make one HTTP request attempt. Tenacity drives the retries."""
         client = await self._get_client()
         auth_token = (
             veupathdb_auth_token_ctx.get()
@@ -213,13 +204,9 @@ class HTTPClient:
         )
 
         try:
-            # WDK authenticates via an ``Authorization`` cookie (not a header).
-            # Inject per-request into the built Request object to avoid
-            # mutating the shared client cookie jar (which would race
-            # between concurrent users on the same site).
+            # WDK authenticates through an Authorization cookie, not a header.
             if auth_token and auth_token != self._initialized_for_token:
-                # Different user on a shared client — the previous
-                # identity's JSESSIONID must not leak into this request.
+                # A JSESSIONID belongs to one identity and must not be reused.
                 client.cookies.delete("JSESSIONID")
                 self._initialized_for_token = auth_token
                 await self._init_wdk_session(client, auth_token)
@@ -239,6 +226,9 @@ class HTTPClient:
             result = response.json()
             if result is None:
                 return None
+            if is_delayed_result(result):
+                # WDK sends this with a 2xx, so only the body identifies it.
+                raise WDKDelayedResultError
             return cast("JsonValue", result)
         except httpx.HTTPStatusError as e:
             allow = e.response.headers.get("allow") or e.response.headers.get("Allow")
@@ -255,17 +245,16 @@ class HTTPClient:
                 allow=allow,
                 response_text=e.response.text[:500],
             )
-            # 5xx: re-raise so tenacity retries (up to 3 attempts).
+            # 5xx is retryable. 4xx is not.
             if e.response.status_code >= _HTTP_SERVER_ERROR:
                 raise
-            # 4xx: not retryable — convert to domain error immediately.
             msg = f"{method} {path} -> HTTP {e.response.status_code}: {e.response.text[:200]}"
             raise WDKError(
                 msg,
                 status=e.response.status_code,
             ) from e
         except httpx.TimeoutException, httpx.ConnectError:
-            # Let tenacity retry these transient errors.
+            # Transient. Tenacity retries these.
             raise
         except httpx.RequestError as e:
             logger.exception("VEuPathDB request error", error=str(e), path=path)
@@ -279,7 +268,7 @@ class HTTPClient:
         params: JSONObject | None = None,
         json: object = None,
     ) -> JsonValue:
-        """Make HTTP request with retry logic (converts RetryError to WDKError)."""
+        """Make an HTTP request with retries, and record telemetry."""
         start = time.monotonic()
         auth_token = (
             veupathdb_auth_token_ctx.get()

@@ -160,12 +160,7 @@ class WDKError(AppError):
 
 
 class StrategyCompilationError(AppError):
-    """Strategy compilation or build failure.
-
-    Raised when strategy compilation, step creation, or step-tree
-    assembly fails — distinguishes build-pipeline errors from generic
-    ValueError/TypeError so callers and log filters can react specifically.
-    """
+    """Strategy compilation, step creation, or step-tree assembly failure."""
 
     def __init__(self, detail: str) -> None:
         super().__init__(
@@ -177,12 +172,7 @@ class StrategyCompilationError(AppError):
 
 
 class ExternalServiceError(AppError):
-    """Non-WDK external service failure.
-
-    Raised when an external HTTP service (CrossRef, PubMed, EuropePMC,
-    OpenAlex, etc.) is unreachable or returns an unexpected response.
-    Distinguishes "PubMed is down" from "our parsing code has a bug".
-    """
+    """A non-WDK external service is unreachable or answers unexpectedly."""
 
     def __init__(self, service: str, detail: str, status: int = 502) -> None:
         super().__init__(
@@ -194,12 +184,7 @@ class ExternalServiceError(AppError):
 
 
 class DataParsingError(AppError):
-    """Unexpected data shape from an API response.
-
-    Raised when an external API (WDK, site-search, research services)
-    returns data that cannot be parsed into the expected structure.
-    Distinguishes "API returned garbage" from "our logic has a bug".
-    """
+    """An external API returned data that does not match the expected shape."""
 
     def __init__(self, detail: str) -> None:
         super().__init__(
@@ -211,11 +196,7 @@ class DataParsingError(AppError):
 
 
 def validate_response[M: BaseModel](model: type[M], raw: object, context: str) -> M:
-    """Validate an external API response against a Pydantic model.
-
-    Converts :exc:`pydantic.ValidationError` to :class:`DataParsingError`
-    to distinguish "API returned unexpected data" from "our logic has a bug".
-    """
+    """Validate an external API response and raise ``DataParsingError``."""
     try:
         return model.model_validate(raw)
     except pydantic.ValidationError as e:
@@ -229,9 +210,8 @@ _GENERIC_ERROR = "An internal error occurred"
 def sanitize_error_for_client(exc: BaseException) -> str:
     """Return a user-safe error message.
 
-    ``AppError`` subclasses carry intentionally user-facing titles and
-    details.  All other exception types get a generic message to prevent
-    information leakage (internal paths, SQL fragments, stack traces).
+    Only an ``AppError`` carries a user-facing title and detail. Every other
+    exception gets a generic message.
     """
     if isinstance(exc, AppError):
         return str(exc)

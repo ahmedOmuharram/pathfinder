@@ -1,9 +1,4 @@
-"""PIGuard + invisible-text scanners — pure, no agent dependencies.
-
-Kept separate from :mod:`pathfinder.ai.capabilities.security` so the
-scanner construction + warm-up hook don't drag in the agent package
-(which would trigger a circular import at startup).
-"""
+"""PIGuard and invisible-text scanners. This module must not import the agent package."""
 
 from __future__ import annotations
 
@@ -17,13 +12,12 @@ from tokenizers import Tokenizer
 
 from pathfinder.platform.errors import AppError, ErrorCode
 
-# Default model directory — baked into the Docker image at build time.
-# Override via PIGUARD_MODEL_DIR env var for local dev/test.
+# The Docker image holds the model at this path.
 _DOCKER_MODEL_DIR = "/app/models/piguard"
 
 
 def resolve_model_dir() -> Path:
-    """Resolve PIGuard model directory, checking PIGUARD_MODEL_DIR env var."""
+    """Give the PIGuard model directory. The environment can override it."""
     return Path(os.environ.get("PIGUARD_MODEL_DIR", _DOCKER_MODEL_DIR))
 
 
@@ -46,10 +40,9 @@ _INVISIBLE_CATEGORIES = frozenset({"Cf", "Co", "Cn"})
 
 
 class PIGuardScanner:
-    """Prompt-injection detection via PIGuard ONNX model.
+    """Prompt-injection detection with the PIGuard ONNX model.
 
-    Loads the ONNX session and fast tokenizer from *model_dir*.
-    Inference is pure NumPy — no PyTorch, no transformers at runtime.
+    Inference uses NumPy only. There is no runtime dependency on PyTorch.
     """
 
     def __init__(self, model_dir: Path, threshold: float = 0.70) -> None:
@@ -66,10 +59,7 @@ class PIGuardScanner:
         self._threshold = threshold
 
     def scan(self, text: str) -> tuple[str, bool, float]:
-        """Classify *text* as benign or injection.
-
-        Returns ``(text, is_valid, injection_score)``.
-        """
+        """Classify the text as benign or as an injection."""
         encoded = self._tokenizer.encode(text)
         input_ids = np.array([encoded.ids], dtype=np.int64)
         attention_mask = np.array([encoded.attention_mask], dtype=np.int64)
@@ -80,7 +70,7 @@ class PIGuardScanner:
         )
         logits = np.asarray(raw_output[0])
 
-        # Row-wise softmax → injection probability.
+        # Row-wise softmax gives the injection probability.
         shifted = logits - logits.max(axis=1, keepdims=True)
         exp = np.exp(shifted)
         probs = exp / exp.sum(axis=1, keepdims=True)
@@ -90,15 +80,13 @@ class PIGuardScanner:
 
 
 class InvisibleTextScanner:
-    """Detect and strip invisible Unicode characters.
+    """Detect and remove invisible Unicode characters.
 
-    Flags characters in Unicode categories Cf (format), Co (private use),
-    and Cn (unassigned).  Returns the cleaned text and ``is_valid=False``
-    when invisible characters are found.
+    Format, private-use and unassigned characters count as invisible.
     """
 
     def scan(self, text: str) -> tuple[str, bool, float]:
-        # Fast path: pure-ASCII text has no invisible chars.
+        # ASCII text has no invisible characters.
         if text.isascii():
             return text, True, 0.0
 
@@ -115,10 +103,5 @@ class InvisibleTextScanner:
 
 
 def warm_up_piguard() -> None:
-    """Prime the ONNX session + tokenizer at startup.
-
-    The first request otherwise pays a 3-7s cold-load penalty when
-    ``UserInputScanner`` lazy-initialises its scanners. Calling this at
-    startup warms the OS page cache and the onnxruntime library.
-    """
+    """Load the ONNX session and tokenizer at startup, so no request pays for it."""
     PIGuardScanner(model_dir=resolve_model_dir())

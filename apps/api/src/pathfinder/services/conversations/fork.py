@@ -128,27 +128,10 @@ async def _copy_checkpoint_state(
     new_thread_id: str,
     cutoff_ts: datetime | None,
 ) -> None:
-    """Duplicate LangGraph checkpoint rows up through the fork point.
+    """Copy the LangGraph checkpoint rows that precede the fork point.
 
-    Without this, a forked conversation starts with empty ``message_history``
-    and the supervisor has no idea what turns preceded the fork.
-
-    ``cutoff_ts`` is the ``created_at`` of the message immediately following
-    the fork anchor in the source. Every checkpoint whose ``ts`` is strictly
-    earlier than ``cutoff_ts`` belongs to turns up to and including the
-    anchor turn; copy only those so LangGraph's "latest" checkpoint in the
-    new thread is exactly the moment after the anchor message was persisted.
-    When ``cutoff_ts`` is ``None``, the anchor is the latest message, so the
-    cutoff is treated as ``+infinity`` and every checkpoint is copied.
-
-    Blobs are keyed by (thread_id, ns, channel, version); we copy the full
-    source-thread blob set rather than filtering. Unreferenced blobs in the
-    new thread are harmless — they aren't read by any surviving checkpoint.
-    Filtering would require parsing every surviving checkpoint's
-    ``channel_versions`` to enumerate referenced blobs; not worth the
-    complexity for a few kilobytes of orphaned data.
-
-    Writes are scoped to surviving ``checkpoint_id`` values.
+    A ``cutoff_ts`` of ``None`` means the anchor is the latest message, so
+    every checkpoint is copied. Blobs are copied whole; extra blobs are inert.
     """
     params = {
         "src": source_thread_id,
@@ -214,12 +197,9 @@ def _rewrite_note_ids_in_payload(
     payload: Any,
     id_map: dict[str, str],
 ) -> Any:
-    """Recursively swap scratchpad note ids inside a JSON-like payload.
+    """Swap scratchpad note ids inside a JSON-like payload.
 
-    Only values at keys ``id`` / ``noteId`` / ``sourceNoteId`` (and their
-    snake_case equivalents) are considered — hitting every string indiscrimi-
-    nately would risk corrupting unrelated ids that happen to match the
-    ``n-<hex>`` pattern.
+    Only values at known note-id keys are rewritten.
     """
     note_id_keys = {"id", "noteId", "note_id", "sourceNoteId", "source_note_id"}
     if isinstance(payload, dict):
@@ -236,10 +216,9 @@ def _rewrite_note_ids_in_payload(
 
 
 def _walk_step_tree_dfs(tree: WDKStepTree) -> list[int]:
-    """Pre-order DFS traversal yielding wdk step ids.
+    """Return the wdk step ids in pre-order.
 
-    WDK's copy preserves topology, so traversing source and copy in the
-    same order produces a stable old-id → new-id pairing.
+    A WDK copy keeps the topology, so the same order pairs old ids to new ids.
     """
     out: list[int] = []
     stack: list[WDKStepTree] = [tree]
@@ -258,7 +237,7 @@ def _remap_wdk_step_ids(
     old_tree: WDKStepTree,
     new_tree: WDKStepTree,
 ) -> dict[str, int]:
-    """Build local-id → new-wdk-step-id by pairing source/copy DFS order."""
+    """Map each local id to its new wdk step id by pairing traversal order."""
     old_seq = _walk_step_tree_dfs(old_tree)
     new_seq = _walk_step_tree_dfs(new_tree)
     if len(old_seq) != len(new_seq):
@@ -281,11 +260,9 @@ async def _duplicate_wdk_strategy(
     source_wdk_strategy_id: int,
     forked_ast: dict[str, Any],
 ) -> int | None:
-    """Duplicate the source's WDK strategy and remap AST step ids.
+    """Copy the source WDK strategy and remap the AST step ids.
 
-    Returns the new WDK strategy id on success, or ``None`` if the WDK
-    side could not be duplicated (caller falls back to the no-WDK fork
-    path — the AST already has wdk step ids stripped).
+    A return of ``None`` means the fork starts without a WDK strategy.
     """
     api = get_strategy_api(site_id)
     try:
@@ -384,27 +361,21 @@ async def fork_conversation(
         gene_set_auto_imported=source.gene_set_auto_imported,
         experiment_id=source.experiment_id,
         wdk_strategy_id=new_wdk_strategy_id,
-        # Carry consumer references forward so deleting a saved strategy
-        # whose subtree is still embedded in the fork is still blocked.
+        # The fork still embeds the imported subtrees, so it keeps the references.
         imported_saved_strategy_ids=list(source.imported_saved_strategy_ids or []),
     )
     session.add(fork)
     await session.flush()
 
-    # Scratchpad notes copy first so the id_map is ready before chunks copy
-    # rewrites tool-call payloads. LangGraph checkpoint blobs are not
-    # rewritten (msgpack frame shifts across pydantic-ai versions); stale
-    # ids reaching the agent via replay raise ModelRetry, so the agent
-    # reorients on next call.
+    # Notes copy first so the id map is ready when the chunk copy rewrites
+    # tool-call payloads. Checkpoint blobs keep the source note ids.
     scratchpad_repo = ScratchpadRepository(session)
     id_map = await scratchpad_repo.copy_notes_for_fork(
         source_conversation_id=source_conversation_id,
         target_conversation_id=new_conv_id,
     )
 
-    # Preserve each source message's created_at: the prefix inserts in one
-    # transaction, so server-default now() would collapse to one timestamp and
-    # break revert (which cuts at a message's created_at).
+    # Each copy keeps its source created_at, because revert cuts on that value.
     for src_msg in prefix:
         session.add(
             Message(

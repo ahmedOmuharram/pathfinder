@@ -85,4 +85,4 @@ class ReportsMixin(StrategyAPIBase):
         answer = await self._standard_report(
             step_id, {"pagination": {"offset": 0, "numRecords": 0}}, user_id=uid
         )
-        return answer.meta.total_count
+        return answer.meta.records_returned()

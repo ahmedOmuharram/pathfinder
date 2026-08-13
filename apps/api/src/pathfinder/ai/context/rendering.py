@@ -1,9 +1,4 @@
-"""Rendering helpers for cross-turn context compression and within-turn
-graph state pinning.
-
-``build_turn_summary`` / ``render_context_summary`` — cross-turn compression.
-``render_graph_state`` / ``render_slim_step_result`` — within-turn graph state.
-"""
+"""Renders the compressed history of earlier turns and the current graph state."""
 
 from pathfinder.ai.context.extractors import extract_tool_summary
 from pathfinder.ai.context.models import ToolCallRecord, TurnSummary
@@ -16,13 +11,8 @@ _MAX_ARG_LEN = 30
 _MAX_TURN_SUMMARIES = 15
 
 
-# ---------------------------------------------------------------------------
-# Key-arg formatting
-# ---------------------------------------------------------------------------
-
-
 def _format_key_args(record: ToolCallRecord) -> str:
-    """Extract the first few string-valued arguments and format them."""
+    """Formats the first few string arguments of a tool call."""
     parts: list[str] = []
     for key, val in record.arguments.items():
         if not isinstance(val, str):
@@ -34,21 +24,11 @@ def _format_key_args(record: ToolCallRecord) -> str:
     return ", ".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
 def build_turn_summary(
     turn_number: int,
     records: list[ToolCallRecord],
 ) -> TurnSummary:
-    """Build a TurnSummary from tool call records.
-
-    For each record, format as ``tool_name(key_args) -> extracted_summary``
-    where key_args are the first 2 string-valued arguments (truncated to 30
-    chars each).
-    """
+    """Builds the summary of one turn from its tool call records."""
     tool_summaries: list[str] = []
     for record in records:
         key_args = _format_key_args(record)
@@ -65,21 +45,11 @@ def build_turn_summary(
 
 
 def render_context_summary(summaries: list[TurnSummary]) -> str:
-    """Render TurnSummary objects into the pinned context string.
+    """Renders the turn summaries into the pinned context string.
 
-    Format::
-
-        Previous tool activity (summarized):
-
-        Turn 1: get_search_overview(searchName='GenesByGoTerm') -> 7 params. ...
-        Turn 2: create_leaf_step -> step_1, 234 genes.
-
-    Returns empty string if no summaries have tool activity.
-    Skips turns with empty tool_summaries.
-    Keeps only the most recent ``_MAX_TURN_SUMMARIES`` turns to prevent
-    unbounded growth in long conversations.
+    A turn without tool activity is skipped. Only the most recent turns
+    are kept, so the string does not grow without a limit.
     """
-    # Cap: keep only the most recent turns.
     capped = (
         summaries[-_MAX_TURN_SUMMARIES:]
         if len(summaries) > _MAX_TURN_SUMMARIES
@@ -97,16 +67,12 @@ def render_context_summary(summaries: list[TurnSummary]) -> str:
     return header + "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Within-turn graph state rendering
-# ---------------------------------------------------------------------------
-
 _COMBINE_SEARCH_NAME = "__combine__"
 _MAX_PARAM_VAL_LEN = 40
 
 
 def _render_step_header(step_id: str, step: StrategyStep) -> list[str]:
-    """Render the header parts for a single step."""
+    """Renders the header parts of one step."""
     kind = step.kind.value
     parts: list[str] = [f"{step_id}:"]
 
@@ -133,7 +99,7 @@ def _render_step_suffix(
     *,
     is_root: bool,
 ) -> str:
-    """Render the suffix (counts, wdk ID, errors) for a step."""
+    """Renders the counts, the WDK id and the errors of one step."""
     count = sync_state.step_counts.get(step_id) if sync_state else None
     wdk_id = sync_state.wdk_step_ids.get(step_id) if sync_state else None
     push_error = sync_state.wdk_push_errors.get(step_id) if sync_state else None
@@ -161,7 +127,7 @@ def _render_step_suffix(
 
 
 def _render_step_params(step: StrategyStep) -> str:
-    """Render parameters as a compact indented line."""
+    """Renders the parameters of one step as a single indented line."""
     if not step.parameters:
         return ""
     param_strs: list[str] = []
@@ -177,11 +143,9 @@ def render_graph_state(
     graph: StrategyGraph,
     sync_state: SyncStateProtocol | None = None,
 ) -> str:
-    """Render the current strategy graph as a compact text summary.
+    """Renders the current strategy graph as a compact text summary.
 
-    Pinned in ``always_included_messages`` so the model always sees the
-    current graph state without needing the full JSON snapshot in every
-    tool result.
+    The summary is pinned, so a tool result does not need the full snapshot.
     """
     if not graph.steps:
         return ""
@@ -215,10 +179,7 @@ def render_slim_step_result(
     operator: str | None = None,
     input_ids: tuple[str, str] | None = None,
 ) -> str:
-    """Render a slim one-line tool result for a graph-mutating tool call.
-
-    Replaces the full ``StepOkResponse`` JSON in the model's chat history.
-    """
+    """Renders a one-line tool result that replaces the full step response."""
     parts: list[str] = ["ok:", step_id]
 
     if operator and input_ids:

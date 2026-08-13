@@ -1,10 +1,4 @@
-"""Cross-cutting database infrastructure: async engine + session management.
-
-Lives in ``platform`` so any layer (transport, services, ai, persistence)
-may obtain a session without crossing layer boundaries. Persistence
-repositories accept an ``AsyncSession``; this module owns the engine and
-session factory.
-"""
+"""Owns the async database engine and the session factory that every layer uses."""
 
 from collections.abc import AsyncGenerator, Callable
 
@@ -28,7 +22,7 @@ _session_factory_instance: async_sessionmaker[AsyncSession] | None = None
 
 
 def _get_engine() -> AsyncEngine:
-    """Lazily create the async engine on first access."""
+    """Return the async engine, and create it on first access."""
     global _engine  # noqa: PLW0603
     if _engine is not None:
         return _engine
@@ -57,12 +51,12 @@ def _get_engine() -> AsyncEngine:
 
 
 def get_engine() -> AsyncEngine:
-    """Return the async engine (creates it lazily if needed)."""
+    """Return the async engine."""
     return _get_engine()
 
 
 def _get_session_factory() -> async_sessionmaker[AsyncSession]:
-    """Lazily create the session factory on first access."""
+    """Return the session factory, and create it on first access."""
     global _session_factory_instance  # noqa: PLW0603
     if _session_factory_instance is not None:
         return _session_factory_instance
@@ -78,12 +72,12 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 def async_session_factory() -> AsyncSession:
-    """Create a new async session from the lazily-initialized factory."""
+    """Create a new async session."""
     return _get_session_factory()()
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession]:
-    """Dependency to get database session."""
+    """Yield a request-scoped session, and commit it when the request succeeds."""
     async with _get_session_factory()() as session:
         try:
             yield session
@@ -94,21 +88,21 @@ async def get_db_session() -> AsyncGenerator[AsyncSession]:
 
 
 def _run_alembic_upgrade(connection: object) -> None:
-    """Run Alembic migrations synchronously on the given connection."""
+    """Run the migrations synchronously on a connection."""
     alembic_cfg = Config("alembic.ini")
     alembic_cfg.attributes["connection"] = connection
     command.upgrade(alembic_cfg, "head")
 
 
 async def init_db() -> None:
-    """Initialize database — runs Alembic migrations to head."""
+    """Initialize the database by migrating to the latest revision."""
     real_engine = _get_engine()
     async with real_engine.begin() as conn:
         await conn.run_sync(_run_alembic_upgrade)
 
 
 async def close_db() -> None:
-    """Close database connections."""
+    """Dispose the engine and clear the cached factory."""
     global _engine, _session_factory_instance  # noqa: PLW0603
     if _engine is not None:
         await _engine.dispose()

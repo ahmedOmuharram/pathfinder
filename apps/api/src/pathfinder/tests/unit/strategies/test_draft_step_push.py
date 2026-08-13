@@ -36,7 +36,9 @@ def _ids(plan: list[StepPushPlan]) -> list[str]:
     return [entry.step_id for entry in plan]
 
 
-def _plan(step_id: str, action: CreateAction | PatchAction | SkipAction) -> StepPushPlan:
+def _plan(
+    step_id: str, action: CreateAction | PatchAction | SkipAction
+) -> StepPushPlan:
     return StepPushPlan(step_id=step_id, action=action, reason="test")
 
 

@@ -1,4 +1,4 @@
-"""Typed payload models for procrastinate jobs."""
+"""Tests for the typed payload models that background jobs take."""
 
 from __future__ import annotations
 
@@ -35,8 +35,7 @@ def _body() -> ChatRequestBody:
 
 class TestChatTurnPayload:
     def test_roundtrips_with_token_intact(self) -> None:
-        """Token must round-trip via JSON — this is the foot-gun SecretStr
-        would hit (mask_to '**********' on model_dump_json)."""
+        """The token survives a JSON round trip without masking."""
         payload = ChatTurnPayload(
             body=_body(),
             user_id=uuid4(),
@@ -60,8 +59,7 @@ class TestChatTurnPayload:
         assert payload.veupathdb_auth_token is None
 
     def test_forbids_unknown_keys(self) -> None:
-        """Payload schema is strict: extra keys must fail validation so
-        we catch drift between dispatcher and receiver."""
+        """The schema is strict, so an extra key fails validation."""
         with pytest.raises(ValidationError):
             ChatTurnPayload.model_validate(
                 {
@@ -73,8 +71,8 @@ class TestChatTurnPayload:
             )
 
     def test_model_dump_mode_json_is_jsonable(self) -> None:
-        """Procrastinate serializes args via json.dumps after psycopg Jsonb
-        wrapping. model_dump(mode='json') output must pass json.dumps."""
+        """The job runner serializes arguments with json.dumps, so the dump must
+        hold only JSON types."""
         payload = ChatTurnPayload(
             body=_body(),
             user_id=uuid4(),
@@ -120,9 +118,8 @@ class TestDurableTaskPayload:
 
 
 class TestChatTurnPayloadFromContext:
-    """``from_context`` reads the current value of veupathdb_auth_token_ctx
-    and returns a typed payload. Dispatchers use this at the api→worker
-    boundary so the ctxvar crosses the procrastinate seam."""
+    """The context constructor reads the current auth token and puts it on the payload,
+    so the token crosses the boundary into the worker."""
 
     def test_captures_token_from_ctxvar(self) -> None:
         body = _body()
@@ -175,9 +172,8 @@ class TestDurableTaskPayloadFromContext:
 
 
 class TestCaptureDirThreading:
-    """The crux of worker-side LLM capture: a durable task deferred *inside* a
-    ``capture_llm`` block must inherit the run-dir so the worker resume keeps
-    capturing into the same dir. Outside the block it must be None (prod path)."""
+    """A task deferred inside a capture block inherits the run directory. A task
+    deferred outside one carries no directory."""
 
     def test_chat_turn_payload_carries_capture_dir_roundtrip(self) -> None:
         payload = ChatTurnPayload(

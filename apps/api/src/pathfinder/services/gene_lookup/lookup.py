@@ -1,13 +1,4 @@
-"""Main gene text lookup orchestration.
-
-Uses four concurrent strategies to maximise recall, then scores, deduplicates,
-and ranks results by relevance:
-
-A. Unrestricted site-search (Solr) -- always fires.
-B. Organism-restricted site-search -- fires when the query implies an organism.
-C. WDK ``GenesByText`` wildcard -- fires when query looks like a gene ID prefix.
-D. WDK ``GenesByText`` broad -- fires when an explicit organism filter is given.
-"""
+"""Gene text lookup. Runs concurrent search strategies, then scores, deduplicates, and ranks results."""
 
 import asyncio
 from dataclasses import dataclass, field
@@ -61,10 +52,7 @@ async def _run_primary_searches(
     *,
     is_multi_word: bool,
 ) -> tuple[list[GeneResult], list[str], int]:
-    """Run strategy A (unrestricted) and A2 (phrase-quoted) concurrently.
-
-    :returns: ``(merged_results, available_organisms, total_count)``
-    """
+    """Run the unrestricted and phrase-quoted site searches concurrently."""
 
     async def _strategy_a() -> tuple[list[GeneResult], list[str], int]:
         try:
@@ -104,7 +92,7 @@ async def _run_primary_searches(
         phrase_results,
     ) = await asyncio.gather(_strategy_a(), _strategy_a_phrase())
 
-    # Phrase results come first -- they are more precise for multi-word queries.
+    # Phrase matches rank above unrestricted matches.
     if phrase_results:
         primary_results = phrase_results + primary_results
 
@@ -116,7 +104,7 @@ async def _strategy_b(
     query: str,
     effective_organism: str | None,
 ) -> list[GeneResult]:
-    """Strategy B: organism-restricted site-search."""
+    """Run the organism-restricted site search."""
     if not effective_organism:
         return []
     try:
@@ -144,7 +132,7 @@ async def _strategy_c(
     effective_organism: str | None,
     needed: int,
 ) -> WdkTextResult:
-    """Strategy C: WDK wildcard ID search."""
+    """Run the WDK wildcard gene ID search."""
     if not intent.wildcard_ids or not effective_organism:
         return _EMPTY_WDK
     try:
@@ -171,7 +159,7 @@ async def _strategy_d(
     explicit_organism: str | None,
     needed: int,
 ) -> WdkTextResult:
-    """Strategy D: WDK broad text search."""
+    """Run the WDK broad text search."""
     if not explicit_organism:
         return _EMPTY_WDK
     try:
@@ -202,10 +190,7 @@ async def _run_supplementary_searches(
     explicit_organism: str | None,
     needed: int,
 ) -> tuple[list[GeneResult], WdkTextResult, WdkTextResult]:
-    """Run strategies B, C, D concurrently.
-
-    :returns: ``(organism_results, wdk_id_result, wdk_broad_result)``
-    """
+    """Run the organism, wildcard, and broad searches concurrently."""
     return await asyncio.gather(
         _strategy_b(site_id, query, effective_organism),
         _strategy_c(site_id, intent, effective_organism, needed),
@@ -243,10 +228,7 @@ def _apply_organism_filter(
     explicit_organism: str | None,
     available_organisms: list[str],
 ) -> tuple[list[GeneResult], list[str] | None]:
-    """Filter results by organism and generate suggestions when needed.
-
-    :returns: ``(filtered_results, suggested_organisms)``
-    """
+    """Filter results by organism and suggest organisms when the filter is unknown."""
     if not organism:
         return results, None
 
@@ -270,10 +252,7 @@ def _build_response(
     wdk_totals: tuple[int, int],
     suggested_organisms: list[str] | None,
 ) -> GeneSearchResult:
-    """Build the final typed response.
-
-    :param wdk_totals: ``(wdk_id_total, wdk_broad_total)``
-    """
+    """Build the final typed response."""
     authoritative_total = max(total_count, *wdk_totals)
 
     return GeneSearchResult(
@@ -296,26 +275,16 @@ async def lookup_genes_by_text(
     offset: int = 0,
     limit: int = 20,
 ) -> GeneSearchResult:
-    """Search for gene records using multiple concurrent strategies.
-
-    :param site_id: VEuPathDB site identifier (e.g. ``"plasmodb"``).
-    :param query: Free-text query -- gene name, symbol, locus tag, or description.
-    :param organism: Optional organism filter.
-    :param offset: Number of results to skip (for pagination).
-    :param limit: Maximum number of results to return.
-    :returns: :class:`GeneSearchResult` with records, total count, and optional suggestions.
-    """
+    """Search for gene records with several concurrent strategies."""
     needed = offset + limit
     is_multi_word = len(query.strip().split()) >= _MIN_WORDS_FOR_MULTI_WORD
 
-    # Phase 1: primary site-search (strategies A + A2).
     primary_results, available_organisms, _total_count = await _run_primary_searches(
         site_id,
         query,
         is_multi_word=is_multi_word,
     )
 
-    # Analyse intent and resolve organism.
     intent = analyse_query(
         query, available_organisms, organism_scorer=score_organism_match
     )
@@ -339,7 +308,6 @@ async def lookup_genes_by_text(
         wildcard_ids=intent.wildcard_ids,
     )
 
-    # Phase 2: supplementary searches (strategies B, C, D).
     (
         organism_results,
         wdk_id_result,
@@ -353,7 +321,6 @@ async def lookup_genes_by_text(
         needed=needed,
     )
 
-    # Phase 3: merge, enrich, score, deduplicate.
     all_raw = (
         primary_results
         + organism_results
@@ -362,7 +329,6 @@ async def lookup_genes_by_text(
     )
     results = await _merge_and_rank(site_id, query, all_raw)
 
-    # Phase 4: organism filtering.
     results, suggested_organisms = _apply_organism_filter(
         results,
         organism=organism,
@@ -370,7 +336,6 @@ async def lookup_genes_by_text(
         available_organisms=available_organisms,
     )
 
-    # Phase 5: paginate and build response.
     paginated = results[offset : offset + limit]
 
     return _build_response(

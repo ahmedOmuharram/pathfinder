@@ -1,11 +1,4 @@
-"""Shared validation and coercion helpers for parameter processing.
-
-Used by ``ParameterCanonicalizer`` to produce decoded-form parameter
-values (lists, dicts, scalars). The dispatch chain in ``process_value()``
-validates and coerces per WDK param type; the canonicalizer applies
-canonicalizer-specific post-processing (leaf enforcement, sentinel
-rejection) on top.
-"""
+"""Validation and coercion of parameter values, dispatched by WDK parameter type."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -101,7 +94,6 @@ ProcessedParam = (
     | EmptyProcessed
 )
 
-# Param-type groupings (avoids duplicating string literals)
 SCALAR_TYPES = frozenset({"number", "date", "timestamp", "string"})
 RANGE_TYPES = frozenset({"number-range", "date-range"})
 
@@ -159,7 +151,7 @@ def validate_single_required(spec: ParamSpecNormalized) -> None:
 
 
 def validate_numeric_range(spec: ParamSpecNormalized, numeric_value: float) -> None:
-    """Validate a numeric value against min/max constraints if present."""
+    """Check a numeric value against the spec bounds."""
     if spec.min is not None and numeric_value < spec.min:
         raise ValidationError(
             title="Invalid parameter value",
@@ -181,7 +173,7 @@ def validate_numeric_range(spec: ParamSpecNormalized, numeric_value: float) -> N
 
 
 def validate_string_length(spec: ParamSpecNormalized, string_value: str) -> None:
-    """Validate a string value against max_length constraint if present."""
+    """Check a string value against the spec maximum length."""
     if spec.max_length is not None and len(string_value) > spec.max_length:
         raise ValidationError(
             title="Invalid parameter value",
@@ -197,11 +189,9 @@ def validate_string_length(spec: ParamSpecNormalized, string_value: str) -> None
 
 
 def process_value(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
-    """Validate, decode, and coerce *value* according to *spec*.
+    """Validate, decode, and coerce a value against its spec.
 
-    Returns a ``ProcessedParam`` whose ``kind`` tells the caller what
-    output formatting to apply.  All validation errors are raised here
-    so downstream formatters need not re-check.
+    Every validation error is raised here, so a formatter never re-checks.
     """
     if value is None:
         empty = handle_empty(spec, value)
@@ -311,7 +301,7 @@ def process_input_dataset(
     return InputDatasetProcessed(value=stringify(value))
 
 
-# -- dispatch table (must come after function definitions) -------------------
+# -- dispatch table (defined after the handlers it names) --------------------
 
 _DISPATCH_TABLE: dict[str, _ParamHandler] = {
     "multi-pick-vocabulary": process_multi_pick,

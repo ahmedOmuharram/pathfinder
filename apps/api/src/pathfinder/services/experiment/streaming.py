@@ -1,8 +1,7 @@
 """Streaming wrappers for experiment execution.
 
-Exposes async generators that wrap ``run_experiment`` and yield typed events
-suitable for ``typed_event_stream_response``. Replaces the old Redis-Streams
-+ ``/operations/{id}/subscribe`` CQRS pattern with direct-to-client SSE.
+Async generators wrap experiment runs and yield typed events for direct
+server-sent-event responses.
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ from pathfinder.services.experiment.types import (
 logger = get_logger(__name__)
 
 
-# ─── Typed events ─────────────────────────────────────────────────────────
+# --- Typed events ---------------------------------------------------------
 
 
 class ExperimentProgressEvent(CamelModel):
@@ -88,14 +87,14 @@ BatchEvent = ExperimentProgressEvent | BatchCompleteEvent | BatchErrorEvent
 BenchmarkEvent = ExperimentProgressEvent | BenchmarkCompleteEvent | BenchmarkErrorEvent
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────
+# --- Helpers --------------------------------------------------------------
 
 
 _ProgressCallback = Callable[[JSONObject], Coroutine[Any, Any, None]]
 
 
 def _progress_event_from_raw(evt: JSONObject) -> ExperimentProgressEvent:
-    """Wrap a raw ``{type, data}`` progress dict as a typed event."""
+    """Wrap a raw progress dict as a typed event."""
     raw_data = evt.get("data")
     data = raw_data if isinstance(raw_data, dict) else evt
     return ExperimentProgressEvent(data=data)
@@ -120,7 +119,7 @@ async def _cancel_task_silently(task: asyncio.Task[Any]) -> None:
         await task
 
 
-# ─── Public async generators ──────────────────────────────────────────────
+# --- Public async generators ----------------------------------------------
 
 
 async def stream_experiment(

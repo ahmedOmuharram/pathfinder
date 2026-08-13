@@ -1,9 +1,4 @@
-"""Bootstrap robustness and uncertainty estimation.
-
-Resamples control sets with replacement and recomputes rank metrics
-to derive confidence intervals and stability scores — all pure Python,
-no additional WDK API calls required.
-"""
+"""Bootstrap robustness estimation. Pure computation, with no WDK calls."""
 
 import random
 from collections import defaultdict
@@ -48,13 +43,9 @@ def compute_robustness(
     negative_ids: list[str],
     options: BootstrapOptions | None = None,
 ) -> BootstrapResult:
-    """Compute bootstrap confidence intervals for classification (and optionally rank) metrics.
+    """Compute bootstrap confidence intervals for the classification and rank metrics.
 
-    :param result_ids: Ordered gene IDs from the strategy result.
-    :param positive_ids: Positive control gene IDs.
-    :param negative_ids: Negative control gene IDs.
-    :param options: Bootstrap options (n_bootstrap, k_values, seed, etc.).
-    :returns: Bootstrap robustness result.
+    ``result_ids`` must stay in result order, because the rank metrics use it.
     """
     opts = options or BootstrapOptions()
     k_values = opts.k_values or list(DEFAULT_K_VALUES)
@@ -94,9 +85,7 @@ def compute_robustness(
                 )
 
             stability_k = 50
-            # Use the bootstrapped positive set to determine which of the
-            # top-K results are "relevant" — this varies across iterations,
-            # producing a meaningful stability estimate.
+            # Relevance uses the resampled positive set, so it varies per iteration.
             top_k_ids = result_ids[:stability_k]
             boot_relevant = {gid for gid in top_k_ids if gid in boot_pos_set}
             top_k_sets.append(boot_relevant)

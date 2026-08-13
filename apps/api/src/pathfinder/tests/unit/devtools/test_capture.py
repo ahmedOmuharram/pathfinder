@@ -240,9 +240,9 @@ class TestReplyCapture:
         _write(cap, _text("No overlap between those sets."))
         cap.flush()
 
-        assert "No overlap between those sets." in (
-            tmp_path / "transcript.md"
-        ).read_text()
+        assert (
+            "No overlap between those sets." in (tmp_path / "transcript.md").read_text()
+        )
 
     def test_a_run_with_no_text_has_an_empty_reply(self, tmp_path: Path) -> None:
         cap = RunCapture(

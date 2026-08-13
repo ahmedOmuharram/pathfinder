@@ -1,15 +1,7 @@
-"""Declarative strategy tools.
+"""Declarative strategy tools for the execution agent.
 
-The execution agent's only build entry point is ``build_strategy(root)``:
-it hands us a complete ``StrategyStepNode`` tree, we validate by AST
-construction (the model rejects multi-root, duplicate ids, combine-with-
-self, etc.), persist eagerly, and push to WDK in dependency order with
-per-step retry.
-
-After build, edits are kind-discriminated and atomic. Every edit tool is
-a thin wrapper that builds a ``GraphOperation`` and forwards to
-``apply_and_commit`` — a single chokepoint that owns persist + WDK push +
-WDK step cleanup + sync + history.
+A build takes one complete step tree. Every later edit builds a graph
+operation and applies it through the single commit path.
 """
 
 from __future__ import annotations
@@ -83,7 +75,7 @@ def _make_callbacks(site_id: str) -> ValidationCallbacks:
 
 
 def _build_outcome_payload(outcome: BuildOutcome, graph: StrategyGraph) -> JSONObject:
-    """Serialize a ``BuildOutcome`` to the LLM-facing response payload."""
+    """Serializes a build outcome into the tool response payload."""
     payload: JSONObject = {
         "ok": outcome.fully_succeeded,
         "wdkStrategyId": outcome.wdk_strategy_id,
@@ -256,8 +248,7 @@ async def apply_operations(
             ops=operations,
         )
     except ApplyError as exc:
-        # The batch was rolled back, so the model can fix the bad operation
-        # and re-send the whole list against the same revision.
+        # A rejected batch rolls back, so the base revision stays valid.
         msg = (
             f"REJECTED: {exc}. Nothing was applied and the strategy is "
             f"unchanged, so base_revision={current!r} is still valid. Fix the "

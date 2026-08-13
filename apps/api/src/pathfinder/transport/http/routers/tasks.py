@@ -1,11 +1,4 @@
-"""Task events SSE endpoint + task list/status/progress queries.
-
-Streams durable-task progress to the client as ``text/event-stream`` frames.
-Replays existing ``task_progress`` rows on connect, then subscribes to the
-``task_progress:<conversation_id>`` Postgres channel via ``LISTEN/NOTIFY`` so
-new rows land in the stream as soon as they are written. All DB access lives
-in :mod:`pathfinder.services.tasks.queries`.
-"""
+"""HTTP endpoints for durable task status, progress history, and the progress SSE stream."""
 
 from __future__ import annotations
 
@@ -191,7 +184,7 @@ async def _event_stream(
     request: Request,
     dispatcher: NotifyDispatcher,
 ) -> AsyncIterator[str]:
-    """Subscribe BEFORE querying so no NOTIFY can be lost."""
+    """Stream task progress. Subscription opens before the first query, so no notification is lost."""
     progress_channel = f"task_progress:{conversation_id}"
     encountered_error = False
     try:
@@ -248,7 +241,7 @@ async def _poll_loop(
 
 
 async def _wait_for_notify(notify_queue: asyncio.Queue[tuple[str, str]]) -> None:
-    """Wake up on any NOTIFY or on poll-timeout. Channel is ignored."""
+    """Wake on any notification or on the poll timeout. The channel name is ignored."""
     try:
         await asyncio.wait_for(
             notify_queue.get(),

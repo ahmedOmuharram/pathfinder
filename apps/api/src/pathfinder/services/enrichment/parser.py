@@ -1,9 +1,4 @@
-"""WDK enrichment result parsing and type inference.
-
-Pure module (no I/O). Converts raw WDK enrichment analysis results
-into structured ``EnrichmentTerm`` and ``EnrichmentResult`` objects.
-Uses typed WDK models for validation instead of manual ``.get()`` chains.
-"""
+"""Converts raw WDK enrichment results into structured terms and results."""
 
 import json
 
@@ -59,19 +54,17 @@ def infer_enrichment_type(
     params: JSONObject,
     result: JsonValue,
 ) -> EnrichmentAnalysisType:
-    """Infer the ``EnrichmentAnalysisType`` from a WDK analysis name.
+    """Infer the analysis type from a WDK analysis name.
 
-    For GO enrichment, uses the ``goAssociationsOntologies`` parameter or
-    the ``goOntologies`` field in the result to determine which GO branch.
+    GO enrichment needs the ontology branch, which comes from the parameters or
+    the result.
     """
     if wdk_analysis_name in _WDK_TO_ANALYSIS_TYPE:
         return _WDK_TO_ANALYSIS_TYPE[wdk_analysis_name]
 
-    # GO enrichment — determine which ontology
     ontology = str(params.get("goAssociationsOntologies", ""))
 
-    # WDK vocab params arrive as JSON array strings, e.g. '["Molecular Function"]'.
-    # Unwrap the first element so it matches _REVERSE_GO_ONTOLOGY keys.
+    # A WDK vocabulary parameter arrives as a JSON array string.
     if ontology.startswith("["):
         try:
             parsed = json.loads(ontology)
@@ -88,7 +81,7 @@ def infer_enrichment_type(
 
 
 def is_enrichment_analysis(wdk_analysis_name: str) -> bool:
-    """Return True if the WDK analysis name is an enrichment plugin."""
+    """Report whether a WDK analysis name belongs to an enrichment plugin."""
     return wdk_analysis_name in ENRICHMENT_ANALYSIS_NAMES
 
 
@@ -96,11 +89,7 @@ def upsert_enrichment_result(
     results: list[EnrichmentResult],
     new: EnrichmentResult,
 ) -> None:
-    """Replace an existing result of the same ``analysis_type``, or append.
-
-    Mutates *results* in-place so callers don't accumulate duplicate
-    tabs when the same enrichment analysis is re-run.
-    """
+    """Replace the result with the same analysis type in place, or append it."""
     for i, existing in enumerate(results):
         if existing.analysis_type == new.analysis_type:
             results[i] = new
@@ -119,11 +108,9 @@ def parse_enrichment_response(result: JsonValue) -> WDKEnrichmentResponse:
 
 
 def _extract_genes(result_genes: str) -> tuple[int, list[str]]:
-    """Extract gene count and IDs from a WDK resultGenes field.
+    """Extract the gene count and gene IDs from a WDK result-genes field.
 
-    WDK returns resultGenes as either:
-    - HTML: ``<a href='?idList=G1,G2,...'>2</a>`` -- parse count + IDs
-    - Plain count string: ``"46"`` -- parse as int, no IDs
+    The field holds either an HTML link that carries both, or a plain count.
     """
     if "<" in result_genes:
         return parse_result_genes_html(result_genes)
@@ -138,11 +125,9 @@ def _row_to_term(
     term_id: str,
     term_name: str,
 ) -> EnrichmentTerm:
-    """Map a WDK enrichment row to a domain EnrichmentTerm.
+    """Map a WDK enrichment row to a domain term.
 
-    Passes raw WDK string values directly — Pydantic lax mode on
-    ``EnrichmentTerm`` coerces str→int/float, and ``SafeFiniteFloat``
-    clamps ``"Infinity"`` → 0.0.
+    The raw string values pass through unchanged. The term model coerces them.
     """
     gene_count, genes = _extract_genes(row.result_genes)
     return EnrichmentTerm.model_validate(
@@ -194,11 +179,10 @@ def parse_enrichment_terms(
 
 
 def derive_total_analyzed(rows: list[JSONObject]) -> int:
-    """Input-set size, derived from a row's ``percent_in_result``.
+    """Derive the input-set size from the per-row result percentage.
 
-    WDK omits a result-level total; per term, ``percent_in_result =
-    result_genes / total * 100``, so ``total = result_genes * 100 / percent``.
-    The row with the most result genes minimises rounding error.
+    WDK gives no result-level total. The row with the most result genes has the
+    least rounding error.
     """
     total = 0
     best_result_genes = 0
@@ -220,7 +204,7 @@ def parse_enrichment_from_raw(
     params: JSONObject,
     result: JsonValue,
 ) -> EnrichmentResult:
-    """Parse a raw WDK analysis result into an ``EnrichmentResult``."""
+    """Parse a raw WDK analysis result into an enrichment result."""
     analysis_type = infer_enrichment_type(wdk_analysis_name, params, result)
     envelope = parse_enrichment_response(result)
     terms = parse_enrichment_terms(envelope.result_data, analysis_type)

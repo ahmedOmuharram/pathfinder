@@ -1,11 +1,4 @@
-"""Tests for the error classification module and ToolResilience capability.
-
-Covers:
-- Every exception type → ErrorCategory mapping
-- Directive message format (ERROR, TOOL, NEXT_ACTIONS, DO NOT sections)
-- Long arg sanitization / truncation
-- ToolResilience.on_tool_execute_error routing by error category
-"""
+"""Tests for error classification and the ToolResilience capability."""
 
 from __future__ import annotations
 
@@ -35,10 +28,6 @@ from pathfinder.platform.errors import (
     ValidationError,
     WDKError,
 )
-
-# ---------------------------------------------------------------------------
-# classify_error — WDKError
-# ---------------------------------------------------------------------------
 
 
 class TestClassifyWDKError:
@@ -80,16 +69,10 @@ class TestClassifyWDKError:
         )
 
     def test_wdk_499_is_semantic(self) -> None:
-        # Boundary: 499 < 500 → SEMANTIC
         assert (
             classify_error(WDKError("client error", status=499))
             == ErrorCategory.SEMANTIC
         )
-
-
-# ---------------------------------------------------------------------------
-# classify_error — httpx transient errors
-# ---------------------------------------------------------------------------
 
 
 class TestClassifyHttpxErrors:
@@ -102,11 +85,6 @@ class TestClassifyHttpxErrors:
     def test_connect_error_is_transient(self) -> None:
         exc = httpx.ConnectError("connection refused")
         assert classify_error(exc) == ErrorCategory.TRANSIENT
-
-
-# ---------------------------------------------------------------------------
-# classify_error — OSError family
-# ---------------------------------------------------------------------------
 
 
 class TestClassifyOSErrors:
@@ -122,11 +100,6 @@ class TestClassifyOSErrors:
 
     def test_connection_error_is_transient(self) -> None:
         assert classify_error(ConnectionError("reset")) == ErrorCategory.TRANSIENT
-
-
-# ---------------------------------------------------------------------------
-# classify_error — AppError subclasses
-# ---------------------------------------------------------------------------
 
 
 class TestClassifyAppErrors:
@@ -147,17 +120,12 @@ class TestClassifyAppErrors:
         assert classify_error(err) == ErrorCategory.SEMANTIC
 
     def test_app_error_with_500_status_is_still_semantic(self) -> None:
-        """AppError classification is by type, not status (WDKError handles status)."""
+        """AppError classification uses the type, not the HTTP status."""
         assert classify_error(InternalError()) == ErrorCategory.SEMANTIC
 
 
-# ---------------------------------------------------------------------------
-# classify_error — RuntimeError PERMANENT cases
-# ---------------------------------------------------------------------------
-
-
 class TestClassifyRuntimeErrorPermanent:
-    """RuntimeError with config/availability messages → PERMANENT."""
+    """A RuntimeError with a config or availability message is PERMANENT."""
 
     def test_not_configured_is_permanent(self) -> None:
         assert (
@@ -189,13 +157,8 @@ class TestClassifyRuntimeErrorPermanent:
         )
 
 
-# ---------------------------------------------------------------------------
-# classify_error — RuntimeError UNKNOWN cases
-# ---------------------------------------------------------------------------
-
-
 class TestClassifyRuntimeErrorUnknown:
-    """RuntimeError without config messages → UNKNOWN."""
+    """A RuntimeError without a config message is UNKNOWN."""
 
     def test_generic_runtime_error_is_unknown(self) -> None:
         assert (
@@ -207,13 +170,8 @@ class TestClassifyRuntimeErrorUnknown:
         assert classify_error(RuntimeError()) == ErrorCategory.UNKNOWN
 
 
-# ---------------------------------------------------------------------------
-# classify_error — catch-all UNKNOWN
-# ---------------------------------------------------------------------------
-
-
 class TestClassifyUnknown:
-    """KeyError, TypeError, AttributeError, etc. → UNKNOWN."""
+    """Any other exception type is UNKNOWN."""
 
     def test_key_error_is_unknown(self) -> None:
         assert classify_error(KeyError("missing")) == ErrorCategory.UNKNOWN
@@ -231,29 +189,19 @@ class TestClassifyUnknown:
         assert classify_error(Exception("generic")) == ErrorCategory.UNKNOWN
 
 
-# ---------------------------------------------------------------------------
-# ErrorCategory values
-# ---------------------------------------------------------------------------
-
-
 class TestErrorCategoryEnum:
-    """Verify enum values match the spec."""
+    """ErrorCategory is a StrEnum with four members."""
 
     def test_enum_members(self) -> None:
         members = {e.value for e in ErrorCategory}
         assert members == {"TRANSIENT", "SEMANTIC", "PERMANENT", "UNKNOWN"}
 
     def test_is_str_enum(self) -> None:
-        # StrEnum: value IS the string
         assert ErrorCategory.TRANSIENT == "TRANSIENT"
         assert ErrorCategory.SEMANTIC == "SEMANTIC"
         assert ErrorCategory.PERMANENT == "PERMANENT"
         assert ErrorCategory.UNKNOWN == "UNKNOWN"
 
-
-# ---------------------------------------------------------------------------
-# build_error_directive — format structure
-# ---------------------------------------------------------------------------
 
 _SAMPLE_NEXT_ACTIONS = [
     "Call search_for_searches to find the correct name",
@@ -264,7 +212,7 @@ _SAMPLE_DETAIL = "Search 'GenesByBadName' does not exist on this site"
 
 
 class TestBuildErrorDirectiveFormat:
-    """Directive output must contain required sections."""
+    """The directive contains every required section."""
 
     def test_contains_error_section(self) -> None:
         directive = build_error_directive(
@@ -413,13 +361,8 @@ class TestBuildErrorDirectiveFormat:
         assert "3. Third action" in directive
 
 
-# ---------------------------------------------------------------------------
-# build_error_directive — arg sanitization
-# ---------------------------------------------------------------------------
-
-
 class TestBuildErrorDirectiveArgSanitization:
-    """Long args must be truncated; total args string has bounded length."""
+    """Long argument values are truncated to a bounded length."""
 
     _LONG_VALUE = "x" * 500
 
@@ -432,7 +375,6 @@ class TestBuildErrorDirectiveArgSanitization:
             next_actions=_SAMPLE_NEXT_ACTIONS,
             do_not=_SAMPLE_DO_NOT,
         )
-        # The full 500-char value should NOT appear verbatim
         assert self._LONG_VALUE not in directive
 
     def test_tool_line_stays_reasonable(self) -> None:
@@ -444,12 +386,10 @@ class TestBuildErrorDirectiveArgSanitization:
             next_actions=_SAMPLE_NEXT_ACTIONS,
             do_not=_SAMPLE_DO_NOT,
         )
-        # Extract the TOOL line
         tool_line = next(
             (line for line in directive.splitlines() if line.startswith("TOOL:")),
             "",
         )
-        # Should not be absurdly long — max ~500 chars on the TOOL line
         assert len(tool_line) < 500
 
     def test_truncated_value_has_ellipsis(self) -> None:
@@ -473,11 +413,6 @@ class TestBuildErrorDirectiveArgSanitization:
             do_not=_SAMPLE_DO_NOT,
         )
         assert "malaria" in directive
-
-
-# ---------------------------------------------------------------------------
-# TestOnToolExecuteError — ToolResilience capability hook
-# ---------------------------------------------------------------------------
 
 
 def _make_ctx() -> MagicMock:
@@ -584,8 +519,7 @@ class TestOnToolExecuteError:
         assert isinstance(result, str)
         assert "GenesByRNASeqFoo" in result
         assert "different search" in result.lower()
-        # the error was classified TRANSIENT; do not report it to the agent as
-        # a permanent failure (it caused valid searches to be abandoned).
+        # A TRANSIENT error is never reported to the agent as permanent.
         assert "down, not transient" not in result.lower()
         assert "may recover" in result.lower()
 
@@ -637,13 +571,8 @@ class TestOnToolExecuteError:
         assert "SERVICE_UNAVAILABLE" in result
 
 
-# ---------------------------------------------------------------------------
-# TestPrepareTools — Layer 0 circuit breaker
-# ---------------------------------------------------------------------------
-
-
 class TestPrepareTools:
-    """ToolResilience.prepare_tools removes tools that exceed the retry threshold."""
+    """prepare_tools removes a tool that exceeds the retry threshold."""
 
     @pytest.mark.asyncio
     async def test_removes_tool_after_threshold(self) -> None:
@@ -687,7 +616,7 @@ class TestPrepareTools:
 
 
 class TestOnToolValidateError:
-    """on_tool_validate_error rewrites build_strategy shape errors with hints."""
+    """on_tool_validate_error adds a shape hint to argument errors."""
 
     @pytest.mark.asyncio
     async def test_misplaced_secondary_input_raises_helpful_model_retry(

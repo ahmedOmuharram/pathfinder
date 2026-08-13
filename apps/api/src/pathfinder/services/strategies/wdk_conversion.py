@@ -1,12 +1,7 @@
-"""WDK -> plan conversion: parse typed WDK strategy models into internal plan.
+"""Converts typed WDK strategy models into the internal strategy AST.
 
-Pure conversion functions (no I/O except ``canonicalize_synced_parameters``
-which fetches param specs from WDK).
-
-Public API:
-- ``build_snapshot_from_wdk`` -- WDKStrategyDetails -> StrategyAst (with step_counts and wdk_step_ids)
-- ``canonicalize_synced_parameters`` -- enrich plan nodes with canonicalized
-  decoded param values (vocab-matched, leaf-enforced, native types)
+Conversion is pure except for the parameter canonicalization pass, which
+fetches param specs from WDK.
 """
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
@@ -17,9 +12,6 @@ from pathfinder.domain.strategy.ast import (
 )
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.integrations.veupathdb.search_context import (
-    get_search_params_under_context,
-)
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.value_decoding import decode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -31,6 +23,9 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 from pathfinder.platform.errors import AppError, DataParsingError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
+from pathfinder.services.catalog.search_context import (
+    get_search_params_under_context,
+)
 
 logger = get_logger(__name__)
 
@@ -51,12 +46,10 @@ def _resolve_expanded_reference(
     secondary_node: StrategyStepNode,
     steps: dict[str, WDKStep],
 ) -> tuple[int | None, str | None]:
-    """Map WDK ``expanded``/``expandedName`` onto the secondary input.
+    """Map the WDK expanded reference onto the secondary input.
 
-    WDK marks the *secondary input* of a combine as expanded when that
-    branch was inserted from a saved strategy. We carry the saved
-    strategy's id and label on our combine node so the UI can collapse
-    the branch back to a "Insert saved strategy" pill.
+    WDK marks the secondary input of a combine as expanded when that branch
+    comes from a saved strategy.
     """
     if not combine_step.expanded:
         return (None, None)
@@ -75,13 +68,10 @@ def _build_node(
     record_type: str,
     wire_by_step_id: dict[str, dict[str, str]],
 ) -> StrategyStepNode:
-    """Recursively build a ``StrategyStepNode`` tree from typed WDK models.
+    """Build a step node tree from typed WDK models.
 
-    Parameter values are left empty here: WDK wire form lacks the param-spec
-    context needed to type each value. The sidecar ``wire_by_step_id`` dict
-    captures each leaf/transform's wire parameters so the async follow-up
-    ``canonicalize_synced_parameters`` can fetch the search spec and decode
-    them into typed ``ParamValue`` instances.
+    Parameter values stay empty because the WDK wire form has no param-spec
+    context. Wire parameters go into the sidecar dict for later decoding.
     """
     step_id = tree_node.step_id
     step = steps.get(str(step_id))
@@ -146,7 +136,7 @@ def _extract_wdk_metadata(
     root: StrategyStepNode,
     wdk_steps: dict[str, WDKStep],
 ) -> tuple[dict[str, int], dict[str, int]]:
-    """Extract step_counts and wdk_step_ids from plan tree matched against WDK steps."""
+    """Extract step counts and WDK step ids from the tree."""
     step_counts: dict[str, int] = {}
     wdk_step_ids: dict[str, int] = {}
     for step in walk_step_tree(root):
@@ -166,13 +156,10 @@ def _extract_wdk_metadata(
 def build_snapshot_from_wdk(
     wdk_strategy: WDKStrategyDetails,
 ) -> tuple[StrategyAst, dict[str, dict[str, str]]]:
-    """Convert a typed WDK strategy into a StrategyAst plus a wire-params sidecar.
+    """Convert a typed WDK strategy into a strategy AST plus a wire-params sidecar.
 
-    Step counts and WDK step ID mappings are stored directly on the payload's
-    ``step_counts`` and ``wdk_step_ids`` fields. Wire-form parameters for each
-    leaf/transform step are returned separately so a follow-up async pass can
-    fetch the matching WDK search spec and decode each value into a typed
-    ``ParamValue``.
+    Wire-form parameters are returned separately because they need a WDK
+    search spec to decode into typed values.
     """
     record_type = wdk_strategy.record_class_name or ""
     if not record_type.strip():
@@ -209,8 +196,7 @@ async def _load_search_spec(
     search_name: str,
     context: dict[str, str],
 ) -> WDKSearch | None:
-    """Load and unwrap a search's parameters, narrowed by ``context`` when WDK
-    can narrow them. ``None`` when the search itself is unreachable."""
+    """Load a search spec, narrowed by the given context. None if unreachable."""
     try:
         response = await get_search_params_under_context(
             api.client, record_type, search_name, context
@@ -231,15 +217,9 @@ async def canonicalize_synced_parameters(
     api: StrategyAPI,
     wire_by_step_id: dict[str, dict[str, str]],
 ) -> None:
-    """Canonicalize parameters from WDK response using param specs.
+    """Decode and canonicalize wire parameters against their WDK search specs.
 
-    For each leaf/transform whose wire parameters were captured during
-    ``build_snapshot_from_wdk``, fetch the WDK search spec, decode each
-    wire value into a typed ``ParamValue`` via the spec's param kind,
-    canonicalize (vocab match, leaf enforcement, range/scalar normalize),
-    and write the result back onto ``step.parameters``.
-
-    Mutates plan step nodes in place.
+    Mutates the step nodes in place.
     """
     spec_cache: dict[tuple[str, str], WDKSearch | None] = {}
 

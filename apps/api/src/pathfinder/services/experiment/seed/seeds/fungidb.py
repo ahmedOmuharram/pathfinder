@@ -1,17 +1,4 @@
-"""Seed definitions for FungiDB.
-
-Organism: Aspergillus fumigatus Af293
-
-Strategies model real research questions:
-  1. Antifungal Drug Targets (10 nodes)
-  2. Virulence Factors (8 nodes)
-  3. Secondary Metabolite Biosynthesis (7 nodes)
-  4. Cell Wall Machinery (8 nodes)
-  5. Azole Resistance Network (6 nodes)
-  6. Iron Acquisition & Oxidative Defense (9 nodes)
-
-All gene IDs verified against live FungiDB API (March 2026).
-"""
+"""FungiDB seed strategies and control sets for Aspergillus fumigatus Af293."""
 
 import json
 
@@ -23,17 +10,8 @@ from pathfinder.services.experiment.seed.helpers import (
 )
 from pathfinder.services.experiment.seed.types import ControlSetDef, SeedDef
 
-# ---------------------------------------------------------------------------
-# Organism constants
-# ---------------------------------------------------------------------------
-
 ORGANISM = "Aspergillus fumigatus Af293"
 
-# ---------------------------------------------------------------------------
-# Gene data -- real IDs from FungiDB, A. fumigatus Af293 (March 2026)
-# ---------------------------------------------------------------------------
-
-# --- Cell wall biosynthesis ---
 AFUM_CHITIN_SYNTHASES = [
     "Afu1g12600",
     "Afu2g01870",
@@ -198,7 +176,6 @@ AFUM_CELL_WALL_GO = [
     "Afu5g05450",
 ]
 
-# --- Secondary metabolites ---
 AFUM_GLIOTOXIN_CLUSTER = [
     "Afu6g09630",  # gliZ - transcription factor
     "Afu6g09640",  # gliI - aminotransferase
@@ -304,8 +281,7 @@ AFUM_FUMITREMORGIN = ["Afu8g00240"]
 AFUM_VERRUCULOGEN = ["Afu8g00230"]
 AFUM_TERPENE = ["Afu6g13950", "Afu8g00520"]
 
-# --- Antifungal resistance ---
-AFUM_CYP51A = ["Afu4g06890"]  # cyp51A - sterol 14-alpha-demethylase
+AFUM_CYP51A = ["Afu4g06890"]  # cyp51A, sterol 14-alpha-demethylase
 AFUM_LANOSTEROL = ["Afu4g12040", "Afu5g04080"]
 AFUM_ERGOSTEROL = [
     "Afu2g11550",
@@ -393,7 +369,6 @@ AFUM_EFFLUX = [
     "Afu7g01790",
 ]
 
-# --- Virulence and pathogenesis ---
 AFUM_PATHOGENESIS_GO = [
     "Afu1g02040",
     "Afu1g02820",
@@ -525,7 +500,6 @@ AFUM_ALLERGENS = [
     "Afu6g10300",
 ]
 
-# --- Oxidative stress and iron acquisition ---
 AFUM_OXIDATIVE_STRESS_GO = [
     "Afu1g01980",
     "Afu1g02820",
@@ -639,7 +613,6 @@ AFUM_THIOREDOXIN = [
     "Afu8g07130",
 ]
 
-# --- Conidial surface and thermotolerance ---
 AFUM_HYDROPHOBINS = [
     "Afu1g17250",
     "Afu5g01490",
@@ -662,7 +635,6 @@ AFUM_HEAT_SHOCK = [
     "Afu7g01860",
 ]
 
-# --- Signaling pathways ---
 AFUM_CALCINEURIN = [
     "Afu2g13060",  # calcineurin-related
     "Afu5g09360",  # cnaA - calcineurin catalytic subunit
@@ -763,7 +735,6 @@ AFUM_EC_KINASES = [
     "Afu7g03930",
 ]
 
-# --- Membrane and transport ---
 AFUM_PHOSPHOLIPASES = [
     "Afu1g13250",
     "Afu1g17590",
@@ -800,7 +771,6 @@ AFUM_LIPASES = [
     "Afu8g02530",
 ]
 
-# --- Ribosomal proteins (negative controls) ---
 AFUM_RIBOSOMAL = [
     "Afu1g03390",
     "Afu1g04320",
@@ -874,17 +844,11 @@ AFUM_CELLULASES = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _go_search_params(organism: str, go_id: str) -> dict[str, str]:
-    """Build GenesByGoTerm parameters for FungiDB.
+    """Build the parameters for a GO-term gene search on FungiDB.
 
-    Unique to FungiDB: uses a plain string for go_term_evidence ("Computed")
-    instead of a JSON-encoded list, and go_typeahead is a raw string instead
-    of a JSON array.  Cannot use the shared go_search_params helper.
+    FungiDB takes plain strings where other sites take JSON arrays, so the
+    shared helper does not apply.
     """
     return {
         "organism": org([organism]),
@@ -896,11 +860,10 @@ def _go_search_params(organism: str, go_id: str) -> dict[str, str]:
 
 
 def _ec_search_params(organism: str, ec_number: str) -> dict[str, str]:
-    """Build GenesByEcNumber parameters for FungiDB.
+    """Build the parameters for an EC-number gene search on FungiDB.
 
-    Unique to FungiDB: ec_wildcard is set to the ec_number value itself
-    (not "No"), and ec_sources is always ["KEGG_Enzyme"].
-    Cannot use the shared ec_search_params helper.
+    FungiDB takes the EC number as its own wildcard value, so the shared
+    helper does not apply.
     """
     return {
         "organism": org([organism]),
@@ -910,14 +873,7 @@ def _ec_search_params(organism: str, ec_number: str) -> dict[str, str]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Seeds
-# ---------------------------------------------------------------------------
-
 SEEDS: list[SeedDef] = [
-    # ===================================================================
-    # 1) Antifungal Drug Targets (10 nodes)
-    # ===================================================================
     SeedDef(
         name="AfAf293 Antifungal Targets",
         description=(
@@ -1021,9 +977,6 @@ SEEDS: list[SeedDef] = [
             tags=["drug-target", "aspergillus", "seed"],
         ),
     ),
-    # ===================================================================
-    # 2) Virulence Factors (8 nodes)
-    # ===================================================================
     SeedDef(
         name="AfAf293 Virulence Factors",
         description=(
@@ -1102,9 +1055,6 @@ SEEDS: list[SeedDef] = [
             tags=["virulence", "aspergillus", "seed"],
         ),
     ),
-    # ===================================================================
-    # 3) Secondary Metabolite Biosynthesis (7 nodes)
-    # ===================================================================
     SeedDef(
         name="AfAf293 Secondary Metabolites",
         description=(
@@ -1185,9 +1135,6 @@ SEEDS: list[SeedDef] = [
             tags=["secondary-metabolite", "aspergillus", "seed"],
         ),
     ),
-    # ===================================================================
-    # 4) Cell Wall Machinery (8 nodes)
-    # ===================================================================
     SeedDef(
         name="AfAf293 Cell Wall Machinery",
         description=(
@@ -1281,9 +1228,6 @@ SEEDS: list[SeedDef] = [
             tags=["cell-wall", "aspergillus", "seed"],
         ),
     ),
-    # ===================================================================
-    # 5) Azole Resistance Network (6 nodes)
-    # ===================================================================
     SeedDef(
         name="AfAf293 Azole Resistance Network",
         description=(
@@ -1364,9 +1308,6 @@ SEEDS: list[SeedDef] = [
             tags=["azole-resistance", "aspergillus", "seed"],
         ),
     ),
-    # ===================================================================
-    # 6) Iron Acquisition & Oxidative Defense (9 nodes)
-    # ===================================================================
     SeedDef(
         name="AfAf293 Iron and Redox Defense",
         description=(

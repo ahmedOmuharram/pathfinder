@@ -8,11 +8,11 @@ are where the bugs landed.
 Proven on live PlasmoDB, ``GenesByOrthologPattern``:
 
     refresh, organism = ["Plasmodium falciparum 3D7"] + profile_pattern -> 500
-    RUN,     same values, gold parameter set                            -> 200, totalCount 3347
+    RUN,     same values, gold parameter set                            -> 200, a non-empty result
 
 WDK returns 500 on the endpoint that narrows a child's vocabulary, for a value
 it accepts and executes on the endpoint that runs the search. Nothing we send is
-invalid. Abandoning the criterion there cost the entire 16-step strategy.
+invalid. Abandoning the criterion there cost the entire multi-criterion strategy.
 
 The contextualized view narrows vocabularies. Losing it costs vocabulary
 precision; it must never cost the search.
@@ -25,10 +25,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pathfinder.integrations.veupathdb.search_context import (
+from pathfinder.platform.errors import AppError, WDKError
+from pathfinder.services.catalog.search_context import (
     get_search_params_under_context,
 )
-from pathfinder.platform.errors import AppError, WDKError
 
 
 def _response(marker: str) -> Any:

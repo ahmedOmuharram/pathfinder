@@ -1,13 +1,4 @@
-"""WDK sync: fetch WDK strategies and sync into the ``chats`` table.
-
-- ``fetch_and_convert`` — fetch WDK strategy, convert to AST, normalize params
-- ``sync_to_chat`` — full sync flow: fetch + upsert
-- ``upsert_chat`` — create-or-update a chat from WDK strategy data
-- ``upsert_summary_chat`` — create-or-update from list summary data
-- ``plan_needs_detail_fetch`` — check if a chat needs WDK detail fetch
-- ``lazy_fetch_wdk_detail`` — lazy-load full WDK detail for summary-only chats
-- ``sync_is_saved_to_wdk`` — sync isSaved flag from chat to WDK
-"""
+"""Fetches WDK strategies and syncs them into the local conversation records."""
 
 from dataclasses import dataclass, field
 from uuid import UUID
@@ -35,11 +26,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class WdkChatSpec:
-    """Data needed to upsert a WDK strategy chat.
-
-    Bundles the strategy-specific fields for :func:`upsert_chat` so the
-    signature stays within the six-argument limit.
-    """
+    """The strategy fields that an upsert needs."""
 
     wdk_id: int
     name: str
@@ -50,11 +37,8 @@ class WdkChatSpec:
 
 
 def plan_needs_detail_fetch(conversation: Conversation) -> bool:
-    """Check if a WDK-linked chat needs its full detail fetched from WDK.
-
-    Returns True when the chat has a ``wdk_strategy_id`` but no plan data
-    (i.e. it was synced with summary data only and the user is now opening it).
-    Local strategies (no ``wdk_strategy_id``) never need a WDK fetch.
+    """Reports whether a chat still needs its full detail from WDK. A chat with a WDK
+    strategy id and no plan data holds summary data only. A local chat never needs it.
     """
     if conversation.wdk_strategy_id is None:
         return False
@@ -68,13 +52,8 @@ async def fetch_and_convert(
     api: StrategyAPI,
     wdk_id: int,
 ) -> tuple[StrategyAst, bool]:
-    """Fetch a WDK strategy and convert to internal plan payload.
-
-    Normalizes parameters best-effort (failures are logged and swallowed).
-    Step counts and WDK step ID mappings are stored on the payload directly.
-
-    :returns: Tuple of (StrategyAst, is_saved).
-    """
+    """Fetches a WDK strategy and converts it to the internal payload. Parameter
+    normalization failures are logged, and the raw values are kept."""
     wdk_strategy = await api.get_strategy(wdk_id)
 
     payload, wire_by_step_id = build_snapshot_from_wdk(wdk_strategy)
@@ -99,10 +78,7 @@ async def sync_to_chat(
     conv_repo: ConversationRepository,
     user_id: UUID,
 ) -> Conversation:
-    """Fetch a single WDK strategy and upsert into the chats table.
-
-    Shared by ``open_strategy`` and ``sync_all_wdk_strategies``.
-    """
+    """Fetches one WDK strategy and upserts it into the local records."""
     payload, is_saved = await fetch_and_convert(api, wdk_id)
     name = payload.name or f"WDK Strategy {wdk_id}"
 
@@ -128,7 +104,7 @@ async def upsert_chat(
     site_id: str,
     spec: WdkChatSpec,
 ) -> Conversation:
-    """Upsert a WDK strategy into the chats table (create or update)."""
+    """Creates or updates the local record for a WDK strategy."""
     existing = await conv_repo.get_by_wdk_strategy_id(user_id, spec.wdk_id)
     if existing:
         await conv_repo.update_conversation(
@@ -178,12 +154,10 @@ async def upsert_summary_chat(
     user_id: UUID,
     site_id: str,
 ) -> Conversation | None:
-    """Create or update a chat from WDK list summary data only.
+    """Creates or updates a chat from list summary data only.
 
-    Unlike ``sync_to_chat``, this does NOT fetch the full strategy detail
-    from WDK. It only stores metadata available from the list endpoint.
-    The ``plan`` field is left empty for new chats / preserved for existing
-    ones. Full plan data is fetched lazily on first GET.
+    This call fetches no strategy detail and keeps any existing plan data. The full
+    detail arrives on first read.
     """
     wdk_id = wdk_item.strategy_id
     name = wdk_item.name or f"WDK Strategy {wdk_id}"
@@ -196,7 +170,7 @@ async def upsert_summary_chat(
 
     existing = await conv_repo.get_by_wdk_strategy_id(user_id, wdk_id)
     if existing and existing.dismissed_at is not None:
-        # Strategy was dismissed by user — don't re-import or update it.
+        # A dismissed strategy is neither re-imported nor updated.
         return existing
     if existing:
         await conv_repo.update_conversation(
@@ -242,12 +216,10 @@ async def lazy_fetch_wdk_detail(
     conversation: Conversation,
     conv_repo: ConversationRepository,
 ) -> Conversation:
-    """Fetch full WDK strategy detail for a summary-only chat.
+    """Fetches the full WDK detail for a chat that holds summary data only.
 
-    If the chat has a ``wdk_strategy_id`` but no plan data (created during
-    sync-wdk to avoid N+1), fetches the full detail from WDK now and updates
-    the chat. Returns the updated chat, or the original if no fetch was
-    needed or the fetch failed.
+    Returns the updated chat, or the original one when no fetch is needed or the
+    fetch fails.
     """
     site_id = conversation.site_id
     wdk_id = conversation.wdk_strategy_id
@@ -283,11 +255,8 @@ async def lazy_fetch_wdk_detail(
 
 
 async def sync_is_saved_to_wdk(*, conversation: Conversation) -> None:
-    """Sync the isSaved flag from a chat to WDK.
-
-    No-op if the chat has no wdk_strategy_id or site_id.
-    Failures are logged and swallowed (non-critical sync).
-    """
+    """Sends the isSaved flag from a chat to WDK. A chat with no WDK strategy id or
+    site id is skipped, and a failure is logged only."""
     wdk_id = conversation.wdk_strategy_id
     if not wdk_id:
         return

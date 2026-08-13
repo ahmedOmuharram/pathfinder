@@ -1,10 +1,4 @@
-"""Seed definitions for HostDB.
-
-Human innate immunity, pathogen defense, cytokine networks, autophagy, and
-transcriptomic responses to parasitic infection (malaria, T. gondii, Leishmania,
-Candida, Giardia). All gene IDs are real Ensembl ENSG identifiers verified
-against HostDB (Homo sapiens REF), Mar 2026.
-"""
+"""Seed strategies and curated gene sets for HostDB, organism Homo sapiens REF."""
 
 from __future__ import annotations
 
@@ -27,7 +21,7 @@ from pathfinder.services.experiment.seed.types import ControlSetDef, SeedDef
 HS_ORG = "Homo sapiens REF"
 
 # ---------------------------------------------------------------------------
-# Gene ID lists — real Ensembl IDs from HostDB
+# Gene id lists: real Ensembl ids from HostDB
 # ---------------------------------------------------------------------------
 
 # Toll-like receptors (TLR1-TLR10 + adaptor pseudogenes)
@@ -343,7 +337,7 @@ HOSTDB_SIGNALING_ADAPTORS = [
     "ENSG00000231889",  # TRAF pseudogene
 ]
 
-# Caspases -- apoptosis/inflammation
+# Caspases of apoptosis and inflammation
 HOSTDB_CASPASES = [
     "ENSG00000137752",  # CASP1 (ICE, inflammasome)
     "ENSG00000106144",  # CASP2
@@ -409,7 +403,7 @@ HOSTDB_AUTOPHAGY = [
     "ENSG00000110497",  # AMBRA1 (autophagy)
 ]
 
-# Defensins -- alpha and beta
+# Defensins, alpha and beta
 HOSTDB_DEFENSINS = [
     # Alpha defensins
     "ENSG00000164816",  # DEFA1
@@ -482,7 +476,7 @@ HOSTDB_DEFENSINS = [
     "ENSG00000255544",  # DEFB pseudogene
 ]
 
-# C-type lectin receptors (CLECs) -- pattern recognition
+# C-type lectin receptors (CLECs): pattern recognition
 HOSTDB_CLECS = [
     "ENSG00000038532",  # CLEC4A
     "ENSG00000069493",  # CLEC2D
@@ -564,13 +558,10 @@ HOSTDB_HSP = [
 
 
 # ---------------------------------------------------------------------------
-# Strategy Definitions (6 strategies)
+# Strategy definitions
 # ---------------------------------------------------------------------------
 
 SEEDS: list[SeedDef] = [
-    # ===================================================================
-    # 1) Hs Innate Immunity Signaling Network (12 nodes)
-    # ===================================================================
     SeedDef(
         name="Hs Innate Immunity Signaling Network",
         description=(
@@ -698,9 +689,6 @@ SEEDS: list[SeedDef] = [
             tags=["innate-immunity", "signaling", "hostdb", "seed"],
         ),
     ),
-    # ===================================================================
-    # 2) Hs Pathogen Defense Arsenal (11 nodes)
-    # ===================================================================
     SeedDef(
         name="Hs Pathogen Defense Arsenal",
         description=(
@@ -829,9 +817,6 @@ SEEDS: list[SeedDef] = [
             tags=["defense", "antimicrobial", "hostdb", "seed"],
         ),
     ),
-    # ===================================================================
-    # 3) Hs Cytokine Network (10 nodes)
-    # ===================================================================
     SeedDef(
         name="Hs Cytokine Network",
         description=(
@@ -941,9 +926,6 @@ SEEDS: list[SeedDef] = [
             tags=["cytokine", "interferon", "interleukin", "hostdb", "seed"],
         ),
     ),
-    # ===================================================================
-    # 4) Hs Autophagy & Xenophagy Machinery (8 nodes)
-    # ===================================================================
     SeedDef(
         name="Hs Autophagy & Xenophagy Machinery",
         description=(
@@ -1032,9 +1014,6 @@ SEEDS: list[SeedDef] = [
             tags=["autophagy", "xenophagy", "hostdb", "seed"],
         ),
     ),
-    # ===================================================================
-    # 5) Hs Malaria Host Response (13 nodes)
-    # ===================================================================
     SeedDef(
         name="Hs Malaria Host Response",
         description=(
@@ -1179,9 +1158,6 @@ SEEDS: list[SeedDef] = [
             tags=["malaria", "transcriptomic", "hostdb", "seed"],
         ),
     ),
-    # ===================================================================
-    # 6) Hs Multi-Pathogen Transcriptomic Response (15 nodes)
-    # ===================================================================
     SeedDef(
         name="Hs Multi-Pathogen Transcriptomic Response",
         description=(

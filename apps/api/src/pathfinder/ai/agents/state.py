@@ -82,12 +82,8 @@ class AgentToolState:
     def resolved_params_for(self, search_name: str) -> dict[str, ParamValue]:
         """Params the draft spec has already bound on ``search_name``.
 
-        A dependent param's vocabulary is only meaningful under its parents, and
-        WDK answers with the search's DEFAULTS when no context is supplied. The
-        three DeRisi profilesets carry genuinely different time points, so a
-        read with no context showed HB3's hours for a criterion bound to 3D7 and
-        the model concluded, correctly for what it was shown, that two of the
-        hours it wanted did not exist.
+        A dependent vocabulary is only valid under its parent values, and WDK
+        answers with the search defaults when no context is supplied.
         """
         if not search_name:
             return {}

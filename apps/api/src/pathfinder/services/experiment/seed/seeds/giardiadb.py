@@ -1,14 +1,4 @@
-"""Seed definitions for GiardiaDB.
-
-Covers Giardia Assemblage A isolate WB with real gene IDs from GiardiaDB,
-biologically meaningful search configurations targeting:
-  - Antigenic variation (VSPs, HCMPs, cysteine-rich surface proteins)
-  - Encystation pathway (cyst wall proteins, encystation-specific genes)
-  - Drug targets (PFOR, nitroreductases, metabolic enzymes, kinases)
-  - Cytoskeleton & attachment (giardins, tubulins, dynein, kinesins)
-  - Kinase signaling (NEK kinases, ~179 members)
-  - Secreted virulence factors (cathepsins, proteases)
-"""
+"""Seed strategies and curated gene sets for GiardiaDB, organism Giardia Assemblage A isolate WB."""
 
 from typing import Any
 
@@ -37,10 +27,10 @@ GL_EC_SOURCES = [
 ]
 
 # ---------------------------------------------------------------------------
-# Gene ID lists (all real VEuPathDB IDs, verified Mar 2026)
+# Gene id lists: real VEuPathDB ids
 # ---------------------------------------------------------------------------
 
-# Variant Surface Proteins (VSPs) — massive gene family for antigenic variation
+# Variant Surface Proteins (VSPs): massive gene family for antigenic variation
 GIARDIA_VSP = [
     "GL50803_101010",
     "GL50803_101074",
@@ -244,7 +234,7 @@ GIARDIA_VSP = [
     "GL50803_96055",
 ]
 
-# High Cysteine Membrane Proteins (HCMPs) — cysteine-rich surface family
+# High Cysteine Membrane Proteins (HCMPs): cysteine-rich surface family
 GIARDIA_HCMP = [
     "GL50803_101589",
     "GL50803_101805",
@@ -348,7 +338,7 @@ GIARDIA_ENCYSTATION = [
     "GL50803_7243",  # Encystation-specific secretory granule protein-1
 ]
 
-# Giardins — ventral disc structural proteins (unique to Giardia)
+# Giardins: ventral disc structural proteins (unique to Giardia)
 GIARDIA_GIARDINS = [
     "GL50803_11654",  # Alpha-1 giardin
     "GL50803_7796",  # Alpha-2 giardin
@@ -376,7 +366,7 @@ GIARDIA_GIARDINS = [
     "GL50803_86676",  # Delta giardin
 ]
 
-# Tubulin genes — cytoskeletal structural proteins
+# Tubulin genes: cytoskeletal structural proteins
 GIARDIA_TUBULIN = [
     "GL50803_103676",  # Alpha-tubulin
     "GL50803_112079",  # Alpha-tubulin
@@ -401,7 +391,7 @@ GIARDIA_TUBULIN = [
     "GL50803_95661",  # Tubulin tyrosine ligase
 ]
 
-# Dynein motor proteins — flagellar motility
+# Dynein motor proteins: flagellar motility
 GIARDIA_DYNEIN = [
     "GL50803_100906",
     "GL50803_101138",
@@ -482,7 +472,7 @@ GIARDIA_AXONEME = [
     "GL50803_41512",  # Flagella associated protein
 ]
 
-# NEK kinases — massively expanded family in Giardia (~179 members)
+# NEK kinases: an expanded gene family in Giardia
 GIARDIA_NEK_KINASES = [
     "GL50803_101307",
     "GL50803_101534",
@@ -586,7 +576,7 @@ GIARDIA_NEK_KINASES = [
     "GL50803_17622",
 ]
 
-# Proteases — cathepsins, cysteine proteases, serine proteases
+# Proteases: cathepsins, cysteine proteases, serine proteases
 GIARDIA_PROTEASES = [
     "GL50803_10843",  # Thymus-specific serine protease precursor
     "GL50803_112831",  # Cysteine protease
@@ -623,7 +613,7 @@ GIARDIA_CATHEPSINS = [
     "GL50803_3099",  # Cathepsin L-like protease
 ]
 
-# Drug target enzymes — PFOR, nitroreductases, ferredoxins, metabolic
+# Drug target enzymes: PFOR, nitroreductases, ferredoxins, and metabolic enzymes
 GIARDIA_DRUG_TARGETS = [
     "GL50803_114609",  # Pyruvate-flavodoxin oxidoreductase (PFOR-1)
     "GL50803_17063",  # Pyruvate-flavodoxin oxidoreductase (PFOR-2)
@@ -637,7 +627,7 @@ GIARDIA_DRUG_TARGETS = [
     "GL50803_10358",  # A-type flavoprotein (lateral transfer)
 ]
 
-# Metabolic enzymes — glycolysis, arginine dihydrolase pathway
+# Metabolic enzymes: glycolysis, arginine dihydrolase pathway
 GIARDIA_METABOLIC = [
     "GL50803_11118",  # Enolase
     "GL50803_17043",  # Glyceraldehyde 3-phosphate dehydrogenase
@@ -664,7 +654,7 @@ GIARDIA_METABOLIC = [
     "GL50803_9368",  # Pyruvate-formate lyase-activating enzyme
 ]
 
-# Transporters — ABC transporters, amino acid/hexose transporters
+# Transporters: ABC transporters, amino acid/hexose transporters
 GIARDIA_TRANSPORTERS = [
     "GL50803_102051",
     "GL50803_11299",
@@ -700,7 +690,7 @@ GIARDIA_TRANSPORTERS = [
     "GL50803_9741",
 ]
 
-# Heat shock proteins — stress response
+# Heat shock proteins: stress response
 GIARDIA_HEAT_SHOCK = [
     "GL50803_13864",  # HSP90-alpha
     "GL50803_16412",  # Heat-shock protein putative
@@ -709,7 +699,7 @@ GIARDIA_HEAT_SHOCK = [
     "GL50803_98054",  # HSP90-alpha
 ]
 
-# Ribosomal proteins (housekeeping — used as negative controls)
+# Ribosomal proteins: housekeeping, used as negative controls
 GIARDIA_RIBOSOMAL = [
     "GL50803_10091",
     "GL50803_10367",
@@ -784,7 +774,7 @@ GIARDIA_RIBOSOMAL = [
     "GL50803_9810",
 ]
 
-# Histone genes (chromatin/nuclear — negative controls for surface strategies)
+# Histone genes: nuclear, used as negative controls for surface strategies
 GIARDIA_HISTONES = [
     "GL50803_10666",  # Histone acetyltransferase GCN5
     "GL50803_10707",  # NAD-dependent histone deacetylase Sir2
@@ -827,12 +817,12 @@ GIARDIA_MDR = [
 
 
 def _go_search_params(organism: str, go_id: str) -> dict[str, str]:
-    """Build GenesByGoTerm parameters (GiardiaDB uses go_term="N/A")."""
+    """Build GenesByGoTerm parameters. GiardiaDB takes "N/A" as the go term."""
     return go_search_params(organism, go_id, go_term_value="N/A")
 
 
 def _ec_kinase_params(organism: str, ec_sources: list[str]) -> dict[str, str]:
-    """Build GenesByEcNumber parameters for kinases (GiardiaDB-specific)."""
+    """Build GenesByEcNumber parameters for kinases."""
     return ec_search_params(
         organism, ec_number="2.7.11.1", ec_sources=ec_sources, ec_wildcard="N/A"
     )
@@ -844,15 +834,14 @@ def _text_search_params(
     *,
     whole_words: str = "yes",
 ) -> dict[str, str]:
-    """Build GenesByText parameters (GiardiaDB adds whole_words param not in shared helper)."""
+    """Build GenesByText parameters. GiardiaDB also takes a whole_words parameter."""
     params = text_search_params(organism, text)
     params["whole_words"] = whole_words
     return params
 
 
 # ---------------------------------------------------------------------------
-# Strategy 1: GlWB Antigenic Variation (12 nodes)
-# VSPs + HCMPs + surface features — the immune evasion repertoire
+# Strategy 1: antigenic variation
 # ---------------------------------------------------------------------------
 
 _s1_vsp_text: dict[str, Any] = {
@@ -953,7 +942,7 @@ STRAT1_ANTIGENIC_VARIATION: dict[str, Any] = {
 }
 
 # ---------------------------------------------------------------------------
-# Strategy 2: GlWB Encystation Pathway (10 nodes)
+# Strategy 2: encystation pathway
 # ---------------------------------------------------------------------------
 
 _s2_cyst_text: dict[str, Any] = {
@@ -1039,7 +1028,7 @@ STRAT2_ENCYSTATION: dict[str, Any] = {
 }
 
 # ---------------------------------------------------------------------------
-# Strategy 3: GlWB Drug Targets (10 nodes)
+# Strategy 3: drug targets
 # ---------------------------------------------------------------------------
 
 _s3_oxidoreductase: dict[str, Any] = {
@@ -1125,7 +1114,7 @@ STRAT3_DRUG_TARGETS: dict[str, Any] = {
 }
 
 # ---------------------------------------------------------------------------
-# Strategy 4: GlWB Cytoskeleton & Attachment (10 nodes)
+# Strategy 4: cytoskeleton and attachment
 # ---------------------------------------------------------------------------
 
 _s4_giardin: dict[str, Any] = {
@@ -1211,7 +1200,7 @@ STRAT4_CYTOSKELETON: dict[str, Any] = {
 }
 
 # ---------------------------------------------------------------------------
-# Strategy 5: GlWB Kinase Signaling Network (8 nodes)
+# Strategy 5: kinase signaling network
 # ---------------------------------------------------------------------------
 
 _s5_ec_kinases: dict[str, Any] = {
@@ -1282,7 +1271,7 @@ STRAT5_KINASE_SIGNALING: dict[str, Any] = {
 }
 
 # ---------------------------------------------------------------------------
-# Strategy 6: GlWB Secreted Virulence Factors (8 nodes)
+# Strategy 6: secreted virulence factors
 # ---------------------------------------------------------------------------
 
 _s6_signal: dict[str, Any] = {
@@ -1357,7 +1346,6 @@ STRAT6_VIRULENCE: dict[str, Any] = {
 # ---------------------------------------------------------------------------
 
 SEEDS: list[SeedDef] = [
-    # 1) Antigenic Variation — VSPs, HCMPs, surface repertoire (12 nodes)
     SeedDef(
         name="GlWB Antigenic Variation Surface Repertoire",
         description=(
@@ -1382,7 +1370,6 @@ SEEDS: list[SeedDef] = [
             tags=["antigenic-variation", "giardia", "seed"],
         ),
     ),
-    # 2) Encystation Pathway (10 nodes)
     SeedDef(
         name="GlWB Encystation Differentiation Pathway",
         description=(
@@ -1408,7 +1395,6 @@ SEEDS: list[SeedDef] = [
             tags=["encystation", "giardia", "seed"],
         ),
     ),
-    # 3) Drug Targets — PFOR, nitroreductases, metabolic enzymes (10 nodes)
     SeedDef(
         name="GlWB Drug Target Candidates",
         description=(
@@ -1434,7 +1420,6 @@ SEEDS: list[SeedDef] = [
             tags=["drug-target", "giardia", "seed"],
         ),
     ),
-    # 4) Cytoskeleton & Attachment — disc, flagella, motors (10 nodes)
     SeedDef(
         name="GlWB Cytoskeleton and Attachment Apparatus",
         description=(
@@ -1465,7 +1450,6 @@ SEEDS: list[SeedDef] = [
             tags=["cytoskeleton", "giardia", "seed"],
         ),
     ),
-    # 5) Kinase Signaling Network (8 nodes)
     SeedDef(
         name="GlWB Kinase Signaling Network",
         description=(
@@ -1488,7 +1472,6 @@ SEEDS: list[SeedDef] = [
             tags=["kinase", "giardia", "seed"],
         ),
     ),
-    # 6) Secreted Virulence Factors (8 nodes)
     SeedDef(
         name="GlWB Secreted Virulence Factors",
         description=(

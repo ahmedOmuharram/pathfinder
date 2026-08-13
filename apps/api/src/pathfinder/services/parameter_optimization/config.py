@@ -1,8 +1,4 @@
-"""Configuration types for parameter optimization.
-
-Defines the parameter specification, optimization config, trial result,
-and optimization result types, as well as type aliases for callbacks.
-"""
+"""Configuration, input, and result types for parameter optimization."""
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -23,7 +19,7 @@ from pathfinder.services.experiment.types import (
     ParameterType,
 )
 
-__all__ = ["ProgressCallback"]  # re-exported for parameter_optimization consumers
+__all__ = ["ProgressCallback"]
 
 CancelCheck = Callable[[], bool]
 """Returns True when the optimisation should stop early."""
@@ -64,19 +60,12 @@ class OptimizationConfig:
     precision_weight: float = 1.0  # only for custom
     method: OptimizationMethod = "bayesian"
     estimated_size_penalty: float = 0.0
-    """Weight for penalising large result sets.  The penalty is
-    ``estimated_size_penalty * (estimated_size / total_genes)`` where
-    *total_genes* is the denominator (defaults to 20 000 if unknown).
-    A small value (e.g. 0.1) acts as a tiebreaker; higher values make
-    the optimiser strongly prefer tighter results."""
+    """Weight that penalises large result sets. A higher weight makes the
+    optimiser prefer tighter results."""
 
 
 class TrialResult(CamelModel):
-    """A single optimization trial result.
-
-    Frozen CamelModel — serializes to camelCase with RoundedFloat (4 dp)
-    for score/recall/fpr fields.
-    """
+    """A single optimization trial result."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -111,11 +100,7 @@ class OptimizationInput:
 
 
 class OptimizationResult(CamelModel):
-    """Full optimization result.
-
-    CamelModel — serializes to camelCase.  ``total_trials`` is computed
-    from ``len(all_trials)`` so callers never need to pass it explicitly.
-    """
+    """Full optimization result. The trial total is derived, not passed in."""
 
     optimization_id: str
     best_trial: TrialResult | None
@@ -129,6 +114,5 @@ class OptimizationResult(CamelModel):
 
     @model_validator(mode="after")
     def _compute_total_trials(self) -> Self:
-        """Derive total_trials from all_trials at construction time."""
         self.total_trials = len(self.all_trials)
         return self

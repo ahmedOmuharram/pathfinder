@@ -1,13 +1,7 @@
-"""Observability setup: OTEL tracing/metrics/logs + library instrumentation.
+"""OTEL tracing, metrics, and logs, plus library instrumentation.
 
-SigNoz receives traces via our ``BatchSpanProcessor``/``HttpSpanExporter``,
-metrics via ``PeriodicExportingMetricReader``, and logs via ``BatchLogRecordProcessor``.
-Langfuse ingestion is handled by the Langfuse SDK's own ``LangfuseSpanProcessor``,
-which ``get_langfuse()`` attaches to the TracerProvider we install here. The
-initialization order matters: we must set our TracerProvider *before* anything
-triggers ``get_langfuse()``, otherwise the Langfuse SDK installs its own
-TracerProvider first and ``trace.set_tracer_provider`` silently becomes a no-op
-(OTEL enforces set-once semantics).
+The TracerProvider here must be installed before ``get_langfuse()`` runs,
+because OTEL accepts a provider only once.
 """
 
 import logging
@@ -56,7 +50,7 @@ logger = get_logger(__name__)
 
 
 class _OtelState:
-    """Module-level mutable state for OTEL providers (avoids ``global``)."""
+    """Module-level mutable state for the OTEL providers."""
 
     provider: TracerProvider | None = None
     meter_provider: MeterProvider | None = None
@@ -102,10 +96,8 @@ def _build_resource() -> Resource:
 def _configure_exporters() -> TracerProvider | None:
     """Create a TracerProvider with SigNoz trace export wired in.
 
-    Returns None when neither SigNoz nor Langfuse is configured.  When only
-    Langfuse is configured, the provider is still created (without SigNoz
-    processors) so that Langfuse's own ``LangfuseSpanProcessor`` attaches to
-    our provider (with our service.name resource) instead of a default one.
+    Returns None when neither SigNoz nor Langfuse is configured. Langfuse alone
+    still gets a provider, so its span processor attaches to this resource.
     """
     settings = get_settings()
     has_signoz_trace = bool(
@@ -150,8 +142,8 @@ def _configure_exporters() -> TracerProvider | None:
 def _configure_metrics_export(resource: Resource) -> None:
     """Create a MeterProvider with a SigNoz gRPC exporter.
 
-    No-ops when SigNoz is not configured (Langfuse does not support OTEL
-    metrics ingestion).
+    Does nothing when SigNoz is not configured. Langfuse does not accept OTEL
+    metrics.
     """
     settings = get_settings()
     if not settings.signoz_otel_endpoint:
@@ -170,10 +162,8 @@ def _configure_metrics_export(resource: Resource) -> None:
 def _configure_log_export() -> None:
     """Attach an OTLP log handler to the root logger for SigNoz.
 
-    Enables one-click trace-to-log correlation in SigNoz by shipping
-    structured logs (with trace_id/span_id) via the OTel Collector.
-    No-ops when SigNoz is not configured.  The existing stdout handler
-    is unaffected (dual output).
+    Does nothing when SigNoz is not configured. The stdout handler stays in
+    place, so logs go to both places.
     """
     settings = get_settings()
     if not settings.signoz_otel_endpoint:
@@ -242,10 +232,8 @@ def setup_observability(
 ) -> None:
     """Configure OTEL exporters and library instrumentation.
 
-    No-ops entirely when neither SigNoz nor Langfuse is configured.  Callers
-    must invoke this before any code path that could trigger Langfuse SDK
-    initialization — otherwise the SDK installs its own TracerProvider first
-    and OTEL's set-once ``set_tracer_provider`` silently refuses ours.
+    Does nothing when neither SigNoz nor Langfuse is configured. Callers must
+    invoke this before any path that initializes the Langfuse SDK.
     """
     provider = _configure_exporters()
     if provider is None:
@@ -256,10 +244,8 @@ def setup_observability(
     _configure_metrics_export(provider.resource)
     _configure_log_export()
 
-    # Trigger Langfuse SDK init so its LangfuseSpanProcessor attaches to our
-    # provider.  This MUST happen after ``set_tracer_provider`` so Langfuse's
-    # internal ``_init_tracer_provider`` sees our provider (not a
-    # ``ProxyTracerProvider``) and reuses it instead of installing its own.
+    # Langfuse reuses an installed provider, so its init must follow
+    # ``set_tracer_provider``.
     if get_settings().langfuse_secret_key:
         get_langfuse()
 
@@ -272,7 +258,7 @@ def setup_observability(
 
 
 def shutdown_observability() -> None:
-    """Flush and shutdown OTEL providers. Called during app shutdown."""
+    """Flush and shut down the OTEL providers."""
     if _otel.meter_provider is not None:
         _otel.meter_provider.shutdown()
         _otel.meter_provider = None
@@ -283,7 +269,7 @@ def shutdown_observability() -> None:
 
 
 def get_tracer() -> trace.Tracer:
-    """Return a tracer for custom spans (pipeline phases, classification)."""
+    """Return a tracer for custom spans."""
     return trace.get_tracer("pathfinder.pipeline")
 
 

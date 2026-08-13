@@ -2,12 +2,12 @@
 
 Observed on a real build. The goal said "InterPro domain PF00069", the
 `domain_typeahead` vocabulary contains **`PF00069 : Pkinase`** verbatim among
-its 2,364 entries, and the semantic matcher bound
+its thousands entries, and the semantic matcher bound
 `IPR000023 : Phosphofructokinase_dom` instead -- because that display text
 contains the substring "kinase".
 
 The strategy then searched phosphofructokinase rather than protein kinase and
-returned **2 genes instead of 87**, with verification reporting success. A
+returned **far fewer genes than intended**, with verification reporting success. A
 wrong number that looks plausible is the worst failure this product can have.
 
 The codebase already holds the principle, in `_rule_value` for organism and
@@ -23,8 +23,12 @@ from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.services.catalog.param_intent import accession_in_text
 
 _INTERPRO_VOCAB = [
-    VocabOption(value="IPR000023 : Phosphofructokinase_dom", display="Phosphofructokinase"),
-    VocabOption(value="PF00069 : Pkinase", display="PF00069 : Pkinase Protein kinase domain"),
+    VocabOption(
+        value="IPR000023 : Phosphofructokinase_dom", display="Phosphofructokinase"
+    ),
+    VocabOption(
+        value="PF00069 : Pkinase", display="PF00069 : Pkinase Protein kinase domain"
+    ),
     VocabOption(value="PF00433 : Pkinase_C", display="PF00433 : Pkinase_C"),
     VocabOption(value="PF07714 : PK_Tyr_Ser-Thr", display="Serine-threonine kinase"),
 ]
@@ -60,7 +64,7 @@ class TestAccessionWins:
 
 
 class TestTruncatedVocabularies:
-    """`allowed_values` is capped at 50 entries; `domain_typeahead` has 2,364.
+    """`allowed_values` is capped at 50 entries; `domain_typeahead` has thousands.
 
     `PF00069 : Pkinase` was not in the visible 50, so neither the model nor
     the matcher could see the entry the user named -- and
@@ -70,7 +74,9 @@ class TestTruncatedVocabularies:
     """
 
     def test_it_finds_an_accession_only_present_in_the_leaves(self) -> None:
-        visible = [VocabOption(value="IPR000023 : Phosphofructokinase_dom", display="x")]
+        visible = [
+            VocabOption(value="IPR000023 : Phosphofructokinase_dom", display="x")
+        ]
         hidden = [VocabOption(value="PF00069 : Pkinase", display="Protein kinase")]
 
         assert (

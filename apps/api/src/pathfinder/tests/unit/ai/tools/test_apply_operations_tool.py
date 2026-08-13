@@ -1,14 +1,7 @@
-"""The agent edits through operations against a stated base revision.
+"""Tests for the operation-based strategy edit tool.
 
-``build_strategy`` replaces the whole graph, so the only way for the model to
-add one step was to re-emit every existing step's parameters. That made each
-edit cost the whole strategy in tokens, and - worse - a model working from a
-stale context silently overwrote a value the researcher had just corrected by
-hand, with no error and no diff to notice.
-
-``base_revision`` turns that into a precondition. The fingerprint hashes only
-inputs (search names, parameters, operators, tree shape), so a refreshed count
-never looks like an edit, and a genuine edit always does.
+An edit states the base revision it works from. The revision fingerprint covers
+strategy inputs only, so a refreshed count does not read as an edit.
 """
 
 from __future__ import annotations
@@ -108,9 +101,7 @@ class TestRevisionPrecondition:
             await apply_operations(
                 ctx,
                 base_revision="deadbeefdeadbeef",
-                operations=[
-                    UpdateStepMetaOp(step_id="step_a", display_name="Kinases")
-                ],
+                operations=[UpdateStepMetaOp(step_id="step_a", display_name="Kinases")],
             )
 
         assert committed == []
@@ -118,7 +109,8 @@ class TestRevisionPrecondition:
     async def test_the_refusal_carries_the_current_revision(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The model has to be able to retry without another round trip."""
+        """The refusal carries the current revision, so a retry needs no extra
+        read."""
         graph = _graph_with(_leaf("step_a"))
         ctx, commit = _ctx(graph, [])
         monkeypatch.setattr(
@@ -128,9 +120,9 @@ class TestRevisionPrecondition:
 
         with pytest.raises(ModelRetry) as caught:
             await apply_operations(
-                ctx, base_revision="stale", operations=[
-                    UpdateStepMetaOp(step_id="step_a", display_name="x")
-                ]
+                ctx,
+                base_revision="stale",
+                operations=[UpdateStepMetaOp(step_id="step_a", display_name="x")],
             )
 
         assert _revision_of(graph) in str(caught.value)
@@ -138,8 +130,8 @@ class TestRevisionPrecondition:
     async def test_a_human_edit_between_turns_blocks_the_write(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The scenario this exists for: the model read the graph, the user
-        changed a parameter, and the model's queued edit must not land."""
+        """A parameter change between the read and the write blocks the
+        write."""
         graph = _graph_with(_leaf("step_a"))
         seen_by_model = _revision_of(graph)
         committed: list[Any] = []
@@ -157,9 +149,7 @@ class TestRevisionPrecondition:
             await apply_operations(
                 ctx,
                 base_revision=seen_by_model,
-                operations=[
-                    UpdateStepMetaOp(step_id="step_a", display_name="Kinases")
-                ],
+                operations=[UpdateStepMetaOp(step_id="step_a", display_name="Kinases")],
             )
 
         assert committed == []
@@ -170,8 +160,8 @@ class TestRevisionPrecondition:
     async def test_a_refreshed_count_is_not_treated_as_an_edit(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Counts are excluded from the fingerprint, so re-reading WDK does not
-        invalidate a revision the model is holding."""
+        """The fingerprint excludes counts, so a fresh count keeps a held
+        revision valid."""
         graph = _graph_with(_leaf("step_a"))
         before = _revision_of(graph)
         committed: list[Any] = []
@@ -210,9 +200,7 @@ class TestRevisionPrecondition:
             await apply_operations(
                 ctx,
                 base_revision="something",
-                operations=[
-                    UpdateStepMetaOp(step_id="step_a", display_name="x")
-                ],
+                operations=[UpdateStepMetaOp(step_id="step_a", display_name="x")],
             )
 
 
@@ -240,8 +228,8 @@ class TestBuildStrategyNoLongerClobbersSilently:
     async def test_replacing_a_non_empty_strategy_needs_the_revision(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Whole-graph replacement is the operation that loses a researcher's
-        hand edits, so it has to be chosen rather than stumbled into."""
+        """A whole-graph replacement over an existing strategy needs the
+        revision."""
         graph = _graph_with(_leaf("step_a"))
         ctx, _commit = _ctx(graph, [])
         built: list[Any] = []
@@ -276,7 +264,7 @@ class TestBuildStrategyNoLongerClobbersSilently:
     async def test_an_empty_strategy_needs_no_revision(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Building from nothing cannot overwrite anything."""
+        """A build over an empty strategy overwrites nothing."""
         graph = StrategyGraph(graph_id="g1", name="g", site_id="plasmodb")
         ctx, _commit = _ctx(graph, [])
         built: list[Any] = []
@@ -341,8 +329,8 @@ class TestRejectedBatchesAreRetryable:
     async def test_a_bad_operation_becomes_a_model_retry(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """An unhandled ApplyError would end the run; the model should get a
-        chance to fix the offending operation instead."""
+        """An apply error becomes a retry, so the model can correct the
+        operation."""
         graph = _graph_with(_leaf("step_a"))
         ctx, _commit = _ctx(graph, [])
 
@@ -368,8 +356,7 @@ class TestRejectedBatchesAreRetryable:
     async def test_the_retry_says_the_revision_is_still_good(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The batch rolled back, so re-sending against the same revision is
-        correct - the model should not waste a call re-reading."""
+        """A rejected batch rolls back, so the same revision stays valid."""
         graph = _graph_with(_leaf("step_a"))
         ctx, _commit = _ctx(graph, [])
 
@@ -396,9 +383,8 @@ class TestRejectedBatchesAreRetryable:
 
 class TestToolSchema:
     def test_the_operation_union_survives_schema_generation(self) -> None:
-        """`operations` is a list of a discriminated union of models that
-        themselves nest a recursive node. If that cannot be schematized the
-        agent fails to start, which no behavioural test would catch."""
+        """The operation list is a discriminated union over models that nest a
+        recursive node, and it must produce a JSON schema."""
         schema = Tool(apply_operations).function_schema.json_schema
 
         assert "base_revision" in schema["properties"]

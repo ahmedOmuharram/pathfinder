@@ -1,10 +1,7 @@
 """Read-only workbench experiment tools.
 
-Each tool loads the experiment scoped to ``ctx.deps.experiment_id`` — the chat
-row's ``experiment_id`` FK is resolved by the dispatcher and carried through
-``Context.experiment_id`` to ``AgentDeps.experiment_id``. When a chat is not
-associated with an experiment, these tools return a ``WorkbenchError`` rather
-than silently succeeding with empty data.
+Each tool reads the experiment that the chat is associated with. A chat without
+an experiment gets an error result, not empty data.
 """
 
 from pydantic_ai import RunContext

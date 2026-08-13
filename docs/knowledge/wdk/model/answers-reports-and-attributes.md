@@ -61,7 +61,7 @@ is the string `standard`, and the class extends `AnswerDetailsReporter`. The cla
 `StandardReporter` overrides `setAnswerValue` to call
 [`standardizeAnswerValue`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/reporter/StandardReporter.java#L52-L66),
 which sets the page to unbounded under the comment `always return all records; user cannot
-select a subset of records` and empties the sorting map. Measured live and recorded in
+select a subset of records` and empties the sorting map. Measured: and recorded in
 [WDK-ANS-005](../rules/searches-and-answers.md).
 
 `AnswerService`'s own javadoc marks the fields this affects, annotating `pagination` and

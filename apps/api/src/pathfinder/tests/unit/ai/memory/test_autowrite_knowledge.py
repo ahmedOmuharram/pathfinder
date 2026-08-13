@@ -1,9 +1,6 @@
-"""Unit tests for the verification-digest → knowledge-memory autowrite path.
-
-We assert on the candidate list `_collect_candidates` produces and the
-resulting `MemoryValue` shapes, since that's the contract the memory
-store sees. The store's actual `put` is exercised by the integration
-tests in tests/integration/ai/memory/.
+"""Tests for the autowrite path that turns a verification digest into
+knowledge memories. The assertions cover the candidates and their values,
+which is what the memory store receives.
 """
 
 from __future__ import annotations
@@ -44,8 +41,7 @@ def _digest(remember: list[MemoryEntryDraft]) -> VerificationDigest:
 
 
 def test_no_remember_yields_no_knowledge_candidates() -> None:
-    """A digest with empty `remember` adds nothing — verification doesn't
-    have to author a memory every turn."""
+    """A digest with an empty remember list adds no candidate."""
     state = _state(digest=_digest(remember=[]))
     candidates = _collect_candidates(state)
     knowledge = [v for v, _key in candidates if v.kind == "knowledge"]
@@ -53,8 +49,7 @@ def test_no_remember_yields_no_knowledge_candidates() -> None:
 
 
 def test_no_digest_yields_no_knowledge_candidates() -> None:
-    """If verification didn't run (or didn't return a digest), no knowledge
-    autowrite — we never invent memories from non-verification phases."""
+    """A turn without a digest writes no knowledge memory."""
     state = _state(digest=None)
     candidates = _collect_candidates(state)
     knowledge = [v for v, _key in candidates if v.kind == "knowledge"]
@@ -62,9 +57,8 @@ def test_no_digest_yields_no_knowledge_candidates() -> None:
 
 
 def test_remember_lifts_to_full_memory_value() -> None:
-    """A draft MemoryEntryDraft becomes a full MemoryValue with the
-    site_id and source_conversation_id pulled from pipeline state — the
-    LLM never authors those (no cross-chat leakage, no spoofed source)."""
+    """A draft becomes a full memory value. The site and the source
+    conversation come from pipeline state, not from the model."""
     draft = MemoryEntryDraft(
         name="P. falciparum kinome size",
         summary="P. falciparum 3D7 has ~142 protein kinases by GO:0016301",
@@ -88,20 +82,18 @@ def test_remember_lifts_to_full_memory_value() -> None:
     assert mv.content["count"] == 142
     assert mv.content["go_term"] == "GO:0016301"
 
-    # Site id and source conversation id come from state, not the draft.
     assert mv.site_id == "plasmodb"
     assert mv.source_conversation_id == state.conversation_id
 
-    # The draft's tags are preserved AND site_id is auto-appended once
-    # so retrieval can scope by site without the LLM remembering to do so.
+    # The draft tags survive, and the site id joins them so retrieval can
+    # scope by site.
     assert "kinome" in mv.tags
     assert "kinase" in mv.tags
     assert "plasmodb" in mv.tags
 
 
 def test_existing_site_tag_not_duplicated() -> None:
-    """If the LLM redundantly tagged the site, autowrite must not duplicate
-    — keeps tag lists tidy for retrieval."""
+    """A draft that already carries the site tag keeps one copy of it."""
     draft = MemoryEntryDraft(
         name="x",
         summary="y",
@@ -116,9 +108,8 @@ def test_existing_site_tag_not_duplicated() -> None:
 
 
 def test_multiple_drafts_get_distinct_keys() -> None:
-    """Each draft gets its own deterministic key so re-running the same
-    verification updates rather than duplicates, and different drafts in
-    the same turn don't collide."""
+    """Each draft gets its own deterministic key, so a repeated write
+    updates the memory instead of adding one."""
     drafts = [
         MemoryEntryDraft(
             name=f"finding {i}",
@@ -137,8 +128,8 @@ def test_multiple_drafts_get_distinct_keys() -> None:
 
 
 def test_verification_digest_carries_typed_routing_signal() -> None:
-    """VerificationDigest carries the disposition + prose + reason routing
-    fields; autowrite + the Lead's flow control depend on them."""
+    """The digest carries the routing fields that autowrite and the Lead flow
+    control read."""
     digest = _digest(remember=[])
     assert digest.disposition == PhaseDisposition.DONE
     assert isinstance(digest.prose, str)

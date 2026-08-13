@@ -1,10 +1,4 @@
-"""Step input resolution — primary/secondary lookup, root checks, duplication.
-
-Resolves input step references from the strategy graph, validates
-preconditions (primary present before secondary, operator required for
-binary), and auto-duplicates consumed subtrees so the same search result
-can appear in multiple tree positions (matching WDK's native behaviour).
-"""
+"""Resolution of step input references: primary and secondary lookup, root checks, and subtree duplication."""
 
 from dataclasses import dataclass
 
@@ -33,7 +27,7 @@ def _validate_primary_input(
     graph: StrategyGraph,
     primary_input_step_id: str | None,
 ) -> tuple[StrategyStep | None, ToolErrorPayload | None]:
-    """Resolve primary input step, returning (step, error_or_none)."""
+    """Resolve the primary input step."""
     if not primary_input_step_id:
         return None, None
     step = graph.get_step(primary_input_step_id)
@@ -52,7 +46,7 @@ def _check_secondary_preconditions(
     primary_input: StrategyStep | None,
     operator: str | None,
 ) -> ToolErrorPayload | None:
-    """Check preconditions for secondary input: primary present and operator provided."""
+    """Check that a secondary input has both a primary input and an operator."""
     if primary_input is None:
         return tool_error(
             ErrorCode.INVALID_STRATEGY,
@@ -74,7 +68,7 @@ def _validate_secondary_input(
     secondary_input_step_id: str | None,
     operator: str | None,
 ) -> tuple[StrategyStep | None, ToolErrorPayload | None]:
-    """Resolve secondary input step and validate preconditions, returning (step, error_or_none)."""
+    """Resolve the secondary input step and check its preconditions."""
     if not secondary_input_step_id:
         return None, None
     step = graph.get_step(secondary_input_step_id)
@@ -95,11 +89,7 @@ def _validate_inputs(
     secondary_input_step_id: str | None,
     operator: str | None,
 ) -> tuple[StrategyStep | None, StrategyStep | None, ToolErrorPayload | None]:
-    """Validate and resolve input step references.
-
-    :returns: (primary_input, secondary_input, error_or_none).
-        If error is not None, the caller should return it immediately.
-    """
+    """Resolve both input step references. A non-null error ends the caller."""
     primary_input, primary_error = _validate_primary_input(graph, primary_input_step_id)
     if primary_error is not None:
         return None, None, primary_error
@@ -117,11 +107,9 @@ def _duplicate_subtree(
     step: StrategyStep,
     graph: StrategyGraph,
 ) -> StrategyStep:
-    """Copy a subtree under fresh ids so it can be used a second time.
+    """Copy a subtree under fresh ids.
 
-    WDK requires a step to occupy exactly one position, so reusing the same
-    branch on both sides of a combine needs a real copy rather than a second
-    reference to it.
+    WDK gives a step exactly one position, so reuse needs a real copy.
     """
     remap: dict[str, str] = {}
     for old_id in subtree_ids(step.id, graph.steps):
@@ -144,13 +132,10 @@ def validate_inputs_and_roots(
     secondary_input_step_id: str | None,
     operator: str | None,
 ) -> tuple[StrategyStep | None, StrategyStep | None, ToolErrorPayload | None]:
-    """Resolve input steps and validate root status.
+    """Resolve the input steps and check their root status.
 
-    When a referenced step is already consumed (not a subtree root),
-    its subtree is silently duplicated so the same search result can
-    appear in multiple positions — matching WDK's native behaviour.
-
-    Returns (primary, secondary, error).
+    A referenced step that is already consumed gets its subtree duplicated,
+    which is how WDK lets one search result appear in several positions.
     """
     primary_input, secondary_input, error = _validate_inputs(
         graph,
@@ -161,8 +146,6 @@ def validate_inputs_and_roots(
     if error is not None:
         return None, None, error
 
-    # Auto-duplicate consumed inputs so the same search result can
-    # appear in multiple tree positions (matching WDK's native behaviour).
     if (
         primary_input is not None
         and primary_input_step_id is not None

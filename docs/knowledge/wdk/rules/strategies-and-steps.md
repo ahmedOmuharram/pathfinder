@@ -40,7 +40,7 @@ every PUT. See [strategies-and-step-trees](../model/strategies-and-step-trees.md
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/Strategy.java#L202-L208
 - anchor: apps/api/src/pathfinder/domain/strategy/graph_model.py:root_ids
-- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/strategy/test_graph_model_round_trip.py::TestRoundTrip::test_the_tree_has_exactly_one_root
+- status: PARTIAL by apps/api/src/pathfinder/tests/unit/domain/strategy/test_graph_model_round_trip.py::TestRoundTrip::test_the_tree_has_exactly_one_root
 
 `StrategyBuilder.build` throws `Root step ID is required but has not been set.` before
 constructing anything, so a strategy without a root cannot exist. The root is named twice
@@ -54,12 +54,26 @@ construction.
 The named test asserts `root_ids(steps) == {node.id}` over 100 generated trees, where a
 root is a step no other step names as an input.
 
+**The uncovered half is the wire boundary, and it is the half that matters.** Every tree
+the test sees came out of `flatten_tree` on a single node, so single-rootedness holds *by
+construction* - the test constrains `root_ids` against `flatten_tree`, not against
+anything WDK requires. PathFinder genuinely does build multi-root step maps:
+`services/strategies/session_factory.py` loads `flatten_tree(payload.root)` and then
+merges `flatten_tree(detached)` for every entry in `payload.detached_roots`, which is a
+map with as many roots as the canvas has disconnected subtrees. What keeps that off the
+wire is `services/strategies/sync.py`, which calls `pushable_root_id` and then
+`rebuild_tree` on the single id it returns
+([WDK-STEP-004](#wdk-step-004---a-step-inside-a-strategy-must-have-every-answer-parameter-filled-a-half-wired-combine-is-not-a-degraded-combine)).
+No test asserts that selection. This is the same gap
+[WDK-MAP-003](pathfinder-mapping.md) names: the projection to WDK's shape is untested,
+and pure invertibility does not reach it.
+
 ### WDK-STRAT-003 - Every step a strategy holds is reachable from its root
 
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/Strategy.java#L290-L301
 - anchor: apps/api/src/pathfinder/domain/strategy/graph_model.py:subtree_ids
-- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/strategy/test_graph_model_round_trip.py::TestRoundTrip::test_every_step_appears_exactly_once_in_the_map
+- status: PARTIAL by apps/api/src/pathfinder/tests/unit/domain/strategy/test_graph_model_round_trip.py::TestRoundTrip::test_every_step_appears_exactly_once_in_the_map
 
 Reachability is enforced by exhaustion rather than by a traversal check.
 [`buildTree`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/Strategy.java#L353-L387)
@@ -80,6 +94,15 @@ The named test asserts that `subtree_ids` from the root yields exactly the keys 
 map, with no duplicates - which is this rule and its double-visit corollary together. Note
 what the anchor is: the traversal the test exercises, not `rebuild_tree`, which is the
 projection that consumes it.
+
+**The uncovered half is that projection**, for the reason set out under
+[WDK-STRAT-002](#wdk-strat-002---a-strategy-has-exactly-one-root-step). The test's step
+maps all come from `flatten_tree` on one node, so total reachability holds by
+construction; the assertion pins `subtree_ids` against `flatten_tree` rather than against
+WDK's exhaustion check. The map PathFinder actually holds can contain detached subtrees
+that are unreachable from the pushed root by design, and what makes the push legal is
+`sync.py` sending only `rebuild_tree(pushable_root_id(...))`. Nothing asserts that the
+tree handed to `PUT .../step-tree` contains no step outside it.
 
 ### WDK-STRAT-004 - The strategy's record class is the root step's record class, not its leaves'
 
@@ -106,12 +129,12 @@ strategy PathFinder has built so far, and diverge the moment a class-crossing tr
 used. This is recorded rather than fixed because the fix is a modelling change - per-node
 record class instead of one per graph - not a patch.
 
-### WDK-STRAT-005 - A 200 from `PUT .../step-tree` says the tree is well-formed, not that the strategy runs
+### WDK-STRAT-005 - A 204 from `PUT .../step-tree` says the tree is well-formed, not that the strategy runs
 
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StrategyService.java#L222-L248
 - anchor: apps/api/src/pathfinder/services/strategies/sync.py:_create_or_update_wdk_strategy
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/strategies/test_tree_push_is_not_a_checkpoint.py::TestTheReadIsWhatReportsValidity::test_an_accepted_tree_can_still_hold_an_invalid_step
 
 `overwriteStepTreeAndSave` builds the replacement strategy at `ValidationLevel.NONE`. At
 that level nothing about parameter values is examined. What the endpoint does check is
@@ -126,13 +149,22 @@ which explicitly skips the record-type check below that level. So the request th
 assembled a nonsensical strategy succeeds, and the failure arrives later, attached to
 whichever step you happened to run.
 
+**The success code is 204, not 200.** `replaceStepTree` is declared
+`public void replaceStepTree(@PathParam(ID_PARAM) long stratId, JSONObject body)`, and a
+JAX-RS resource method returning `void` produces an empty 204. A client asserting 200 on
+this endpoint fails on a correct response.
+
 The operational consequence: a successful tree push is not a checkpoint. The next thing
 after it must be a read that carries validation - `GET .../strategies/{id}` validates at
-`RUNNABLE` - or a run. Treating the 200 as confirmation is how a broken strategy gets
+`RUNNABLE` - or a run. Treating the 204 as confirmation is how a broken strategy gets
 reported to a researcher as built.
 
-Source-only: read off the pinned sha, not confirmed against a running site. See
-[the pin-versus-deployment note](../sources.md).
+Confirmed live on plasmodb.org and toxodb.org on 2026-08-10, as a side effect of the
+[WDK-VALID-004](validation.md) experiment: a leaf was invalidated through
+`PUT .../search-config?allowInvalid=true`, a combined step was then wired over it with
+`PUT .../strategies/{id}/step-tree`, and the tree push returned **204** - accepting a
+strategy whose parameters are invalid, which is this rule. The step then read
+`isValid: false` at `RUNNABLE`.
 
 ### WDK-STRAT-006 - `A INTERSECT (B UNION C)` is not `(A INTERSECT B) UNION C`, and WDK accepts both
 
@@ -397,7 +429,7 @@ Enforcement is
 [`AnswerParam.validateValue`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AnswerParam.java#L140-L145),
 `A step with record type '<name>' is not allowed` - but only at `RUNNABLE`, which is why
 this arrives as a step validation failure and not as a rejected tree push
-([WDK-STRAT-005](#wdk-strat-005---a-200-from-put-step-tree-says-the-tree-is-well-formed-not-that-the-strategy-runs)).
+([WDK-STRAT-005](#wdk-strat-005---a-204-from-put-step-tree-says-the-tree-is-well-formed-not-that-the-strategy-runs)).
 
 Live on both verification sites on 2026-08-10, the transcript boolean question reports
 `allowedPrimaryInputRecordClassNames` and `allowedSecondaryInputRecordClassNames` of

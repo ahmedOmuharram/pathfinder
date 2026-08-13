@@ -39,11 +39,7 @@ class ParamSpecNormalized:
 
 
 def unwrap_search_data(details: JSONObject | None) -> JSONObject | None:
-    """Normalize WDK/discovery payload shape to the dict that contains parameters.
-
-    :param details: Search details from WDK/discovery.
-    :returns: Search data dict or None.
-    """
+    """Return the dict that holds the parameters from a WDK or discovery payload."""
     if not isinstance(details, dict):
         return None
     search_data_raw = details.get("searchData")
@@ -60,10 +56,9 @@ def find_input_step_param(specs: dict[str, ParamSpecNormalized]) -> str | None:
 
 
 def topological_fill_order(specs: dict[str, ParamSpecNormalized]) -> list[str]:
-    """Kahn topological sort of param names by dependent_params edges.
+    """Sort param names so that a parent comes before the params it controls.
 
-    Parents (params whose ``dependent_params`` lists others) come before
-    their children. Cycles fall back to lexical order.
+    A cycle falls back to lexical order.
     """
     depends_on: dict[str, list[str]] = {}
     controls: dict[str, list[str]] = {name: [] for name in specs}
@@ -90,13 +85,9 @@ def find_dependent_value_violations(
     param_specs: dict[str, ParamSpecNormalized],
     parameters: JSONObject,
 ) -> list[tuple[str, list[str]]]:
-    """Return ``[(param_name, invalid_values)]`` for dependent params with
-    values not present in the (already-refreshed) vocabulary.
+    """Return the values of dependent params that are absent from their vocabulary.
 
-    Only applies to params whose name appears in some other spec's
-    ``dependent_params`` list; ie this is a *child of a parent that
-    controls vocab*. Empty / missing values are skipped — those are
-    handled by ``find_missing_required_params``.
+    The vocabulary must already be refreshed. Empty and missing values are skipped.
     """
     dependent_names: set[str] = {
         dep for spec in param_specs.values() for dep in spec.dependent_params
@@ -128,12 +119,8 @@ def fill_hidden_required_defaults(
 ) -> dict[str, ParamValue]:
     """Fill hidden required params from their fixed ``initial_display_value``.
 
-    A hidden (``is_visible=False``), required (``not allow_empty_value``) param
-    with a fixed ``initial_display_value`` — e.g. GenesByText's
-    ``document_type='gene'`` — is plumbing the model never sees and cannot set,
-    yet WDK rejects the search without it. Inject it so it reaches WDK and is
-    not reported missing. Visible required params are the model's job and are
-    never auto-filled (filling them would mask genuinely-missing input).
+    WDK rejects a search without these params, but the model cannot set them.
+    Visible required params are never auto-filled.
     """
     filled: dict[str, ParamValue] = dict(parameters)
     for name, spec in param_specs.items():
@@ -153,16 +140,7 @@ def find_missing_required_params(
     param_specs: dict[str, ParamSpecNormalized],
     parameters: JSONObject,
 ) -> list[str]:
-    """Find required parameters that are missing or empty in the given values.
-
-    Shared by ``validation.py`` and ``param_validation.py`` to keep the
-    required-check logic in a single place.
-
-    :param param_specs: Normalized parameter specs (from
-        ``adapt_param_specs_from_search``).
-    :param parameters: Parameter values to check.
-    :returns: List of missing required parameter names.
-    """
+    """Return the names of required parameters that are missing or empty."""
     missing: list[str] = []
     for name, spec in param_specs.items():
         is_required = not spec.allow_empty_value or (

@@ -37,6 +37,7 @@ from pathfinder.services.catalog.param_adapters import (
     adapt_param_from_wdk,
     adapt_param_specs_from_search,
 )
+from pathfinder.services.catalog.wdk_substitution import substituted_params
 
 from .param_formatting import format_normalized_param_info
 from .param_resolution import (
@@ -97,9 +98,8 @@ class ResolveRecordTypeFn(Protocol):
 class ValidationCallbacks:
     """Caller-provided callbacks for parameter validation.
 
-    ``validation_error_payload`` is optional — only needed when the caller
-    wants to convert :class:`ValidationError` into a ``tool_error`` payload
-    (e.g. during step creation).
+    Set the payload callback only when the caller must turn a validation error
+    into a tool error payload.
     """
 
     resolve_record_type_for_search: ResolveRecordTypeFn
@@ -114,13 +114,9 @@ async def validate_search_params(
     *,
     context_values: dict[str, ParamValue] | None,
 ) -> ValidationResponse:
-    """Validate and canonicalize search parameters for UI consumption.
+    """Validate and canonicalize search parameters for the UI.
 
-    Returns a stable payload:
-      { "validation": { "isValid": bool, "normalizedContextValues": {...}, "errors": {...} } }
-
-    The goal is to keep the frontend a consumer of backend normalization + validation,
-    without requiring the UI to interpret raw WDK payloads.
+    The frontend consumes this result. It never interprets raw WDK payloads.
     """
     raw_context: dict[str, ParamValue] = context_values or {}
     response: WDKSearchResponse | None = None
@@ -199,14 +195,10 @@ async def _resolve_search_details(
     resolved_record_type: str,
     parameters: dict[str, ParamValue],
 ) -> WDKSearchResponse:
-    """Fetch search details with contextual params, with fallback.
+    """Fetch search details with contextual params, or fall back to static specs.
 
-    ``ctx`` carries the original (site_id, record_type, search_name) for
-    error-hint generation; ``resolved_record_type`` is the already-resolved
-    record type used for the actual WDK call.
-
-    Raises ``ValidationError`` with available-search hints when the
-    search cannot be found at all.
+    The context keeps the original identifiers for error hints. Raises a
+    validation error with search hints when WDK does not know the search.
     """
     discovery = get_discovery_service()
     try:
@@ -281,12 +273,19 @@ async def _find_search_record_type_hint(
     return None
 
 
+class ValidatedParams(CamelModel):
+    """Canonical values, and the names WDK supplied rather than accepted."""
+
+    params: dict[str, ParamValue] = Field(default_factory=dict)
+    substituted: list[str] = Field(default_factory=list)
+
+
 async def validate_parameters(
     ctx: SearchContext,
     *,
     parameters: dict[str, ParamValue],
     callbacks: ValidationCallbacks,
-) -> dict[str, ParamValue]:
+) -> ValidatedParams:
     resolved_record_type = await callbacks.resolve_record_type_for_search(
         ctx.record_type, ctx.search_name, require_match=True, allow_fallback=True
     )
@@ -313,6 +312,23 @@ async def validate_parameters(
         parameters=parameters,
     )
 
+    # WDK validated these values while answering. Its verdict is authoritative,
+    # so it is read before the local checks rather than recomputed after them.
+    if response.validation.rejects():
+        raise ValidationError(
+            title="Invalid parameter value",
+            detail="; ".join(response.validation.messages())
+            or "WDK rejected these parameter values.",
+            errors=[
+                {"param": key, "messages": list(texts)}
+                for key, texts in (
+                    response.validation.errors.by_key
+                    if response.validation.errors
+                    else {}
+                ).items()
+            ],
+        )
+
     param_spec_map = adapt_param_specs_from_search(response.search_data)
     canonicalizer = ParameterCanonicalizer(param_spec_map)
     canonical: dict[str, ParamValue] = canonicalizer.canonicalize(parameters)
@@ -321,12 +337,8 @@ async def validate_parameters(
         record_type=resolved_record_type,
         search_name=ctx.search_name,
     )
-    # Fill hidden defaults BEFORE refreshing. A hidden required parent is
-    # plumbing the model never sets -- `channel` on the DeRisi searches, with
-    # `initial_display_value="Channel 1"` -- and the refresh below skips any
-    # parent whose value is empty. Refreshing first left the child's
-    # vocabulary un-narrowed, so 13 time points WDK accepts were reported
-    # invalid and the strategy could not build.
+    # The refresh below skips a parent whose value is empty, so hidden required
+    # parents must get their defaults first.
     canonical = fill_hidden_required_defaults(param_spec_map, canonical)
     param_spec_map = await _refresh_dependent_vocabularies(
         ctx=refreshed_ctx,
@@ -426,7 +438,15 @@ async def validate_parameters(
                 }
             ],
         )
-    return canonical
+    echoed = {
+        spec.name: spec.initial_display_value
+        for spec in response.search_data.parameters or []
+        if spec.initial_display_value is not None
+    }
+    return ValidatedParams(
+        params=canonical,
+        substituted=substituted_params(sent=parameters, echoed=echoed),
+    )
 
 
 async def _refresh_dependent_vocabularies(
@@ -435,15 +455,10 @@ async def _refresh_dependent_vocabularies(
     param_spec_map: dict[str, ParamSpecNormalized],
     canonical_values: dict[str, ParamValue],
 ) -> dict[str, ParamSpecNormalized]:
-    """Walk parents in topological order and refresh each dependent param's
-    vocabulary against the parent's *canonical* value.
+    """Refresh each dependent vocabulary against its parent's canonical value.
 
-    Mirrors what the WDK web client does on every parent-param edit:
-    POST refreshed-dependent-params with the running context, replace the
-    children's vocabularies, then move on. Parents whose value is empty
-    are skipped — empty parents leave the static (default) child vocab in
-    place. Refresh failures are logged and swallowed so validation falls
-    back to the static vocab rather than blocking the user.
+    A parent with an empty value keeps the static child vocabulary. A failed
+    refresh also keeps the static vocabulary.
     """
     next_specs = dict(param_spec_map)
     fill_order = topological_fill_order(next_specs)

@@ -1,11 +1,7 @@
-"""HTTPClient must re-initialize its WDK session (``JSESSIONID`` cookie) when
-the effective auth token changes.
+"""Tests that the HTTP client starts a new WDK session when the auth token
+changes.
 
-The cookie jar is shared across all tasks using a given site's client
-(``SiteRouter._clients`` singleton). Without a re-init, the first task's
-JSESSIONID persists — contaminating requests for a second task using a
-different user's token, which silently returns 0 results from process
-queries per WDK docs.
+One client per site serves every task, so the clients share a cookie jar.
 """
 
 from __future__ import annotations
@@ -44,8 +40,7 @@ async def _build_client_with_transport(
     client: HTTPClient,
     transport: _CapturingTransport,
 ) -> None:
-    """Preload the HTTPClient's internal httpx client with our test
-    transport so we can assert on outgoing traffic."""
+    """Give the client a transport that records the outgoing requests."""
     async with client._client_lock:
         client._client = httpx.AsyncClient(
             base_url=client.base_url,
@@ -58,8 +53,7 @@ async def _build_client_with_transport(
 async def test_reinits_when_token_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Two turns with different tokens on the same client must trigger
-    two ``_init_wdk_session`` calls — proving the jar was cleared."""
+    """Two tokens on one client produce two session init calls."""
     transport = _CapturingTransport()
     client = HTTPClient(base_url="https://plasmodb.org/plasmo/service")
     await _build_client_with_transport(client, transport)
@@ -87,7 +81,7 @@ async def test_reinits_when_token_changes(
 async def test_does_not_reinit_when_token_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Two turns with the same token should only init once."""
+    """One token produces one session init call."""
     transport = _CapturingTransport()
     client = HTTPClient(base_url="https://plasmodb.org/plasmo/service")
     await _build_client_with_transport(client, transport)
@@ -109,8 +103,7 @@ async def test_does_not_reinit_when_token_unchanged(
 async def test_clears_jsessionid_cookie_on_reinit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Re-init must remove any stale ``JSESSIONID`` from the cookie jar
-    so the new token's init call sets a fresh one."""
+    """A new session removes the session cookie of the previous token."""
     transport = _CapturingTransport()
     client = HTTPClient(base_url="https://plasmodb.org/plasmo/service")
     await _build_client_with_transport(client, transport)
@@ -139,7 +132,7 @@ async def test_clears_jsessionid_cookie_on_reinit(
 
 
 class _ConstCtx:
-    """Monkeypatch target: a .get()-only stand-in for the real ContextVar."""
+    """A read-only stand-in for the auth token context variable."""
 
     def __init__(self, value: str | None) -> None:
         self._value = value

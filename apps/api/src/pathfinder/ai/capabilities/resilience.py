@@ -1,11 +1,4 @@
-"""ToolResilience capability -- Layers 0-1.
-
-Routes tool execution failures to the right recovery strategy:
-
-  Layer 0 (prepare_tools): circuit breaker — removes tools past retry threshold
-  Layer 1 (on_tool_execute_error): TRANSIENT → ModelRetry, SEMANTIC → directive,
-    PERMANENT → unavailable directive, UNKNOWN → generic directive + log
-"""
+"""The ToolResilience capability, which routes tool failures to a recovery strategy."""
 
 from __future__ import annotations
 
@@ -301,14 +294,10 @@ def _outage_directive(tool_name: str, search_name: str, error: Exception) -> str
 
 @dataclass
 class ToolResilience(AbstractCapability[AgentDeps]):
-    """Routes tool execution errors to the appropriate recovery strategy.
+    """Route each tool execution error to a recovery strategy by its category.
 
-    Layer 0: prepare_tools — circuit breaker removes tools past the retry threshold
-    Layer 1: on_tool_execute_error
-      - TRANSIENT  → ModelRetry (pydantic-ai retries the call)
-      - SEMANTIC   → structured directive string returned as tool result
-      - PERMANENT  → service-unavailable directive
-      - UNKNOWN    → generic directive + full stack trace in logs
+    A transient error raises ModelRetry. Every other category returns a
+    directive string as the tool result.
     """
 
     _CIRCUIT_BREAK_THRESHOLD: int = 3
@@ -339,9 +328,7 @@ class ToolResilience(AbstractCapability[AgentDeps]):
         error: Exception,
     ) -> Any:
         """Intercept tool execution errors and route by category."""
-        # GraphInterrupt is LangGraph's control-flow signal for durable tools
-        # (the tool suspends the graph and resumes via Command(resume=...)).
-        # It is not an error and must propagate unchanged.
+        # GraphInterrupt is a LangGraph control-flow signal, not an error.
         if isinstance(error, GraphInterrupt):
             raise error
         tool_name = tool_def.name
@@ -372,7 +359,6 @@ class ToolResilience(AbstractCapability[AgentDeps]):
                 do_not="Do not call this tool again — the service is permanently unavailable",
             )
 
-        # UNKNOWN — log full stack trace, return generic directive
         logger.error(
             "Unknown tool error",
             tool_name=tool_name,
@@ -393,11 +379,7 @@ class ToolResilience(AbstractCapability[AgentDeps]):
         ctx: RunContext[AgentDeps],
         tool_defs: list[ToolDefinition],
     ) -> list[ToolDefinition]:
-        """Layer 0: circuit breaker — remove tools that have failed too many times.
-
-        Tools whose retry count meets or exceeds _CIRCUIT_BREAK_THRESHOLD are
-        removed from the tool list for this step, preventing infinite retry loops.
-        """
+        """Remove tools whose retry count reaches the circuit-break threshold."""
         if not ctx.retries:
             return tool_defs
 

@@ -1,16 +1,4 @@
-"""Deleting an edge on the canvas must reach the backend.
-
-The frontend has always been able to delete an edge (ReactFlow calls it on
-the edge's own control), applied it optimistically, and then POSTed a
-``deleteEdge`` operation the backend's discriminated union did not contain.
-FastAPI rejected the unknown tag with 422, the optimistic apply rolled back,
-and the researcher saw "Operation failed" on a gesture that looked like it
-had worked.
-
-Detach clears the slot and the combine fields that only make sense while the
-slot is filled. Collapse is the same thing the delete-step path already does
-for a combine, so it delegates rather than reimplementing the traversal.
-"""
+"""Tests the delete-edge operation: wire contract, detach, and collapse."""
 
 from collections.abc import Iterable
 
@@ -31,7 +19,7 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 
 class _Request(CamelModel):
-    """Mirrors ApplyOperationRequest so the wire shape is exercised."""
+    """Mirrors the apply-operation request, so the wire shape is exercised."""
 
     op: GraphOperation
 
@@ -61,7 +49,7 @@ def _combine(
 
 
 class TestWireContract:
-    """The 422: the union must carry the tag the canvas actually sends."""
+    """The operation union must carry the tag the canvas sends."""
 
     def test_delete_edge_parses_from_the_wire(self) -> None:
         request = _Request.model_validate(
@@ -148,7 +136,7 @@ class TestDetach:
         assert g.steps["c"].colocation_params is None
 
     def test_detached_source_survives_as_its_own_root(self) -> None:
-        """Detach is not delete - the freed subtree stays in the graph."""
+        """Detach is not delete. The freed subtree stays in the graph."""
         c = _combine("c", _leaf("a"), _leaf("b"))
         g = _graph_with([c])
 
@@ -182,8 +170,7 @@ class TestDetach:
         assert result.dropped_step_ids == []
 
     def test_detaching_primary_promotes_the_surviving_secondary(self) -> None:
-        """``secondaryInput`` without ``primaryInput`` violates the node
-        invariant, so the remaining wire moves up instead of being stranded."""
+        """A node cannot hold a secondary input alone, so the survivor moves up."""
         c = _combine("c", _leaf("a"), _leaf("b"))
         g = _graph_with([c])
 
@@ -203,12 +190,7 @@ class TestDetach:
         assert g.roots == {"a", "c"}
 
     def test_the_detached_node_still_projects_to_wdk(self) -> None:
-        """Detaching leaves a shape the nested projection must still accept.
-
-        ``secondaryInput`` without ``primaryInput`` is rejected by
-        ``StrategyStepNode``, so promoting the survivor is what keeps the
-        graph pushable after an edge is cut.
-        """
+        """A detached graph must still project to the nested shape WDK accepts."""
         c = _combine("c", _leaf("a"), _leaf("b"))
         g = _graph_with([c])
 
@@ -241,7 +223,7 @@ class TestDetach:
             )
 
     def test_slot_that_is_not_wired_to_the_source_is_rejected(self) -> None:
-        """Guards against a stale canvas deleting an edge that has moved."""
+        """A slot that does not hold the named source rejects the delete."""
         c = _combine("c", _leaf("a"), _leaf("b"))
         g = _graph_with([c])
 

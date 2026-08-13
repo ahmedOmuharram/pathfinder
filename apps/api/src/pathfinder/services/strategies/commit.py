@@ -119,7 +119,7 @@ async def apply_operations_and_commit(
             step_result = apply_operation(graph, op)
             descriptions.append(step_result.description)
             dropped_step_ids.extend(step_result.dropped_step_ids)
-    except (ApplyError, ValueError):
+    except ApplyError, ValueError:
         _restore_graph(graph, old_ast)
         raise
 
@@ -135,9 +135,7 @@ async def apply_operations_and_commit(
     # lost an input stays on the canvas and in the persisted AST, but pushing
     # it would be rejected, so the plan is built from the surviving branch.
     pushable_id = (
-        pushable_root_id(new_ast.root.id, graph.steps)
-        if new_ast is not None
-        else None
+        pushable_root_id(new_ast.root.id, graph.steps) if new_ast is not None else None
     )
     wdk_ast = (
         graph.to_strategy_ast(

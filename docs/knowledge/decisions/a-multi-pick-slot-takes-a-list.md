@@ -21,7 +21,7 @@ Answering a multi-pick open slot with the natural value produced:
 
 `set_criterion(param_overrides: dict[str, str])` could not express a multi-value selection at all. The model retried with several encodings, then told the user "the API rejected the combined sample encoding" and offered to build 13 separate search arms.
 
-WDK accepts that payload outright (totalCount 841). Nothing upstream had rejected anything -- the tool signature had.
+WDK accepts that payload outright (a non-empty result). Nothing upstream had rejected anything -- the tool signature had.
 
 # The change
 

@@ -48,7 +48,7 @@ def _digest(content: object) -> str:
     """
     try:
         rendered = content if isinstance(content, str) else json.dumps(content)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         rendered = str(content)
     head = rendered[:_ELIDE_DIGEST_CHARS]
     return f"{head}... {_ELIDED_MARKER}; already acted on, do not fetch again>"
@@ -64,7 +64,7 @@ def _already_elided(content: object) -> bool:
 def _too_small_to_elide(content: object) -> bool:
     try:
         rendered = content if isinstance(content, str) else json.dumps(content)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         rendered = str(content)
     return len(rendered) <= _ELIDE_MIN_CHARS
 

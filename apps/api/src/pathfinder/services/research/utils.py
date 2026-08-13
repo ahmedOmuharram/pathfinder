@@ -34,8 +34,7 @@ class LiteratureItemContext:
 _MIN_FILTERED_WORD_COUNT = 2
 _MIN_BIGRAM_WORD_COUNT = 2
 _HTTP_ACCEPTED = 202
-# Filter out short <p> tags (nav items, footers, etc.) when extracting
-# page summaries — only keep paragraphs likely to contain real content.
+# Paragraphs shorter than this are navigation or footer text, not content.
 _MIN_PARAGRAPH_LENGTH = 60
 
 BROWSER_USER_AGENT = (
@@ -46,32 +45,19 @@ BROWSER_USER_AGENT = (
 
 
 def norm_text(value: str | None) -> str:
-    """Normalize text for comparison.
-
-    :param value: Text to normalize.
-    :returns: Normalized string.
-    """
+    """Normalize text for comparison."""
     return (value or "").strip().lower()
 
 
 def list_str(value: JsonValue) -> list[str]:
-    """Convert a JSON value to a list of strings.
-
-    :param value: Value to process.
-
-    """
+    """Convert a JSON value to a list of strings."""
     if isinstance(value, list):
         return [str(v) for v in value if v is not None]
     return []
 
 
 def limit_authors(authors: list[str] | None, max_authors: int) -> list[str] | None:
-    """Limit the number of authors, appending 'et al.' if truncated.
-
-    :param authors: Author list.
-    :param max_authors: Maximum number of authors (-1 for no limit).
-    :returns: Truncated list or None.
-    """
+    """Limit the author list. A max of -1 means no limit."""
     cleaned = (
         [str(a) for a in authors if a is not None and str(a).strip()]
         if isinstance(authors, list) and authors
@@ -86,12 +72,7 @@ def limit_authors(authors: list[str] | None, max_authors: int) -> list[str] | No
 
 
 def truncate_text(text: str | None, max_chars: int) -> str | None:
-    """Truncate text to max_chars, appending ellipsis if truncated.
-
-    :param text: Text to truncate.
-    :param max_chars: Maximum character count.
-    :returns: Truncated string or None.
-    """
+    """Truncate text to max_chars and mark it as truncated."""
     if not isinstance(text, str):
         return None
     t = text.strip()
@@ -101,22 +82,14 @@ def truncate_text(text: str | None, max_chars: int) -> str | None:
 
 
 def strip_tags(text: str) -> str:
-    """Remove HTML tags and normalize whitespace.
-
-    :param text: HTML string.
-    :returns: Plain text.
-    """
+    """Remove HTML tags and normalize whitespace."""
     cleaned = re.sub(r"<[^>]+>", " ", text)
     cleaned = html.unescape(cleaned)
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
 def decode_ddg_redirect(href: str) -> str:
-    """Decode DuckDuckGo redirect URLs.
-
-    :param href: Redirect URL.
-    :returns: Decoded URL.
-    """
+    """Decode a DuckDuckGo redirect URL to its target URL."""
     h = (href or "").strip()
     if not h:
         return h
@@ -148,11 +121,7 @@ _LOW_VALUE_QUERY_TOKENS = {
 
 
 def candidate_queries(q: str) -> list[str]:
-    """Generate candidate query variations for fallback searches.
-
-    :param q: Search query.
-    :returns: Candidate query variations.
-    """
+    """Generate query variations for fallback searches."""
     raw = (q or "").strip()
     if not raw:
         return []
@@ -176,12 +145,7 @@ def candidate_queries(q: str) -> list[str]:
 
 
 def looks_blocked(status_code: int, html: str) -> bool:
-    """Check if a response looks like it was blocked by rate limiting.
-
-    :param status_code: HTTP status code.
-    :param html: Response HTML body.
-    :returns: True if response looks blocked.
-    """
+    """Report whether a response looks blocked by rate limiting."""
     if status_code == _HTTP_ACCEPTED:
         return True
     h = (html or "").lower()
@@ -191,11 +155,7 @@ def looks_blocked(status_code: int, html: str) -> bool:
 
 
 def norm_for_match(text: str | None) -> str:
-    """Normalize text for fuzzy matching.
-
-    :param text: Text to normalize.
-    :returns: Normalized string for matching.
-    """
+    """Normalize text for fuzzy matching."""
     if not isinstance(text, str):
         return ""
     t = text.lower()
@@ -203,24 +163,14 @@ def norm_for_match(text: str | None) -> str:
 
 
 def fallback_ratio(a: str, b: str) -> float:
-    """Fallback similarity ratio using SequenceMatcher.
-
-    :param a: First string.
-    :param b: Second string.
-    :returns: Similarity ratio (0-100).
-    """
+    """Return a similarity ratio from 0 to 100 using SequenceMatcher."""
     if not a or not b:
         return 0.0
     return SequenceMatcher(None, a, b).ratio() * 100.0
 
 
 def fuzzy_score(query: str, text: str) -> float:
-    """Calculate fuzzy similarity score between query and text.
-
-    :param query: Search query.
-    :param text: Text to score.
-    :returns: Fuzzy similarity score.
-    """
+    """Score the fuzzy similarity between a query and a text."""
     q = norm_for_match(query)
     t = norm_for_match(text)
     if not q or not t:
@@ -236,19 +186,12 @@ _MIN_ABSTRACT_SCORE_LEN = 40
 
 
 def rerank_score(query: str, paper: ParsedPaper) -> tuple[float, dict[str, float]]:
-    """Calculate reranking score for a literature search result.
-
-    :param query: Search query.
-    :param paper: Parsed paper model.
-    :returns: Tuple of (score, score breakdown).
-    """
+    """Score a literature result and return the score with its breakdown."""
     title = paper.title
     abstract = paper.abstract or paper.snippet or ""
     journal = paper.journal_title or ""
     title_s = fuzzy_score(query, title)
-    # Only score the abstract when it carries real content. A short journal-name
-    # snippet (e.g. "Vaccine") is a query subword and token_set_ratio would award
-    # it a phantom 100, ranking abstract-less results above real ones.
+    # Only score the abstract when it is long enough to carry real content.
     abs_s = (
         fuzzy_score(query, abstract)
         if len(abstract.strip()) >= _MIN_ABSTRACT_SCORE_LEN
@@ -260,12 +203,7 @@ def rerank_score(query: str, paper: ParsedPaper) -> tuple[float, dict[str, float
 
 
 def passes_filters(item: LiteratureItemContext, filters: LiteratureFilters) -> bool:
-    """Check if a literature result passes all filters.
-
-    :param item: Item fields to check (title, authors, year, doi, pmid, journal).
-    :param filters: Filter criteria to apply.
-    :returns: True if result passes all filters.
-    """
+    """Report whether a literature result passes every filter."""
     year_ok = (
         filters.year_from is None
         or (item.year is not None and item.year >= filters.year_from)
@@ -304,12 +242,9 @@ def passes_filters(item: LiteratureItemContext, filters: LiteratureFilters) -> b
 
 
 def dedupe_key(paper: ParsedPaper) -> str:
-    """Generate a deduplication key for a literature result.
+    """Build a deduplication key for a literature result.
 
-    Priority: pmid > doi > url > title+year fallback.
-
-    :param paper: Parsed paper model.
-
+    Key priority is pmid, then doi, then url, then title and year.
     """
     for prefix, value in [("pmid", paper.pmid), ("doi", paper.doi), ("url", paper.url)]:
         if value and value.strip():
@@ -317,7 +252,7 @@ def dedupe_key(paper: ParsedPaper) -> str:
     return f"title:{norm_text(paper.title)}|year:{paper.year}"
 
 
-_HEAD_LIMIT = 32 * 1024  # 32 KB — more than enough to capture <head>
+_HEAD_LIMIT = 32 * 1024
 
 _META_PATTERNS = [
     re.compile(
@@ -336,7 +271,7 @@ _META_PATTERNS = [
 
 
 def _extract_meta_description(text: str) -> str | None:
-    """Try each meta-description pattern and return the first match."""
+    """Return the first meta description that matches a known pattern."""
     for pat in _META_PATTERNS:
         m = pat.search(text)
         if m:
@@ -363,12 +298,10 @@ def _extract_best_paragraph(text: str) -> str | None:
 async def fetch_page_summary(
     client: httpx.AsyncClient, url: JsonValue, *, max_chars: int
 ) -> str | None:
-    """Fetch and extract a text summary from a web page.
+    """Fetch a web page and extract a short text summary.
 
-    Streams the response and stops reading as soon as ``</head>`` is found or
-    32 KB have been consumed.  Meta description tags are checked first; if none
-    are present the longest ``<p>`` in the buffered content is used as a
-    fallback.  Returns ``None`` for PDFs, Google Scholar links, or on error.
+    Reading stops at the end of the head element or at the byte limit.
+    Meta descriptions take priority over the longest paragraph.
     """
     u = url.strip() if isinstance(url, str) else ""
     is_skippable = not u or u.lower().endswith(".pdf") or "scholar.google." in u
@@ -399,7 +332,6 @@ async def fetch_page_summary(
 
     if fetch_error:
         return None
-    # --- Try meta descriptions (always in <head>) ---
     search_region = buf[: buf.lower().find("</head>") + 7] if head_closed else buf
     desc = _extract_meta_description(search_region)
     text = desc or _extract_best_paragraph(buf)

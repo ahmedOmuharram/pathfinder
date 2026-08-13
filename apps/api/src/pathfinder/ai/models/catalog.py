@@ -1,11 +1,4 @@
-"""Central model catalog — single source of truth for available LLM models.
-
-Each entry carries enough metadata for the frontend to render a grouped
-dropdown and for the backend to validate per-request overrides.
-
-Cloud models are hardcoded.  Ollama (local) models are loaded from an
-optional YAML file pointed to by ``OLLAMA_MODELS_CONFIG``.
-"""
+"""The catalog of selectable LLM models: cloud entries plus local entries from YAML."""
 
 from functools import lru_cache
 from typing import Any
@@ -26,11 +19,9 @@ __all__ = [
 
 
 class ModelEntry(CamelModel):
-    """Catalog entry.
+    """One model in the catalog.
 
-    Construct via :meth:`entry` — it splits the ``"provider:model"`` id
-    into the required ``provider`` and ``model_name`` wire fields so the
-    frontend treats them as non-optional.
+    The ID holds the provider and the model name, joined by a colon.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -62,13 +53,11 @@ class ModelEntry(CamelModel):
 
     @classmethod
     def entry(cls, **kwargs: Any) -> "ModelEntry":
-        """Build a ModelEntry from kwargs, routing through the validator."""
+        """Build an entry from keyword arguments, through the validator."""
         return cls.model_validate(kwargs)
 
 
-# Cloud models — always present.
 _CLOUD_MODELS: tuple[ModelEntry, ...] = (
-    # OpenAI
     ModelEntry.entry(
         id="openai:gpt-5.6-sol",
         name="GPT-5.6 Sol",
@@ -100,7 +89,6 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=1.20,
         is_provider_smallest=True,
     ),
-    # Anthropic
     ModelEntry.entry(
         id="anthropic:claude-opus-5",
         name="Claude Opus 5",
@@ -132,7 +120,6 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=5.00,
         is_provider_smallest=True,
     ),
-    # Google
     ModelEntry.entry(
         id="google:gemini-3.1-pro-preview",
         name="Gemini 3.1 Pro",
@@ -164,7 +151,6 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=2.50,
         is_provider_smallest=True,
     ),
-    # Mock (deterministic E2E testing)
     ModelEntry.entry(
         id="mock:deterministic",
         name="Mock (deterministic)",
@@ -176,7 +162,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
 
 
 class _OllamaYamlItem(BaseModel):
-    """A single entry in ``ollama_models.yaml``."""
+    """One model entry in the local-model YAML file."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -187,7 +173,7 @@ class _OllamaYamlItem(BaseModel):
 
 
 class _OllamaYamlConfig(BaseModel):
-    """Top-level structure of ``ollama_models.yaml``."""
+    """Top level of the local-model YAML file."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -195,18 +181,7 @@ class _OllamaYamlConfig(BaseModel):
 
 
 def _load_ollama_models() -> tuple[ModelEntry, ...]:
-    """Load Ollama model entries from the YAML config file.
-
-    YAML format (``ollama_models.yaml``)::
-
-        models:
-          - model: llama3
-            name: Llama 3
-          - model: mistral
-            name: Mistral 7B
-          - model: qwen3
-            name: Qwen 3
-    """
+    """Load local model entries from the YAML file. Return empty when it is absent."""
     path = _REPO_ROOT / "ollama_models.yaml"
     if not path.is_file():
         return ()
@@ -240,7 +215,7 @@ def _load_ollama_models() -> tuple[ModelEntry, ...]:
 
 @lru_cache
 def get_model_catalog() -> tuple[ModelEntry, ...]:
-    """Return the full model catalog (cloud + local)."""
+    """Return every catalog entry, cloud and local."""
     return _CLOUD_MODELS + _load_ollama_models()
 
 
@@ -250,22 +225,16 @@ def _build_index() -> dict[str, ModelEntry]:
 
 
 def get_model_entry(model_id: str) -> ModelEntry | None:
-    """Look up a model by catalog ID.
-
-    :param model_id: Model identifier (e.g. ``openai:gpt-5.6-luna``).
-    :returns: Model entry if found, otherwise None.
-    """
+    """Look up a model by catalog ID. Return None when no entry matches."""
     return _build_index().get(model_id)
 
 
 def get_smallest_model(provider: ModelProvider) -> ModelEntry:
-    """Return the provider's smallest (cheapest, fastest) model.
+    """Return the smallest model for a provider.
 
-    Used for utility tasks such as conversation-title generation where
-    quality matters less than latency and cost. Exactly one entry per
-    provider must be marked ``is_provider_smallest=True``.
+    Exactly one entry per provider carries the smallest flag.
 
-    :raises LookupError: if no smallest entry is marked for the provider.
+    :raises LookupError: If the provider has no entry with the flag.
     """
     for entry in get_model_catalog():
         if entry.provider == provider and entry.is_provider_smallest:

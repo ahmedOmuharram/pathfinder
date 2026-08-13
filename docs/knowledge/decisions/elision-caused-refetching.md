@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Eliding a tool result makes the agent fetch it again
-description: The context-saving elision replaced results with a stub inviting a re-call; the agent took it, and a two-criterion turn spent 12 of 41 tool calls re-fetching identical data.
+description: The context-saving elision replaced results with a stub inviting a re-call; the agent took it, and a two-criterion turn spent a large share of tool calls re-fetching identical data.
 tags: [agents, cost, context, measurement]
 generated: { by: claude-code/opus-5, at: 2026-08-09T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-09T00:00:00Z }

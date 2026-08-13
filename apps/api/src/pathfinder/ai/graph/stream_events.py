@@ -1,9 +1,5 @@
-"""Helpers that produce AI SDK v6 ``DataChunk``s for chat telemetry.
-
-Every ``data-*`` UI part the frontend renders starts life here or in a tool.
-Emitted via ``get_stream_writer`` alongside the agent's v6 chunks so the
-frontend sees them as native ``DataUIPart``s on the assistant message.
-"""
+"""Builders for the AI SDK ``DataChunk``s that carry chat telemetry to the
+frontend as data parts on the assistant message."""
 
 from __future__ import annotations
 
@@ -56,7 +52,7 @@ def enrichment_results_event(
 
 
 class ConversationTitlePayload(CamelModel):
-    """Payload for the ``data-conversation-title`` chunk."""
+    """Payload for the conversation-title chunk."""
 
     title: str
 
@@ -72,7 +68,7 @@ def conversation_title_event(*, title: str) -> DataChunk:
 
 
 class MemoryRetrievedItem(CamelModel):
-    """One recalled memory shown in the ``data-memory-retrieved`` chunk."""
+    """One recalled memory in the memory-retrieved chunk."""
 
     key: str
     kind: str
@@ -86,12 +82,8 @@ class MemoryRetrievedPayload(CamelModel):
 
 
 def memory_retrieved_event(*, memories: list[StoredMemory]) -> DataChunk:
-    """Surface the cross-thread memories recalled at turn start.
-
-    Lets the user see what prior context the agent pulled in (and drives the
-    rail's recalled-memory badge). ``score`` is the HNSW similarity; ``None``
-    (no score on the stored item) collapses to ``0.0``.
-    """
+    """Report the memories recalled at turn start. The score is the vector
+    similarity, and an absent score becomes ``0.0``."""
     payload = MemoryRetrievedPayload(
         memories=[
             MemoryRetrievedItem(
@@ -111,17 +103,15 @@ def memory_retrieved_event(*, memories: list[StoredMemory]) -> DataChunk:
 
 
 def scratchpad_updated_event() -> DataChunk:
-    """Chunk that instructs the client to invalidate its scratchpad query."""
+    """Tell the client to invalidate its scratchpad query."""
     return DataChunk(type="data-scratchpad-updated", data={})
 
 
 def turn_usage_event(*, total_tokens: int, cost_usd: str) -> DataChunk:
-    """Cumulative tokens + cost for the current turn, emitted live.
+    """Report the running token count and cost for the turn.
 
-    Transient: a live signal for the footer only. The persisted
-    per-conversation total is recomputed from each message's
-    ``metadata.usage`` on load, so persisting every delta would just bloat
-    the message with hundreds of throwaway parts.
+    The chunk is transient. The persisted total comes from message metadata
+    instead.
     """
     return DataChunk(
         type="data-turn-usage",
@@ -131,9 +121,8 @@ def turn_usage_event(*, total_tokens: int, cost_usd: str) -> DataChunk:
 
 
 class LeadUsagePayload(CamelModel):
-    """Payload for the ``data-lead-usage`` chunk — the Lead agent's own
-    model, tokens, and cost (excluding sub-agents). Drives the per-message
-    lead badge and updates live as the Lead streams.
+    """Payload for the lead-usage chunk. The counts cover the Lead agent only
+    and exclude sub-agents.
     """
 
     model_id: str = ""
@@ -142,8 +131,8 @@ class LeadUsagePayload(CamelModel):
 
 
 def lead_usage_event(*, model_id: str, tokens: int, cost_usd: str) -> DataChunk:
-    """Live Lead usage. Stable ``id`` so repeated emissions reconcile into a
-    single persisted part rather than one per token delta."""
+    """Report live Lead usage. The id is stable, so repeated emissions
+    reconcile into one persisted part."""
     return DataChunk(
         type="data-lead-usage",
         id="lead-usage",
@@ -156,10 +145,8 @@ def lead_usage_event(*, model_id: str, tokens: int, cost_usd: str) -> DataChunk:
 
 
 class TurnStoppedPayload(CamelModel):
-    """Payload for the ``data-turn-stopped`` chunk.
-
-    Emitted when a turn is cancelled (user pressed Stop). Persisted as a
-    message part so the "stopped" state survives a page refresh.
+    """Payload for the turn-stopped chunk. The chunk persists as a message
+    part, so the stopped state survives a page reload.
     """
 
 
@@ -171,12 +158,8 @@ def turn_stopped_event() -> DataChunk:
 
 
 class TurnStatusPayload(CamelModel):
-    """Payload for the ``data-turn-status`` chunk.
-
-    ``waiting_on_llm`` lets the UI distinguish real thinking from
-    preparatory work. ``model`` carries the Lead's model id once (on the
-    first status of the turn) so the UI can show the Lead's provider icon
-    alongside the live status.
+    """Payload for the turn-status chunk. The model id travels on the first
+    status of a turn only.
     """
 
     label: str
@@ -190,7 +173,7 @@ def turn_status_event(
     waiting_on_llm: bool = False,
     model: str | None = None,
 ) -> DataChunk:
-    """Live status hint shown by the UI while the turn is running."""
+    """Report a status hint while the turn runs."""
     return DataChunk(
         type="data-turn-status",
         data=TurnStatusPayload(
@@ -202,11 +185,8 @@ def turn_status_event(
 
 
 class StrategyRevisionPayload(CamelModel):
-    """Payload for the ``data-strategy-revision`` chunk.
-
-    The fingerprint of the strategy this turn described. The UI compares it
-    against the conversation's live revision to mark a message's counts as
-    historical once the strategy is edited.
+    """Payload for the strategy-revision chunk. The revision is a fingerprint
+    of the strategy that the turn describes.
     """
 
     revision: str
@@ -223,11 +203,8 @@ def strategy_revision_event(*, revision: str) -> DataChunk:
 
 
 class SubAgentCallPayload(CamelModel):
-    """Payload for the ``data-sub-agent-call`` chunk.
-
-    ``tool_call_id`` is the Lead's tool_call_id for this dispatch; the
-    frontend joins ``data-sub-agent-step`` chunks to it via
-    ``parentToolCallId``.
+    """Payload for the sub-agent-call chunk. The tool call id identifies the
+    dispatch, and sub-agent step chunks join to it.
     """
 
     tool_call_id: str
@@ -242,11 +219,8 @@ class SubAgentCallPayload(CamelModel):
 
 
 def sub_agent_call_event(payload: SubAgentCallPayload) -> DataChunk:
-    """Rich UI for one Lead-issued sub-agent dispatch.
-
-    ``id`` is the tool_call_id so the started/completed emissions reconcile
-    into a single UI part that transitions, not two separate cards.
-    """
+    """Report one sub-agent dispatch. The id is the tool call id, so the
+    started and completed emissions reconcile into one part."""
     return DataChunk(
         type="data-sub-agent-call",
         id=payload.tool_call_id,
@@ -255,14 +229,7 @@ def sub_agent_call_event(payload: SubAgentCallPayload) -> DataChunk:
 
 
 def ledger_update_event(*, ledger: BaseModel) -> DataChunk:
-    """``data-ledger-update`` chunk: structured Investigation Ledger
-    snapshot.
-
-    Emitted by the Lead node every time the Ledger is re-derived (after
-    each sub-agent dispatch). The frontend renders the LedgerPanel as a
-    typed read-only UI — boolean badges, count chips, status pills —
-    from this payload.
-    """
+    """Report a snapshot of the investigation ledger."""
     return DataChunk(
         type="data-ledger-update",
         data=ledger.model_dump(by_alias=True, mode="json", exclude_none=True),
@@ -270,12 +237,8 @@ def ledger_update_event(*, ledger: BaseModel) -> DataChunk:
 
 
 class SubAgentStepPayload(CamelModel):
-    """Payload for the ``data-sub-agent-step`` chunk — one event inside
-    a sub-agent's run.
-
-    Lets the frontend render each sub-agent dispatch as its own mini
-    chat — inner tool calls, reasoning, text — nested under the
-    ``data-sub-agent-call`` card with matching ``parentToolCallId``.
+    """Payload for one event inside a sub-agent run. The parent tool call id
+    nests the event under its dispatch.
     """
 
     parent_tool_call_id: str

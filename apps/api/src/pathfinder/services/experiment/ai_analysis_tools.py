@@ -1,9 +1,4 @@
-"""AI tools for deep experiment result analysis (pydantic-ai standalone functions).
-
-Provides function-calling tools that let the AI assistant access
-experiment data: paginate through records, look up individual genes,
-get attribute distributions, compare gene groups, and search results.
-"""
+"""Agent tools that read experiment results: records, genes, distributions, and search."""
 
 from typing import cast
 
@@ -29,13 +24,12 @@ from pathfinder.services.experiment.types import (
 from pathfinder.services.experiment.workbench_deps import WorkbenchDeps
 from pathfinder.services.wdk.helpers import extract_pk
 
-# Cap search_results early to avoid bloating the LLM context window
-# and to save unnecessary WDK API page fetches on broad queries.
+# A broad query must not fill the model context or fetch every result page.
 _MAX_SEARCH_MATCHES = 20
 
 
 async def _get_experiment(ctx: RunContext[WorkbenchDeps]) -> Experiment | None:
-    """Fetch the current experiment from the store."""
+    """Fetch the current experiment from the store. Return None when it is absent."""
     store = get_experiment_store()
     return await store.aget(ctx.deps.experiment_id)
 
@@ -90,7 +84,7 @@ async def fetch_result_records(
             }
         )
 
-    total = answer.meta.total_count
+    total = answer.meta.records_returned()
     return cast(
         "JSONObject",
         {

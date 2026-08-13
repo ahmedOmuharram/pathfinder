@@ -1,4 +1,4 @@
-"""SearchCatalog: cached catalog of searches, parameters, and metadata for a site."""
+"""Cached catalog of searches, parameters, and metadata for one site."""
 
 import asyncio
 from collections.abc import Sequence
@@ -99,12 +99,9 @@ class SearchCatalog:
         save_catalog_cache(self.site_id, self._to_snapshot())
 
     async def load(self, client: VEuPathDBClient) -> None:
-        """Load catalog -- from disk cache if fresh, otherwise from VEuPathDB.
+        """Load the catalog from the disk cache, or from the API on a miss.
 
-        Fresh cache (< 1 week): serve immediately, no API calls.
-        Stale cache (>= 1 week): serve immediately for fast startup,
-            then refresh from the API in the background.
-        No cache: fetch from API synchronously (blocks until ready).
+        A stale cache is served at once and refreshed in the background.
         """
         async with self._lock:
             if self._loaded:
@@ -135,7 +132,6 @@ class SearchCatalog:
                     )
                 return
 
-            # Cache miss -- must fetch synchronously.
             logger.info("Loading search catalog from API", site_id=self.site_id)
             try:
                 await self._fetch_from_api(client)
@@ -171,7 +167,7 @@ class SearchCatalog:
             )
 
     def _build_semantic_index(self) -> None:
-        """Build semantic search index from cached searches + dataset metadata."""
+        """Build the semantic search index from the cached searches."""
         try:
             index = SemanticSearchIndex(site_id=self.site_id)
             index.build(
@@ -241,10 +237,9 @@ class SearchCatalog:
         return None
 
     def find_record_type_for_search(self, search_name: str) -> str | None:
-        """Find which record type owns a search (global lookup).
+        """Find which record type owns a search.
 
-        Mirrors WDK's ``WdkModel.getQuestionByName()`` -- iterates all cached
-        record types to find the one containing the given search.
+        Mirrors WDK's ``WdkModel.getQuestionByName()``.
         """
         for rt_name, searches in self._searches.items():
             if any(s.url_segment == search_name for s in searches):

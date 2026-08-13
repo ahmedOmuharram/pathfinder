@@ -1,28 +1,7 @@
 """Step data keyed by id, with structure held as id references.
 
-``StrategyStepNode`` nests a whole node inside ``primaryInput`` /
-``secondaryInput``. ``StrategyGraph.steps`` then indexes those same objects, so
-the flat view and the tree view are the same memory: an in-place edit changes
-both, ``apply_and_commit`` needs a defensive deep copy to detect what changed,
-and an operation that fails midway leaves the graph half-edited.
-
-WDK's own ``StrategyDetails`` does not conflate them::
-
-    stepTree: StepTree            // nested, carries only stepId
-    steps: Record<number, Step>   // the data
-
-Same separation here, with structure carried as ``primary_input_id`` /
-``secondary_input_id`` on the step - which is also exactly the shape the
-frontend already uses (``Step.primaryInputStepId``), so both sides finally
-describe the graph the same way. The nested form is rebuilt only when
-projecting to WDK, which genuinely wants a tree.
-
-``kind`` becomes explicit rather than inferred from which inputs happen to be
-set. That inference is why ``__combine__`` exists at all: a combine had to
-carry SOME search name to look like a node, so a placeholder was invented and
-then had to be recognised and stripped at every boundary. With kind stated,
-``search_name`` is simply absent on a combine, and the placeholder is put back
-only on the way to WDK.
+The nested tree form is rebuilt only when projecting to WDK. Step kind is stated on
+the step rather than inferred from which input slots are set.
 """
 
 from __future__ import annotations
@@ -45,12 +24,7 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 
 class StepStatus(StrEnum):
-    """What state a step is in, from the researcher's point of view.
-
-    ``READY`` is the state the three-way split kept missing: a step that is
-    complete but has not reached WDK yet. Calling that a draft would defer it
-    forever, since pushing is exactly how it stops being unbuilt.
-    """
+    """The state of a step. READY means the step is complete but is not yet in WDK."""
 
     DRAFT = "draft"
     READY = "ready"
@@ -59,7 +33,7 @@ class StepStatus(StrEnum):
 
     @property
     def is_pushable(self) -> bool:
-        """A draft is not ready for WDK; everything else is."""
+        """A draft is not ready for WDK. Every other status is pushable."""
         return self is not StepStatus.DRAFT
 
 
@@ -70,10 +44,9 @@ class StepKind(StrEnum):
 
 
 class StrategyStep(CamelModel):
-    """One step: its own data plus which steps feed it, by id.
+    """One step, with its own data and the ids of the steps that feed it.
 
-    ``search_name`` is None for a combine: a set operation is not a WDK
-    question, and saying so is what retires the ``__combine__`` placeholder.
+    A combine has no search_name, because a set operation is not a WDK question.
     """
 
     id: str
@@ -94,7 +67,7 @@ class StrategyStep(CamelModel):
 
     @property
     def display_label(self) -> str:
-        """User-facing label; a combine with no name renders as "Combine"."""
+        """Returns the user-facing label. An unnamed combine falls back to a constant."""
         if self.display_name:
             return self.display_name
         if self.kind is StepKind.COMBINE:
@@ -102,7 +75,7 @@ class StrategyStep(CamelModel):
         return self.search_name or self.id
 
     def inputs(self) -> list[str]:
-        """Input step ids in slot order, omitting empty slots."""
+        """Returns the input step ids in slot order and omits empty slots."""
         return [
             step_id
             for step_id in (self.primary_input_id, self.secondary_input_id)
@@ -123,11 +96,9 @@ class DuplicateStepIdError(ValueError):
 
 
 def flatten_tree(root: StrategyStepNode) -> dict[str, StrategyStep]:
-    """Split a nested node into a map of steps that reference each other by id.
+    """Splits a nested node into a map of steps that reference each other by id.
 
-    A repeated id is rejected rather than silently collapsed: WDK requires a
-    step to belong to exactly one position, and keying by id would quietly
-    turn the duplicate into a single shared step.
+    A repeated id is rejected. WDK requires a step to hold exactly one position.
     """
     steps: dict[str, StrategyStep] = {}
 
@@ -174,7 +145,7 @@ def flatten_tree(root: StrategyStepNode) -> dict[str, StrategyStep]:
 
 
 def rebuild_tree(root_id: str, steps: dict[str, StrategyStep]) -> StrategyStepNode:
-    """Project the keyed graph back to the nested shape WDK is given."""
+    """Projects the keyed graph back to the nested shape WDK takes."""
 
     def visit(step_id: str) -> StrategyStepNode:
         step = steps[step_id]
@@ -211,15 +182,13 @@ def rebuild_tree(root_id: str, steps: dict[str, StrategyStep]) -> StrategyStepNo
 
 
 def root_ids(steps: dict[str, StrategyStep]) -> set[str]:
-    """Steps no other step consumes."""
-    consumed = {
-        input_id for step in steps.values() for input_id in step.inputs()
-    }
+    """Returns the steps that no other step consumes."""
+    consumed = {input_id for step in steps.values() for input_id in step.inputs()}
     return {step_id for step_id in steps if step_id not in consumed}
 
 
 def subtree_ids(root_id: str, steps: dict[str, StrategyStep]) -> list[str]:
-    """``root_id`` and everything feeding it, descendants before ancestors."""
+    """Returns the root and everything feeding it, descendants before ancestors."""
     out: list[str] = []
     seen: set[str] = set()
 
@@ -238,7 +207,7 @@ def subtree_ids(root_id: str, steps: dict[str, StrategyStep]) -> list[str]:
 def find_parent(
     step_id: str, steps: dict[str, StrategyStep]
 ) -> tuple[StrategyStep, str] | None:
-    """The step consuming ``step_id`` and which slot it occupies."""
+    """Returns the step that consumes this step and the slot it occupies."""
     for step in steps.values():
         if step.primary_input_id == step_id:
             return step, "primary"
@@ -248,25 +217,16 @@ def find_parent(
 
 
 def wdk_search_name(step: StrategyStep) -> str:
-    """The question name WDK expects for this step.
-
-    A combine has no question of its own, so the placeholder that used to be
-    stored on every combine is supplied here instead - at the one boundary
-    that actually needs it.
-    """
+    """Returns the question name WDK expects. A combine has no question of its own,
+    so this boundary supplies the placeholder name."""
     if step.kind is StepKind.COMBINE:
         return step.search_name or COMBINE_SEARCH_NAME
     return step.search_name or ""
 
 
 def is_computable(step: StrategyStep) -> bool:
-    """Whether WDK could actually run this step.
-
-    A combine is a set operation over two results, so it needs both inputs and
-    an operator. Detaching an edge deliberately leaves one behind - the canvas
-    keeps the node so the researcher can rewire it - and that intermediate
-    state is real but not runnable.
-    """
+    """Reports whether WDK can run this step. A combine needs both inputs and an
+    operator, so a half-wired combine is a valid state that is not runnable."""
     if step.kind is not StepKind.COMBINE:
         return True
     return (
@@ -276,15 +236,9 @@ def is_computable(step: StrategyStep) -> bool:
     )
 
 
-def pushable_root_id(
-    root_id: str, steps: dict[str, StrategyStep]
-) -> str | None:
-    """The deepest node WDK can be asked to compute, starting at ``root_id``.
-
-    A half-wired combine is walked past to its surviving input: pushing it
-    would be rejected, and the branch below it is still a real result the
-    researcher should see.
-    """
+def pushable_root_id(root_id: str, steps: dict[str, StrategyStep]) -> str | None:
+    """Returns the deepest node WDK can compute, starting at the root. The walk passes
+    a half-wired combine and continues to its remaining input."""
     current: str | None = root_id
     while current is not None:
         step = steps.get(current)
@@ -304,12 +258,7 @@ def step_status(
     validation: StepValidation | None,
     has_open_params: bool,
 ) -> StepStatus:
-    """The one answer to what state a step is in.
-
-    Derived rather than stored: a copy on the step would need updating at every
-    push, parameter edit and rewire, and a missed path would leave a step
-    claiming to be built when it is not - the same failure as the stale counts.
-    """
+    """Returns the state of a step. The status is derived on each call, never stored."""
     if has_open_params or not is_computable(step):
         return StepStatus.DRAFT
     if wdk_step_id is None:

@@ -56,9 +56,9 @@ beforeEach(() => mockLogout.mockClear());
 
 describe("SiteAuth", () => {
   it("greets the signed-in user by name and logs out on click", async () => {
-    renderAuth({ signedIn: true, name: "Dr. Ahmed" });
+    renderAuth({ signedIn: true, name: "Dr. Rivera" });
 
-    expect(screen.getByText("Logged in as Dr. Ahmed")).toBeTruthy();
+    expect(screen.getByText("Logged in as Dr. Rivera")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: /log out/i }));
     await waitFor(() => expect(mockLogout.mock.calls).toEqual([["plasmodb"]]));
   });

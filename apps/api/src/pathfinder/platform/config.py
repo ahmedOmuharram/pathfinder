@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     # Ollama (local models via OpenAI-compatible API)
     ollama_base_url: str = ""
 
-    # Unified model defaults — provider + tier resolve to per-phase models.
+    # Provider plus tier resolve to the per-phase models.
     default_provider: ModelProvider = "openai"
     default_tier: TierName = "default"
 
@@ -120,17 +120,17 @@ class Settings(BaseSettings):
     veupathdb_oauth_url: str | None = None
     veupathdb_oauth_client_id: str | None = None
 
-    # Conversation provider (set to "mock" for deterministic offline E2E testing)
+    # Conversation provider. "mock" gives deterministic offline runs.
     pathfinder_chat_provider: str = ""
 
-    # Security — prompt-injection screening (PIGuard ONNX model)
+    # Prompt-injection screening with the PIGuard ONNX model.
     piguard_enabled: bool = True
 
     # Logging
     log_level: str = "INFO"
     log_format: Literal["json", "console"] = "json"
 
-    # Observability — SigNoz (full-stack APM)
+    # Observability: SigNoz APM
     signoz_otel_endpoint: str | None = Field(
         default=None,
         description="SigNoz OTel Collector gRPC endpoint (e.g. http://signoz-otel-collector:4317). Unset = disabled.",
@@ -144,7 +144,7 @@ class Settings(BaseSettings):
         ),
     )
 
-    # Observability — Langfuse (LLM engineering platform)
+    # Langfuse observability. All three values are needed together.
     langfuse_secret_key: str = Field(default="", repr=False)
     langfuse_public_key: str = Field(default="", repr=False)
     langfuse_host: str = ""
@@ -153,7 +153,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     cors_origin_regex: str | None = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
-    # Per-user monthly usage quota (USD). Per-user override lives on `users.monthly_cost_limit_usd`.
+    # Default monthly usage quota in USD. The `users` row can override it.
     pathfinder_user_monthly_cost_limit_usd: float = 20.0
 
     @computed_field

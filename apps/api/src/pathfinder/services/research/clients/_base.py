@@ -44,11 +44,7 @@ class BaseClient:
         *,
         abstract_max_chars: int,
     ) -> tuple[list[ParsedPaper], list[Citation]]:
-        """Iterate *raw_items*, calling ``_parse_item`` on each.
-
-        Returns a ``(results, citations)`` pair ready for
-        :func:`build_response`.
-        """
+        """Parse each raw item into a paper and a citation."""
         results: list[ParsedPaper] = []
         citations: list[Citation] = []
         for raw in raw_items:
@@ -66,9 +62,9 @@ class BaseClient:
         *,
         abstract_max_chars: int,
     ) -> tuple[ParsedPaper, Citation] | None:
-        """Parse one raw API item into ``(ParsedPaper, Citation)``.
+        """Parse one raw API item. Subclasses must override.
 
-        Return ``None`` to skip the item.  Subclasses **must** override.
+        A None return skips the item.
         """
         raise NotImplementedError
 
@@ -76,14 +72,10 @@ class BaseClient:
 class StandardClient(BaseClient):
     """Client with the standard fetch-parse-build search pattern.
 
-    Subclasses implement ``_source_name``, ``_fetch_raw``, and
-    ``_parse_item``.  The ``search`` method is inherited.
-
-    Rate-limit handling (HTTP 429) with exponential backoff is built in.
-    Subclasses can override ``_max_retries`` and ``_backoff_base_s``.
+    Retry with exponential backoff on rate limits is built in.
     """
 
-    _source_name: str = ""  # override in subclass
+    _source_name: str = ""
     _max_retries: int = _DEFAULT_MAX_RETRIES
     _backoff_base_s: float = _DEFAULT_BACKOFF_BASE_S
 
@@ -102,7 +94,7 @@ class StandardClient(BaseClient):
         )
 
     async def _fetch_with_retry(self, query: str, *, limit: int) -> list[JsonValue]:
-        """Call ``_fetch_raw`` with retry on 429 and transient errors."""
+        """Fetch raw items, with retry on rate limits and transient errors."""
         last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:

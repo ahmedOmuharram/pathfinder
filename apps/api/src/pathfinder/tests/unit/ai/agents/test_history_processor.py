@@ -74,9 +74,8 @@ class TestPairToolCalls:
     def test_orphan_tool_call_gets_placeholder_return(self) -> None:
         """A ToolCallPart with no matching ToolReturnPart gets a placeholder."""
         existing = [_user("hi"), _assistant(_tool_call("c1"))]
-        new: list = []  # stream died before the return landed
+        new: list = []  # no return for c1
         result = pair_tool_calls(existing + new)
-        # A synthetic ModelRequest with the placeholder return was appended.
         assert len(result) == 3
         last = result[-1]
         assert isinstance(last, ModelRequest)
@@ -96,8 +95,6 @@ class TestPairToolCalls:
         # A later user turn lands with no tool return for c1.
         new = [_user("follow-up")]
         result = pair_tool_calls(existing + new)
-        # The follow-up request now carries both the user prompt and the
-        # synthetic return so the earlier call_id is paired.
         follow_up = result[2]
         assert isinstance(follow_up, ModelRequest)
         kinds = [type(p).__name__ for p in follow_up.parts]
@@ -209,8 +206,6 @@ class TestPairToolCalls:
         )
         new = [mixed_request]
         result = pair_tool_calls(existing + new)
-        # The ghost return is gone, but the user prompt survives — AND the
-        # orphan call c1 got its placeholder appended to the same request.
         survivors = result[-1]
         assert isinstance(survivors, ModelRequest)
         part_types = [type(p).__name__ for p in survivors.parts]
@@ -300,7 +295,7 @@ class TestPairToolCalls:
         assert "UserPromptPart" in part_types
 
     def test_duplicate_returns_with_distinct_call_ids_all_kept(self) -> None:
-        """Deduping is per-call_id — distinct ids don't collide."""
+        """Deduping is per call id, so distinct ids do not collide."""
         existing = [
             _user("hi"),
             _assistant(_tool_call("c1"), _tool_call("c2"), _tool_call("c3")),
@@ -342,7 +337,6 @@ class TestPairToolCalls:
             _tool_return("c1"),  # sole part of its own request; fully duplicate
         ]
         result = pair_tool_calls(existing)
-        # Original length 4; duplicate return's request dropped → 3.
         assert len(result) == 3
 
     def test_duplicate_tool_calls_surface_in_collect_ids(self) -> None:
@@ -364,7 +358,7 @@ class TestPairToolCalls:
         assert has_duplicate_calls is True
 
     def test_duplicate_tool_calls_pass_through_without_crashing(self) -> None:
-        """Duplicate calls are a vendor bug; pair_tool_calls must keep the flow intact."""
+        """Duplicate call ids pass through with the message flow intact."""
         existing = [
             _user("hi"),
             _assistant(_tool_call("dup"), _tool_call("dup")),
@@ -411,13 +405,13 @@ class TestPairToolCalls:
         assert has_dup_calls is False
 
 
-def _call_and_return(tool: str, tcid: str, result: object) -> list[ModelResponse | ModelRequest]:
+def _call_and_return(
+    tool: str, tcid: str, result: object
+) -> list[ModelResponse | ModelRequest]:
     return [
         ModelResponse(parts=[ToolCallPart(tool_name=tool, args={}, tool_call_id=tcid)]),
         ModelRequest(
-            parts=[
-                ToolReturnPart(tool_name=tool, content=result, tool_call_id=tcid)
-            ]
+            parts=[ToolReturnPart(tool_name=tool, content=result, tool_call_id=tcid)]
         ),
     ]
 
@@ -433,14 +427,7 @@ def _returned_contents(messages: list[object]) -> list[object]:
 
 
 class TestElisionDoesNotCauseRefetching:
-    """Eliding a result the agent still needs makes it call the tool again.
-
-    Measured on live runs: with elision on, a two-criterion turn issued 41
-    tool calls of which 12 were byte-identical re-calls
-    (``get_sample_records`` four times with the same arguments). With
-    elision off, the same query issued 18-22 calls and zero duplicates.
-    A count costs ~10 tokens to keep and a whole round trip to re-fetch.
-    """
+    """Eliding a result the agent still needs makes it call the tool again."""
 
     def _history(self, results: list[object]) -> list[object]:
         history: list[object] = [_user("find genes")]
@@ -449,8 +436,6 @@ class TestElisionDoesNotCauseRefetching:
         return history
 
     def test_a_small_result_is_never_elided(self) -> None:
-        # get_estimated_size returns a bare count and was re-fetched three
-        # times in one run after being elided.
         results: list[object] = [326] * (KEEP_RECENT_TOOL_PAIRS + 3)
 
         kept = _returned_contents(elide_consumed_tool_results(self._history(results)))
@@ -480,8 +465,6 @@ class TestElisionDoesNotCauseRefetching:
         )
 
     def test_the_digest_does_not_invite_a_re_call(self) -> None:
-        # The old stub said "re-call the tool only if you need fresh data".
-        # The agent took that invitation.
         bulky = {"records": [{"id": f"g{i}"} for i in range(500)]}
         results: list[object] = [bulky] * (KEEP_RECENT_TOOL_PAIRS + 2)
 

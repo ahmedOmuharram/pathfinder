@@ -10,7 +10,7 @@ status: stable
 
 # How it surfaced
 
-Given the 16-step drug-target goal, the Lead framed all 8 criteria and then **refused to build**, saying:
+Given a multi-criterion request, the Lead framed all 8 criteria and then **refused to build**, saying:
 
 > "The current WDK assembly cannot encode those parenthesized branches exactly in one left-fold strategy, so I need to preserve that topology rather than silently flatten it."
 

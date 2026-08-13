@@ -93,9 +93,7 @@ def _ctx(
     graph.steps.update(flatten_tree(node))
     graph.recompute_roots()
     session.graph = graph
-    session.sync_state = WDKSyncState(
-        wdk_step_ids={"step_a": 100}, wdk_strategy_id=555
-    )
+    session.sync_state = WDKSyncState(wdk_step_ids={"step_a": 100}, wdk_strategy_id=555)
     ctx = MagicMock()
     ctx.deps = AgentDeps(
         site_id="plasmodb",

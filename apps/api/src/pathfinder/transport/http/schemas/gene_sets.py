@@ -14,7 +14,7 @@ from pathfinder.services.gene_sets.wdk_helpers import SetOperation
 
 
 class CreateGeneSetRequest(CamelModel):
-    """Create a gene set from IDs, strategy, or upload."""
+    """Request to create a gene set from IDs, a strategy, or an upload."""
 
     name: str = Field(min_length=1, max_length=200)
     site_id: str
@@ -28,7 +28,7 @@ class CreateGeneSetRequest(CamelModel):
 
 
 class GeneSetResponse(CamelModel):
-    """Gene set response DTO."""
+    """A gene set, as returned to the client."""
 
     id: str
     name: str
@@ -46,12 +46,11 @@ class GeneSetResponse(CamelModel):
     created_at: str
     step_count: int = Field(1)
     enrichment_results: list[EnrichmentResult] = Field(default_factory=list)
-    """Enrichment already run on this set, so reopening the workbench shows it
-    instead of silently offering to recompute."""
+    """Enrichment results already computed for this set."""
 
 
 class SetOperationRequest(CamelModel):
-    """Perform set operations between two gene sets."""
+    """Request to combine two gene sets with a set operation."""
 
     set_a_id: str
     set_b_id: str
@@ -60,20 +59,20 @@ class SetOperationRequest(CamelModel):
 
 
 class GeneSetEnrichRequest(CamelModel):
-    """Run enrichment on a gene set."""
+    """Request to run enrichment on a gene set."""
 
     enrichment_types: list[EnrichmentAnalysisType]
 
 
 class EnsembleScoringRequest(CamelModel):
-    """Compute ensemble frequency scores across multiple gene sets."""
+    """Request to compute ensemble frequency scores across gene sets."""
 
     gene_set_ids: list[str] = Field(min_length=2)
     positive_controls: list[str] | None = Field(None)
 
 
 class ReverseSearchRequest(CamelModel):
-    """Rank user's gene sets by recall of given positive genes."""
+    """Request to rank a user's gene sets by recall of the given genes."""
 
     positive_gene_ids: list[str] = Field(min_length=1)
     negative_gene_ids: list[str] | None = Field(None)
@@ -81,7 +80,7 @@ class ReverseSearchRequest(CamelModel):
 
 
 class ReverseSearchResultItem(CamelModel):
-    """A single ranked gene set in reverse search results."""
+    """One ranked gene set in a reverse-search result."""
 
     gene_set_id: str
     name: str
@@ -94,14 +93,14 @@ class ReverseSearchResultItem(CamelModel):
 
 
 class RunGeneSetAnalysisRequest(CamelModel):
-    """Run a WDK step analysis on a gene set."""
+    """Request to run a WDK step analysis on a gene set."""
 
     analysis_name: str = Field(min_length=1)
     parameters: JSONObject = Field(default_factory=dict)
 
 
 class GeneConfidenceRequest(CamelModel):
-    """Compute per-gene confidence scores from classification data."""
+    """Request to compute per-gene confidence scores from classification data."""
 
     tp_ids: list[str]
     fp_ids: list[str]
@@ -113,7 +112,7 @@ class GeneConfidenceRequest(CamelModel):
 
 
 class GeneConfidenceScoreResponse(CamelModel):
-    """Single gene confidence score in the response."""
+    """One gene confidence score."""
 
     gene_id: str
     composite_score: float

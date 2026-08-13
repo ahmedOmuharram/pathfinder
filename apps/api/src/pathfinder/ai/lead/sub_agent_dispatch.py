@@ -112,7 +112,7 @@ def build_not_ready_message(spec: OperationalSpec | None) -> str:
     Open parameter slots are not a retry. Re-running FRAME regenerates the
     same slots, so telling the model to "call frame_problem first" sends it
     round a loop it cannot exit -- only the user can answer. Observed on a
-    real 16-step build: FRAME bound all 8 criteria, left 7 open slots, and
+    real multi-criterion build: FRAME bound all 8 criteria, left 7 open slots, and
     the Lead re-dispatched instead of asking.
     """
     if spec is None or not spec.criteria or spec.structure is None:

@@ -1,7 +1,6 @@
 """WDK push logic for step creation.
 
-Best-effort push of newly created steps to the WDK backend. If the push
-fails, the step still exists in the local graph and the sync service can
+A failed push leaves the step in the local graph for the sync service to
 reconcile later.
 """
 
@@ -51,12 +50,7 @@ from pathfinder.services.strategies.sync_state import WDKSyncState
 
 
 class PushOutcome(BaseModel):
-    """Outcome of a `push_steps_with_plan` call.
-
-    `succeeded` is the ordered list of step IDs whose CREATE/PATCH/RECREATE
-    plan entry completed without error. `failed` is the ordered list of
-    step IDs whose action raised. `partial` is True iff any step failed.
-    """
+    """Step ids of a push plan, split by result and kept in plan order."""
 
     model_config = ConfigDict(frozen=True)
     succeeded: list[str]
@@ -79,13 +73,9 @@ async def push_step_to_wdk(
     search_name: str,
     parameters: dict[str, ParamValue],
 ) -> tuple[int | None, StepValidation | None, str | None]:
-    """Push a newly created step to WDK and store its ID on sync_state.
+    """Push a newly created step to WDK and store its id on sync_state.
 
-    Best-effort: if the push fails, the step still exists in the graph and
-    the sync service can reconcile later.
-
-    :returns: (wdk_step_id, wdk_validation, push_error) -- all None on success,
-        push_error is set on failure with the reason WDK rejected the step.
+    A rejected push returns the reason in ``push_error`` and does not raise.
     """
     parsed_op: CombineOp | None = step.operator
     wdk_step_id: int | None = None
@@ -185,15 +175,9 @@ async def _push_combine_step(
         if coloc is None:
             logger.warning("COLOCATE step missing colocation_params", step_id=step.id)
             return None
-        # GenesBySpanLogic is a two-input search: span_a (primary) and
-        # span_b (secondary) are AnswerParams auto-wired from the step
-        # tree at strategy creation time.  create_transform_step blanks
-        # all AnswerParams to ""; the step tree (built in sync.py) then
-        # wires both primaryInput and secondaryInput to the correct
-        # WDK step IDs.  secondary_wdk_id is intentionally unused here
-        # — it is consumed by build_step_tree_from_graph.
-        # GenesBySpanLogic always lives under "transcript", regardless of
-        # the graph's record type (which may be "genomic-segment" from Set B).
+        # GenesBySpanLogic takes span_a and span_b as AnswerParams. The step
+        # tree wires both inputs, so only the primary id is passed here.
+        # The search lives under "transcript" for every record type.
         wdk_result = await api.create_transform_step(
             NewStepSpec(
                 search_name="GenesBySpanLogic",
@@ -216,9 +200,8 @@ async def _push_combine_step(
         record_type=record_type,
     )
     if step.expanded_strategy_id is not None:
-        # WDK's create-combined-step endpoint doesn't accept expanded; PATCH
-        # immediately after creation so the saved-strategy reference renders
-        # as a collapsed input on next reload.
+        # The create-combined-step endpoint does not accept "expanded", so it
+        # is set by a PATCH.
         await api.update_step_properties(
             wdk_result.id,
             spec=PatchStepSpec(
@@ -275,8 +258,7 @@ async def _update_existing_step(
     wdk_step_id = sync_state.wdk_step_ids[step.id]
     kind = step.kind.value
 
-    # Skip combine steps — their params are structural (empty strings)
-    # and don't change.
+    # The params of a combine step are structural and never change.
     if kind == "combine":
         return
     str_params: dict[str, str] = encode_params(step.parameters)
@@ -294,8 +276,8 @@ async def _patch_combine_metadata(
     sync_state: WDKSyncState,
     step: StrategyStep,
 ) -> None:
-    # WDK combine operators are creation-time params; only display name /
-    # weight are PATCHable on a combine step.
+    # A WDK combine operator is a creation-time param. Only the display name
+    # and the weight accept a PATCH.
     wdk_step_id = sync_state.wdk_step_ids[step.id]
     if step.display_name is None:
         return
@@ -362,16 +344,10 @@ def defer_draft_steps(
     open_param_step_ids: set[str],
     existing_wdk_ids: dict[str, int],
 ) -> list[StepPushPlan]:
-    """Skip the steps that are not ready, by asking what state they are in.
+    """Replace the action of each step that is not ready with a skip.
 
-    This used to infer "draft" from "validation failed AND it was never
-    pushed", which missed the structural case entirely: a combine that lost an
-    input has every parameter it needs and is still not computable. Asking
-    ``step_status`` covers both, and covers them the same way the UI does.
-
-    A step already in WDK is never demoted here - ``_validate_plan_params``
-    re-raises for those - because turning a live step into a draft would
-    silently drop it from the built strategy.
+    A step that is already in WDK is never deferred, because a draft is left
+    out of the built strategy.
     """
     deferred: list[StepPushPlan] = []
     for entry in plan:
@@ -413,11 +389,10 @@ async def _validate_plan_params(
     record_type: str,
     existing_wdk_ids: dict[str, int],
 ) -> set[str]:
-    """Canonicalize each pushable step's params in place.
+    """Canonicalize the params of each pushable step in place.
 
-    Returns the ids of never-pushed steps whose parameters are not complete
-    enough for WDK. A step that is already in WDK re-raises instead: it is
-    live, and quietly demoting it to a draft would drop it from the strategy.
+    An incomplete step that is already in WDK raises instead of being
+    reported, because a draft is left out of the built strategy.
     """
     callbacks: ValidationCallbacks = make_validation_callbacks(site_id)
     incomplete: set[str] = set()
@@ -429,13 +404,17 @@ async def _validate_plan_params(
         if search_name == COMBINE_SEARCH_NAME:
             continue
         try:
-            step.parameters = await validate_parameters(
-                SearchContext(
-                    site_id=site_id, record_type=record_type, search_name=search_name
-                ),
-                parameters=dict(step.parameters),
-                callbacks=callbacks,
-            )
+            step.parameters = (
+                await validate_parameters(
+                    SearchContext(
+                        site_id=site_id,
+                        record_type=record_type,
+                        search_name=search_name,
+                    ),
+                    parameters=dict(step.parameters),
+                    callbacks=callbacks,
+                )
+            ).params
         except ValidationError:
             if entry.step_id in existing_wdk_ids:
                 raise
@@ -449,12 +428,10 @@ async def push_steps_with_plan(
     site_id: str,
     plan: list[StepPushPlan],
 ) -> PushOutcome:
-    """Execute a push plan. Returns a PushOutcome with succeeded + failed step IDs.
+    """Execute a push plan.
 
-    The loop continues after a failure so independent siblings still get
-    pushed. A combine that depends on a failed input naturally short-circuits
-    inside `_push_combine_step` because the input lacks a wdk_step_id, and
-    that combine ends up in `failed`.
+    A failed step does not stop the plan. A combine whose input failed has no
+    input id, so it also fails.
     """
     root_step = next(
         (graph.steps[sid] for sid in graph.roots if sid in graph.steps), None
@@ -462,8 +439,6 @@ async def push_steps_with_plan(
     if root_step is None:
         return PushOutcome(succeeded=[], failed=[])
 
-    # Validation reads each step's own params, so the keyed map is what it
-    # wants; the nested projection is only needed on the way to WDK.
     steps_by_id: dict[str, StrategyStep] = dict(graph.steps)
     record_type = graph.record_type or "transcript"
 

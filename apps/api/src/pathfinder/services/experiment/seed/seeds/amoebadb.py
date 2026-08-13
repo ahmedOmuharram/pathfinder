@@ -1,14 +1,7 @@
-"""Seed definitions for AmoebaDB.
+"""Seed strategies and control gene sets for AmoebaDB.
 
-Covers Entamoeba histolytica HM-1:IMSS with real gene IDs verified against
-AmoebaDB (Mar 2026), biologically meaningful search configurations targeting:
-  - Cysteine proteases (CP family): major virulence factors for tissue invasion
-  - Gal/GalNAc lectins: host cell adhesion, critical for pathogenesis
-  - Amoebapores: pore-forming peptides (saposin-like), cytolysis of host cells
-  - Trogocytosis/phagocytosis: actin cytoskeleton, Rho GTPases
-  - Encystation: chitin synthase, Jacob lectins, cyst wall glycoproteins
-  - Drug targets: thioredoxin/reductase, alcohol dehydrogenases (metronidazole)
-  - Signaling: Rho GTPases, kinases, phosphatases
+The seeds cover Entamoeba histolytica HM-1:IMSS. They group genes by
+virulence, invasion, drug target, encystation and signaling themes.
 """
 
 from pathfinder.services.experiment.seed.helpers import (
@@ -26,10 +19,10 @@ from pathfinder.services.experiment.seed.types import ControlSetDef, SeedDef
 EH_ORG = "Entamoeba histolytica HM-1:IMSS"
 
 # ---------------------------------------------------------------------------
-# Gene ID lists (all real VEuPathDB IDs, verified Mar 2026)
+# Gene ID lists. Every id is a real VEuPathDB gene id.
 # ---------------------------------------------------------------------------
 
-# Cysteine proteases — CP family, papain-family, calpain (virulence factors)
+# Cysteine proteases: CP family, papain family and calpain.
 EH_CYSTEINE_PROTEASES = [
     "EHI_030720",
     "EHI_062480",
@@ -69,7 +62,7 @@ EH_CYSTEINE_PROTEASES = [
     "EHI_159600",
 ]
 
-# Gal/GalNAc lectins and galactose-binding lectins — adhesion, virulence
+# Gal/GalNAc lectins and galactose-binding lectins.
 EH_LECTINS = [
     "EHI_058330",
     "EHI_006980",
@@ -88,7 +81,7 @@ EH_LECTINS = [
     "EHI_183400",
 ]
 
-# Amoebapores and pore-forming peptides — saposin-like, cytolysis
+# Amoebapores and other pore-forming peptides.
 EH_AMOEBAPORES = [
     "EHI_118270",  # amoebapore C
     "EHI_159480",  # amoebapore A precursor
@@ -100,7 +93,7 @@ EH_AMOEBAPORES = [
     "EHI_184010",  # saposin-domain hypothetical
 ]
 
-# Kinases — protein/tyrosine/casein kinases (signaling, invasion)
+# Protein, tyrosine and casein kinases.
 EH_KINASES = [
     "EHI_148280",
     "EHI_002790",
@@ -184,7 +177,7 @@ EH_KINASES = [
     "EHI_123840",
 ]
 
-# Transporters — ABC, MFS, cation, amino acid, nucleoside transporters
+# ABC, MFS, cation, amino acid and nucleoside transporters.
 EH_TRANSPORTERS = [
     "EHI_005050",
     "EHI_008030",
@@ -262,7 +255,7 @@ EH_TRANSPORTERS = [
     "EHI_152760",
 ]
 
-# Ribosomal proteins — structural components of ribosomes
+# Ribosomal structural proteins.
 EH_RIBOSOMAL = [
     "EHI_003940",
     "EHI_008210",
@@ -366,7 +359,7 @@ EH_RIBOSOMAL = [
     "EHI_040830",
 ]
 
-# Heat shock proteins — stress response, chaperones
+# Heat shock proteins and chaperones.
 EH_HEAT_SHOCK = [
     "EHI_017350",
     "EHI_022620",
@@ -442,7 +435,7 @@ EH_HEAT_SHOCK = [
     "EHI_199590",
 ]
 
-# Surface antigens — ariel1, SREHP, variant surface proteins
+# Surface antigens: ariel1, SREHP and variant surface proteins.
 EH_SURFACE = [
     "EHI_005260",
     "EHI_028430",
@@ -469,7 +462,7 @@ EH_SURFACE = [
     "EHI_200230",
 ]
 
-# Rho family GTPases — signaling for invasion, motility, trogocytosis
+# Rho family GTPases.
 EH_RHO_GTPASES = [
     "EHI_012240",
     "EHI_013260",
@@ -507,7 +500,7 @@ EH_RHO_GTPASES = [
     "EHI_187110",
 ]
 
-# Rab family GTPases — vesicular trafficking, phagocytosis
+# Rab family GTPases.
 EH_RAB_GTPASES = [
     "EHI_001870",
     "EHI_003020",
@@ -540,7 +533,7 @@ EH_RAB_GTPASES = [
     "EHI_068230",
 ]
 
-# Encystation genes — chitin synthase, chitinase, Jacob lectins, cyst wall
+# Encystation genes: chitin synthase, chitinase, Jacob lectins and cyst wall.
 EH_ENCYSTATION = [
     "EHI_028930",  # cyst wall-specific glycoprotein Jacob
     "EHI_067190",  # cyst wall-specific glycoprotein Jacob
@@ -556,7 +549,7 @@ EH_ENCYSTATION = [
     "EHI_044840",  # chitin synthase 2, putative
 ]
 
-# Thioredoxin family — redox defense, drug targets (metronidazole)
+# Thioredoxin family redox defense genes.
 EH_THIOREDOXIN = [
     "EHI_004490",
     "EHI_006700",
@@ -580,11 +573,11 @@ EH_THIOREDOXIN = [
     "EHI_152600",
     "EHI_169240",
     "EHI_170420",
-    "EHI_155440",  # thioredoxin reductase — key metronidazole target
+    "EHI_155440",  # thioredoxin reductase
     "EHI_190880",  # thioredoxin domain-containing protein 2
 ]
 
-# Peroxiredoxin/lysozyme/SOD — antimicrobial defense, redox
+# Peroxiredoxin, lysozyme and superoxide dismutase genes.
 EH_REDOX_DEFENSE = [
     "EHI_001420",
     "EHI_061980",
@@ -604,7 +597,7 @@ EH_REDOX_DEFENSE = [
     "EHI_159160",  # iron-containing superoxide dismutase
 ]
 
-# Alcohol/aldehyde dehydrogenases — anaerobic metabolism, drug targets
+# Alcohol and aldehyde dehydrogenases.
 EH_DEHYDROGENASES = [
     "EHI_000410",
     "EHI_088020",
@@ -634,7 +627,7 @@ EH_DEHYDROGENASES = [
     "EHI_030810",  # malate DH, cytoplasmic
 ]
 
-# Ferredoxin / iron-sulfur cluster — mitosomal function, electron transfer
+# Ferredoxin and iron-sulfur cluster genes.
 EH_FERREDOXIN = [
     "EHI_025710",
     "EHI_138480",
@@ -647,7 +640,7 @@ EH_FERREDOXIN = [
     "EHI_159160",  # iron-containing SOD
 ]
 
-# Actin / cytoskeleton — trogocytosis, phagocytosis, motility
+# Actin and cytoskeleton genes.
 EH_ACTIN = [
     "EHI_182900",
     "EHI_008780",
@@ -686,7 +679,7 @@ EH_ACTIN = [
     "EHI_045000",  # Arp2/3 complex subunit
 ]
 
-# Phosphatases — signaling, dephosphorylation
+# Phosphatases.
 EH_PHOSPHATASES = [
     "EHI_019610",
     "EHI_048570",
@@ -758,7 +751,7 @@ _EH_DEFAULT_EC_SOURCES = [
 # ---------------------------------------------------------------------------
 
 SEEDS: list[SeedDef] = [
-    # 1) EhHMIMSS Virulence Factors (12 nodes)
+    # Virulence factors.
     SeedDef(
         name="EhHMIMSS Virulence Factors",
         description=(
@@ -861,7 +854,7 @@ SEEDS: list[SeedDef] = [
             tags=["virulence", "amoeba", "seed"],
         ),
     ),
-    # 2) EhHMIMSS Tissue Invasion Machinery (10 nodes)
+    # Tissue invasion machinery.
     SeedDef(
         name="EhHMIMSS Tissue Invasion",
         description=(
@@ -967,7 +960,7 @@ SEEDS: list[SeedDef] = [
             tags=["invasion", "amoeba", "seed"],
         ),
     ),
-    # 3) EhHMIMSS Drug Targets (10 nodes)
+    # Drug targets.
     SeedDef(
         name="EhHMIMSS Drug Targets",
         description=(
@@ -1061,7 +1054,7 @@ SEEDS: list[SeedDef] = [
             tags=["drug-target", "amoeba", "seed"],
         ),
     ),
-    # 4) EhHMIMSS Encystation (8 nodes)
+    # Encystation.
     SeedDef(
         name="EhHMIMSS Encystation",
         description=(
@@ -1140,7 +1133,7 @@ SEEDS: list[SeedDef] = [
             tags=["encystation", "amoeba", "seed"],
         ),
     ),
-    # 5) EhHMIMSS Signaling Network (10 nodes)
+    # Signaling network.
     SeedDef(
         name="EhHMIMSS Signaling Network",
         description=(
@@ -1238,7 +1231,7 @@ SEEDS: list[SeedDef] = [
             tags=["signaling", "amoeba", "seed"],
         ),
     ),
-    # 6) EhHMIMSS Exported Kinases (simple 2-node baseline)
+    # Exported kinases, the simplest seed.
     SeedDef(
         name="EhHMIMSS Exported Kinases",
         description=(

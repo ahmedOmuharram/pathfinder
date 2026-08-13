@@ -3,6 +3,7 @@
 from pydantic import JsonValue, TypeAdapter
 
 from pathfinder.integrations.veupathdb._helpers import _validate_list
+from pathfinder.integrations.veupathdb.analysis_result import WDKAnalysisNotReadyError
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKAnalysisStatus,
     WDKAnalysisStatusResponse,
@@ -58,9 +59,7 @@ class AnalysisEndpoints:
         """Get filters from a step's searchConfig.
 
         WDK stores filters as ``searchConfig.filters`` on the step resource.
-        The ``viewFilters`` field exists but is not exposed for modification
-        by the WDK REST API schema, so we use ``filters`` for both read
-        and write.
+        The ``viewFilters`` field is read-only in the WDK REST API schema.
         """
         raw = await self.get(f"/users/{user_id}/steps/{step_id}")
         step = WDKStep.model_validate(raw)
@@ -69,12 +68,10 @@ class AnalysisEndpoints:
     async def update_step_view_filters(
         self, user_id: str, step_id: int, filters: list[WDKFilterValue]
     ) -> JsonValue:
-        """Update a step's viewFilters via PUT on the search-config endpoint.
+        """Update a step's filters through the search-config endpoint.
 
-        WDK's JSON schemas don't expose ``viewFilters`` for direct
-        modification.  The ``filters`` array in the search-config PUT
-        body (``wdk.answer.answer-spec-request`` schema) is the public
-        API for setting filter specifications on a step.
+        The ``filters`` array in the search-config PUT body is the only public
+        way to set filter specifications on a step.
         """
         raw = await self.get(f"/users/{user_id}/steps/{step_id}")
         step = WDKStep.model_validate(raw)
@@ -163,15 +160,15 @@ class AnalysisEndpoints:
     ) -> JSONObject:
         """Get the result of a completed step analysis instance.
 
-        ``GET .../analyses/{analysisId}/result`` returns the analysis result
-        JSON.  Returns 204 No Content if not yet complete.
+        WDK answers 204 with an empty body while no result exists, which is
+        not an empty result.
         """
         raw = await self.get(
             f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
         )
         if isinstance(raw, dict):
             return raw
-        return {}
+        raise WDKAnalysisNotReadyError(step_id, analysis_id)
 
     # --- Reports ---
 

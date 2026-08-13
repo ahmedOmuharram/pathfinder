@@ -1,4 +1,4 @@
-"""Export service — CSV/TSV/TXT generation + Postgres-backed temp storage."""
+"""Generates CSV, TSV, TXT, JSON and markdown exports and stores them in Postgres."""
 
 from __future__ import annotations
 

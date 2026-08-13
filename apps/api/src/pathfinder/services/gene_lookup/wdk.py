@@ -131,7 +131,7 @@ async def fetch_wdk_text_genes(
             )
         except AppError:
             continue
-        wdk_total = max(wdk_total, answer.meta.total_count)
+        wdk_total = max(wdk_total, answer.meta.records_returned())
         for rec in answer.records:
             parsed = _parse_wdk_record(rec)
             if parsed:
@@ -160,7 +160,9 @@ def _parse_records_to_result(answer: WDKAnswer) -> GeneResolveResult:
         parsed = _parse_wdk_record(rec)
         if parsed:
             records.append(parsed)
-    return GeneResolveResult(records=records, total_count=answer.meta.total_count)
+    return GeneResolveResult(
+        records=records, total_count=answer.meta.records_returned()
+    )
 
 
 def _empty_gene_result(error: str | None = None) -> GeneResolveResult:
@@ -211,13 +213,10 @@ async def resolve_gene_ids(
     param_name: str = "ds_gene_ids",
     attributes: list[str] | None = None,
 ) -> GeneResolveResult:
-    """Resolve a list of gene IDs to full records via the WDK standard reporter.
+    """Resolve gene IDs to full records through the WDK standard reporter.
 
-    Uses a dedicated short-lived WDK client to guarantee session affinity
-    between dataset creation and the subsequent search. The shared singleton
-    client's cookie jar is modified by concurrent requests, which can cause
-    the dataset to "not belong" to the search session (WDK tracks anonymous
-    users via session cookies).
+    The client is short-lived and private, because WDK ties a dataset to the
+    session that created it and a shared cookie jar breaks that affinity.
     """
     if not gene_ids:
         return _empty_gene_result()

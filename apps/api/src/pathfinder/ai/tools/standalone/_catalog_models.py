@@ -40,7 +40,8 @@ class DependencyDag(CamelModel):
 def _collect_param_edges(
     params: list[WDKParameter],
 ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """Return (depends_on, controls) adjacency maps from parameter metadata."""
+    """Return the depends-on and controls adjacency maps for the
+    parameters."""
     depends_on: dict[str, list[str]] = {}
     controls: dict[str, list[str]] = {}
     for p in params:
@@ -69,7 +70,7 @@ def _topological_fill_order(
                 in_degree[dep] -= 1
                 if in_degree[dep] == 0:
                     queue.append(dep)
-    # Append any remaining nodes (cycles)
+    # A cycle leaves nodes unvisited, and those go at the end.
     fill_order.extend(n for n in all_names if n not in fill_order)
     return fill_order
 
@@ -93,7 +94,7 @@ def _build_dependency_dag(params: list[WDKParameter]) -> DependencyDag:
 
 
 def _filter_vocab(param: WDKParameter, query: str) -> WDKParameter:
-    """Filter a parameter's vocabulary by a substring query (case-insensitive)."""
+    """Filter a parameter vocabulary by a case-insensitive substring."""
     q = query.lower()
     vocab = param.vocabulary
     if vocab is None:
@@ -117,7 +118,7 @@ async def _resolve_record_type(
     search_name: str,
     record_type: str | None,
 ) -> str:
-    """Resolve the record type for a search, falling back to 'transcript'."""
+    """Return the record type of a search."""
     if record_type:
         return record_type
     ctx = SearchContext(

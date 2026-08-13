@@ -1,9 +1,4 @@
-"""Gene set business logic.
-
-All domain operations on gene sets live here. The transport layer
-(HTTP router) delegates to this module for create, delete, list,
-set operations, enrichment, and step-results access.
-"""
+"""Gene set business logic: CRUD, set operations, enrichment, and step results."""
 
 from uuid import UUID, uuid4
 
@@ -38,11 +33,7 @@ logger = get_logger(__name__)
 
 
 class EmptyGeneSetError(ValidationError):
-    """Raised when a gene set resolves to zero genes.
-
-    A distinct type so the auto-import path can skip the conversation without
-    latching it, leaving a later re-build free to import the real result.
-    """
+    """Raised when a gene set resolves to zero genes."""
 
     def __init__(self, name: str) -> None:
         super().__init__(
@@ -55,7 +46,7 @@ class EmptyGeneSetError(ValidationError):
 
 
 def _dedup_ordered(gene_ids: list[str]) -> list[str]:
-    """Gene IDs with duplicates removed, preserving first-seen order."""
+    """Remove duplicate gene IDs and keep first-seen order."""
     seen: set[str] = set()
     out: list[str] = []
     for gid in gene_ids:
@@ -66,39 +57,27 @@ def _dedup_ordered(gene_ids: list[str]) -> list[str]:
 
 
 class GeneSetService:
-    """Orchestrates all gene-set domain operations.
-
-    Depends on the gene-set store and (lazily) on WDK APIs.
-    The transport layer should instantiate this once per request
-    or hold a singleton.
-    """
+    """Orchestrates gene-set domain operations over the gene-set store."""
 
     def __init__(self, store: GeneSetStore) -> None:
         self._store = store
 
-    # -- Persistence ----------------------------------------------------------
-
     async def flush(self, gene_set_id: str) -> None:
-        """Ensure a gene set is persisted to the database.
+        """Write a gene set to the database now.
 
-        The default save path is fire-and-forget. Call this when you need
-        the row to exist in the DB immediately (e.g., before setting an FK).
+        The default save path is fire-and-forget, so the row may not exist yet.
         """
         entity = self._store.get(gene_set_id)
         if entity is not None:
             await self._store._persist(entity)
 
-    # -- Lookup / ownership ---------------------------------------------------
-
     async def get_for_user(self, user_id: UUID, gene_set_id: str) -> GeneSet:
-        """Retrieve a gene set, raising NotFoundError if not found or wrong owner."""
+        """Retrieve a gene set. Raise NotFoundError if it is missing or owned by another user."""
         gs = await self._store.aget(gene_set_id)
         if gs is None or gs.user_id != user_id:
             msg = f"Gene set not found: {gene_set_id}"
             raise NotFoundError(detail=msg)
         return gs
-
-    # -- CRUD -----------------------------------------------------------------
 
     async def create(
         self,
@@ -110,11 +89,9 @@ class GeneSetService:
         source: GeneSetSource,
         wdk: GeneSetWdkContext | None = None,
     ) -> GeneSet:
-        """Create a gene set, auto-resolving from WDK if needed.
+        """Create a gene set, resolving gene IDs from WDK when none are given.
 
-        :raises EmptyGeneSetError: when nothing resolved. A 0-gene set is inert
-            (no enrichment input, empty exports) but reads as a real result in
-            the workbench list, so it is refused rather than saved.
+        :raises EmptyGeneSetError: If the gene set resolves to zero genes.
         """
         ctx = wdk or GeneSetWdkContext()
         gene_ids, ctx, step_count = await resolve_wdk_context(site_id, gene_ids, ctx)
@@ -148,11 +125,11 @@ class GeneSetService:
     async def resync_strategy(
         self, gene_set_id: str, *, wdk_strategy_id: int, site_id: str
     ) -> GeneSet | None:
-        """Re-resolve a strategy-linked gene set from the (possibly rebuilt) WDK
-        strategy, replacing its stored snapshot. Passes NO step id so the CURRENT
-        root step is resolved — a rebuild can create a new root under the same
-        strategy id — which fixes a set left stale after a re-run changed the
-        result. Returns the updated set, or ``None`` if it no longer exists."""
+        """Replace a gene set snapshot with the current WDK strategy result.
+
+        No step ID is passed, so WDK resolves the current root step. A rebuild
+        can give the same strategy ID a new root step.
+        """
         gs = await self._store.aget(gene_set_id)
         if gs is None:
             return None
@@ -181,27 +158,25 @@ class GeneSetService:
         *,
         site_id: str | None = None,
     ) -> list[GeneSet]:
-        """List gene sets for a user, optionally filtered by site."""
+        """List gene sets for a user, filtered by site when one is given."""
         return await self._store.alist_for_user(user_id, site_id=site_id)
 
     def find_by_wdk_strategy(
         self, user_id: UUID, wdk_strategy_id: int
     ) -> GeneSet | None:
-        """Find an existing gene set for a WDK strategy (cache lookup)."""
+        """Find a cached gene set for a WDK strategy."""
         for gs in self._store._cache.values():
             if gs.user_id == user_id and gs.wdk_strategy_id == wdk_strategy_id:
                 return gs
         return None
 
     async def delete(self, user_id: UUID, gene_set_id: str) -> None:
-        """Delete a gene set, raising NotFoundError if not found or wrong owner."""
+        """Delete a gene set. Raise NotFoundError if it is missing or owned by another user."""
         await self.get_for_user(user_id, gene_set_id)
         if not self._store.delete(gene_set_id):
             msg = f"Gene set not found: {gene_set_id}"
             raise NotFoundError(detail=msg)
         logger.info("Gene set deleted", gene_set_id=gene_set_id)
-
-    # -- Set operations -------------------------------------------------------
 
     async def perform_set_operation(
         self,
@@ -212,7 +187,7 @@ class GeneSetService:
         operation: str,
         name: str,
     ) -> GeneSet:
-        """Perform a set operation (intersect, union, minus) between two gene sets."""
+        """Combine two gene sets with intersect, union, or minus."""
         set_a = await self.get_for_user(user_id, set_a_id)
         set_b = await self.get_for_user(user_id, set_b_id)
 
@@ -249,8 +224,6 @@ class GeneSetService:
         )
         return gs
 
-    # -- Enrichment -----------------------------------------------------------
-
     async def run_enrichment(
         self,
         user_id: UUID,
@@ -267,8 +240,8 @@ class GeneSetService:
             dict(gs.parameters) if gs.parameters else None
         )
 
-        # Paste gene sets have gene IDs but no WDK step or search.
-        # Create a temporary WDK dataset so enrichment can run via GeneByLocusTag.
+        # A pasted gene set has gene IDs but no WDK step or search. Enrichment
+        # needs a temporary WDK dataset to run against.
         if step_id is None and not search_name and gs.gene_ids:
             (
                 search_name,
@@ -290,24 +263,19 @@ class GeneSetService:
             msg = "Enrichment analysis failed: " + "; ".join(errors)
             raise InternalError(detail=msg)
 
-        # Keep what was computed. Enrichment is a slow WDK round trip, so
-        # discarding it made reopening the workbench pay for it again - and
-        # made the results look like they had never been run.
         gs.enrichment_results = results
         self._store.save(gs)
-        # Durable before returning: the caller is about to show these results,
-        # and a reload must not find the set without them.
+        # Enrichment is a slow WDK round trip. The results must be durable
+        # before the caller displays them.
         await self.flush(gs.id)
         return results
-
-    # -- Step results access --------------------------------------------------
 
     async def get_step_results_service(
         self, user_id: UUID, gene_set_id: str
     ) -> StepResultsService:
-        """Get a StepResultsService for a gene set.
+        """Build a step-results service for a gene set.
 
-        Raises ValidationError if the gene set has no associated WDK step.
+        :raises ValidationError: If the gene set has no WDK step.
         """
         gs = await self.get_for_user(user_id, gene_set_id)
         if not gs.wdk_step_id:
@@ -324,10 +292,9 @@ class GeneSetService:
     async def get_strategy_tree(
         self, user_id: UUID, gene_set_id: str
     ) -> tuple[GeneSet, WDKStrategyDetails]:
-        """Get the WDK strategy tree for a gene set.
+        """Get a gene set and its WDK strategy tree.
 
-        Returns the gene set and the strategy tree dict.
-        Raises ValidationError if no WDK strategy is associated.
+        :raises ValidationError: If the gene set has no WDK strategy.
         """
         gs = await self.get_for_user(user_id, gene_set_id)
         if not gs.wdk_strategy_id:

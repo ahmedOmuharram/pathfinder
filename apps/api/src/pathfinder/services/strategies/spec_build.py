@@ -1,22 +1,4 @@
-"""Atomic strategy build from a declarative ``StrategyStepNode`` tree.
-
-The build flow:
-
-1. The agent (or any caller) hands us a complete ``StrategyStepNode`` tree.
-2. We replace the graph's contents with the tree's nodes (depth-first walk).
-3. We persist ``strategy_ast`` to the conversation row immediately — no
-   gating on multi-root, no waiting for WDK. Local truth is committed.
-4. We push each step to WDK in dependency order (leaves → transforms →
-   combines). Failures are recorded per-step in ``sync_state`` and do not
-   abort the build; siblings/descendants of failed nodes are skipped.
-5. After all pushes, we run ``sync_strategy_for_site`` to materialize the
-   WDK strategy + persist the resulting ``wdk_strategy_id`` and counts.
-
-This is the single entry point for declarative strategy construction. The
-imperative tools (create_leaf_step, combine_steps, update_step) that
-mutate the graph one operation at a time and rely on the auto-build hook
-are deleted in the same change set.
-"""
+"""Builds a strategy from a declarative step tree: replace, persist, push, sync."""
 
 from __future__ import annotations
 
@@ -85,13 +67,10 @@ def _replace_graph_contents(
     name: str | None,
     description: str | None,
 ) -> None:
-    """Swap the graph for the spec's tree, keeping the old one undoable.
+    """Replace the graph with the spec tree.
 
-    Materializing a spec is meant to replace what is there, so this stays
-    destructive. But the Lead may rebuild on a later turn - its own rule is
-    "not again unless the user changes the goal" - and by then the researcher
-    may have corrected a parameter by hand. Snapshotting first is what leaves
-    them a way back.
+    The build is destructive, so the old graph goes to history first. A later
+    rebuild must not discard a hand-edited parameter without a way back.
     """
     if graph.steps:
         graph.save_history("Replaced by the operational spec")
@@ -112,12 +91,9 @@ async def build_strategy_from_spec(
     name: str | None = None,
     description: str | None = None,
 ) -> BuildOutcome:
-    """Materialize a declarative tree into the graph + WDK + persistence.
+    """Build a declarative tree into the graph, WDK, and the database.
 
-    Replaces the active graph's contents with ``root`` and its descendants,
-    persists the full AST to the conversation row, then pushes each step
-    to WDK in DFS dependency order. Per-step failures are recorded but do
-    not abort the build — sibling subtrees still attempt their pushes.
+    A per-step failure does not abort the build. Sibling subtrees still push.
     """
     session = deps.strategy_session
     graph = session.get_graph(None)
@@ -136,8 +112,8 @@ async def build_strategy_from_spec(
         sync_state.wdk_strategy_id,
     )
 
-    # Persist the local AST immediately so the rail reflects the agent's
-    # declared structure even if WDK pushes fail or take time.
+    # The local tree persists before any push, so a slow or failed push still
+    # leaves the declared structure on record.
     await persist_strategy_ast_to_conversation(
         deps=deps,
         graph=graph,
@@ -154,8 +130,7 @@ async def build_strategy_from_spec(
     )
 
     if outcome.failed_steps or outcome.skipped_step_ids:
-        # Re-persist with the wdk_step_ids that did land. No sync (a sync
-        # call would raise on the unpushed steps).
+        # A sync raises when a step has no WDK ID, so only the tree persists.
         await persist_strategy_ast_to_conversation(
             deps=deps,
             graph=graph,
@@ -211,13 +186,10 @@ async def _push_tree_to_wdk(
     sync_state: WDKSyncState,
     outcome: BuildOutcome,
 ) -> None:
-    """Push every node in DFS order, recording per-step failures + skips.
+    """Push every node in dependency order, and record each failure and skip.
 
-    Each leaf/transform's parameters are validated against the *refreshed*
-    WDK param spec (which honors dependent-param chains via
-    ``refreshed-dependent-params``) before any HTTP push, so the agent
-    never gets a chance to send WDK an invalid `go_term_slim` etc and
-    burn a roundtrip on a deterministic 422.
+    Parameters pass validation against the refreshed WDK spec before the push,
+    so an invalid value costs no round trip.
     """
     failed_node_ids: set[str] = set()
     steps_by_id = {node.id: node for node in nodes}
@@ -230,15 +202,17 @@ async def _push_tree_to_wdk(
         push_parameters: dict[str, ParamValue] = dict(node.parameters)
         if search_name != COMBINE_SEARCH_NAME:
             try:
-                push_parameters = await validate_parameters(
-                    SearchContext(
-                        site_id=site_id,
-                        record_type=graph_record_type,
-                        search_name=search_name,
-                    ),
-                    parameters=dict(node.parameters),
-                    callbacks=callbacks,
-                )
+                push_parameters = (
+                    await validate_parameters(
+                        SearchContext(
+                            site_id=site_id,
+                            record_type=graph_record_type,
+                            search_name=search_name,
+                        ),
+                        parameters=dict(node.parameters),
+                        callbacks=callbacks,
+                    )
+                ).params
             except ValidationError as exc:
                 detail = exc.detail or exc.title
                 sync_state.wdk_push_errors[node.id] = detail
@@ -279,7 +253,7 @@ def _has_failed_descendant(
     failed_ids: set[str],
     steps: dict[str, StrategyStep],
 ) -> bool:
-    """True if any DFS-descendant of ``node`` already failed its push."""
+    """Report whether any descendant of the node already failed its push."""
     for input_id in node.inputs():
         if input_id in failed_ids:
             return True

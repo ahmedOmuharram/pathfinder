@@ -36,7 +36,7 @@ What the uncovered 237 fall through to, in order: `accession_in_text`, then
 and each option's display string -- then `_scalar_default` (WDK's own default),
 then a Tier-3 question.
 
-Breaking those 237 down by the value the gold strategy actually used:
+Breaking those 237 down by the value the reference strategy actually used:
 
 | shape | count | why it matters |
 |---|---|---|

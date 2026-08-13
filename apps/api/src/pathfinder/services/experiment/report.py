@@ -1,7 +1,6 @@
-"""Self-contained HTML report generation for experiments.
+"""Builds a single-file experiment report with embedded styles and tables.
 
-Generates a single-file HTML document with embedded styles, tables,
-and inline SVG charts. No external dependencies required.
+The output HTML loads no external assets.
 """
 
 import html
@@ -42,11 +41,7 @@ details summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: 
 
 
 def generate_experiment_report(experiment: Experiment) -> str:
-    """Generate a self-contained HTML report for an experiment.
-
-    :param experiment: Full experiment object with results.
-    :returns: Complete HTML string.
-    """
+    """Generate a self-contained HTML report for an experiment."""
     parts: list[str] = []
     parts.append(_header(experiment))
     parts.append(_config_section(experiment))

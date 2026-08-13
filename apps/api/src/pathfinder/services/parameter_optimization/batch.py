@@ -41,7 +41,7 @@ from pathfinder.services.parameter_optimization.scoring import (
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Trial context (shared immutable config + mutable accumulated state)
+# Trial context
 # ---------------------------------------------------------------------------
 
 
@@ -116,7 +116,7 @@ async def emit_trial_result(
     trial_result: TrialResult,
     wdk_error: str = "",
 ) -> None:
-    """Emit a progress event for a single trial (failed or successful)."""
+    """Emit a progress event for a single trial."""
     if not ctx.progress_callback:
         return
 
@@ -151,7 +151,7 @@ class TrialOutcome:
 
 @dataclass(frozen=True, slots=True)
 class TrialEvalInput:
-    """Inputs for a single trial evaluation (groups the per-trial data)."""
+    """Inputs for a single trial evaluation."""
 
     ot: optuna.trial.Trial
     params: dict[str, ParamValue]

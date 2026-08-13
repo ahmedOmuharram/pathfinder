@@ -1,12 +1,4 @@
-"""Tests for the ``get_parameter_options`` did-you-mean return path.
-
-The unit under test: when the model passes a parameter_id that doesn't
-exist on the search, the tool must return a ``ParameterNotOnSearch``
-result (NOT raise ``ModelRetry``) carrying (a) the closest matching
-valid names and (b) the full set of valid names. Returning instead of
-raising preserves retry budget — the model self-corrects on its next
-call from the typed payload.
-"""
+"""Tests for the parameter-options tool: unknown names, repeat reads, and bound context."""
 
 from __future__ import annotations
 
@@ -32,8 +24,7 @@ def _ctx() -> Any:
 
 
 def _wdk_param(name: str) -> Any:
-    """Minimal WDK param stub — only the fields the tool reads from
-    `all_params` are surfaced (name + dependent_params)."""
+    """Build a WDK parameter stub that carries only the fields the tool reads."""
     p = MagicMock()
     p.name = name
     p.dependent_params = []
@@ -65,7 +56,7 @@ def _patch_resolve_and_client(
 def _patch_context_client(
     monkeypatch: pytest.MonkeyPatch, param_names: list[str]
 ) -> Any:
-    """Client whose context-carrying read is the one under assertion."""
+    """Build a client that records the context-carrying read."""
 
     async def _resolve(*_args: Any, **_kw: Any) -> str:
         return "transcript"
@@ -84,8 +75,7 @@ def _patch_context_client(
 async def test_known_parameter_returns_normally(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Sanity: a valid parameter_id flows through to format_typed_param
-    and returns a real ParameterInfo (no exception)."""
+    """A valid parameter ID returns the formatted parameter info."""
     _patch_resolve_and_client(
         monkeypatch,
         record_type="transcript",
@@ -109,10 +99,7 @@ async def test_known_parameter_returns_normally(
 async def test_unknown_parameter_returns_not_on_search_with_close_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Model guesses ``minOverlap`` (English-y), real WDK name is
-    ``min_overlap_size``. The tool returns ``ParameterNotOnSearch``
-    carrying the close match, full valid list, and search context — the
-    model self-corrects on the next call without consuming retry budget."""
+    """An unknown parameter ID returns the close match, the valid list, and the search name."""
     _patch_resolve_and_client(
         monkeypatch,
         record_type="transcript",
@@ -146,9 +133,7 @@ async def test_unknown_parameter_returns_not_on_search_with_close_match(
 async def test_no_close_match_still_lists_all_valid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When the model's guess is so far off that get_close_matches finds
-    nothing, the full valid list still comes back. The model isn't left
-    blind — it gets at least the universe of options."""
+    """A parameter ID with no close match still returns the full valid list."""
     _patch_resolve_and_client(
         monkeypatch,
         record_type="transcript",
@@ -171,9 +156,7 @@ async def test_no_close_match_still_lists_all_valid(
 async def test_second_identical_read_returns_already_read_notice(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Reading the same parameter's options twice in a turn is wasteful:
-    the first call returns the full ParameterInfo, the second returns an
-    AlreadyReadNotice telling the model it's the same as before."""
+    """A repeat read of the same parameter returns an already-read notice."""
     _patch_resolve_and_client(
         monkeypatch,
         record_type="transcript",
@@ -207,8 +190,7 @@ async def test_second_identical_read_returns_already_read_notice(
 async def test_failed_read_is_not_marked_so_retry_works(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A ParameterNotOnSearch (wrong param name) must NOT mark the read as
-    done — the model should be able to fix the name and read for real."""
+    """A failed read stays unmarked, so a corrected name still reads the options."""
     _patch_resolve_and_client(
         monkeypatch,
         record_type="transcript",
@@ -224,7 +206,7 @@ async def test_failed_read_is_not_marked_so_retry_works(
     wrong = await catalog_discovery.get_parameter_options(
         ctx,
         search_name="GenesByGoTerm",
-        parameter_id="goTerm",  # wrong casing
+        parameter_id="goTerm",
     )
     assert isinstance(wrong, ParameterNotOnSearch)
 
@@ -237,13 +219,9 @@ async def test_failed_read_is_not_marked_so_retry_works(
 
 
 class TestInheritsBoundParentContext:
-    """A read with no ``context_values`` must still use the parents the spec has
-    already bound, or WDK answers from the search's defaults.
+    """A read with no explicit context must still send the parent values the spec binds.
 
-    The DeRisi criterion was bound to ``DeRisi 3D7 Smoothed`` while the read went
-    out with no context, so WDK returned the default profileset's (HB3's) time
-    points -- a genuinely different set of hours. See
-    ``test_resolved_params_for.py`` for the vocabularies.
+    Without them, WDK answers from the search defaults.
     """
 
     @staticmethod
@@ -284,7 +262,6 @@ class TestInheritsBoundParentContext:
     async def test_explicit_context_overrides_the_bound_value(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Deliberately looking at another profileset is legitimate exploration.
         client = _patch_context_client(monkeypatch, ["samples_percentile_generic"])
         monkeypatch.setattr(
             catalog_discovery, "format_typed_param", lambda *a, **k: MagicMock()
@@ -321,7 +298,6 @@ class TestInheritsBoundParentContext:
     async def test_inherited_context_reaches_the_formatter(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # The note must be able to name the context the list came from.
         _patch_context_client(monkeypatch, ["samples_percentile_generic"])
         seen: dict[str, Any] = {}
 

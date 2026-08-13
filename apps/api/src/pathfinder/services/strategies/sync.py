@@ -1,11 +1,4 @@
-"""Strategy sync service: push local graph state to WDK.
-
-Lightweight replacement for the build pipeline. Builds a WDK step tree
-from graph topology, creates or updates the WDK strategy, fetches counts,
-and applies step decorations. Steps already have WDK IDs (from
-creation-time push) -- the sync just manages the strategy and fetches
-counts.
-"""
+"""Pushes local graph state to WDK: step tree, strategy, counts, decorations."""
 
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
@@ -41,14 +34,10 @@ from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Protocols -- I/O boundaries the sync service depends on
-# ---------------------------------------------------------------------------
-
 
 @runtime_checkable
 class StepDecoratorAPI(Protocol):
-    """I/O boundary for post-compilation step decorations (filters, analyses, reports)."""
+    """I/O boundary for step decorations: filters, analyses, and reports."""
 
     async def set_step_filter(
         self,
@@ -73,10 +62,7 @@ class StepDecoratorAPI(Protocol):
 
 
 class StrategySyncAPI(StepDecoratorAPI, Protocol):
-    """I/O boundary for strategy sync operations.
-
-    Satisfied by the real ``StrategyAPI`` from the integrations layer.
-    """
+    """I/O boundary for strategy sync operations."""
 
     async def create_strategy(
         self,
@@ -99,16 +85,11 @@ class StrategySyncAPI(StepDecoratorAPI, Protocol):
 
 
 class SiteInfoLike(Protocol):
-    """Protocol for site metadata needed by the sync service."""
+    """Site metadata that the sync service needs."""
 
     def strategy_url(
         self, strategy_id: int, root_step_id: int | None = None
     ) -> str: ...
-
-
-# ---------------------------------------------------------------------------
-# Result type
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -124,19 +105,11 @@ class SyncResult:
     step_count: int
 
 
-# ---------------------------------------------------------------------------
-# Step tree construction
-# ---------------------------------------------------------------------------
-
-
 def build_step_tree_from_graph(
     root: StrategyStepNode,
     wdk_step_ids: dict[str, int],
 ) -> WDKStepTree:
-    """Build a WDKStepTree from graph topology and WDK step IDs.
-
-    Recursively walks a ``StrategyStepNode`` tree and replaces local step IDs
-    with WDK step IDs.
+    """Build a WDK step tree, replacing local step IDs with WDK step IDs.
 
     :raises StrategyCompilationError: If any step in the tree lacks a WDK step ID.
     """
@@ -160,13 +133,8 @@ def build_step_tree_from_graph(
     )
 
 
-# ---------------------------------------------------------------------------
-# Tree comparison
-# ---------------------------------------------------------------------------
-
-
 def _trees_equal(a: WDKStepTree | None, b: WDKStepTree | None) -> bool:
-    """Check structural equality of two WDKStepTree objects."""
+    """Compare two step trees for structural equality."""
     if a is None or b is None:
         return a is b
     if a.step_id != b.step_id:
@@ -176,19 +144,11 @@ def _trees_equal(a: WDKStepTree | None, b: WDKStepTree | None) -> bool:
     )
 
 
-# ---------------------------------------------------------------------------
-# Count and validation extraction
-# ---------------------------------------------------------------------------
-
-
 def _extract_counts_and_validations(
     strategy_info: WDKStrategyDetails,
     wdk_step_ids: dict[str, int],
 ) -> tuple[dict[str, int | None], dict[str, StepValidation], int | None]:
-    """Extract per-step counts and validations from a WDK strategy payload.
-
-    Maps WDK step IDs back to local step IDs and extracts ``estimatedSize``
-    and ``validation`` for each step.
+    """Extract per-step counts and validations, keyed by local step ID.
 
     :returns: Tuple of (counts, validations, root_count).
     """
@@ -215,21 +175,12 @@ def _extract_counts_and_validations(
     return counts, validations, root_count
 
 
-# ---------------------------------------------------------------------------
-# Step decorations
-# ---------------------------------------------------------------------------
-
-
 async def _apply_decorations(
     root_step: StrategyStepNode,
     wdk_step_ids: dict[str, int],
     api: StepDecoratorAPI,
 ) -> None:
-    """Apply filters, analyses, and reports to compiled WDK steps.
-
-    Walks the step tree directly and applies any declared decorations
-    (filters, analyses, reports) to each step's WDK counterpart.
-    """
+    """Apply declared filters, analyses, and reports to each WDK step."""
     for step in walk_step_tree(root_step):
         wdk_step_id = wdk_step_ids.get(step.id)
         if wdk_step_id is None:
@@ -256,20 +207,15 @@ async def _apply_decorations(
             )
 
 
-# ---------------------------------------------------------------------------
-# Create-or-update strategy on WDK
-# ---------------------------------------------------------------------------
-
-
 async def _create_or_update_wdk_strategy(
     api: StrategySyncAPI,
     step_tree: WDKStepTree,
     name: str,
     sync_state: WDKSyncState,
 ) -> int:
-    """Create a new WDK strategy or update an existing one.
+    """Create a new WDK strategy, or update the existing one.
 
-    Falls back to creating a new strategy if the update fails (e.g. 404).
+    A failed update creates a new strategy instead.
 
     :returns: The WDK strategy ID.
     """
@@ -309,18 +255,13 @@ async def _create_or_update_wdk_strategy(
     return wdk_strategy_id
 
 
-# ---------------------------------------------------------------------------
-# Fetch counts and apply decorations
-# ---------------------------------------------------------------------------
-
-
 async def _fetch_strategy_state(
     api: StrategySyncAPI,
     wdk_strategy_id: int,
     wdk_step_ids: dict[str, int],
     step_tree: WDKStepTree,
 ) -> tuple[dict[str, int | None], dict[str, StepValidation], int | None, int]:
-    """Fetch strategy details and extract counts, validations, and root step ID.
+    """Fetch strategy details.
 
     :returns: Tuple of (counts, validations, root_count, root_wdk_step_id).
     """
@@ -336,11 +277,6 @@ async def _fetch_strategy_state(
         return counts, validations, root_count, strategy_info.root_step_id
 
 
-# ---------------------------------------------------------------------------
-# Main sync function
-# ---------------------------------------------------------------------------
-
-
 async def sync_strategy(
     *,
     graph: StrategyGraph,
@@ -350,59 +286,47 @@ async def sync_strategy(
     site_id: str,
     strategy_name: str | None = None,
 ) -> SyncResult:
-    """Sync graph state to WDK: build step tree, create/update strategy, fetch counts.
+    """Sync graph state to WDK: build step tree, create or update strategy, fetch counts.
 
-    Steps must already have WDK IDs (from creation-time push). This function
-    manages the strategy resource and fetches result counts.
+    Every step must already hold a WDK step ID.
 
     :raises RootResolutionError: If root step cannot be determined.
     :raises StrategyCompilationError: If steps lack WDK IDs or validation fails.
     :raises AppError: On WDK API failures.
     """
-    # 1. Resolve the root and project it to the nested shape WDK expects.
-    #    The working graph is keyed by id; the tree exists only for this call.
     root = resolve_root_step(graph, None)
-    # A combine that lost an input is kept on the canvas but cannot be
-    # computed, so WDK is given the surviving branch instead of a step it
-    # would reject.
+    # A combine step that lacks an input is not computable. WDK receives the
+    # surviving branch instead.
     pushable_id = pushable_root_id(root.id, graph.steps)
     if pushable_id is None:
         msg = "No computable step in graph. Finish wiring the strategy first."
         raise RootResolutionError(msg)
     root_step = rebuild_tree(pushable_id, graph.steps)
 
-    # 2. Auto-resolve record type from leaf searches if not set.
     if not graph.record_type:
         resolver = await make_record_type_resolver(site_id)
         graph.record_type = await resolve_record_type_from_steps(root_step, resolver)
 
-    # 3. Validate strategy structure.
     _validate_graph(root_step, graph.record_type)
 
-    # 4. Build step tree from graph topology + WDK step IDs.
     step_tree = build_step_tree_from_graph(root_step, sync_state.wdk_step_ids)
 
-    # 5. Create or update WDK strategy.
     name = strategy_name or graph.name or "Untitled Strategy"
     wdk_strategy_id = await _create_or_update_wdk_strategy(
         api, step_tree, name, sync_state
     )
 
-    # 6. Fetch strategy details for counts and validations.
     counts, validations, root_count, root_wdk_step_id = await _fetch_strategy_state(
         api, wdk_strategy_id, sync_state.wdk_step_ids, step_tree
     )
 
-    # 7. Apply step decorations (filters, analyses, reports).
     await _maybe_apply_decorations(root_step, sync_state.wdk_step_ids, api)
 
-    # 8. Update sync state.
     sync_state.wdk_strategy_id = wdk_strategy_id
     sync_state.wdk_step_tree = step_tree
     sync_state.step_counts = counts
     sync_state.step_validations = validations
 
-    # 9. Build URL and return result.
     all_steps = walk_step_tree(root_step)
     wdk_url = site.strategy_url(wdk_strategy_id, root_wdk_step_id)
     zeros = sorted([sid for sid, c in counts.items() if c == 0])
@@ -419,7 +343,7 @@ async def sync_strategy(
 
 
 def _validate_graph(root_step: StrategyStepNode, record_type: str | None) -> None:
-    """Validate the strategy structure if a record type is available."""
+    """Validate the strategy structure when a record type is known."""
     if not record_type:
         return
     validation_result = validate_strategy(root_step, record_type)
@@ -436,7 +360,7 @@ async def _maybe_apply_decorations(
     wdk_step_ids: dict[str, int],
     api: StepDecoratorAPI,
 ) -> None:
-    """Apply step decorations if any steps have filters, analyses, or reports."""
+    """Apply step decorations when at least one step declares them."""
     all_steps = walk_step_tree(root_step)
     has_decorations = any(
         step.filters or step.analyses or step.reports for step in all_steps
@@ -449,11 +373,6 @@ async def _maybe_apply_decorations(
         logger.warning("Step decoration failed (non-fatal)", error=str(e))
 
 
-# ---------------------------------------------------------------------------
-# Convenience entry point (resolves integrations internally)
-# ---------------------------------------------------------------------------
-
-
 async def sync_strategy_for_site(
     *,
     graph: StrategyGraph,
@@ -461,11 +380,7 @@ async def sync_strategy_for_site(
     site_id: str,
     strategy_name: str | None = None,
 ) -> SyncResult:
-    """Sync a strategy using factory-resolved API and site info.
-
-    This is the entry point for the AI tool layer -- it resolves the
-    integration objects internally so callers don't import from integrations.
-    """
+    """Sync a strategy, resolving the API and site info from the site ID."""
     api = get_strategy_api(site_id)
     site = get_site(site_id)
     return await sync_strategy(

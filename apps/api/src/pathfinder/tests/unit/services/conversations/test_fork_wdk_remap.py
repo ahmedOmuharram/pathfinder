@@ -1,15 +1,7 @@
-"""Unit tests for the fork WDK step-id remap algorithm.
+"""A fork remaps every tracked WDK step id to the copied strategy.
 
-When a conversation is forked, ``fork._duplicate_wdk_strategy`` copies the
-source WDK strategy and must remap every locally-tracked ``wdkStepIds``
-entry from a source WDK step id to the corresponding copied step id. The
-pairing is built by walking the source and copy step trees in the same
-pre-order DFS and zipping by position (WDK's ``copyStrategy`` preserves
-topology, so position is a stable key).
-
-These tests pin the exact remapped ids for a realistic 3-step combine
-strategy (two leaf searches + an INTERSECT combine), and characterise the
-edge cases (transform chains, stale map entries).
+WDK preserves topology on copy, so the source and copy trees pair by
+position under the same pre-order walk.
 """
 
 from typing import Any
@@ -77,8 +69,7 @@ def test_remap_three_step_combine_pins_exact_new_ids() -> None:
         "step_taxon": 7001,
         "step_text": 7002,
     }
-    # The source ids must NOT survive into the fork — aliasing the parent's
-    # steps is the corruption we are guarding against.
+    # A fork must not alias the parent's steps.
     assert set(new_ids.values()).isdisjoint(set(old_ids.values()))
 
 
@@ -130,11 +121,7 @@ def test_remap_drops_entry_absent_from_source_tree() -> None:
     }
 
 
-# ---------------------------------------------------------------------------
-# Full WDK-duplication path (lead #1): exercises _duplicate_wdk_strategy with
-# a fake StrategyAPI so the source/copy step trees diverge in ids but keep
-# topology — the exact condition the position-based DFS pairing relies on.
-# ---------------------------------------------------------------------------
+# The copy keeps the source topology and changes every id.
 
 
 def _wdk_details(*, strategy_id: int, signature: str, tree: WDKStepTree) -> Any:
@@ -241,5 +228,4 @@ async def test_duplicate_wdk_strategy_returns_none_on_wdk_error(
         forked_ast=forked_ast,
     )
     assert new_id is None
-    # The caller strips wdkStepIds when new_id is None; _duplicate leaves the
-    # (now-stale) map untouched here, so we only assert the signal.
+    # The caller strips the map when there is no new id.

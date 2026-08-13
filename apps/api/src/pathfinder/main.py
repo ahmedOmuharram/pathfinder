@@ -79,11 +79,10 @@ logger = get_logger(__name__)
 
 
 async def _warm_up_subsystems() -> None:
-    """Load models and preload catalogs, marking readiness per subsystem.
+    """Load the models and preload the catalogs.
 
-    Runs after DB init. Each step is best-effort: a failure flips the
-    subsystem's readiness flag and keeps ``/health/ready`` returning 503
-    with the per-subsystem detail.
+    Each step is independent. A failure marks its subsystem as not ready and
+    the rest continue.
     """
     readiness = get_readiness()
     try:
@@ -134,7 +133,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         readiness.mark_failed("database", str(e))
         raise
 
-    # Observability + Langfuse prompt seed after DB is ready.
+    # Observability and the prompt seed both need a ready database.
     setup_observability(app=app, db_engine=get_engine())
     from pathfinder.platform.langfuse.prompts import seed_prompts  # noqa: PLC0415
 
@@ -184,7 +183,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 
 def _register_routers(app: FastAPI) -> None:
-    """Mount every always-on HTTP router on the app."""
+    """Mount every always-on HTTP router."""
     for router in (
         health.router,
         sites.router,
@@ -211,7 +210,7 @@ def _register_routers(app: FastAPI) -> None:
 
 
 def create_app() -> FastAPI:
-    """Create and configure FastAPI application."""
+    """Create and configure the FastAPI application."""
     settings = get_settings()
 
     app = FastAPI(
@@ -223,7 +222,6 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.api_docs_enabled else None,
     )
 
-    # CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -240,17 +238,15 @@ def create_app() -> FastAPI:
         ],
     )
 
-    # Rate limiter (slowapi)
     app.state.limiter = limiter
 
-    # CSRF protection — require X-Requested-With on state-changing requests.
-    # Registered after CORSMiddleware so OPTIONS preflight passes through.
+    # The CSRF middleware registers after CORS, so a preflight request passes
+    # through it.
     app.middleware("http")(csrf_middleware)
 
-    # NUL is a 422, not a 500: PostgreSQL text cannot hold 0x00.
+    # PostgreSQL text cannot hold a NUL byte, so a NUL is a 422 and not a 500.
     app.add_middleware(RejectNullBytesMiddleware)
 
-    # Request ID middleware
     @app.middleware("http")
     async def add_request_id(
         request: Request,
@@ -263,7 +259,7 @@ def create_app() -> FastAPI:
             or request.headers.get("X-VEUPATHDB-AUTHORIZATION")
             or request.cookies.get("Authorization")
         )
-        # Capture the frontend origin for constructing full download URLs.
+        # A full download URL needs the frontend origin.
         origin = (
             request.headers.get("Origin")
             or request.headers.get("Referer", "").rstrip("/").rsplit("/api/", 1)[0]
@@ -287,7 +283,7 @@ def create_app() -> FastAPI:
 
     _register_routers(app)
 
-    # Dev-only routes (e2e / local dev with mock chat provider).
+    # The dev routes mount under the mock chat provider only.
     if settings.pathfinder_chat_provider.strip().lower() == "mock":
         app.include_router(dev.router)
 

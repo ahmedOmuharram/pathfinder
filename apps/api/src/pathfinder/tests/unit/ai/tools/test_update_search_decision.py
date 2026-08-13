@@ -1,11 +1,4 @@
-"""Direct tests for the ``update_search_decision`` discovery tool.
-
-These hit the real tool function with a synthesized ``RunContext`` so the
-test exercises the actual mutation path that pydantic-ai will execute when
-the discovery agent calls it. We assert on the resulting ``SearchOverview``
-fields and the rendered ``pinned_discovered_searches`` string — i.e. what
-downstream phases will actually see.
-"""
+"""Tests for the update_search_decision discovery tool."""
 
 from __future__ import annotations
 
@@ -39,8 +32,7 @@ def _taxon_vocab() -> dict[str, ParamVocabSnapshot]:
 
 
 def _seed_overview(name: str, record_type: str = "transcript") -> SearchOverview:
-    """A search whose required params are already resolved (param_vocab set) —
-    the precondition for selection after the resolver guard."""
+    """A search whose required params are resolved, which selection requires."""
     return SearchOverview(
         search_name=name,
         display_name=f"{name} display",
@@ -53,7 +45,7 @@ def _seed_overview(name: str, record_type: str = "transcript") -> SearchOverview
 
 
 def _unresolved_overview(name: str) -> SearchOverview:
-    """A search inspected but whose required params are NOT yet resolved."""
+    """A search that is inspected but whose required params are unresolved."""
     return SearchOverview(
         search_name=name,
         display_name=f"{name} display",
@@ -75,9 +67,7 @@ def _ctx_with(overviews: dict[str, SearchOverview]) -> Any:
 
 @pytest.mark.asyncio
 async def test_unknown_search_with_no_discoveries_yet_raises_modelretry() -> None:
-    """Discovery must `get_search_overview` first; the decision tool now
-    raises ``ModelRetry`` so pydantic-ai threads the message back into the
-    same step (the model self-corrects without burning a turn)."""
+    """An undiscovered search raises ModelRetry that names the overview tool."""
     ctx = _ctx_with({})
     with pytest.raises(ModelRetry) as excinfo:
         await update_search_decision(
@@ -93,9 +83,7 @@ async def test_unknown_search_with_no_discoveries_yet_raises_modelretry() -> Non
 
 @pytest.mark.asyncio
 async def test_unknown_search_with_other_discoveries_includes_did_you_mean() -> None:
-    """When other searches HAVE been inspected, the retry message must
-    list them so the model can pick the right one — the model can copy
-    a name verbatim from the message instead of guessing again."""
+    """The retry message lists the inspected searches so the model can copy a name."""
     ctx = _ctx_with(
         {
             "GenesByGoTerm": _seed_overview("GenesByGoTerm"),
@@ -106,22 +94,21 @@ async def test_unknown_search_with_other_discoveries_includes_did_you_mean() -> 
     with pytest.raises(ModelRetry) as excinfo:
         await update_search_decision(
             ctx,
-            search_name="GenesByGOTerm",  # close to GenesByGoTerm
+            search_name="GenesByGOTerm",
             selection_status="selected",
             rationale="anchor",
         )
     msg = str(excinfo.value)
     assert "GenesByGOTerm" in msg
-    # Did-you-mean suggestion list must include the close match.
+    # The suggestion list holds the close match.
     assert "GenesByGoTerm" in msg
-    # Full valid set is exposed so the model has the complete vocabulary.
+    # The full valid set is exposed.
     assert "GenesByText" in msg
 
 
 @pytest.mark.asyncio
 async def test_invalid_confidence_raises_modelretry_with_bounds() -> None:
-    """Confidence is a 0..1 probability. The retry message must spell out
-    the valid range so the model picks a value in-bounds on the next try."""
+    """Confidence is a probability from 0 to 1, and the retry message states the range."""
     ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
     with pytest.raises(ModelRetry) as excinfo:
         await update_search_decision(
@@ -139,9 +126,8 @@ async def test_invalid_confidence_raises_modelretry_with_bounds() -> None:
 
 @pytest.mark.asyncio
 async def test_select_blocked_when_required_param_unresolved() -> None:
-    """Selecting a search whose required params have no vocab snapshot is
-    refused — planning would otherwise guess the values (the go_term_evidence
-    thrash). The retry message names the param and points to the resolver."""
+    """Selection is refused when a required param has no vocabulary snapshot. The
+    retry message names the param and the resolver tool."""
     ctx = _ctx_with({"GenesByGoTerm": _unresolved_overview("GenesByGoTerm")})
     with pytest.raises(ModelRetry) as excinfo:
         await update_search_decision(
@@ -158,7 +144,7 @@ async def test_select_blocked_when_required_param_unresolved() -> None:
 
 @pytest.mark.asyncio
 async def test_select_allowed_once_required_params_resolved() -> None:
-    """With every required param snapshotted, selection proceeds normally."""
+    """Selection proceeds when every required param has a snapshot."""
     ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
     result = await update_search_decision(
         ctx,
@@ -173,8 +159,7 @@ async def test_select_allowed_once_required_params_resolved() -> None:
 
 @pytest.mark.asyncio
 async def test_candidate_and_rejected_not_blocked_by_resolver_guard() -> None:
-    """The guard only gates ``selected`` — candidate/rejected are bookkeeping
-    that must work even on unresolved searches."""
+    """The guard gates only the selected status. Candidate and rejected always apply."""
     for status in ("candidate", "rejected"):
         ctx = _ctx_with({"GenesByGoTerm": _unresolved_overview("GenesByGoTerm")})
         result = await update_search_decision(
@@ -189,9 +174,7 @@ async def test_candidate_and_rejected_not_blocked_by_resolver_guard() -> None:
 
 @pytest.mark.asyncio
 async def test_select_with_replaces_records_link_and_rejects_old() -> None:
-    """A targeted-re-discovery replacement: selecting GenesByGoTerm with
-    replaces=GenesByInterproDomain records the link and auto-rejects the old
-    search, so deterministic reconciliation can swap the plan leaf."""
+    """A replacement records the link and rejects the replaced search."""
     ctx = _ctx_with(
         {
             "GenesByGoTerm": _seed_overview("GenesByGoTerm"),
@@ -246,10 +229,7 @@ async def test_replaces_self_raises_modelretry() -> None:
 
 @pytest.mark.asyncio
 async def test_commits_selected_decision_with_full_metadata() -> None:
-    """The happy path: discovery commits ``selected`` with full reasoning,
-    and the SearchOverview in agent_state reflects every field. The
-    pinned_discovered_searches render must surface those fields verbatim
-    so the planner can read discovery's verdict without any tool history."""
+    """A selected decision stores every field, and the pinned render shows them."""
     ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
     result = await update_search_decision(
         ctx,
@@ -271,7 +251,7 @@ async def test_commits_selected_decision_with_full_metadata() -> None:
     assert stored.selection_reason == "primary anchor for kinase filter"
     assert stored.confidence == 0.92
     assert stored.param_hints == {"taxon": "Plasmodium", "go_term": "GO:0016301"}
-    # Other fields preserved from the seed overview (no destructive update).
+    # The update keeps the other seeded fields.
     assert stored.parameter_names == ["taxon"]
     assert stored.record_type == "transcript"
 
@@ -286,9 +266,7 @@ async def test_commits_selected_decision_with_full_metadata() -> None:
 
 @pytest.mark.asyncio
 async def test_commits_rejected_decision_persists_for_planning() -> None:
-    """Recording rejected candidates is the whole point — keeps planning
-    from re-discovering the same dead ends. The overview must remain in
-    agent_state with status=rejected and the reason."""
+    """A rejected decision stays in state with its status and reason."""
     ctx = _ctx_with({"GenesByMicroarray": _seed_overview("GenesByMicroarray")})
     result = await update_search_decision(
         ctx,
@@ -314,9 +292,7 @@ async def test_commits_rejected_decision_persists_for_planning() -> None:
 
 @pytest.mark.asyncio
 async def test_decision_can_be_revised() -> None:
-    """An agent may downgrade or upgrade a search after seeing more
-    evidence. The latest call wins; previous fields are fully replaced
-    so planning never sees stale rationale fragments."""
+    """The latest call wins and replaces the previous fields."""
     ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
     await update_search_decision(
         ctx,
@@ -339,15 +315,13 @@ async def test_decision_can_be_revised() -> None:
     assert stored.confidence == 0.95
     assert "confirmed: GO:0016301" in stored.rationale
     assert "best anchor" in stored.selection_reason
-    # The earlier rationale is fully replaced — no stale fragments leak.
+    # The earlier rationale is fully replaced.
     assert "initial pass" not in stored.rationale
 
 
 @pytest.mark.asyncio
 async def test_deciding_marks_search_decided_and_hides_from_catalog() -> None:
-    """A recorded decision flips ``decided`` so the search is filtered out
-    of the search catalog and won't resurface — this is what stops the
-    discovery loop of re-evaluating the same search repeatedly."""
+    """A recorded decision sets decided, which hides the search from the catalog."""
     ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
     state = ctx.deps.agent_state
     assert state.decided_search_names() == set()
@@ -367,9 +341,7 @@ async def test_deciding_marks_search_decided_and_hides_from_catalog() -> None:
 
 @pytest.mark.asyncio
 async def test_redeciding_same_status_is_a_no_op() -> None:
-    """Calling the decision tool again with the SAME status on an
-    already-decided search returns an 'already decided' notice and does
-    NOT overwrite the stored decision — the model is told to move on."""
+    """A repeated status on a decided search returns a notice and keeps the decision."""
     ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
     await update_search_decision(
         ctx,
@@ -392,7 +364,7 @@ async def test_redeciding_same_status_is_a_no_op() -> None:
 
     stored = ctx.deps.agent_state.get_overview("GenesByGoTerm")
     assert stored is not None
-    # No overwrite: the first verdict's fields are intact.
+    # The first verdict's fields stay intact.
     assert stored.rationale == "first verdict"
     assert stored.selection_reason == "primary anchor"
     assert stored.confidence == 0.9
@@ -400,8 +372,7 @@ async def test_redeciding_same_status_is_a_no_op() -> None:
 
 @pytest.mark.asyncio
 async def test_redeciding_different_status_still_updates() -> None:
-    """Changing the verdict (e.g. selected → rejected) on a decided search
-    is a legitimate revision and must still apply."""
+    """A changed status on a decided search still applies."""
     ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
     await update_search_decision(
         ctx,

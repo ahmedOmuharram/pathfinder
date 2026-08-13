@@ -11,21 +11,17 @@ All gene IDs verified against https://veupathdb.org/veupathdb/service
 
 from pathfinder.services.experiment.seed.types import ControlSetDef, SeedDef
 
-# ---------------------------------------------------------------------------
 # Organism constants
-# ---------------------------------------------------------------------------
 
 PV_ORG = "Plasmodium vivax Sal-1"
 NC_ORG = "Neospora caninum Liverpool"
 TC_ORG = "Trypanosoma cruzi CL Brener Esmeraldo-like"
 
-# ---------------------------------------------------------------------------
-# Gene ID lists — verified against live VEuPathDB API
-# ---------------------------------------------------------------------------
+# Gene ID lists
 
-# P. vivax Sal-1 — Invasion and Surface Proteins
+# P. vivax Sal-1: Invasion and Surface Proteins
 PVIVAX_INVASION_SURFACE = [
-    # Duffy Binding Protein — THE key invasion ligand
+    # Duffy Binding Protein: a key invasion ligand
     "PVX_110810",  # Duffy receptor precursor
     # Reticulocyte Binding Proteins
     "PVX_098585",  # reticulocyte binding protein 1a
@@ -110,9 +106,9 @@ PVIVAX_INVASION_SURFACE = [
     "PVX_000975",  # liver specific protein 2
 ]
 
-# P. vivax Sal-1 — Drug Targets and Metabolic Enzymes
+# P. vivax Sal-1: Drug Targets and Metabolic Enzymes
 PVIVAX_DRUG_TARGETS = [
-    # DHFR — primary antimalarial target
+    # DHFR: primary antimalarial target
     "PVX_089950",  # bifunctional dihydrofolate reductase-thymidylate synthase
     # Plasmepsin
     "PVX_086040",  # plasmepsin IV
@@ -176,7 +172,7 @@ PVIVAX_DRUG_TARGETS = [
     "PVX_083185",  # isocitrate dehydrogenase [NADP], mitochondrial
 ]
 
-# P. vivax Sal-1 — VIR Variant Surface and Exported Proteins
+# P. vivax Sal-1: VIR Variant Surface and Exported Proteins
 PVIVAX_VARIANT_SURFACE = [
     # VIR proteins
     "PVX_001635",  # VIR protein
@@ -272,9 +268,9 @@ PVIVAX_VARIANT_SURFACE = [
     "PVX_001715",  # early transcribed membrane protein (ETRAMP)
 ]
 
-# N. caninum Liverpool — SRS Surface Proteins and Antigens
+# N. caninum Liverpool: SRS Surface Proteins and Antigens
 NCANINUM_SURFACE_SRS = [
-    # SRS domain proteins — large family
+    # SRS domain proteins: large family
     "NCLIV_002220",  # srs domain-containing protein
     "NCLIV_002230",  # srs domain-containing protein
     "NCLIV_002240",  # srs domain-containing protein
@@ -376,7 +372,7 @@ NCANINUM_SURFACE_SRS = [
     "NCLIV_004020",  # tryptophan-rich antigen (Pv-fam-a), related
 ]
 
-# N. caninum Liverpool — Invasion Machinery (subset for controls)
+# N. caninum Liverpool: Invasion Machinery (subset for controls)
 NCANINUM_INVASION = [
     "NCLIV_043270",  # putative microneme protein MIC1
     "NCLIV_010600",  # putative microneme protein MIC3
@@ -400,7 +396,7 @@ NCANINUM_INVASION = [
     "NCLIV_064430",  # putative subtilase family serine protease
 ]
 
-# N. caninum Liverpool — Kinases and Signaling (subset for controls)
+# N. caninum Liverpool: Kinases and Signaling (subset for controls)
 NCANINUM_KINASES = [
     "NCLIV_002090",  # putative CAM kinase, CDPK family
     "NCLIV_012150",  # putative CAM kinase, CDPK family
@@ -424,7 +420,7 @@ NCANINUM_KINASES = [
     "NCLIV_032780",  # putative small heat shock protein 20
 ]
 
-# T. cruzi CL Brener — Trans-Sialidase Superfamily
+# T. cruzi CL Brener: Trans-Sialidase Superfamily
 TCRUZI_TRANSSIALIDASE = [
     # Active trans-sialidases
     "TcCLB.398265.9",  # trans-sialidase
@@ -506,7 +502,7 @@ TCRUZI_TRANSSIALIDASE = [
     "TcCLB.457977.10",  # trans-sialidase (fragment)
 ]
 
-# T. cruzi CL Brener — Mucins, MASP, GP63, Amastin Surface Proteins
+# T. cruzi CL Brener: Mucins, MASP, GP63, Amastin Surface Proteins
 TCRUZI_MUCIN_MASP_SURFACE = [
     # Mucins
     "TcCLB.413133.10",  # mucin TcMUCII (pseudogene)
@@ -570,7 +566,7 @@ TCRUZI_MUCIN_MASP_SURFACE = [
     "TcCLB.511071.40",  # amastin
 ]
 
-# T. cruzi CL Brener — Drug Targets and Essential Enzymes
+# T. cruzi CL Brener: Drug Targets and Essential Enzymes
 TCRUZI_DRUG_TARGETS = [
     # Cruzipain
     "TcCLB.507603.270",  # cruzipain precursor
@@ -598,7 +594,7 @@ TCRUZI_DRUG_TARGETS = [
     "TcCLB.507641.290",  # heat shock protein 60
 ]
 
-# T. cruzi CL Brener — Flagellar (subset for controls)
+# T. cruzi CL Brener: Flagellar (subset for controls)
 TCRUZI_FLAGELLAR = [
     "TcCLB.411235.9",  # alpha tubulin
     "TcCLB.506563.40",  # beta tubulin
@@ -623,9 +619,7 @@ TCRUZI_FLAGELLAR = [
 ]
 
 
-# ---------------------------------------------------------------------------
 # Parameter helpers
-# ---------------------------------------------------------------------------
 
 
 def _text_search_params(organism: str, expression: str) -> dict[str, str]:
@@ -642,9 +636,7 @@ def _text_search_params(organism: str, expression: str) -> dict[str, str]:
     }
 
 
-# ---------------------------------------------------------------------------
 # Strategy Definitions (6 strategies, converted from flat step format)
-# ---------------------------------------------------------------------------
 
 SEEDS: list[SeedDef] = [
     # ===================================================================

@@ -1,12 +1,6 @@
 """Candidate collection, filtering, and site-search integration for search discovery.
 
-Internal helpers used by the public ``search_for_searches`` orchestrator in
-``searches.py``.  These handle:
-
-- Collecting WDK search candidates (with optional ontology category filtering)
-- Resolving record-type arguments (including gene→transcript aliasing)
-- Parsing site-search documents into SearchMatch objects
-- Boosting scored entries by site-search rank
+These are internal helpers for the ``search_for_searches`` orchestrator.
 """
 
 from pathfinder.integrations.veupathdb.discovery_service import DiscoveryService
@@ -69,11 +63,7 @@ async def search_for_searches_via_site_search(
     *,
     limit: int = 20,
 ) -> list[SearchMatch]:
-    """Search WDK searches via the site's /site-search service.
-
-    This mirrors the webapp search UI (`/app/search`) when filtering to
-    documentType=search.
-    """
+    """Find WDK searches through the site-search service."""
     try:
         response = (
             await get_site_router()
@@ -99,12 +89,9 @@ async def search_for_searches_via_site_search(
         if entry is not None:
             results.append(entry)
 
-    # Boost transcript/gene results to the top — the model almost always
-    # builds gene strategies, so EST/Popset/compound matches are noise.
     results.sort(key=lambda r: record_type_priority(r.record_type))
 
-    # Deduplicate: same search can appear for multiple record types;
-    # keep only the highest-priority (lowest sort key) occurrence.
+    # One search can appear under several record types. Keep the highest priority.
     seen: set[str] = set()
     deduped: list[SearchMatch] = []
     for r in results:
@@ -122,9 +109,8 @@ async def collect_search_candidates(
 ) -> list[tuple[WDKSearch, str]]:
     """Collect search candidates, optionally filtered by ontology category.
 
-    When *category* is set, only searches belonging to that ``searchCategory-*``
-    subcategory are included — plus all universal (uncategorized) searches so
-    the model always has access to GenesByText, GenesByTaxon, etc.
+    A category filter keeps the searches of that subcategory and all
+    uncategorized searches.
     """
     catalog = await discovery.get_catalog(site_id)
     candidates: list[tuple[WDKSearch, str]] = []
@@ -137,7 +123,6 @@ async def collect_search_candidates(
                 continue
             if category:
                 search_cat = catalog.get_search_category(s.url_segment)
-                # Include if: matches category OR is universal (no category)
                 if search_cat is not None and search_cat != category:
                     continue
             candidates.append((s, rt_name))
@@ -147,22 +132,14 @@ async def collect_search_candidates(
 async def resolve_record_types(
     discovery: DiscoveryService, site_id: str, record_type: str | list[str] | None
 ) -> list[str]:
-    """Resolve the record_type argument to a deduplicated list of type strings.
-
-    When the caller asks for ``"gene"`` we also include ``"transcript"``
-    because most VEuPathDB gene searches (especially dataset-specific ones)
-    live under the transcript record type.  Without this, passing
-    ``record_type="gene"`` silently hides the majority of useful searches.
-    """
+    """Resolve the record_type argument to a deduplicated list of type strings."""
     record_types: list[str] = []
     if isinstance(record_type, list):
         record_types = [str(rt) for rt in record_type if rt]
     elif isinstance(record_type, str) and record_type:
         record_types = [record_type]
     record_types = list(dict.fromkeys(record_types))
-    # Most VEuPathDB gene searches (especially dataset-specific ones) live
-    # under "transcript".  When the model asks for "gene", also include
-    # "transcript" so those searches aren't silently hidden.
+    # Most VEuPathDB gene searches live under the "transcript" record type.
     if "gene" in record_types and "transcript" not in record_types:
         record_types.append("transcript")
     if not record_types:
@@ -177,7 +154,7 @@ async def apply_site_search_bonus(
     query: str,
     limit: int,
 ) -> None:
-    """Best-effort: boost scored entries by their rank in site-search results."""
+    """Boost scored entries by their rank in the site-search results."""
     try:
         site_results = await search_for_searches_via_site_search(
             site_id, query, limit=limit

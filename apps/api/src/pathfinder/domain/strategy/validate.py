@@ -1,4 +1,4 @@
-"""Validation for strategy DSL."""
+"""Validates a strategy tree and reports the issues it finds."""
 
 from dataclasses import dataclass
 
@@ -12,7 +12,7 @@ from pathfinder.domain.strategy.organism import extract_output_organisms
 
 @dataclass
 class StepValidationIssue:
-    """A single validation issue found during step/strategy validation."""
+    """One issue found during validation."""
 
     path: str
     message: str
@@ -21,52 +21,38 @@ class StepValidationIssue:
 
 @dataclass
 class ValidationResult:
-    """Result of validation."""
+    """The outcome of a validation run."""
 
     valid: bool
     errors: list[StepValidationIssue]
 
     @classmethod
     def success(cls) -> ValidationResult:
-        """Create a successful result."""
+        """Builds a successful result."""
         return cls(valid=True, errors=[])
 
     @classmethod
     def failure(cls, errors: list[StepValidationIssue]) -> ValidationResult:
-        """Create a failed result.
-
-        :param errors: Validation errors list.
-
-        """
+        """Builds a failed result from the given issues."""
         return cls(valid=False, errors=errors)
 
 
 class StrategyValidator:
-    """Validates strategy AST."""
+    """Validates a strategy tree against the available searches and transforms."""
 
     def __init__(
         self,
         available_searches: dict[str, list[str]] | None = None,
         available_transforms: list[str] | None = None,
     ) -> None:
-        """Initialize validator.
-
-        :param available_searches: Map of record_type -> list of search names.
-        :param available_transforms: List of available transform names.
-        """
+        """Builds a validator. Searches are keyed by record type."""
         self.available_searches = available_searches or {}
         self.available_transforms = available_transforms or []
 
     def validate(self, root: StrategyStepNode, record_type: str) -> ValidationResult:
-        """Validate a strategy tree.
-
-        :param root: Root node of the strategy tree.
-        :param record_type: Record type (e.g. "gene", "transcript").
-
-        """
+        """Validates a strategy tree against a record type."""
         errors: list[StepValidationIssue] = []
 
-        # Validate record type
         if not record_type:
             errors.append(
                 StepValidationIssue(
@@ -76,7 +62,6 @@ class StrategyValidator:
                 )
             )
 
-        # Validate the tree
         self._validate_node(root, "root", record_type, errors)
 
         return (
@@ -91,13 +76,10 @@ class StrategyValidator:
         path: str,
         errors: list[StepValidationIssue],
     ) -> None:
-        """Reject a differential search contrasting a group against itself.
+        """Rejects a differential search that contrasts a group against itself.
 
-        Any ``*_ref_*`` / ``*_comp_*`` pair (fold change ``samples_fc_*``,
-        DESeq ``samples_de_*``, and the percentile variant) names the two
-        sides of a contrast. Setting both to the same group pushes and runs;
-        it just cannot mean anything, which is why it needs catching here
-        rather than in the results.
+        A reference and comparison name pair holds the two sides of the contrast. WDK
+        runs an identical pair, so the check must happen here.
         """
         decoded = to_decoded_map(node.parameters)
         pairs: list[tuple[str, JsonValue, JsonValue]] = []
@@ -134,12 +116,10 @@ class StrategyValidator:
         path: str,
         errors: list[StepValidationIssue],
     ) -> None:
-        """Reject INTERSECT between disjoint organism scopes.
+        """Rejects an INTERSECT between disjoint organism scopes.
 
-        Gene IDs from different species never match, so the result is always
-        zero. Only fires when both sides have a known scope; an unknown scope
-        must not block a legitimate strategy. UNION is left alone - combining
-        species is meaningful.
+        Gene ids from different species never match. The check applies only when both
+        sides have a known scope. A UNION over species is valid and passes.
         """
         if node.operator is not CombineOp.INTERSECT:
             return
@@ -170,7 +150,7 @@ class StrategyValidator:
         path: str,
         errors: list[StepValidationIssue],
     ) -> None:
-        """Validate combine-specific constraints on a node."""
+        """Validates the constraints that apply only to a combine node."""
         if node.operator is None:
             errors.append(
                 StepValidationIssue(
@@ -211,14 +191,7 @@ class StrategyValidator:
         expected_record_type: str,
         errors: list[StepValidationIssue],
     ) -> None:
-        """Validate a single node in the AST.
-
-        :param node: Plan step node.
-        :param path: Node path.
-        :param expected_record_type: Expected record type.
-        :param errors: Validation errors list.
-
-        """
+        """Validates one node and then its inputs."""
         if not node.search_name:
             errors.append(
                 StepValidationIssue(
@@ -259,10 +232,5 @@ class StrategyValidator:
 
 
 def validate_strategy(root: StrategyStepNode, record_type: str) -> ValidationResult:
-    """Validate a strategy tree with default validator.
-
-    :param root: Root node of the strategy tree.
-    :param record_type: Record type (e.g. "gene", "transcript").
-
-    """
+    """Validates a strategy tree with the default validator."""
     return StrategyValidator().validate(root, record_type)

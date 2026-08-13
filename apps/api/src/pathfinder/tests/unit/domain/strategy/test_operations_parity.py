@@ -39,9 +39,7 @@ def _build_graph(initial: dict[str, Any]) -> StrategyGraph:
             ),
             primary_input_id=step.get("primaryInputStepId"),
             secondary_input_id=step.get("secondaryInputStepId"),
-            operator=(
-                CombineOp.INTERSECT if kind is StepKind.COMBINE else None
-            ),
+            operator=(CombineOp.INTERSECT if kind is StepKind.COMBINE else None),
         )
     g.recompute_roots()
     return g

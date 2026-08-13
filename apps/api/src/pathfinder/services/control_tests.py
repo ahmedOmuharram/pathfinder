@@ -59,13 +59,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class IntersectionConfig:
-    """Configuration for a single control-test intersection run.
-
-    Groups the parameters that define the WDK search target and the controls
-    search configuration.  Passed as a single argument to
-    :func:`_run_intersection_control` and :func:`run_positive_negative_controls`
-    to keep their signatures concise.
-    """
+    """The target search and the controls search of one intersection run."""
 
     site_id: str
     record_type: str
@@ -87,9 +81,7 @@ class IntersectionConfig:
     ) -> "IntersectionConfig":
         """Build an IntersectionConfig from an ExperimentConfig.
 
-        :param config: The experiment configuration.
-        :param target_parameters: Override for ``config.parameters`` (e.g.
-            when evaluating modified/optimized parameters).
+        ``target_parameters`` overrides ``config.parameters``.
         """
         return cls(
             site_id=config.site_id,
@@ -115,16 +107,7 @@ class IntersectionConfig:
         controls_extra_parameters: dict[str, ParamValue] | None = None,
         id_field: str | None = None,
     ) -> "IntersectionConfig":
-        """Build an IntersectionConfig from a ControlsContext.
-
-        :param ctx: The controls context (provides site, record type, and
-            controls search configuration).
-        :param target_search_name: WDK search name for the target step.
-        :param target_parameters: WDK parameters for the target step.
-        :param controls_extra_parameters: Extra parameters for the controls
-            search (e.g. organism scope).
-        :param id_field: Override for the gene-ID field name.
-        """
+        """Build an IntersectionConfig from a ControlsContext."""
         return cls(
             site_id=ctx.site_id,
             record_type=ctx.record_type,
@@ -139,7 +122,6 @@ class IntersectionConfig:
 
 
 def _find_param_type(params: list[WDKParameter], param_name: str) -> str | None:
-    """Find the type of a named parameter in a WDK parameters list."""
     for p in params:
         if p.name == param_name:
             return p.type
@@ -152,14 +134,7 @@ async def resolve_controls_param_type(
     controls_search_name: str,
     controls_param_name: str,
 ) -> str | None:
-    """Return the WDK param type for a controls parameter.
-
-    :param api: Strategy API instance.
-    :param record_type: WDK record type.
-    :param controls_search_name: Name of the controls search.
-    :param controls_param_name: Parameter name within the controls search.
-    :returns: Parameter type string (e.g. ``"input-dataset"``) or None.
-    """
+    """Return the WDK param type for a controls parameter."""
     try:
         response = await api.client.get_search_details(
             record_type, controls_search_name
@@ -185,16 +160,13 @@ async def _run_intersection_control(
 ) -> JSONObject:
     """Run a single control intersection and return results.
 
-    Creates its OWN target step internally.  WDK cascade-deletes all steps
-    inside a strategy when the strategy is deleted, so sharing a target step
-    across multiple calls would cause the second call to fail with
-    ``"<stepId> is not a valid step ID"``.
+    Each call creates its own target step, because WDK deletes every step of
+    a strategy together with the strategy.
     """
     api = get_strategy_api(config.site_id)
 
-    # Auto-resolve record types for both searches via the cached catalog.
-    # The AI often passes 'gene' but VEuPathDB gene searches live under
-    # 'transcript'.  The catalog knows the correct mapping.
+    # A search has one correct record type, which the catalog knows. A gene
+    # search lives under "transcript".
     target_rt = await find_record_type_for_search(
         SearchContext(config.site_id, config.record_type, config.target_search_name)
     )
@@ -273,7 +245,6 @@ async def _run_intersection_control(
         )
         temp_strategy_id = created.id
 
-        # Now the steps ARE part of a strategy → we can query them.
         target_total = await _get_total_count_for_step(api, target_step_id)
         total = await _get_total_count_for_step(api, combined_step_id)
         ids_found: list[str] = []
@@ -289,7 +260,6 @@ async def _run_intersection_control(
                 answer.records, preferred_key=config.id_field
             )
 
-        # Convert list[str] to JsonValue-compatible types
         intersection_ids_sample: JsonValue = list(ids_found[:50])
         intersection_ids: JsonValue = (
             list(ids_found) if len(controls_ids) <= fetch_ids_limit else None
@@ -307,11 +277,10 @@ async def _run_intersection_control(
 
 
 async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
-    """Best-effort cleanup of leaked internal control-test strategies.
+    """Delete internal control-test strategies left by an interrupted run.
 
-    Control-test runs create temporary WDK strategies under the current user
-    account. They are deleted at the end of each run, but interrupted requests
-    (tab close, timeout, network errors) can leave internal drafts behind.
+    A control test creates a temporary strategy under the current user
+    account.
     """
     try:
         strategies = await api.list_strategies()
@@ -326,11 +295,9 @@ async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
 def _extract_intersection_data(
     payload: JSONObject,
 ) -> tuple[int, set[str], bool]:
-    """Extract intersection count and ID set from a control-test payload.
+    """Extract the count, the id set, and whether the payload carried ids.
 
-    :returns: ``(count, id_set, has_id_list)`` where *has_id_list* indicates
-        whether the payload contained an explicit intersection IDs list
-        (``False`` when there are >500 controls and IDs weren't fetched).
+    A large control set has no id list, so the third value is False.
     """
     raw_count = payload.get("intersectionCount")
     count = int(raw_count) if isinstance(raw_count, (int, float)) else 0
@@ -349,18 +316,10 @@ async def run_positive_negative_controls(
     negative_controls: list[str] | None = None,
     skip_cleanup: bool = False,
 ) -> ControlTestResult:
-    """Run positive + negative controls against a single WDK question configuration.
+    """Run the positive and the negative controls against one search config.
 
-    Each control set (positive / negative) creates its own target step
-    internally.  WDK cascade-deletes all steps inside a strategy when the
-    strategy is deleted, so a shared target step would be invalidated after
-    the first control run's cleanup.
-
-    :param config: Intersection configuration (site, record type, search names, etc.).
-    :param positive_controls: Known-positive IDs that should be returned.
-    :param negative_controls: Known-negative IDs that should NOT be returned.
-    :param skip_cleanup: When ``True``, skip the upfront strategy cleanup.
-        Useful when the caller already performed cleanup (e.g. batch sweeps).
+    Each control set creates its own target step, because WDK deletes every
+    step of a strategy together with the strategy.
     """
     if not skip_cleanup:
         cleanup_api = get_strategy_api(config.site_id)

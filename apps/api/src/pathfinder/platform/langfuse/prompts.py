@@ -1,9 +1,6 @@
-"""Langfuse-backed prompt management with local file fallback.
+"""Loads agent prompts from Langfuse, and falls back to local files.
 
-Prompt lifecycle:
-1. Try Langfuse SDK (versioned, A/B testable, rollbackable from dashboard)
-2. Fall back to local .md files (always works, even without Langfuse)
-3. On first Langfuse startup, seed prompts from local files if missing
+Local files also seed Langfuse with any prompt it does not hold yet.
 """
 
 from dataclasses import dataclass
@@ -41,10 +38,8 @@ _LOCAL_FILES: dict[str, str] = {
     "workbench": "experiment/workbench.md",
 }
 
-# The current Langfuse SDK raises multiple error classes across namespaces.
-# In particular, missing prompts use langfuse_errors.NotFoundError rather than
-# langfuse.api.Error. Treat all of them as recoverable so prompt loading can
-# fall back to local files instead of crashing startup.
+# The Langfuse SDK raises error classes from more than one namespace.
+# All of them are recoverable: prompt loading falls back to local files.
 _LANGFUSE_ERRORS = (
     langfuse.api.Error,
     langfuse_errors.Error,
@@ -74,7 +69,7 @@ def _load_local(name: str, *, label: str) -> LoadedPrompt:
 
 
 def load_prompt_result(name: str, *, label: str = "production") -> LoadedPrompt:
-    """Load a prompt plus its source/version metadata."""
+    """Load a prompt with its source and version metadata."""
     client = get_langfuse()
     if client is not None:
         try:
@@ -108,12 +103,12 @@ def load_prompt_result(name: str, *, label: str = "production") -> LoadedPrompt:
 
 
 def load_prompt(name: str, *, label: str = "production") -> str:
-    """Load a prompt by name, trying Langfuse first with local fallback."""
+    """Load the text of a prompt by name."""
     return load_prompt_result(name, label=label).text
 
 
 def seed_prompts() -> None:
-    """Upload local prompt files to Langfuse if they don't exist yet."""
+    """Upload each local prompt file that Langfuse does not hold yet."""
     client = get_langfuse()
     if client is None:
         return
@@ -122,7 +117,6 @@ def seed_prompts() -> None:
         try:
             client.get_prompt(name)
         except langfuse_errors.NotFoundError:
-            # Prompt does not exist yet — seed it from the local file.
             text = (_PROMPTS_DIR / filename).read_text()
             try:
                 client.create_prompt(

@@ -36,7 +36,7 @@ _RECORD_CLASS_LABELS = {
     "pathway": "pathways",
 }
 
-# Record types the model cares about most, in priority order.
+# Highest priority first.
 _PREFERRED_RECORD_TYPES = ("transcript", "gene")
 
 
@@ -51,9 +51,9 @@ def score_search(
 ) -> float:
     """Score a search against query terms and keywords.
 
-    1. Keywords matched against searchName via substring → ``+KEYWORD_BOOST`` each.
-    2. Query terms matched per field with field weight x IDF.
-    3. Short terms (< ``_MIN_TERM_LEN`` chars) ignored in query matching.
+    Each keyword found in the search name adds a flat boost. Each query term
+    adds its field weight times its IDF. Terms shorter than the minimum length
+    are ignored.
     """
     score = 0.0
     name_lower = search_name.lower()
@@ -86,16 +86,16 @@ def score_search(
 
 
 def is_chooser_search(search: WDKSearch) -> bool:
-    """Return True if this is a routing/chooser search (no real params).
+    """Return True for a routing search that carries no real parameters.
 
-    Chooser searches have ``websiteProperties: ["hideOperation"]``.
+    WDK marks these with ``hideOperation`` in ``websiteProperties``.
     """
     ws_props = search.properties.get("websiteProperties", [])
     return "hideOperation" in ws_props
 
 
 def record_type_priority(record_type: str) -> int:
-    """Lower = higher priority.  Transcript/gene first, everything else after."""
+    """Rank a record type. A lower number is a higher priority."""
     rt = record_type.lower()
     for i, preferred in enumerate(_PREFERRED_RECORD_TYPES):
         if preferred in rt:
@@ -141,7 +141,6 @@ def score_candidates(
             description=desc,
             corpus=SearchCorpus(doc_count=doc_count, term_counts=dict(corpus_counts)),
         )
-        # Inline annotation (category + returns)
         category = ""
         dc = s.properties.get("displayCategory", [])
         if dc:

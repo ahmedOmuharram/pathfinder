@@ -1,16 +1,5 @@
-"""Unified enrichment service.
-
-Single entry point for running enrichment analyses regardless of
-whether the caller is an experiment endpoint, gene set endpoint,
-or AI tool.
-
-Rate limiting
--------------
-A process-level semaphore (``_WDK_ENRICHMENT_SEMAPHORE``) limits how
-many ``run_batch`` calls can execute concurrently across the entire
-application.  Within a single batch, analyses run in parallel via
-``asyncio.gather`` to keep total wall-clock time within proxy timeouts.
-"""
+"""Single entry point for running WDK enrichment analyses, for experiment
+endpoints, gene set endpoints, and AI tools alike."""
 
 import asyncio
 import json
@@ -47,62 +36,13 @@ from pathfinder.services.enrichment.types import (
 
 logger = get_logger(__name__)
 
-# Limit concurrent enrichment batches process-wide.
-# WDK's step analysis API becomes unreliable under parallel load.
-# This limits how many run_batch calls execute simultaneously, not
-# individual analyses within a batch.
+# WDK step analysis is unreliable under parallel load, so batches are capped
+# process-wide. The cap applies to batches, not to analyses within a batch.
 _WDK_ENRICHMENT_SEMAPHORE = asyncio.Semaphore(3)
 
 
 class EnrichmentService:
     """Unified enrichment dispatcher."""
-
-    async def run(
-        self,
-        *,
-        site_id: str,
-        analysis_type: EnrichmentAnalysisType,
-        step_id: int | None = None,
-        search_name: str | None = None,
-        record_type: str | None = None,
-        parameters: dict[str, ParamValue] | None = None,
-    ) -> EnrichmentResult:
-        """Run a single enrichment analysis.
-
-        If step_id is provided, runs on the existing step.
-        Otherwise creates a temporary strategy from search_name/parameters.
-        """
-        api = get_strategy_api(site_id)
-
-        if step_id is not None:
-            return await self._execute_analysis(api, step_id, analysis_type)
-
-        if not search_name or parameters is None:
-            msg = "Either step_id or search_name+parameters required"
-            raise ValidationError(detail=msg)
-
-        step = await api.create_step(
-            NewStepSpec(
-                search_name=search_name,
-                search_config=WDKSearchConfig(parameters=encode_params(parameters)),
-                custom_name="Enrichment target",
-            ),
-            record_type=record_type or "transcript",
-        )
-        root = WDKStepTree(step_id=step.id)
-        strategy_id: int | None = None
-
-        try:
-            created = await api.create_strategy(
-                step_tree=root,
-                name="Pathfinder enrichment analysis",
-                description=None,
-                is_internal=True,
-            )
-            strategy_id = created.id
-            return await self._execute_analysis(api, step.id, analysis_type)
-        finally:
-            await delete_temp_strategy(api, strategy_id)
 
     async def run_batch(
         self,
@@ -116,14 +56,11 @@ class EnrichmentService:
     ) -> tuple[list[EnrichmentResult], list[str]]:
         """Run multiple enrichment analyses concurrently on a shared step.
 
-        When no step_id is provided (paste gene sets), creates ONE temporary
-        WDK step/strategy and runs all analysis types against it — instead
-        of creating N separate temp strategies.  This reduces WDK API calls
-        from ~5N to ~N+3 and avoids rate-limit 500s.
+        Without a step id, one temporary step and strategy serves every
+        analysis type, which keeps the WDK call count low.
         """
         errors: list[str] = []
 
-        # If we already have a step, run all analyses on it directly.
         if step_id is not None:
             async with _WDK_ENRICHMENT_SEMAPHORE:
                 return await self._run_analyses_on_step(
@@ -133,12 +70,10 @@ class EnrichmentService:
                     errors,
                 )
 
-        # No step — need search_name + parameters to create one.
         if not search_name or parameters is None:
             msg = "Either step_id or search_name+parameters required"
             raise ValidationError(detail=msg)
 
-        # Create ONE temp step/strategy, run all analyses, then clean up.
         api = get_strategy_api(site_id)
         step = await api.create_step(
             NewStepSpec(
@@ -177,11 +112,10 @@ class EnrichmentService:
         step_id: int,
         analysis_type: EnrichmentAnalysisType,
     ) -> EnrichmentResult:
-        """Run one analysis on a step, parse results, return EnrichmentResult.
+        """Run one analysis on a step and parse the result.
 
-        Fetches the analysis form metadata from WDK to discover correct
-        parameter names and defaults, then overrides only the GO ontology
-        parameter when applicable.
+        Parameter names and defaults come from the WDK analysis form metadata.
+        Only the GO ontology parameter is overridden.
         """
         wdk_analysis_type = ANALYSIS_TYPE_MAP.get(analysis_type)
         if not wdk_analysis_type:
@@ -192,28 +126,18 @@ class EnrichmentService:
                 background_size=0,
             )
 
-        # Fetch form metadata so we use correct parameter names and defaults.
-        analysis_params: JSONObject = {}
-        wdk_params: list[WDKParameter] = []
-        try:
-            form_meta = await api.get_analysis_type(step_id, wdk_analysis_type)
-            wdk_params = form_meta.search_data.parameters or []
-            analysis_params = extract_default_params(wdk_params)
-            logger.debug(
-                "Fetched analysis form defaults",
-                analysis_type=wdk_analysis_type,
-                param_names=list(analysis_params.keys()),
-            )
-        except AppError as exc:
-            logger.warning(
-                "Could not fetch analysis form metadata, using empty params",
-                analysis_type=wdk_analysis_type,
-                step_id=step_id,
-                error=str(exc),
-            )
+        # Analysis creation validates with no fill, so the form's values are the
+        # only source of the parameters it demands.
+        form_meta = await api.get_analysis_type(step_id, wdk_analysis_type)
+        wdk_params: list[WDKParameter] = form_meta.search_data.parameters or []
+        analysis_params: JSONObject = extract_default_params(wdk_params)
+        logger.debug(
+            "Fetched analysis form defaults",
+            analysis_type=wdk_analysis_type,
+            param_names=list(analysis_params.keys()),
+        )
 
-        # For GO enrichment, set the ontology parameter — but only if the
-        # requested ontology is actually available on this site.
+        # The set of GO ontologies differs per site.
         if analysis_type in GO_ONTOLOGY_MAP:
             requested_ontology = GO_ONTOLOGY_MAP[analysis_type]
             available = extract_vocab_values(wdk_params, "goAssociationsOntologies")
@@ -244,7 +168,7 @@ class EnrichmentService:
             params=analysis_params,
         )
 
-        # Retry on WDK 500s — the step analysis endpoint is flaky under load.
+        # The WDK step analysis endpoint returns 5xx under load, so retry it.
         last_err: Exception | None = None
         for attempt in range(3):
             try:
@@ -291,10 +215,7 @@ class EnrichmentService:
     ) -> tuple[list[EnrichmentResult], list[str]]:
         """Run multiple analysis types on a single step concurrently.
 
-        Analyses run in parallel to keep total wall-clock time under
-        proxy timeouts (~30s instead of ~90s sequential).  A process-level
-        semaphore still limits how many ``run_batch`` calls execute
-        concurrently across different requests.
+        Analyses run in parallel to keep total time under the proxy timeout.
         """
         api = get_strategy_api(site_id)
 

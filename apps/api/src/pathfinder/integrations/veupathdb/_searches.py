@@ -26,14 +26,11 @@ _PARAMETER_ADAPTER: TypeAdapter[WDKParameter] = TypeAdapter(WDKParameter)
 
 
 class SearchEndpoints:
-    """Mixin providing search and record-type WDK endpoints.
-
-    Must be composed with :class:`HTTPClient` which supplies
-    ``get`` and ``post`` methods.
-    """
+    """The search and record-type WDK endpoints. This mixin needs the HTTP client that
+    supplies the get and post methods."""
 
     async def get(self, path: str, params: JSONObject | None = None) -> JsonValue:
-        """Provided by HTTPClient at runtime."""
+        """The HTTP client supplies this method at runtime."""
         raise NotImplementedError  # pragma: no cover
 
     async def post(
@@ -42,16 +39,14 @@ class SearchEndpoints:
         json: object = None,
         params: JSONObject | None = None,
     ) -> JsonValue:
-        """Provided by HTTPClient at runtime."""
+        """The HTTP client supplies this method at runtime."""
         raise NotImplementedError  # pragma: no cover
 
     async def get_record_types(self, *, expanded: bool = False) -> list[WDKRecordType]:
-        """Get available record types.
+        """Returns the available record types.
 
-        Non-expanded responses return plain strings (``["gene", "transcript"]``),
-        which are parsed into ``WDKRecordType(url_segment=name)``.  Expanded
-        responses return full JSON objects that are validated against the model.
-        Items that fail validation are silently skipped.
+        A plain response holds names only. An expanded response holds objects, and an
+        item that fails validation is skipped.
         """
         params: JSONObject | None = {"format": "expanded"} if expanded else None
         raw = await self.get("/record-types", params=params)
@@ -67,7 +62,7 @@ class SearchEndpoints:
         return results
 
     async def get_searches(self, record_type: str) -> list[WDKSearch]:
-        """Get searches for a record type."""
+        """Returns the searches for a record type."""
         raw = await self.get(f"/record-types/{record_type}/searches")
         return _validate_list(raw, _SEARCH_ADAPTER)
 
@@ -78,7 +73,7 @@ class SearchEndpoints:
         *,
         expand_params: bool = True,
     ) -> WDKSearchResponse:
-        """Get detailed search configuration including parameters."""
+        """Returns the full search configuration, including its parameters."""
         params: JSONObject | None = {"expandParams": "true"} if expand_params else None
         raw = await self.get(
             f"/record-types/{record_type}/searches/{search_name}",
@@ -98,12 +93,8 @@ class SearchEndpoints:
         *,
         expand_params: bool = True,
     ) -> WDKSearchResponse:
-        """Get detailed search configuration using provided parameters.
-
-        :param context: WDK-encoded parameter values (all values must be strings).
-            Use :func:`encode_wdk_params` to encode non-string
-            values before calling.
-        """
+        """Returns the search configuration under a parameter context. Every context
+        value must already be a WDK-encoded string."""
         params: JSONObject | None = {"expandParams": "true"} if expand_params else None
         raw = await self.post(
             f"/record-types/{record_type}/searches/{search_name}",
@@ -123,12 +114,8 @@ class SearchEndpoints:
         param_name: str,
         context: dict[str, str],
     ) -> list[WDKParameter]:
-        """Refresh dependent params using WDK's refreshed-dependent-params endpoint.
-
-        :param context: WDK-encoded parameter values (all values must be strings).
-            Use :func:`encode_wdk_params` to encode non-string
-            values before calling.
-        """
+        """Returns the dependent params refreshed under a parameter context. Every
+        context value must already be a WDK-encoded string."""
         raw = await self.post(
             f"/record-types/{record_type}/searches/{search_name}/refreshed-dependent-params",
             json={
@@ -148,20 +135,8 @@ class SearchEndpoints:
         search_config: WDKSearchConfig,
         report_config: JSONObject | None = None,
     ) -> WDKAnswer:
-        """Run a report on a search without creating a step or strategy.
-
-        Uses WDK's anonymous report endpoint:
-        ``POST /record-types/{recordType}/searches/{searchName}/reports/standard``
-
-        This is significantly faster than creating steps/strategies because it
-        requires no user session and can be parallelized.
-
-        :param record_type: WDK record type (e.g. ``"transcript"``).
-        :param search_name: WDK search name (e.g. ``"GenesByTaxon"``).
-        :param search_config: Typed search config (parameters, filters, weight).
-        :param report_config: Report config (pagination, attributes, etc.).
-        :returns: Parsed ``WDKAnswer`` with typed ``meta`` and ``records``.
-        """
+        """Runs a report on a search and creates no step or strategy. The endpoint
+        needs no user session, so several calls can run in parallel."""
         payload: JSONObject = {
             "searchConfig": search_config.model_dump(
                 by_alias=True, exclude_defaults=True

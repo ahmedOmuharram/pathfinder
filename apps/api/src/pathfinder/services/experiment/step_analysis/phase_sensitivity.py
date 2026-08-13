@@ -1,4 +1,4 @@
-"""Phase 4: Parameter sensitivity -- sweep numeric params across their range."""
+"""Sweeps the numeric parameters of a strategy across their declared range."""
 
 import asyncio
 import math
@@ -51,7 +51,7 @@ class _NumericParamSpec(TypedDict):
 
 
 def _safe_float(v: object) -> float | None:
-    """Convert to float, returning None for missing/unparseable/non-finite."""
+    """Returns the value as a float, or None when it is absent or not finite."""
     if v is None:
         return None
     if isinstance(v, (int, float)):
@@ -72,7 +72,7 @@ def _build_param_spec(
     spec: ParamSpecNormalized,
     node_params: JSONObject,
 ) -> _NumericParamSpec | None:
-    """Build a numeric param spec from a normalized spec, or None if not numeric."""
+    """Builds a numeric sweep spec, or returns None when the parameter is not numeric."""
     if spec.param_type not in ("number", "string"):
         return None
     if not (spec.is_number or spec.param_type == "number"):
@@ -104,7 +104,7 @@ async def _fetch_search_specs(
     record_type: str,
     search_name: str,
 ) -> dict[str, ParamSpecNormalized] | None:
-    """Fetch normalized WDK search parameter specs, or None on failure."""
+    """Returns the normalized WDK parameter specs, or None when the fetch fails."""
     api = get_strategy_api(site_id)
     try:
         response = await api.client.get_search_details(record_type, search_name)
@@ -124,7 +124,7 @@ async def _discover_numeric_params(
     record_type: str,
     leaf: StrategyStepNode,
 ) -> list[_NumericParamSpec]:
-    """Discover numeric parameters on a leaf from WDK metadata."""
+    """Finds the numeric parameters of a leaf from the WDK metadata."""
     search_name = leaf.search_name
     if not search_name:
         return []
@@ -150,7 +150,7 @@ def _generate_sweep_values(
     current: float,
     n: int = SENSITIVITY_SWEEP_POINTS,
 ) -> list[float]:
-    """Generate sweep values including the current value and endpoints."""
+    """Returns the sweep values, including both endpoints and the current value."""
     step = (max_val - min_val) / (n - 1) if n > 1 else 0
     values = [min_val + i * step for i in range(n)]
     if current not in values:
@@ -162,13 +162,9 @@ def _generate_sweep_values(
 def _find_bound_partner(
     pname: str, all_param_specs: list[_NumericParamSpec]
 ) -> _NumericParamSpec | None:
-    """Find the paired lower/upper bound parameter for a given param.
+    """Finds the parameter that holds the opposite bound.
 
-    Detects naming patterns:
-      - ``foo_lower`` <-> ``foo_upper``
-      - ``foo_min``   <-> ``foo_max``
-      - ``MinFoo``    <-> ``MaxFoo``
-      - ``min_foo``   <-> ``max_foo``
+    A pair uses a lower and upper, or a min and max, prefix or suffix.
     """
     name_lower = pname.lower()
 
@@ -181,7 +177,6 @@ def _find_bound_partner(
         if name_lower.endswith(suffix_a):
             stem = pname[: len(pname) - len(suffix_a)]
             candidate = stem + suffix_b
-            # Try original casing first, then lowercase match
             for s in all_param_specs:
                 sn = str(s["name"])
                 if sn == candidate or sn.lower() == candidate.lower():
@@ -206,7 +201,7 @@ def _find_bound_partner(
 
 
 def _is_lower_bound(pname: str) -> bool:
-    """Determine if a parameter represents a lower bound."""
+    """True when the parameter name marks a lower bound."""
     name_l = pname.lower()
     return name_l.endswith(("_lower", "_min")) or name_l.startswith("min")
 
@@ -217,11 +212,7 @@ def _constrain_sweep_range(
     max_val: float,
     partner_current: float | None,
 ) -> tuple[float, float]:
-    """Constrain sweep range for a bound parameter based on its partner's value.
-
-    For lower-bound params: sweep from min_val to min(max_val, partner_current).
-    For upper-bound params: sweep from max(min_val, partner_current) to max_val.
-    """
+    """Limits the sweep range so it does not cross the value of the partner bound."""
     if partner_current is None:
         return min_val, max_val
 
@@ -245,10 +236,7 @@ def _pick_recommendation(
     sweep_points: list[ParameterSweepPoint],
     partner_current: float | None,
 ) -> tuple[float, str]:
-    """Select the recommended value and build a human-readable recommendation string.
-
-    Returns ``(recommended_value, recommendation_text)``.
-    """
+    """Selects the recommended value and writes the text that explains it."""
     cur_point = (
         min(sweep_points, key=lambda p: abs(p.value - current))
         if sweep_points
@@ -265,7 +253,7 @@ def _pick_recommendation(
         recommended_value = current
         best_point = cur_point
 
-    # For bound params, validate the recommendation doesn't violate its partner
+    # A recommended value must not cross the partner bound.
     if (
         partner_current is not None
         and best_point
@@ -294,10 +282,7 @@ def _pick_recommendation(
 def _prepare_sweep_range(
     spec: _NumericParamSpec, leaf_all_params: list[_NumericParamSpec]
 ) -> tuple[float, float, float, _NumericParamSpec | None, float | None]:
-    """Constrain the sweep range for a parameter, respecting bound partners.
-
-    Returns ``(min_val, max_val, current, partner_spec, partner_current)``.
-    """
+    """Limits the sweep range of a parameter and returns its partner bound."""
     pname = str(spec["name"])
     min_val = spec["min"]
     max_val = spec["max"]
@@ -322,7 +307,7 @@ async def _collect_sweep_specs(
     record_type: str,
     leaves: list[StrategyStepNode],
 ) -> list[tuple[StrategyStepNode, _NumericParamSpec, list[_NumericParamSpec]]]:
-    """Collect deduplicated (leaf, spec, all_params) tuples for sweeping."""
+    """Collects the parameters to sweep, with one entry per search and parameter."""
     seen: set[str] = set()
     result: list[
         tuple[StrategyStepNode, _NumericParamSpec, list[_NumericParamSpec]]
@@ -352,7 +337,7 @@ async def _eval_sweep_value(
     sem: asyncio.Semaphore,
     ctx: ControlsContext,
 ) -> ParameterSweepPoint | None:
-    """Evaluate a single parameter value by running controls against a patched tree."""
+    """Runs the controls against the tree with one parameter set to the given value."""
     patched_params: dict[str, ParamValue] | None = None
 
     def _patch_node(node: StrategyStepNode) -> None:
@@ -363,7 +348,6 @@ async def _eval_sweep_value(
 
     walk_plan_tree(tree, _patch_node)
 
-    # Build a modified tree with the patched parameters using model_copy
     def _apply_patch(node: StrategyStepNode) -> StrategyStepNode:
         if node.id == lid and patched_params is not None:
             return node.model_copy(update={"parameters": patched_params})
@@ -404,14 +388,10 @@ async def sweep_parameters(
     tree: StrategyStepNode,
     progress_callback: ProgressCallback | None = None,
 ) -> list[ParameterSensitivity]:
-    """Sweep numeric params on each leaf across their WDK-declared range.
+    """Sweeps the numeric parameters of each leaf across their declared range.
 
-    Respects paired min/max bound parameters, deduplicates identical
-    searches across leaves, and only recommends changes when the
-    improvement is meaningful.
-
-    :param tree: Strategy tree as a :class:`StrategyStepNode`.
-    :returns: One :class:`ParameterSensitivity` per numeric param.
+    A paired bound limits the range of its partner. The result holds one
+    entry per numeric parameter.
     """
     leaves = collect_plan_leaves(tree)
     if not leaves:

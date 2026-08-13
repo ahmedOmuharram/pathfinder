@@ -29,11 +29,33 @@ class StepValidationErrors(CamelModel):
     by_key: dict[str, list[str]] = Field(default_factory=dict)
 
 
+_UNCHECKED = "NONE"
+
+
 class StepValidation(CamelModel):
-    """Step/search/strategy validation state."""
+    """A validity claim, and the level the claim was made at."""
 
     model_config = ConfigDict(frozen=True, extra="ignore")
 
-    level: str = "NONE"
+    level: str = _UNCHECKED
     is_valid: bool = True
     errors: StepValidationErrors | None = None
+
+    def was_checked(self) -> bool:
+        """Whether anything was validated. Level ``NONE`` means nothing was."""
+        return self.level.upper() != _UNCHECKED
+
+    def rejects(self) -> bool:
+        """A negative verdict. False at level NONE means nobody looked."""
+        return self.was_checked() and not self.is_valid
+
+    def messages(self) -> list[str]:
+        """The reported problems, per parameter first."""
+        if self.errors is None:
+            return []
+        keyed = [
+            f"{key}: {text}"
+            for key, texts in self.errors.by_key.items()
+            for text in texts
+        ]
+        return keyed + list(self.errors.general)

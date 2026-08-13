@@ -1,7 +1,4 @@
-"""Shared helpers for experiment execution and analysis.
-
-Provides gene-list extraction utilities and the progress callback type alias.
-"""
+"""Gene-list extraction and enrichment helpers for experiment execution."""
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -22,16 +19,12 @@ from pathfinder.services.gene_lookup.wdk import resolve_gene_ids
 logger = get_logger(__name__)
 
 ProgressCallback = Callable[[JSONObject], Awaitable[None]]
-"""Emits an SSE-friendly progress event dict."""
+"""Emits one progress event."""
 
 
 @dataclass
 class ControlsContext:
-    """Shared context passed to all control-evaluation functions.
-
-    Groups the parameters that are always passed together: the WDK site,
-    record type, controls search configuration, and the control gene lists.
-    """
+    """Site, record type, controls search config, and control gene lists."""
 
     site_id: str
     record_type: str
@@ -43,7 +36,7 @@ class ControlsContext:
 
     @classmethod
     def from_config(cls, config: ExperimentConfig) -> "ControlsContext":
-        """Build a ControlsContext from an ExperimentConfig."""
+        """Build a controls context from an experiment config."""
         return cls(
             site_id=config.site_id,
             record_type=config.record_type,
@@ -56,7 +49,7 @@ class ControlsContext:
 
 
 def _ids_to_gene_infos(ids: list[str]) -> list[GeneInfo]:
-    """Wrap a list of string IDs as :class:`GeneInfo` objects."""
+    """Wrap gene ID strings as gene info objects."""
     return [GeneInfo(id=g) for g in ids]
 
 
@@ -68,14 +61,10 @@ def _gene_infos_from_section(
     all_controls: list[str] | None = None,
     hit_ids: set[str] | None = None,
 ) -> list[GeneInfo]:
-    """Extract a gene list from a :class:`ControlSetData` field.
+    """Extract a gene list from one field of a control set.
 
-    :param section: The positive or negative control set data (may be ``None``).
-    :param field_name: Attribute name on ``ControlSetData`` (e.g. ``"intersection_ids"``).
-    :param fallback_from_controls: When True and the section/field is empty,
-        derive the list from *all_controls* minus *hit_ids*.
-    :param all_controls: Full control list for fallback computation.
-    :param hit_ids: IDs that were hits (used to compute the complement for TN).
+    :param fallback_from_controls: If the field is empty, take all controls that
+        are not hits.
     """
     if section is not None:
         ids = getattr(section, field_name, [])
@@ -91,7 +80,7 @@ def _enrich_list(
     genes: list[GeneInfo],
     lookup: dict[str, GeneResult],
 ) -> list[GeneInfo]:
-    """Replace bare GeneInfo objects with enriched versions from *lookup*."""
+    """Add name, organism, and product to each gene from the lookup."""
     enriched: list[GeneInfo] = []
     for g in genes:
         meta = lookup.get(g.id)
@@ -113,7 +102,7 @@ async def _resolve_gene_lookup(
     site_id: str,
     gene_lists: tuple[list[GeneInfo], ...],
 ) -> dict[str, GeneResult]:
-    """Resolve all unique gene IDs across multiple lists into a lookup dict."""
+    """Resolve every unique gene ID across the lists into a lookup by gene ID."""
     all_ids: list[str] = []
     seen: set[str] = set()
     for gl in gene_lists:
@@ -142,11 +131,9 @@ async def extract_and_enrich_genes(
     result: ControlTestResult,
     negative_controls: list[str] | None = None,
 ) -> tuple[list[GeneInfo], list[GeneInfo], list[GeneInfo], list[GeneInfo]]:
-    """Extract gene lists from a control-test result and enrich with WDK metadata.
+    """Extract the four control-test gene lists and add WDK metadata.
 
-    Single entry point that replaces duplicated extract + enrich blocks.
-
-    :returns: (true_positive, false_negative, false_positive, true_negative)
+    :returns: Tuple of (true positive, false negative, false positive, true negative).
     """
     tp = _gene_infos_from_section(result.positive, "intersection_ids")
     fn = _gene_infos_from_section(result.positive, "missing_ids_sample")

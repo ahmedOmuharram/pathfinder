@@ -1,9 +1,4 @@
-"""Search overview formatting for LLM consumption.
-
-Pure module (no I/O). Transforms raw WDK parameter objects into the
-REQUIRED/OPTIONAL/HIDDEN split used by the ``get_search_overview`` tool.
-Hidden and phyletic structural params are excluded entirely.
-"""
+"""Formats WDK search parameters into a required/optional overview. Pure, no I/O."""
 
 from pydantic import Field, JsonValue
 
@@ -59,11 +54,7 @@ class SearchOverviewResult(CamelModel):
 
 
 def _is_required(param: WDKBaseParameter) -> bool:
-    """Check whether a parameter is required.
-
-    A param is required when ``allow_empty_value`` is False, OR when
-    ``min_selected_count >= 1`` (even if allow_empty_value is True).
-    """
+    """A parameter is required when it forbids an empty value or needs one selection."""
     if param.min_selected_count >= 1:
         return True
     return not param.allow_empty_value
@@ -72,12 +63,7 @@ def _is_required(param: WDKBaseParameter) -> bool:
 def _build_dependency_maps(
     params: list[WDKParameter],
 ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """Build both controls and depends_on maps from WDK parameters.
-
-    Returns ``(controls, depends_on)`` where:
-    - ``controls[parent]`` = child param names whose vocab depends on parent
-    - ``depends_on[child]`` = parent param names that control this child's vocab
-    """
+    """Map each parent to the children it controls, and each child to its parents."""
     controls: dict[str, list[str]] = {}
     depends_on: dict[str, list[str]] = {}
     for param in params:
@@ -90,10 +76,7 @@ def _build_dependency_maps(
 
 
 def _vocab_summary(param: WDKBaseParameter) -> str | None:
-    """Build a compact vocabulary summary string.
-
-    Returns e.g. ``"3 values. Top: P. falciparum 3D7"`` or None if no vocab.
-    """
+    """Summarize a vocabulary as a size and its first entry. None if there is no vocabulary."""
     entries = allowed_values(param.vocabulary)
     if not entries:
         return None
@@ -155,17 +138,9 @@ def format_search_overview(
     record_type: str,
     params: list[WDKParameter],
 ) -> SearchOverviewResult:
-    """Transform WDK parameter objects into an LLM-optimized search overview.
+    """Split WDK parameters into required and optional entries with their dependencies.
 
-    Splits parameters into required, optional, and hidden (excluded).
-    Phyletic structural params are also excluded.
-
-    :param search_name: WDK search URL segment.
-    :param display_name: Human-readable search name.
-    :param description: Search description text.
-    :param record_type: WDK record type (e.g. ``"transcript"``).
-    :param params: Parsed WDK parameter models.
-    :returns: Typed overview with required/optional/dependencies sections.
+    Hidden parameters and phyletic structural parameters are excluded.
     """
     controls, depends_on = _build_dependency_maps(params)
 

@@ -1,18 +1,6 @@
-"""Seed definitions for TriTrypDB.
+"""Seed strategies and control gene sets for TriTrypDB.
 
-Covers TWO organisms:
-  - Leishmania major strain Friedlin (cutaneous leishmaniasis reference)
-  - Trypanosoma brucei brucei TREU927 (African trypanosomiasis reference)
-
-Strategies model real research questions:
-  1. LmjF Drug Target Candidates (10 nodes)
-  2. TbTREU927 VSG & Surface Coat (8 nodes)
-  3. LmjF Invasion & Survival (8 nodes)
-  4. TbTREU927 Flagellar Assembly (7 nodes)
-  5. Cross-Species Metabolic Comparison (12 nodes)
-  6. TbTREU927 Kinetoplast & RNA Editing (6 nodes)
-
-All gene IDs verified against live TriTrypDB API (March 2026).
+Covers Leishmania major strain Friedlin and Trypanosoma brucei brucei TREU927.
 """
 
 from pathfinder.services.experiment.seed.helpers import (
@@ -31,12 +19,12 @@ LM_ORG = "Leishmania major strain Friedlin"
 TB_ORG = "Trypanosoma brucei brucei TREU927"
 
 # ---------------------------------------------------------------------------
-# Gene data - ALL IDs verified against live TriTrypDB API (Mar 2026)
+# Gene data
 # ---------------------------------------------------------------------------
 
 # ===== LEISHMANIA MAJOR strain Friedlin =====
 
-# Kinases (GO:0004672 protein kinase activity) - 217 total, using 60
+# Kinases (GO:0004672 protein kinase activity)
 LMJF_KINASES = [
     "LmjF.01.0750",
     "LmjF.02.0120",
@@ -100,7 +88,7 @@ LMJF_KINASES = [
     "LmjF.18.0640",
 ]
 
-# Proteases (GO:0008233 peptidase activity) - 156 total, using 60
+# Proteases (GO:0008233 peptidase activity)
 LMJF_PROTEASES = [
     "LmjF.01.0610",
     "LmjF.01.0650",
@@ -164,7 +152,7 @@ LMJF_PROTEASES = [
     "LmjF.21.0760",
 ]
 
-# Signal peptide (secreted) - 362 total, using 60
+# Signal peptide (secreted)
 LMJF_SIGNAL_PEPTIDE = [
     "LmjF.01.0010",
     "LmjF.01.0280",
@@ -228,7 +216,7 @@ LMJF_SIGNAL_PEPTIDE = [
     "LmjF.10.0630",
 ]
 
-# Transmembrane (3-20 TM domains) - 673 total, using 60
+# Transmembrane (3-20 TM domains)
 LMJF_TRANSMEMBRANE = [
     "LmjF.01.0180",
     "LmjF.01.0340",
@@ -292,7 +280,7 @@ LMJF_TRANSMEMBRANE = [
     "LmjF.07.0650",
 ]
 
-# Transporters (GO:0005215 transporter activity) - 200 total, using 60
+# Transporters (GO:0005215 transporter activity)
 LMJF_TRANSPORTERS = [
     "LmjF.01.0180",
     "LmjF.01.0440",
@@ -356,7 +344,7 @@ LMJF_TRANSPORTERS = [
     "LmjF.16.0280",
 ]
 
-# Oxidoreductases (GO:0016491) - 261 total, using 60
+# Oxidoreductases (GO:0016491)
 LMJF_OXIDOREDUCTASES = [
     "LmjF.01.0110",
     "LmjF.01.0270",
@@ -420,7 +408,7 @@ LMJF_OXIDOREDUCTASES = [
     "LmjF.16.0770",
 ]
 
-# Leishmanolysin / GP63 surface protease family - 5 genes
+# Leishmanolysin / GP63 surface protease family
 LMJF_LEISHMANOLYSIN = [
     "LmjF.10.0460",
     "LmjF.10.0465",
@@ -429,7 +417,7 @@ LMJF_LEISHMANOLYSIN = [
     "LmjF.31.2000",
 ]
 
-# Amastin surface antigens - 63 total, using 50
+# Amastin surface antigens
 LMJF_AMASTIN = [
     "LmjF.08.0640",
     "LmjF.08.0670",
@@ -483,7 +471,7 @@ LMJF_AMASTIN = [
     "LmjF.34.1780",
 ]
 
-# Heat shock proteins - 46 total, using 40
+# Heat shock proteins
 LMJF_HEAT_SHOCK = [
     "LmjF.02.0710",
     "LmjF.04.0780",
@@ -527,7 +515,7 @@ LMJF_HEAT_SHOCK = [
     "LmjF.33.0350",
 ]
 
-# Sterol/ergosterol biosynthesis (drug targets) - 8 genes
+# Sterol/ergosterol biosynthesis (drug targets)
 LMJF_STEROL = [
     "LmjF.15.0240",
     "LmjF.29.2140",
@@ -539,7 +527,7 @@ LMJF_STEROL = [
     "LmjF.36.2540",
 ]
 
-# Glycolytic process (GO:0006096) - 15 unique genes
+# Glycolytic process (GO:0006096)
 LMJF_GLYCOLYSIS = [
     "LmjF.12.0530",
     "LmjF.14.1160",
@@ -558,7 +546,7 @@ LMJF_GLYCOLYSIS = [
     "LmjF.36.6650",
 ]
 
-# Cytoskeleton (GO:0005856) - 454 total, using 50
+# Cytoskeleton (GO:0005856)
 LMJF_CYTOSKELETON = [
     "LmjF.01.0030",
     "LmjF.01.0220",
@@ -614,7 +602,7 @@ LMJF_CYTOSKELETON = [
 
 # ===== TRYPANOSOMA BRUCEI BRUCEI TREU927 =====
 
-# Kinases (GO:0004672) - 217 total, using 60
+# Kinases (GO:0004672)
 TB_KINASES = [
     "Tb927.1.1000",
     "Tb927.1.1530",
@@ -678,7 +666,7 @@ TB_KINASES = [
     "Tb11.v5.0249",
 ]
 
-# Proteases (GO:0008233) - 211 total, using 60
+# Proteases (GO:0008233)
 TB_PROTEASES = [
     "Tb927.1.2100",
     "Tb927.1.2110",
@@ -742,7 +730,7 @@ TB_PROTEASES = [
     "Tb11.v5.0256",
 ]
 
-# VSG - variant surface glycoprotein - 1630 total, using 80
+# VSG (variant surface glycoprotein)
 TB_VSG = [
     "Tb05.5K5.260",
     "Tb05.5K5.300",
@@ -826,7 +814,7 @@ TB_VSG = [
     "Tb09.v4.0072",
 ]
 
-# Cell surface (GO:0009986) - 55 genes
+# Cell surface (GO:0009986)
 TB_CELL_SURFACE = [
     "Tb11.v5.0338",
     "Tb11.v5.0345",
@@ -885,7 +873,7 @@ TB_CELL_SURFACE = [
     "Tb927.9.1750",
 ]
 
-# GPI anchor biosynthesis (GO:0006506) - 39 unique genes
+# GPI anchor biosynthesis (GO:0006506)
 TB_GPI_BIOSYNTHESIS = [
     "Tb11.v5.0206",
     "Tb11.v5.0437",
@@ -928,7 +916,7 @@ TB_GPI_BIOSYNTHESIS = [
     "Tb927.8.8100",
 ]
 
-# Paraflagellar rod proteins - 42 genes
+# Paraflagellar rod proteins
 TB_PARAFLAGELLAR = [
     "Tb05.5K5.130",
     "Tb11.v5.0538",
@@ -974,7 +962,7 @@ TB_PARAFLAGELLAR = [
     "Tb927.8.6660",
 ]
 
-# Glycosome proteome - 60 Tb927 IDs
+# Glycosome proteome
 TB_GLYCOSOME = [
     "Tb927.1.3220",
     "Tb927.1.3830",
@@ -1038,7 +1026,7 @@ TB_GLYCOSOME = [
     "Tb927.11.900",
 ]
 
-# Glycolytic process (GO:0006096) - 27 genes
+# Glycolytic process (GO:0006096)
 TB_GLYCOLYSIS = [
     "Tb11.v5.0516",
     "Tb11.v5.0531",
@@ -1069,7 +1057,7 @@ TB_GLYCOLYSIS = [
     "Tb927.9.9820",
 ]
 
-# Oxidoreductases (GO:0016491) - 275 total, using 60
+# Oxidoreductases (GO:0016491)
 TB_OXIDOREDUCTASES = [
     "Tb927.1.1130",
     "Tb927.1.1770",
@@ -1133,7 +1121,7 @@ TB_OXIDOREDUCTASES = [
     "Tb10.v4.0043",
 ]
 
-# Mitochondrion (GO:0005739) - 1804 total, using 60
+# Mitochondrion (GO:0005739)
 TB_MITOCHONDRION = [
     "Tb927.1.1000",
     "Tb927.1.1130",
@@ -1197,7 +1185,7 @@ TB_MITOCHONDRION = [
     "Tb11.v5.0637",
 ]
 
-# RNA binding (GO:0003723) - 714 total, using 60
+# RNA binding (GO:0003723)
 TB_RNA_BINDING = [
     "Tb11.v5.0152",
     "Tb11.v5.0156",
@@ -1261,7 +1249,7 @@ TB_RNA_BINDING = [
     "Tb927.10.660",
 ]
 
-# Heat shock proteins - 36 genes
+# Heat shock proteins
 TB_HEAT_SHOCK = [
     "Tb11.v5.0543",
     "Tb11.v5.1034",
@@ -1301,7 +1289,7 @@ TB_HEAT_SHOCK = [
     "Tb927.9.4500",
 ]
 
-# Trypanothione-related - 6 genes (drug target)
+# Trypanothione-related (drug target)
 TB_TRYPANOTHIONE = [
     "Tb11.v5.0653",
     "Tb927.10.10390",
@@ -1311,7 +1299,7 @@ TB_TRYPANOTHIONE = [
     "Tb927.7.1140",
 ]
 
-# Ornithine decarboxylase / polyamine biosynthesis - 17 genes
+# Ornithine decarboxylase / polyamine biosynthesis
 TB_ODC_POLYAMINE = [
     "Tb11.v5.0903",
     "Tb927.10.13560",
@@ -1339,10 +1327,7 @@ TB_ODC_POLYAMINE = [
 
 
 def _glycosome_params() -> dict[str, str]:
-    """Build GenesInGlycosomeProteome parameters (TriTrypDB-specific).
-
-    Unique to TriTrypDB: no shared helper exists for glycosome proteome searches.
-    """
+    """Build GenesInGlycosomeProteome parameters. TriTrypDB only."""
     return {
         "glycosome_confidence": "High",
         "min_glycosome_score": "1.0",

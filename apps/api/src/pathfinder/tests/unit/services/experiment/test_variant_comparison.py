@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from pathfinder.domain.parameters.values import NumberValue
+from pathfinder.integrations.veupathdb.wdk_models import WDKAnswerMeta
 from pathfinder.platform.errors import WDKError
 from pathfinder.services.experiment import variant_comparison
 from pathfinder.services.experiment.variant_comparison import (
@@ -27,7 +28,13 @@ def _answer(gene_ids: list[str]) -> Any:
         records.append(rec)
     answer = MagicMock()
     answer.records = records
-    answer.meta.total_count = len(gene_ids)
+    # A real meta, so the count accessor under test actually runs.
+    answer.meta = WDKAnswerMeta(
+        totalCount=len(gene_ids),
+        displayTotalCount=len(gene_ids),
+        viewTotalCount=len(gene_ids),
+        displayViewTotalCount=len(gene_ids),
+    )
     return answer
 
 

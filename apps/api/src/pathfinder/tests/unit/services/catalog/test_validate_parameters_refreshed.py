@@ -202,16 +202,14 @@ class TestHiddenParentIsFilledBeforeRefresh:
     so `fill_hidden_required_defaults` supplies it -- but that ran *after*
     `_refresh_dependent_vocabularies`, which skips any parent whose value is
     empty. The child never refreshed against the channel dimension, and 13
-    DeRisi time points WDK accepts (totalCount 841) were reported invalid.
+    DeRisi time points WDK accepts (a non-empty result) were reported invalid.
     """
 
     @pytest.fixture
     def stub_with_hidden_parent(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
         refreshed_parents: list[str] = []
 
-        channel = _hidden_parent(
-            "channel", default="Channel 1", dependents=["samples"]
-        )
+        channel = _hidden_parent("channel", default="Channel 1", dependents=["samples"])
         samples = _enum_param(
             "samples", type_="multi-pick-vocabulary", vocab=_STATIC_TAXON_VOCAB
         )
@@ -268,4 +266,4 @@ class TestHiddenParentIsFilledBeforeRefresh:
             callbacks=_callbacks(),
         )
 
-        assert "channel" in out
+        assert "channel" in out.params

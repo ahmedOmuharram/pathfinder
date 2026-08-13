@@ -1,9 +1,4 @@
-"""K-fold cross-validation for overfitting detection.
-
-Splits positive and negative control gene lists into k folds,
-evaluates each held-out fold, and aggregates metrics to detect
-overfitting.
-"""
+"""K-fold cross-validation over positive and negative control gene lists."""
 
 import math
 import operator

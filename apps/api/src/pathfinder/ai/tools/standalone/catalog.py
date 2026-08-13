@@ -1,8 +1,5 @@
-"""Standalone catalog discovery tools for pydantic-ai migration.
-
-Each function takes ``RunContext[AgentDeps]`` and mirrors the original
-:class:`CatalogTools` methods exactly.
-"""
+"""Agent tools for catalog discovery: record types, searches, categories,
+transforms, phyletic codes, and example public strategies."""
 
 from typing import cast
 

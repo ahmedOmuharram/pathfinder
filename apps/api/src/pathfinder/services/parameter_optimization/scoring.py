@@ -14,14 +14,14 @@ from pathfinder.services.parameter_optimization.config import (
 logger = get_logger(__name__)
 
 _DEFAULT_TOTAL_GENES = 20_000
-"""Fallback denominator when the total gene count is unknown."""
+"""The denominator used when the total gene count is unknown."""
 
 _MCC_ZERO_GUARD_EPSILON = 1e-10
 _MIN_COMPLETED_TRIALS = 2
 
 
 def _score_mcc(r: float, specificity: float, raw_fpr: float) -> float:
-    """Approximate MCC via TPR*TNR - FPR*FNR divided by sqrt of four products."""
+    """Returns the Matthews correlation coefficient from the rate estimates."""
     tpr, tnr, fpr_val, fnr = r, specificity, raw_fpr, 1.0 - r
     num = tpr * tnr - fpr_val * fnr
     denom = ((tpr + fpr_val) * (tpr + fnr) * (tnr + fpr_val) * (tnr + fnr)) ** 0.5
@@ -35,7 +35,7 @@ def _score_for_objective(
     raw_fpr: float,
     cfg: OptimizationConfig,
 ) -> float:
-    """Compute the raw (pre-penalty) score for *cfg.objective*."""
+    """Returns the score for the configured objective, before any penalty."""
     f1_denom = precision + r
     fb_denom = cfg.beta**2 * precision + r
     scores: dict[str, float] = {
@@ -67,8 +67,8 @@ def _compute_score(
     raw_fpr = fpr if fpr is not None else 0.0
     specificity = 1.0 - raw_fpr
 
-    # True precision (PPV) = TP / (TP + FP). We approximate it from
-    # intersection counts when available, falling back to specificity.
+    # Precision comes from the intersection counts. Specificity stands in for it when
+    # those counts are absent.
     if positive_hits is not None and negative_hits is not None:
         tp_fp = positive_hits + negative_hits
         precision = positive_hits / tp_fp if tp_fp > 0 else 0.0
@@ -77,7 +77,7 @@ def _compute_score(
 
     base = _score_for_objective(r, precision, specificity, raw_fpr, cfg)
 
-    # Apply optional result-count penalty (tiebreaker for large result sets).
+    # The result-count penalty breaks ties between large result sets.
     if (
         cfg.estimated_size_penalty > 0
         and estimated_size is not None
@@ -93,17 +93,8 @@ def _compute_sensitivity(
     param_specs: list[ParameterSpec],
     study: optuna.Study | None = None,
 ) -> dict[str, float]:
-    """Estimate per-parameter importance (0-1) using Optuna PED-ANOVA.
-
-    Uses ``PedAnovaImportanceEvaluator`` -- a dependency-free evaluator
-    shipped with Optuna that handles non-linear effects and parameter
-    interactions.  Falls back to zeros when the study has too few completed
-    trials (< 2).
-
-    :param param_specs: Parameter specifications.
-    :param study: Optuna study (default: None).
-    :returns: Dict mapping parameter names to importance scores (0-1).
-    """
+    """Returns the importance of each parameter, from 0 to 1. A study with too few
+    completed trials returns zeros."""
     param_names = [p.name for p in param_specs]
     zeros = dict.fromkeys(param_names, 0.0)
 
@@ -117,7 +108,7 @@ def _compute_sensitivity(
 
     try:
         with warnings.catch_warnings():
-            # Silence the "PedAnovaImportanceEvaluator is experimental" warning.
+            # The evaluator is experimental and warns on every use.
             warnings.filterwarnings("ignore", message="PedAnova")
             evaluator = optuna.importance.PedAnovaImportanceEvaluator()
             importances = optuna.importance.get_param_importances(
@@ -126,7 +117,7 @@ def _compute_sensitivity(
                 params=param_names,
                 normalize=True,
             )
-        # Ensure every param is represented (evaluator may omit some).
+        # The evaluator can omit a parameter, so every name gets an entry here.
         return {name: importances.get(name, 0.0) for name in param_names}
     except ValueError, TypeError, RuntimeError:
         logger.debug(
@@ -137,11 +128,8 @@ def _compute_sensitivity(
 
 
 def _compute_pareto_frontier(trials: list[TrialResult]) -> list[TrialResult]:
-    """Two-objective Pareto: maximise recall, minimise FPR.
-
-    :param trials: Trial results.
-    :returns: Pareto frontier (non-dominated trials).
-    """
+    """Returns the non-dominated trials. The two objectives are maximum recall and
+    minimum false positive rate."""
     valid = [
         t for t in trials if t.recall is not None and t.false_positive_rate is not None
     ]

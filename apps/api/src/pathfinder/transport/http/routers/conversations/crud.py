@@ -1,4 +1,4 @@
-"""Strategy CRUD endpoints — thin transport over ``ConversationService``."""
+"""Strategy CRUD endpoints. Thin transport over ``ConversationService``."""
 
 from typing import Annotated
 from uuid import UUID

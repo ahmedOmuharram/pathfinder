@@ -20,15 +20,14 @@ from pathfinder.services.wdk.record_types import resolve_record_type
 
 logger = get_logger(__name__)
 
-# Cap phyletic tree matches to keep the tool response concise for the LLM
-# and avoid overwhelming it with hundreds of species/clade entries.
+# The tree holds hundreds of entries, so the response returns only the best matches.
 _MAX_TREE_MATCHES = 20
 
 
 def _extract_phyletic_vocabs(
     specs: dict[str, ParamSpecNormalized],
 ) -> tuple[list[WDKVocabTerm], list[WDKVocabTerm]]:
-    """Extract phyletic_term_map and phyletic_indent_map vocabularies from param specs."""
+    """Returns the term map and indent map vocabularies from the param specs."""
     term_map_vocab: list[WDKVocabTerm] = []
     indent_map_vocab: list[WDKVocabTerm] = []
     term_spec = specs.get("phyletic_term_map")
@@ -41,12 +40,12 @@ def _extract_phyletic_vocabs(
 
 
 def _depth_of(entry: WDKVocabTerm) -> int:
-    """Indent map encodes tree depth as the display element."""
+    """Returns the tree depth. The indent map carries the depth in the display field."""
     return int(entry.display) if entry.display else 0
 
 
 def _build_group_codes(indent_map_vocab: list[WDKVocabTerm]) -> set[str]:
-    """Build set of group codes (non-leaf nodes) from indent map entries."""
+    """Returns the codes of the non-leaf nodes in the indent map."""
     group_codes: set[str] = set()
     for i, entry in enumerate(indent_map_vocab):
         depth = _depth_of(entry)
@@ -60,13 +59,7 @@ def _match_phyletic_entries(
     group_codes: set[str],
     query: str,
 ) -> list[JSONObject]:
-    """Match term map entries against a query string.
-
-    Uses the sentence-transformer biencoder to rank matches by semantic
-    similarity so that e.g. "human" ranks "Homo sapiens" above
-    "Pediculus humanus".
-    """
-    # Collect all entries.
+    """Ranks the term map entries against a query by semantic similarity."""
     all_entries: list[tuple[str, str, bool]] = []
     for entry in term_map_vocab:
         if entry.term == "ALL":
@@ -77,7 +70,6 @@ def _match_phyletic_entries(
     if not all_entries:
         return []
 
-    # Rank all entries by semantic similarity — no pre-filter.
     ranked = _rank_by_semantic_similarity(query, all_entries)
     return [
         {"code": code, "label": label, "leaf": is_leaf}
@@ -89,7 +81,7 @@ def _rank_by_semantic_similarity(
     query: str,
     candidates: list[tuple[str, str, bool]],
 ) -> list[tuple[str, str, bool]]:
-    """Rank candidates by biencoder cosine similarity to the query."""
+    """Ranks the candidates by cosine similarity to the query."""
     try:
         import numpy as np  # noqa: PLC0415
 
@@ -118,16 +110,8 @@ async def lookup_phyletic_codes(
     record_type: str,
     query: str,
 ) -> JSONObject | ToolErrorPayload:
-    """Search phyletic species codes by name for the GenesByOrthologPattern search.
-
-    Returns matching ``{code, label}`` pairs from the ``phyletic_term_map``
-    vocabulary. The model uses codes to build ``profile_pattern`` values.
-
-    :param site_id: Site ID.
-    :param record_type: Record type (usually "transcript").
-    :param query: Species/clade name search term (case-insensitive substring).
-    :returns: Dict with ``matches`` list and ``query`` echo.
-    """
+    """Searches the phyletic species codes by name. The model uses the returned codes
+    to build a profile pattern."""
     try:
         discovery = get_discovery_service()
         record_types = await discovery.get_record_types(site_id)

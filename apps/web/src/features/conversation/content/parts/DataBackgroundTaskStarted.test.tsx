@@ -67,7 +67,8 @@ describe("DataBackgroundTaskStarted", () => {
   it("drives the progress bar width from the streamed percent (0.6 → 60%)", async () => {
     setStream([
       {
-        type: "data-task-progress",
+        type: "custom",
+        kind: "data-task-progress",
         data: { taskId: "t1", percent: 0.6, message: "Comparing controls" },
       },
     ]);
@@ -80,10 +81,11 @@ describe("DataBackgroundTaskStarted", () => {
   it("replaces progress with a success completion and removes the progress bar", async () => {
     setStream([
       {
-        type: "data-task-progress",
+        type: "custom",
+        kind: "data-task-progress",
         data: { taskId: "t1", percent: 0.6, message: "Comparing controls" },
       },
-      { type: "data-task-completed", data: { taskId: "t1", status: "success" } },
+      { type: "custom", kind: "data-task-completed", data: { taskId: "t1", status: "success" } },
     ]);
     renderWithClient(<DataBackgroundTaskStarted data={STARTED} />);
     const completed = await screen.findByTestId("data-task-completed");
@@ -97,7 +99,8 @@ describe("DataBackgroundTaskStarted", () => {
   it("renders a failed completion with the worker's error text", async () => {
     setStream([
       {
-        type: "data-task-completed",
+        type: "custom",
+        kind: "data-task-completed",
         data: { taskId: "t1", status: "failed", error: "WDK rejected the search" },
       },
     ]);
@@ -110,7 +113,8 @@ describe("DataBackgroundTaskStarted", () => {
   it("shows one lane per fan-out variant with each variant's latest percent", async () => {
     setStream([
       {
-        type: "data-task-progress",
+        type: "custom",
+        kind: "data-task-progress",
         data: {
           taskId: "t1",
           percent: 0.3,
@@ -119,7 +123,8 @@ describe("DataBackgroundTaskStarted", () => {
         },
       },
       {
-        type: "data-task-progress",
+        type: "custom",
+        kind: "data-task-progress",
         data: {
           taskId: "t1",
           percent: 0.5,
@@ -128,7 +133,8 @@ describe("DataBackgroundTaskStarted", () => {
         },
       },
       {
-        type: "data-task-progress",
+        type: "custom",
+        kind: "data-task-progress",
         data: {
           taskId: "t1",
           percent: 0.9,

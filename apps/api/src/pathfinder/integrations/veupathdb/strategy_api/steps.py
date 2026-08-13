@@ -1,8 +1,4 @@
-"""Step creation and update methods for the Strategy API.
-
-Provides :class:`StepsMixin` with methods to create search steps,
-combined (boolean) steps, transform steps, and update existing steps.
-"""
+"""Step creation, update, and deletion methods for the Strategy API."""
 
 from http import HTTPStatus
 
@@ -63,13 +59,9 @@ class StepsMixin(StrategyAPIBase):
         record_type: str,
         search_name: str,
     ) -> set[str]:
-        """Return the set of ``input-step`` (AnswerParam) names for a search.
+        """Return the ``input-step`` (AnswerParam) names for a search.
 
-        Results are cached per ``record_type/search_name`` pair.
-
-        :param record_type: WDK record type.
-        :param search_name: Search/question URL segment.
-        :returns: Set of parameter names whose type is ``input-step``.
+        Results are cached per record type and search name.
         """
         cache_key = f"{record_type}/{search_name}"
         if cache_key in self._answer_param_cache:
@@ -98,10 +90,8 @@ class StepsMixin(StrategyAPIBase):
     ) -> JSONObject:
         """Force every ``input-step`` (AnswerParam) of the search to ``""``.
 
-        WDK requires answer params on a NEW step to be the empty string — the
-        real input is wired via the ``stepTree`` at strategy-creation time. Used
-        by both ``create_step`` (leaf) and ``create_transform_step`` so neither
-        path can leave a stale or missing answer-param value that WDK rejects.
+        WDK requires an answer param on a new step to be the empty string. The
+        real input is wired through the ``stepTree`` at strategy-creation time.
         """
         answer_param_names = await self._get_answer_param_names(
             record_type, search_name
@@ -112,7 +102,7 @@ class StepsMixin(StrategyAPIBase):
         return params
 
     async def find_step(self, step_id: int, user_id: str | None = None) -> WDKStep:
-        """Fetch a single step by ID. Matches monorepo's findStep."""
+        """Fetch a single step by id. Mirrors the monorepo ``findStep``."""
         uid = await self._get_user_id(user_id)
         raw = await self.client.get(f"/users/{uid}/steps/{step_id}")
         return WDKStep.model_validate(raw)
@@ -125,20 +115,17 @@ class StepsMixin(StrategyAPIBase):
         *,
         wdk_weight: int = 0,
     ) -> tuple[dict[str, str], WDKSearchConfig]:
-        """Normalize and expand parameters, return (normalized_params, search_config)."""
+        """Normalize and expand raw parameters into a WDK search config."""
         normalized = self._normalize_parameters(raw_params)
 
-        # Expand group codes in profile_pattern for GenesByOrthologPattern.
         if search_name == "GenesByOrthologPattern" and "profile_pattern" in normalized:
             normalized["profile_pattern"] = await self._expand_profile_pattern_groups(
                 record_type,
                 normalized["profile_pattern"],
             )
 
-        # Expand parent tree nodes to leaves for multi-pick-vocabulary params
-        # with countOnlyLeaves=true (e.g., organism).  WDK silently returns 0
-        # genes for parent nodes — the frontend's CheckboxTree auto-selects
-        # leaf descendants, and we must replicate that behaviour.
+        # A tree param with countOnlyLeaves=true counts only leaf values; a
+        # parent node returns 0 rows.
         normalized = await self._expand_tree_params_to_leaves(
             record_type, search_name, normalized
         )
@@ -152,13 +139,7 @@ class StepsMixin(StrategyAPIBase):
         record_type: str,
         user_id: str | None = None,
     ) -> WDKIdentifier:
-        """Create an unattached step.
-
-        :param spec: Step specification (search name, config, optional display fields).
-        :param record_type: Record type (e.g., "gene", "transcript").
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: Created step identifier.
-        """
+        """Create an unattached step."""
         raw_params = await self._empty_answer_params(
             record_type, spec.search_name, dict(spec.search_config.parameters)
         )
@@ -197,13 +178,7 @@ class StepsMixin(StrategyAPIBase):
         record_type: str,
         user_id: str | None = None,
     ) -> WDKIdentifier:
-        """Create a combined step (boolean operation).
-
-        :param spec: Inputs, operator, and optional display fields.
-        :param record_type: WDK record type.
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: Created step identifier.
-        """
+        """Create a combined step that applies a boolean operator."""
         uid = await self._get_user_id(user_id)
         boolean_search = await self._get_boolean_search_name(record_type)
         left_param, right_param, op_param = await self._get_boolean_param_names(
@@ -212,7 +187,7 @@ class StepsMixin(StrategyAPIBase):
 
         search_config: JSONObject = {
             "parameters": {
-                # WDK requires empty inputs here; inputs are wired via stepTree
+                # WDK requires empty operands; inputs are wired via the stepTree.
                 left_param: "",
                 right_param: "",
                 op_param: spec.boolean_operator.value,
@@ -250,19 +225,8 @@ class StepsMixin(StrategyAPIBase):
     ) -> WDKIdentifier:
         """Create a transform step.
 
-        WDK requires that ``input-step`` (AnswerParam) parameters are set to
-        the empty string ``""`` when creating new steps — the actual input
-        wiring happens via the ``stepTree`` at strategy creation time.
-
-        This method fetches the search metadata to discover AnswerParam names,
-        strips any stale values, and forces them to ``""``.
-
-        :param spec: Step specification (search name, config, optional display fields).
-        :param input_step_id: ID of the input step (for logging; wiring
-            happens in the strategy ``stepTree``).
-        :param record_type: WDK record type for the search details lookup.
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: Created step identifier.
+        WDK requires every ``input-step`` (AnswerParam) to be the empty string
+        on a new step; the input is wired through the ``stepTree``.
         """
         clean_params = await self._empty_answer_params(
             record_type, spec.search_name, dict(spec.search_config.parameters)
@@ -311,20 +275,16 @@ class StepsMixin(StrategyAPIBase):
         *,
         user_id: str | None = None,
     ) -> None:
-        """Update a step's search configuration (parameters + weight).
+        """Update a step's search configuration.
 
-        Matches monorepo's ``StepsService.updateStepSearchConfig``.
-        Endpoint: ``PUT /users/{uid}/steps/{step_id}/search-config``
-
-        Parameters are normalized and expanded (profile pattern groups,
-        tree param leaves) identically to step creation.
-
-        :param step_id: WDK step ID to update.
-        :param search_config: New search configuration.
-        :param record_type: WDK record type (needed for param expansion).
-        :param search_name: Search URL segment (needed for param expansion).
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
+        Endpoint: ``PUT /users/{uid}/steps/{step_id}/search-config``. Parameters
+        are normalized and expanded exactly as they are on step creation. The
+        step's filters are carried over, because an omitted filters array lets
+        WDK re-apply the filters it applies by itself.
         """
+        uid = await self._get_user_id(user_id)
+        current = await self.client.get_step_view_filters(uid, step_id)
+
         _, config_payload = await self._prepare_search_config(
             raw_params=dict(search_config.parameters),
             record_type=record_type,
@@ -338,10 +298,11 @@ class StepsMixin(StrategyAPIBase):
             search_name=search_name,
         )
 
-        uid = await self._get_user_id(user_id)
+        payload = config_payload.model_dump(by_alias=True, exclude_defaults=True)
+        payload["filters"] = [f.model_dump(by_alias=True) for f in current]
         await self.client.put(
             f"/users/{uid}/steps/{step_id}/search-config",
-            json=config_payload.model_dump(by_alias=True, exclude_defaults=True),
+            json=payload,
         )
 
     async def delete_step(
@@ -350,10 +311,7 @@ class StepsMixin(StrategyAPIBase):
         *,
         user_id: str | None = None,
     ) -> None:
-        """Delete a step. Tolerant of 404 (already gone).
-
-        Endpoint: ``DELETE /users/{uid}/steps/{step_id}``.
-        """
+        """Delete a step. A 404 means the step is already gone."""
         uid = await self._get_user_id(user_id)
         try:
             await self.client.delete(f"/users/{uid}/steps/{step_id}")
@@ -369,14 +327,10 @@ class StepsMixin(StrategyAPIBase):
         *,
         user_id: str | None = None,
     ) -> None:
-        """Update a step's display properties (name, expanded state, preferences).
+        """Update a step's display properties.
 
-        Matches monorepo's ``StepsService.updateStepProperties``.
-        Endpoint: ``PATCH /users/{uid}/steps/{step_id}``
-
-        :param step_id: WDK step ID to update.
-        :param spec: Patch specification with fields to update (None fields excluded).
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
+        Endpoint: ``PATCH /users/{uid}/steps/{step_id}``. Unset fields are
+        excluded from the payload.
         """
         payload = spec.model_dump(by_alias=True, exclude_none=True, mode="json")
 

@@ -77,7 +77,11 @@ async def _run_one(
     except (WDKError, httpx.HTTPError) as exc:
         return spec, set(), 0, str(exc)
     ids = set(extract_record_ids(answer.records))
-    total = answer.meta.total_count or len(ids)
+    try:
+        total = answer.meta.records_returned()
+    except ValueError as exc:
+        # A comparison of sizes cannot substitute a number for a missing one.
+        return spec, ids, 0, str(exc)
     return spec, ids, total, None
 
 

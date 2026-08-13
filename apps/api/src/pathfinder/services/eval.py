@@ -212,7 +212,7 @@ async def fetch_all_gene_ids(
                 all_ids.append(gene_id)
 
         offset += len(records)
-        if offset >= answer.meta.total_count:
+        if offset >= answer.meta.records_returned():
             break
 
     return all_ids

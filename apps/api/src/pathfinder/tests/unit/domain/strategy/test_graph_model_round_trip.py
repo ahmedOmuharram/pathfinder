@@ -36,9 +36,7 @@ from pathfinder.domain.strategy.graph_model import (
 )
 from pathfinder.domain.strategy.ops import CombineOp
 
-_IDS = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyz0123456789_", min_size=1, max_size=8
-)
+_IDS = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789_", min_size=1, max_size=8)
 
 
 @st.composite
@@ -54,8 +52,10 @@ def _node(draw: st.DrawFn) -> StrategyStepNode:
                 return candidate
 
     def build(depth: int) -> StrategyStepNode:
-        shape = draw(st.sampled_from(["leaf", "transform", "combine"])) if depth else (
-            "leaf"
+        shape = (
+            draw(st.sampled_from(["leaf", "transform", "combine"]))
+            if depth
+            else ("leaf")
         )
         params = draw(
             st.one_of(
@@ -97,9 +97,7 @@ def _node(draw: st.DrawFn) -> StrategyStepNode:
 class TestRoundTrip:
     @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
     @given(_node())
-    def test_a_tree_survives_the_split_and_rejoin(
-        self, node: StrategyStepNode
-    ) -> None:
+    def test_a_tree_survives_the_split_and_rejoin(self, node: StrategyStepNode) -> None:
         steps = flatten_tree(node)
 
         assert rebuild_tree(node.id, steps) == node

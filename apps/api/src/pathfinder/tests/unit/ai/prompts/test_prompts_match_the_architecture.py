@@ -68,7 +68,12 @@ def test_no_prompt_names_a_deleted_sub_agent() -> None:
 
     offenders: dict[str, set[str]] = {}
     for path in _prompt_files():
-        named = {m for hit in role_reference.findall(path.read_text().casefold()) for m in hit if m}
+        named = {
+            m
+            for hit in role_reference.findall(path.read_text().casefold())
+            for m in hit
+            if m
+        }
         if named:
             offenders[path.name] = named
 

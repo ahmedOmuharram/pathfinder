@@ -1,4 +1,4 @@
-"""Tests for modular observability setup."""
+"""Tests for observability setup."""
 
 import logging
 from unittest.mock import MagicMock, patch
@@ -57,7 +57,7 @@ def test_shutdown_observability_noop_when_no_provider() -> None:
     original = obs._otel.provider
     obs._otel.provider = None
     try:
-        shutdown_observability()  # Should not raise
+        shutdown_observability()
     finally:
         obs._otel.provider = original
 
@@ -81,7 +81,7 @@ def test_configure_log_export_attaches_handler_with_signoz() -> None:
     ):
         _configure_log_export()
     assert len(root.handlers) == handler_count_before + 1
-    # Clean up: remove the handler we just added
+    # Remove the handler this test added.
     root.handlers.pop()
 
 
@@ -139,11 +139,8 @@ def test_configure_exporters_returns_provider_for_langfuse_only() -> None:
 
 
 def test_setup_observability_triggers_langfuse_sdk_when_key_set() -> None:
-    """When Langfuse is configured, setup_observability initializes the SDK.
-
-    The SDK's own ``LangfuseSpanProcessor`` attaches to our TracerProvider and
-    owns the actual OTLP export to Langfuse — no manual HttpSpanExporter.
-    """
+    """Setup starts the Langfuse SDK when Langfuse is configured. The SDK attaches
+    its own span processor and owns the export."""
     mock_settings = MagicMock(
         signoz_otel_endpoint=None,
         signoz_trace_otel_http_endpoint=None,

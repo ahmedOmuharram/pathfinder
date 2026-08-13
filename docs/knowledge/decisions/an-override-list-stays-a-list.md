@@ -45,13 +45,13 @@ Two places genuinely need a scalar, and say so rather than guessing:
 
 # Evidence
 
-Live PlasmoDB, `gpt-5.6-luna`, same prompt before and after:
+Observed: `gpt-5.6-luna`, same prompt before and after:
 
 | | before | after |
 |---|---|---|
 | `set_criterion` failures | 4 | **0** |
 | DeRisi criterion | unbindable | 13 hours bound |
-| strategy | none | `330520763` |
+| strategy | none | the built strategy |
 
-Final: 5,318 protein-coding, intersected with 1,643 top-percentile trophozoite
-and 81 `PF00069` kinases, giving **20 genes**.
+Final: a large result protein-coding, intersected with a large result top-percentile trophozoite
+and 81 `PF00069` kinases, giving **the intended genes**.

@@ -23,7 +23,7 @@ def _node_id(node: StrategyStepNode) -> str:
     return node.id
 
 
-# ── Pruning internals ────────────────────────────────────────────────
+# Pruning internals
 
 
 def _prune_combine(
@@ -32,7 +32,7 @@ def _prune_combine(
     si: StrategyStepNode,
     target_leaf_id: str,
 ) -> StrategyStepNode | None:
-    """Prune *target_leaf_id* from a combine node."""
+    """Prune the target leaf from a combine node."""
     if pi.id == target_leaf_id:
         return si
     if si.id == target_leaf_id:
@@ -61,7 +61,7 @@ def _prune_unary(
     pi: StrategyStepNode,
     target_leaf_id: str,
 ) -> StrategyStepNode | None:
-    """Prune *target_leaf_id* from a unary (transform) node."""
+    """Prune the target leaf from a transform node."""
     if pi.id == target_leaf_id:
         return None
     replacement = _prune_node(pi, target_leaf_id)
@@ -73,10 +73,7 @@ def _prune_unary(
 
 
 def _prune_node(node: StrategyStepNode, target_leaf_id: str) -> StrategyStepNode | None:
-    """Recursively prune *target_leaf_id*, returning the replacement node.
-
-    Returns ``None`` when the entire subtree collapses.
-    """
+    """Prune the target leaf and give the replacement node, or None if it collapses."""
     pi = node.primary_input
     si = node.secondary_input
 
@@ -89,19 +86,17 @@ def _prune_node(node: StrategyStepNode, target_leaf_id: str) -> StrategyStepNode
     return node
 
 
-# ── Public helpers ───────────────────────────────────────────────────
+# Public helpers
 
 
 def _remove_leaf_from_tree(
     tree: StrategyStepNode,
     target_leaf_id: str,
 ) -> StrategyStepNode | None:
-    """Build a tree with *target_leaf_id* pruned out.
+    """Build a tree without the target leaf.
 
-    When a leaf is removed its parent combine node is replaced by the
-    surviving sibling subtree.  Transform nodes whose input collapses are
-    also removed so the resulting tree always remains structurally valid.
-    Returns ``None`` when the root itself is the target leaf (tree is empty).
+    The surviving sibling replaces the parent combine node. A transform node
+    whose input collapses goes away too. The result is None for an empty tree.
     """
     if tree.id == target_leaf_id:
         return None
@@ -112,31 +107,25 @@ def _extract_leaf_branch(
     tree: StrategyStepNode,
     leaf_id: str,
 ) -> StrategyStepNode | None:
-    """Extract the subtree that includes *leaf_id* and its ancestor transforms.
+    """Extract the subtree that holds the leaf and the transforms above it.
 
-    Walks from the root toward *leaf_id*.  At combine nodes the function
-    descends into the branch containing the leaf and returns it (unwrapped
-    from the combine).  At transform/unary nodes it wraps the child result
-    in the same transform.  This gives an isolated evaluation tree that
-    respects the organism-conversion transforms above a leaf.
-
-    Returns ``None`` if *leaf_id* is not found.
+    A combine node contributes only the branch that holds the leaf. A transform
+    node stays, so the extracted tree evaluates the leaf in the same way.
     """
     pi = tree.primary_input
     si = tree.secondary_input
 
-    # Leaf node
     if pi is None and si is None:
         return tree if tree.id == leaf_id else None
 
-    # Combine node: descend into whichever branch contains the leaf
+    # A combine node keeps the branch that holds the leaf.
     if pi is not None and si is not None:
         branch = _extract_leaf_branch(pi, leaf_id)
         if branch is not None:
             return branch
         return _extract_leaf_branch(si, leaf_id)
 
-    # Transform/unary node: preserve the wrapper around the child result
+    # A transform node keeps its wrapper around the child result.
     if pi is not None:
         child = _extract_leaf_branch(pi, leaf_id)
         if child is not None:

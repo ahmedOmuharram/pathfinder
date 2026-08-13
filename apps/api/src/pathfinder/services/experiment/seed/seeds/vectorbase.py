@@ -1,17 +1,4 @@
-"""Seed definitions for VectorBase.
-
-Organism: Anopheles gambiae PEST
-
-Strategies model real vector biology research:
-  1. AgPEST Insecticide Resistance Network (12 nodes)
-  2. AgPEST Anti-Plasmodium Immune Response (11 nodes)
-  3. AgPEST Olfactory System Host-Seeking (8 nodes)
-  4. AgPEST Salivary Anticoagulant Secretome (10 nodes)
-  5. AgPEST Midgut Blood-Meal Interaction (10 nodes)
-  6. AgPEST Baseline: 2L High-MW minus HSP (5 nodes)
-
-All gene IDs verified against VectorBase live API (March 2026).
-"""
+"""Seed strategies and curated gene sets for VectorBase, organism Anopheles gambiae PEST."""
 
 from pathfinder.services.experiment.seed.helpers import (
     exon_count_params,
@@ -30,10 +17,10 @@ AG_ORG = "Anopheles gambiae PEST"
 AG_EC_SOURCES = ["KEGG_Enzyme", "computationally inferred from Orthology", "Uniprot"]
 
 # ---------------------------------------------------------------------------
-# Gene data -- REAL IDs from VectorBase A. gambiae PEST (March 2026)
+# Gene data: real VectorBase A. gambiae PEST ids
 # ---------------------------------------------------------------------------
 
-# Cytochrome P450 genes -- key insecticide metabolizers
+# Cytochrome P450 genes: key insecticide metabolizers
 AGAM_CYP450 = [
     "AGAP000088",
     "AGAP000109",
@@ -143,7 +130,7 @@ AGAM_CYP450 = [
     "AGAP009374",
 ]
 
-# Glutathione S-transferases -- phase II detox
+# Glutathione S-transferases: phase II detox
 AGAM_GST = [
     "AGAP000081",
     "AGAP000163",
@@ -225,7 +212,7 @@ AGAM_GST = [
     "AGAP011983",
 ]
 
-# Esterases -- insecticide resistance
+# Esterases: insecticide resistance
 AGAM_ESTERASE = [
     "AGAP001723",
     "AGAP002863",
@@ -243,7 +230,7 @@ AGAM_ESTERASE = [
     "AGAP009891",
 ]
 
-# ABC transporters -- multidrug efflux
+# ABC transporters: multidrug efflux
 AGAM_ABC_TRANSPORTER = [
     "AGAP000022",
     "AGAP000128",
@@ -310,7 +297,7 @@ AGAM_ABC_TRANSPORTER = [
     "AGAP003493",
 ]
 
-# Thioester-containing proteins (TEPs) -- complement-like innate immunity
+# Thioester-containing proteins (TEPs): complement-like innate immunity
 AGAM_TEP = [
     "AGAP008364",
     "AGAP008366",
@@ -373,7 +360,7 @@ AGAM_LRIM = [
     "AGAP003547",
 ]
 
-# Serine proteases -- CLIP-domain, melanization cascade
+# Serine proteases: CLIP-domain, melanization cascade
 AGAM_SERINE_PROTEASE = [
     "AGAP000240",
     "AGAP000290",
@@ -473,7 +460,7 @@ AGAM_SERINE_PROTEASE = [
     "AGAP005688",
 ]
 
-# Antimicrobial peptides -- cecropins, defensins, gambicin
+# Antimicrobial peptides: cecropins, defensins, gambicin
 AGAM_AMP = [
     "AGAP000692",
     "AGAP000693",
@@ -570,7 +557,7 @@ AGAM_IMMUNE = [
     "AGAP028064",
 ]
 
-# Odorant receptors -- host-seeking behavior
+# Odorant receptors: host-seeking behavior
 AGAM_OR = [
     "AGAP000016",
     "AGAP000038",
@@ -656,7 +643,7 @@ AGAM_OR = [
     "AGAP001812",
 ]
 
-# Odorant binding proteins -- ligand transport in olfaction
+# Odorant binding proteins: ligand transport in olfaction
 AGAM_OBP = [
     "AGAP000005",
     "AGAP000009",
@@ -744,7 +731,7 @@ AGAM_OBP = [
     "AGAP000457",
 ]
 
-# Gustatory receptors -- CO2 detection
+# Gustatory receptors: CO2 detection
 AGAM_GR = [
     "AGAP000016",
     "AGAP000038",
@@ -792,7 +779,7 @@ AGAM_GR = [
     "AGAP001117",
 ]
 
-# Salivary gland proteins -- blood-feeding, Plasmodium transmission
+# Salivary gland proteins: blood-feeding, Plasmodium transmission
 AGAM_SALIVARY = [
     "AGAP000150",
     "AGAP000548",
@@ -835,7 +822,7 @@ AGAM_SALIVARY = [
     "AGAP028120",
 ]
 
-# D7 family proteins -- anti-hemostatic salivary proteins
+# D7 family proteins: anti-hemostatic salivary proteins
 AGAM_D7 = [
     "AGAP008278",
     "AGAP008279",
@@ -951,7 +938,7 @@ AGAM_SIGNAL_PEPTIDE = [
     "AGAP000629",
 ]
 
-# Transmembrane domain (7+) genes -- GPCRs, channels, transporters
+# Transmembrane domain (7+) genes: GPCRs, channels, transporters
 AGAM_TM7 = [
     "AGAP000040",
     "AGAP000045",
@@ -1035,7 +1022,7 @@ AGAM_TM7 = [
     "AGAP001339",
 ]
 
-# Heat shock proteins -- stress response
+# Heat shock proteins: stress response
 AGAM_HSP = [
     "AGAP001424",
     "AGAP001502",
@@ -1054,7 +1041,7 @@ AGAM_HSP = [
     "AGAP013228",
 ]
 
-# Trypsin genes -- midgut digestive enzymes
+# Trypsin genes: midgut digestive enzymes
 AGAM_TRYPSIN = [
     "AGAP004900",
     "AGAP005587",
@@ -1075,7 +1062,7 @@ AGAM_TRYPSIN = [
     "AGAP012472",
 ]
 
-# Chitin/chitinase genes -- peritrophic matrix, cuticle
+# Chitin/chitinase genes: peritrophic matrix, cuticle
 AGAM_CHITIN = [
     "AGAP001205",
     "AGAP001597",
@@ -1099,7 +1086,7 @@ AGAM_CHITIN = [
     "AGAP029714",
 ]
 
-# Oxidoreductase genes -- redox reactions
+# Oxidoreductase genes: redox reactions
 AGAM_OXIDOREDUCTASE = [
     "AGAP003142",
     "AGAP003889",
@@ -1114,14 +1101,14 @@ AGAM_OXIDOREDUCTASE = [
     "AGAP028464",
 ]
 
-# Vitellogenin -- yolk protein precursor
+# Vitellogenin: yolk protein precursor
 AGAM_VITELLOGENIN = [
     "AGAP000427",
     "AGAP004203",
     "AGAP008369",
 ]
 
-# Peritrophin genes -- peritrophic matrix
+# Peritrophin genes: peritrophic matrix
 AGAM_PERITROPHIN = [
     "AGAP006795",
     "AGAP006796",
@@ -1136,11 +1123,7 @@ AGAM_PERITROPHIN = [
 def _text_search_params(
     organism: str, text: str, field: str = "product"
 ) -> dict[str, str]:
-    """VectorBase-specific: uses raw strings for organism/fields, not JSON arrays.
-
-    Cannot use the shared text_search_params helper because VectorBase passes
-    organism and text_fields as plain strings rather than JSON-encoded lists.
-    """
+    """Build GenesByText parameters. VectorBase takes plain strings, not JSON lists."""
     return {
         "text_search_organism": organism,
         "text_expression": text,
@@ -1154,10 +1137,7 @@ def _rnaseq_deltamethrin_params(
     direction: str = "up-regulated",
     fold_change: str = "2",
 ) -> dict[str, str]:
-    """Build RNA-Seq parameters for Deltamethrin resistant vs susceptible.
-
-    Dataset: SRP014191 -- A. gambiae PEST Deltamethrin resistant and susceptible
-    """
+    """Build RNA-Seq parameters for deltamethrin resistant against susceptible."""
     return {
         "dataset_url": "https://VectorBase.org/a/app/record/dataset/DS_455af12573",
         "profileset_generic": (
@@ -1180,11 +1160,7 @@ def _rnaseq_pfalciparum_midgut_params(
     direction: str = "up-regulated",
     fold_change: str = "2",
 ) -> dict[str, str]:
-    """Build RNA-Seq parameters for P. falciparum-infected midgut.
-
-    Dataset: SRP013741 -- A. gambiae PEST Midgut P. falciparum-infected
-    vs non-infected.
-    """
+    """Build RNA-Seq parameters for P. falciparum infected against uninfected midgut."""
     return {
         "dataset_url": "https://VectorBase.org/a/app/record/dataset/DS_7f62901422",
         "profileset_generic": (
@@ -1206,9 +1182,6 @@ def _rnaseq_pfalciparum_midgut_params(
 # ---------------------------------------------------------------------------
 
 SEEDS: list[SeedDef] = [
-    # =====================================================================
-    # 1) AgPEST Insecticide Resistance Network (12 nodes)
-    # =====================================================================
     SeedDef(
         name="AgPEST Insecticide Resistance Network",
         description=(
@@ -1302,9 +1275,6 @@ SEEDS: list[SeedDef] = [
             tags=["insecticide-resistance", "anopheles", "seed"],
         ),
     ),
-    # =====================================================================
-    # 2) AgPEST Anti-Plasmodium Immune Response (11 nodes)
-    # =====================================================================
     SeedDef(
         name="AgPEST Anti-Plasmodium Immune Response",
         description=(
@@ -1413,9 +1383,6 @@ SEEDS: list[SeedDef] = [
             tags=["immunity", "anti-plasmodium", "anopheles", "seed"],
         ),
     ),
-    # =====================================================================
-    # 3) AgPEST Olfactory System -- Host-Seeking Receptors (8 nodes)
-    # =====================================================================
     SeedDef(
         name="AgPEST Olfactory System Host-Seeking",
         description=(
@@ -1490,9 +1457,6 @@ SEEDS: list[SeedDef] = [
             tags=["olfactory", "host-seeking", "anopheles", "seed"],
         ),
     ),
-    # =====================================================================
-    # 4) AgPEST Salivary Anticoagulant Secretome (10 nodes)
-    # =====================================================================
     SeedDef(
         name="AgPEST Salivary Anticoagulant Secretome",
         description=(
@@ -1578,9 +1542,6 @@ SEEDS: list[SeedDef] = [
             tags=["salivary", "blood-feeding", "anopheles", "seed"],
         ),
     ),
-    # =====================================================================
-    # 5) AgPEST Midgut Blood-Meal Interaction (10 nodes)
-    # =====================================================================
     SeedDef(
         name="AgPEST Midgut Blood-Meal Interaction",
         description=(
@@ -1675,9 +1636,6 @@ SEEDS: list[SeedDef] = [
             tags=["midgut", "blood-meal", "anopheles", "seed"],
         ),
     ),
-    # =====================================================================
-    # 6) AgPEST Baseline: 2L High-MW minus HSP (5 nodes)
-    # =====================================================================
     SeedDef(
         name="AgPEST Baseline: 2L High-MW minus HSP",
         description=(

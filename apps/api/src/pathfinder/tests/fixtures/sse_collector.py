@@ -1,8 +1,5 @@
-"""SSE event collector for integration tests.
-
-Sends a chat request through the full HTTP endpoint and collects all
-SSE events into a structured list for assertion.
-"""
+"""Sends a chat request through the HTTP endpoint and collects the SSE events
+into a structured list for assertion."""
 
 import json
 from dataclasses import dataclass, field
@@ -85,11 +82,7 @@ class ChatStreamResult:
 
 
 def _parse_sse_text(text: str) -> list[SSEEvent]:
-    """Parse raw SSE text into structured events.
-
-    :param text: Raw SSE text to parse.
-    :returns: List of parsed SSE events.
-    """
+    """Parse raw SSE text into structured events."""
     events: list[SSEEvent] = []
     for raw_part in text.split("\n\n"):
         part = raw_part.strip()
@@ -126,15 +119,8 @@ async def collect_chat_stream(
 ) -> ChatStreamResult:
     """Send a chat request and collect all SSE events.
 
-    Uses the CQRS pattern: POST /chat returns 202 with an operationId,
-    then GET /operations/{operationId}/subscribe streams SSE events.
-
-    :param client: HTTP client for the request.
-    :param message: Conversation message to send.
-    :param site_id: VEuPathDB site identifier (default ``"veupathdb"``).
-    :param strategy_id: Optional strategy ID.
-    :param request_timeout: Request timeout in seconds.
-    :returns: Collected SSE events and HTTP status.
+    The chat POST returns an operation id. The events arrive on the separate
+    operation subscribe stream.
     """
     payload: JSONObject = {
         "siteId": site_id,
@@ -145,7 +131,6 @@ async def collect_chat_stream(
 
     result = ChatStreamResult()
 
-    # Step 1: Start the chat operation.
     resp = await client.post("/api/v1/chat", json=payload, timeout=request_timeout)
     result.http_status = resp.status_code
     if resp.status_code != 202:
@@ -170,7 +155,6 @@ async def collect_chat_stream(
         )
         return result
 
-    # Step 2: Subscribe to the operation SSE stream.
     collected = ""
     async with client.stream(
         "GET",

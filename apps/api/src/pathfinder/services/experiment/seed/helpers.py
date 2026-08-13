@@ -1,11 +1,4 @@
-"""Shared parameter-building helpers for seed definitions.
-
-Every VEuPathDB component site seed file needs to build WDK search parameter
-dicts.  These helpers encode the common patterns — organism JSON encoding,
-GO term searches, text searches, signal peptide, transmembrane domains, etc.
-
-Each seed file may still define site-specific helpers locally.
-"""
+"""Builders for the WDK search parameter dicts that the seed definitions share."""
 
 import json
 from dataclasses import dataclass
@@ -23,14 +16,7 @@ def go_search_params(
     evidence: list[str] | None = None,
     go_term_value: str | None = None,
 ) -> dict[str, str]:
-    """Build GenesByGoTerm search parameters.
-
-    :param organism: Organism full name (e.g. "Plasmodium falciparum 3D7").
-    :param go_id: GO term identifier (e.g. "GO:0004672").
-    :param evidence: Evidence code filter. Defaults to ``["Curated", "Computed"]``.
-    :param go_term_value: Value for the ``go_term`` field. Defaults to *go_id*.
-        GiardiaDB uses ``"N/A"`` here.
-    """
+    """Build GenesByGoTerm search parameters. Some sites need a separate term value."""
     if evidence is None:
         evidence = ["Curated", "Computed"]
     return {
@@ -48,13 +34,7 @@ def text_search_params(
     *,
     fields: list[str] | None = None,
 ) -> dict[str, str]:
-    """Build GenesByText search parameters.
-
-    Args:
-        organism: Organism full name.
-        expression: Free-text query (e.g. "kinase", "rhoptry").
-        fields: Fields to search. Defaults to ``["product"]``.
-    """
+    """Build GenesByText search parameters."""
     if fields is None:
         fields = ["product"]
     return {
@@ -75,10 +55,7 @@ def transmembrane_params(
     min_tm: str,
     max_tm: str,
 ) -> dict[str, str]:
-    """Build GenesByTransmembraneDomains search parameters.
-
-    Callers pass default min/max values appropriate to their site context.
-    """
+    """Build GenesByTransmembraneDomains search parameters."""
     return {
         "organism": org([organism]),
         "min_tm": min_tm,
@@ -106,14 +83,7 @@ def ec_search_params(
     ec_sources: list[str],
     ec_wildcard: str = "No",
 ) -> dict[str, str]:
-    """Build GenesByEcNumber search parameters.
-
-    Args:
-        organism: Organism full name.
-        ec_number: EC number pattern (e.g. "2.7.11.1").
-        ec_sources: Evidence sources list (e.g. ``["KEGG_Enzyme"]``).
-        ec_wildcard: Wildcard flag. Defaults to ``"No"``.
-    """
+    """Build GenesByEcNumber search parameters."""
     return {
         "organism": org([organism]),
         "ec_source": json.dumps(ec_sources),
@@ -166,11 +136,7 @@ def exon_count_params(
 
 @dataclass
 class RNASeqOptions:
-    """Optional parameters for RNA-Seq fold-change searches.
-
-    Groups the parameters that have site-specific or per-call defaults so
-    :func:`rnaseq_fc_params` stays within the 6-argument limit.
-    """
+    """Optional parameters for an RNA-Seq fold-change search."""
 
     hard_floor: str = "0"
     fold_change: str = "2"

@@ -5,8 +5,8 @@ against the user's query. Returns the top N matches.
 """
 
 import re
-from collections.abc import Awaitable, Callable, Sequence
 
+from pathfinder.integrations.embeddings.embed_fn import EmbedFn
 from pathfinder.integrations.embeddings.prefixes import (
     SEARCH_DOCUMENT_PREFIX,
     SEARCH_QUERY_PREFIX,
@@ -77,8 +77,6 @@ def rank_public_strategies(
         for s, _ in scored[:limit]
     ]
 
-
-EmbedFn = Callable[[Sequence[str]], Awaitable[list[list[float]]]]
 
 _DEFAULT_SEMANTIC_MIN_SCORE = 0.4
 

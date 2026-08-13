@@ -1,35 +1,9 @@
 """Schemathesis fuzz harness for the documented OpenAPI surface.
 
-Drives Schemathesis 4.x against the in-process FastAPI app via its ASGI
-transport. Every operation declared in ``/openapi.json`` (minus a small
-SSE exclusion list) becomes a parametrized pytest case under the single
-``test_openapi_conformance`` collector.
-
-Active checks (run on every fuzzed response):
-
-- ``not_a_server_error``: any 5xx on generated input is a bug. Our fuzz
-  surface is "what does the API do with random-but-typed input"; the
-  answer must never be "raise". Includes asyncpg/SQLAlchemy bubbling,
-  unhandled ``KeyError``/``ValueError`` in handlers, etc.
-- ``response_schema_conformance``: response body matches its declared
-  ``responses[<code>].content[<type>].schema``. Catches drift between
-  Pydantic response models and their OpenAPI rendering.
-- ``content_type_conformance``: ``Content-Type`` of the response is one
-  of the types declared for that status code.
-- ``response_headers_conformance``: any header declared in the spec is
-  actually present and matches its schema.
-
-``status_code_conformance`` is intentionally NOT in the active set:
-fuzzers generate path parameters that don't reference real records,
-which legitimately yields 404 — but the spec rarely lists 404 on
-read-by-id endpoints. Treating that as a failure floods the run with
-noise and hides real bugs. Re-enable once the spec lists 404 on every
-``{id}`` endpoint (separate workstream).
-
-LLM calls are blocked globally via ``conftest.py``
-(``PATHFINDER_CHAT_PROVIDER=mock`` + ``ALLOW_MODEL_REQUESTS=False``).
-The DB is the real testcontainers Postgres mirroring the rest of the
-integration suite.
+Every documented operation except the streaming ones becomes a parametrized
+case against the in-process app. The status-code check stays off, because a
+generated path parameter names no real record and the spec rarely documents
+the resulting 404.
 """
 
 from __future__ import annotations
@@ -80,22 +54,19 @@ from pathfinder.platform.security import create_user_token
 
 load_all_checks()
 
-# Endpoints that hold an open response stream (SSE) — the starlette
-# TestClient will not return until the generator completes, which never
-# happens for these. Excluded by exact path match.
+# The test client waits for the response generator to finish, so an endpoint
+# that holds an open stream never returns.
 _STREAMING_PATHS: frozenset[str] = frozenset(
     {
         "/api/v1/chat",
         "/api/v1/conversations/{conversation_id}/events",
         "/api/v1/conversations/{conversation_id}/tasks/{task_id}/events",
-        # Internal schema-export route; not part of the public surface.
         "/internal/schema/stream-event",
     }
 )
 
-# langgraph's AsyncPostgresStore pool binds to the loop that opened it; the sync
-# TestClient portal uses a different loop per request. Covered by the memories
-# integration tests + test_memory_endpoints_have_store_in_conformance_app.
+# The memory store pool binds to the event loop that opens it, and the sync
+# test client uses one loop per request.
 _LOOP_BOUND_PATHS: frozenset[str] = frozenset(
     {
         "/api/v1/memories",
@@ -110,8 +81,8 @@ _HTTP_METHODS = ("get", "post", "put", "patch", "delete", "options", "head", "tr
 
 
 def _event_stream_labels() -> frozenset[str]:
-    # ``METHOD /path`` for every operation that responds with text/event-stream.
-    # Derived from the committed spec so new SSE endpoints exclude themselves.
+    # The labels come from the committed spec, so a new streaming endpoint
+    # excludes itself.
     for parent in Path(__file__).resolve().parents:
         spec_path = parent / "packages" / "spec" / "openapi.json"
         if spec_path.is_file():
@@ -135,7 +106,7 @@ _STREAMING_LABELS: frozenset[str] = _event_stream_labels()
 
 @dataclass(frozen=True, slots=True)
 class _SchemaArtifacts:
-    """Auth + schema bundle handed to the parametrized test."""
+    """The schema and the credentials that the parametrized test uses."""
 
     schema: BaseSchema
     user_id: UUID
@@ -146,9 +117,6 @@ class _SchemaArtifacts:
 def schemathesis_config() -> SchemathesisConfig:
     project = ProjectConfig(
         generation=GenerationConfig(
-            # Round-trip serialization of unicode bodies through the ASGI
-            # boundary is reliable; the filter_too_much warning fires on
-            # tightly constrained bodies and is noise here.
             allow_x00=False,
         ),
         phases=PhasesConfig(),
@@ -165,12 +133,8 @@ def schemathesis_config() -> SchemathesisConfig:
 
 @asynccontextmanager
 async def _noop_lifespan(_: FastAPI) -> AsyncGenerator[None]:
-    """Replaces ``main.lifespan`` so the in-process app skips ``init_db``,
-    graph build, and store init when Schemathesis spins up its
-    ``starlette.testclient`` per request. Production lifespan would
-    re-create tables (``DuplicateTableError``) and rebuild the LangGraph
-    pipeline on every fuzz call. Our fixtures handle DB + engine setup;
-    we don't need the production startup chain to run.
+    """Stand in for the app lifespan. The fixtures own the database and the
+    engine, so the startup chain stays out of every fuzz call.
     """
     yield
 
@@ -180,8 +144,8 @@ async def patched_app(
     db_engine: AsyncEngine,
     session_maker: async_sessionmaker[Any],
 ) -> AsyncGenerator[tuple[FastAPI, UUID]]:
-    """Build the app once per session against the test DB, seed one user,
-    and attach ``app.state.memory_store`` (the swapped-out lifespan would).
+    """Build the app once per session against the test database, seed one
+    user, and attach the memory store.
     """
     session_module._engine = db_engine
     session_module._session_factory_instance = session_maker
@@ -237,19 +201,16 @@ def api_schema_only(api_schema: _SchemaArtifacts) -> BaseSchema:
     return api_schema.schema
 
 
-# ``LazySchema.exclude`` filters at pytest-collection time so the excluded
-# operations never become parametrized sub-cases. ``BaseSchema.exclude``
-# applied to the concrete schema (post-``from_fixture``) is collected
-# first then filtered at execution time, which still spawns the cases.
+# An exclude on the lazy schema filters at collection time, so the excluded
+# operations never become cases at all.
 schema = (
     schemathesis.pytest.from_fixture("api_schema_only")
     .exclude(path=list(_EXCLUDED_PATHS))
     .exclude(func=lambda ctx: ctx.operation.label in _STREAMING_LABELS)
 )
 
-# Built-in checks Schemathesis runs against every response. Listed
-# explicitly so a future Schemathesis upgrade that adds a noisy default
-# does not silently change the contract this test enforces.
+# The check list is explicit, so a library upgrade cannot change what this
+# test enforces.
 _CHECKS: list[Callable[..., Any]] = [
     not_a_server_error,
     content_type_conformance,
@@ -273,20 +234,12 @@ def test_openapi_conformance(
     case: Case,
     api_schema: _SchemaArtifacts,
 ) -> None:
-    """Fuzz one operation and validate the response against its schema.
-
-    ``call_and_validate`` runs every check in ``_CHECKS``; any failure
-    raises ``schemathesis.errors.CheckFailed`` with the offending
-    request/response pair.
-    """
+    """Fuzz one operation and validate the response against its schema."""
     response: Response = case.call_and_validate(
         checks=_CHECKS,
         cookies={"pathfinder-auth": api_schema.auth_token},
         headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    # Structural sanity checks. ``call_and_validate`` already asserts
-    # the response matches its declared schema; these add concrete
-    # value bounds the weak-assertion gate recognizes as strong.
     assert response.status_code >= 100
     assert response.status_code < 600
 
@@ -294,13 +247,8 @@ def test_openapi_conformance(
 def test_schema_loads_and_covers_documented_surface(
     api_schema: _SchemaArtifacts,
 ) -> None:
-    """Sanity check: the schema fixture produced operations and the
-    excluded-streaming list is actually present in the raw spec.
-
-    Catches: a router rename that silently drops the SSE path from the
-    exclude list (would re-introduce hangs), or a regression that ships
-    an empty OpenAPI document.
-    """
+    """The schema carries operations, and every excluded path is still in the
+    spec."""
     raw = api_schema.schema.raw_schema
     documented_paths: set[str] = set(raw["paths"].keys())
     missing = _EXCLUDED_PATHS - documented_paths
@@ -310,9 +258,7 @@ def test_schema_loads_and_covers_documented_surface(
     operation_count = sum(1 for _ in api_schema.schema.get_all_operations())
     assert operation_count >= 50
 
-    # The patched DB engine must be live — if it is not, every fuzzed
-    # case will 500 against a bogus connection. Failing fast here turns
-    # a 1000-line cascade into a one-line message.
+    # Every fuzzed case needs the patched engine.
     assert session_module._engine is not None
 
 

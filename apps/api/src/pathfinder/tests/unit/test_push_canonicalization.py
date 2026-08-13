@@ -1,10 +1,5 @@
-"""Verify that canonicalize_strategy_ast_parameters works correctly for push flows.
-
-The push endpoint must run canonicalize_strategy_ast_parameters() so that
-user-edited parameters (from the graph editor) are validated and
-normalized before reaching WDK.  Without canonicalization, parent-node
-selections on countOnlyLeaves params silently return 0 results.
-"""
+"""Tests that parameter canonicalization validates and normalizes a strategy before
+it reaches WDK."""
 
 from collections.abc import Mapping
 
@@ -34,11 +29,9 @@ from pathfinder.services.strategies.plan_normalize import (
     canonicalize_strategy_ast_parameters,
 )
 
-# -- Fixtures ----------------------------------------------------------------
-
 
 def _make_tree_vocab() -> dict[str, object]:
-    """A 2-level tree vocabulary: Plasmodium -> {Pf3D7, PvP01}."""
+    """A tree vocabulary with one parent term and two leaf terms."""
     return {
         "data": {"term": "Plasmodium", "display": "Plasmodium"},
         "children": [
@@ -58,7 +51,7 @@ def _make_search_response(
     search_name: str,
     params: list[WDKParameter],
 ) -> WDKSearchResponse:
-    """Build a minimal WDKSearchResponse for testing."""
+    """Builds a minimal search response."""
     return WDKSearchResponse(
         search_data=WDKSearch(
             url_segment=search_name,
@@ -75,21 +68,13 @@ async def _noop_loader(
     _name: str,
     _params: Mapping[str, JsonValue],
 ) -> WDKSearchResponse:
-    """Placeholder — overridden per test."""
+    """A default loader. Each test supplies its own."""
     msg = "Should not be called"
     raise AssertionError(msg)
 
 
-# -- Tests -------------------------------------------------------------------
-
-
 async def test_canonicalize_expands_parent_to_leaves():
-    """Parent organism selection must be expanded to leaf descendants.
-
-    This is the core bug: if a user selects "Plasmodium" (parent) in a
-    countOnlyLeaves=true param, WDK silently returns 0 genes.
-    canonicalize_strategy_ast_parameters must expand it to ["Pf3D7", "PvP01"].
-    """
+    """A parent term on a leaf-only param expands to its leaf descendants."""
     vocab = _make_tree_vocab()
     plan = StrategyAst(
         record_type="transcript",
@@ -122,14 +107,13 @@ async def test_canonicalize_expands_parent_to_leaves():
         load_search_details=load_details,
     )
 
-    # Parent "Plasmodium" must be expanded to leaf nodes.
     assert result.root.parameters["organism"] == MultiPickValue(
         values=["Pf3D7", "PvP01"]
     )
 
 
 async def test_canonicalize_validates_unknown_param():
-    """Unknown parameters must raise ValidationError, not pass through."""
+    """An unknown parameter raises a validation error instead of passing through."""
     plan = StrategyAst(
         record_type="transcript",
         root=StrategyStepNode(
@@ -163,7 +147,7 @@ async def test_canonicalize_validates_unknown_param():
 
 
 async def test_canonicalize_leaves_combine_nodes_untouched():
-    """Combine nodes should not be canonicalized (they have no WDK params)."""
+    """A combine node has no WDK params, so canonicalization skips it."""
     plan = StrategyAst(
         record_type="transcript",
         root=StrategyStepNode(
@@ -216,10 +200,10 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
         load_search_details=load_details,
     )
 
-    # Combine node: bq_ keys stripped, not sent to WDK spec lookup
+    # The combine node keeps no boolean-question keys.
     assert "bq_operator" not in result.root.parameters
 
-    # Children still canonicalized
+    # The child nodes are still canonicalized.
     assert result.root.primary_input is not None
     assert result.root.primary_input.parameters["organism"] == MultiPickValue(
         values=["Pf3D7"]
@@ -231,7 +215,7 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
 
 
 async def test_canonicalize_numeric_range_validation():
-    """Out-of-range numeric values must be caught."""
+    """A numeric value above the maximum raises a validation error."""
     plan = StrategyAst(
         record_type="transcript",
         root=StrategyStepNode(

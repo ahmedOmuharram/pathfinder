@@ -10,9 +10,6 @@ from pathfinder.services.experiment.seed.helpers import (
 )
 from pathfinder.services.experiment.seed.types import ControlSetDef, SeedDef
 
-# ---------------------------------------------------------------------------
-# Organism constants
-# ---------------------------------------------------------------------------
 PF_ORG = "Plasmodium falciparum 3D7"
 
 PF_EC_SOURCES: list[str] = [
@@ -28,12 +25,7 @@ PF_EC_SOURCES: list[str] = [
 PF_GO_EVIDENCE: list[str] = ["Curated", "Computed"]
 
 
-# ---------------------------------------------------------------------------
-# Gene ID lists
-# ---------------------------------------------------------------------------
-
-# Protein kinases - GO:0004672 (protein kinase activity)
-# 106 genes from GenesByGoTerm search
+# Protein kinases, GO:0004672 (protein kinase activity).
 PF_KINASES: list[str] = [
     "PF3D7_0102600",
     "PF3D7_0107600",
@@ -142,8 +134,7 @@ PF_KINASES: list[str] = [
     "PF3D7_1474700",
 ]
 
-# Proteases / peptidases - GO:0008233 (peptidase activity)
-# 146 genes (deduplicated) from GenesByGoTerm search
+# Proteases and peptidases, GO:0008233 (peptidase activity).
 PF_PROTEASES: list[str] = [
     "PF3D7_0104300",
     "PF3D7_0108000",
@@ -295,8 +286,7 @@ PF_PROTEASES: list[str] = [
     "PF3D7_1474800",
 ]
 
-# Transporters - GO:0055085 (transmembrane transport)
-# 46 genes from GenesByGoTerm search
+# Transporters, GO:0055085 (transmembrane transport).
 PF_TRANSPORTERS: list[str] = [
     "PF3D7_0112200",
     "PF3D7_0204700",
@@ -345,8 +335,7 @@ PF_TRANSPORTERS: list[str] = [
     "PF3D7_1447900",
 ]
 
-# Signal peptide proteins - GenesWithSignalPeptide search
-# First 100 of 609 total genes
+# Signal peptide proteins.
 PF_SIGNAL_PEPTIDE: list[str] = [
     "PF3D7_0100600",
     "PF3D7_0100800",
@@ -450,8 +439,7 @@ PF_SIGNAL_PEPTIDE: list[str] = [
     "PF3D7_0400800",
 ]
 
-# Transmembrane domain proteins (min=1 TM domain)
-# First 100 of many from GenesByTransmembraneDomains search
+# Proteins with at least one transmembrane domain.
 PF_TRANSMEMBRANE: list[str] = [
     "PF3D7_0100200",
     "PF3D7_0100400",
@@ -555,8 +543,7 @@ PF_TRANSMEMBRANE: list[str] = [
     "PF3D7_0210300",
 ]
 
-# Ribosomal proteins - GO:0003735 (structural constituent of ribosome)
-# 100 of 162 genes from GenesByGoTerm search
+# Ribosomal proteins, GO:0003735 (structural constituent of ribosome).
 PF_RIBOSOMAL: list[str] = [
     "PF3D7_0210100",
     "PF3D7_0210400",
@@ -660,8 +647,7 @@ PF_RIBOSOMAL: list[str] = [
     "PF3D7_1302800",
 ]
 
-# Protein folding / chaperones - GO:0006457 (protein folding)
-# 90 genes (deduplicated) from GenesByGoTerm search
+# Chaperones, GO:0006457 (protein folding).
 PF_CHAPERONES: list[str] = [
     "PF3D7_0109400",
     "PF3D7_0113700",
@@ -755,8 +741,7 @@ PF_CHAPERONES: list[str] = [
     "PF3D7_1472600",
 ]
 
-# DNA replication - GO:0006260 (DNA replication)
-# 46 genes from GenesByGoTerm search
+# DNA replication, GO:0006260.
 PF_DNA_REPLICATION: list[str] = [
     "PF3D7_0111300",
     "PF3D7_0215800",
@@ -806,8 +791,7 @@ PF_DNA_REPLICATION: list[str] = [
     "PF3D7_1467500",
 ]
 
-# Exported proteins (ExportPred score >= 1.5, includes PEXEL-containing)
-# First 100 of 400+ from GenesByExportPrediction search
+# Exported proteins with an export prediction score of 1.5 or more.
 PF_EXPORTED: list[str] = [
     "PF3D7_0100100",
     "PF3D7_0100600",
@@ -911,8 +895,7 @@ PF_EXPORTED: list[str] = [
     "PF3D7_0401300",
 ]
 
-# Invasion-related genes (text search: "invasion OR merozoite OR erythrocyte binding")
-# First 100 of 200+ genes from GenesByText search
+# Invasion, merozoite, and erythrocyte binding genes.
 PF_INVASION: list[str] = [
     "PF3D7_0100100",
     "PF3D7_0100300",
@@ -1016,8 +999,7 @@ PF_INVASION: list[str] = [
     "PF3D7_0610200",
 ]
 
-# var/RIFIN/STEVOR - antigenic variation genes
-# 100 of 200+ genes from GenesByText (product: PfEMP1 OR rifin OR stevor)
+# Antigenic variation genes: var, RIFIN, and STEVOR.
 PF_ANTIGENIC_VARIATION: list[str] = [
     "PF3D7_0100100",
     "PF3D7_0100200",
@@ -1121,8 +1103,7 @@ PF_ANTIGENIC_VARIATION: list[str] = [
     "PF3D7_0425500",
 ]
 
-# Apicoplast-targeted genes (text search: "apicoplast")
-# 37 genes (deduplicated) from GenesByText search
+# Apicoplast-targeted genes.
 PF_APICOPLAST: list[str] = [
     "PF3D7_0310000",
     "PF3D7_0503000",
@@ -1163,8 +1144,7 @@ PF_APICOPLAST: list[str] = [
     "PF3D7_API03500",
 ]
 
-# Drug resistance related genes (text search)
-# 35 genes from GenesByText search
+# Drug resistance genes.
 PF_DRUG_RESISTANCE: list[str] = [
     "PF3D7_0106300",
     "PF3D7_0107500",
@@ -1203,8 +1183,7 @@ PF_DRUG_RESISTANCE: list[str] = [
     "PF3D7_API01300",
 ]
 
-# Gametocyte / sexual stage genes (text search)
-# 31 genes from GenesByText search
+# Gametocyte and sexual stage genes.
 PF_GAMETOCYTE: list[str] = [
     "PF3D7_0108700",
     "PF3D7_0202100",
@@ -1239,8 +1218,7 @@ PF_GAMETOCYTE: list[str] = [
     "PF3D7_1417600",
 ]
 
-# Translation machinery - GO:0006412 (translation)
-# 100 of 169 genes from GenesByGoTerm search
+# Translation machinery, GO:0006412 (translation).
 PF_TRANSLATION: list[str] = [
     "PF3D7_0208600",
     "PF3D7_0210100",
@@ -1345,16 +1323,8 @@ PF_TRANSLATION: list[str] = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Parameter helpers — PlasmoDB-specific (no shared helper exists for these)
-# ---------------------------------------------------------------------------
-
-
 def _export_pred(organism: str, min_score: float = 1.5) -> dict[str, str]:
-    """Build ExportPred parameters.
-
-    Unique to PlasmoDB: ExportPred scoring is a Plasmodium-specific search.
-    """
+    """Build the parameters for the export prediction search."""
     return {
         "organism": org([organism]),
         "min_exportpred_score": str(min_score),
@@ -1366,10 +1336,7 @@ def _metabolic_pathway(
     pathway_id: str,
     source: str = "Any",
 ) -> dict[str, str]:
-    """Build GenesByMetabolicPathway parameters.
-
-    Unique to PlasmoDB: metabolic pathway searches with KEGG IDs.
-    """
+    """Build the parameters for the metabolic pathway search."""
     return {
         "organism": org([organism]),
         "pathways_source": source,
@@ -1380,11 +1347,7 @@ def _metabolic_pathway(
     }
 
 
-# ---------------------------------------------------------------------------
-# Seeds
-# ---------------------------------------------------------------------------
 SEEDS: list[SeedDef] = [
-    # === Strategy 1: Drug Target Discovery Pipeline (10 nodes) ===
     SeedDef(
         name="PF3D7 Drug Target Candidates",
         description=(
@@ -1496,7 +1459,6 @@ SEEDS: list[SeedDef] = [
             ],
         ),
     ),
-    # === Strategy 2: Erythrocyte Invasion Machinery (8 nodes) ===
     SeedDef(
         name="PF3D7 Erythrocyte Invasion Machinery",
         description=(
@@ -1581,7 +1543,6 @@ SEEDS: list[SeedDef] = [
             ],
         ),
     ),
-    # === Strategy 3: Exported Effector Proteome (9 nodes) ===
     SeedDef(
         name="PF3D7 Exported Effector Proteome",
         description=(
@@ -1682,7 +1643,6 @@ SEEDS: list[SeedDef] = [
             ],
         ),
     ),
-    # === Strategy 4: Apicoplast Metabolic Drug Targets (7 nodes) ===
     SeedDef(
         name="PF3D7 Apicoplast Metabolic Drug Targets",
         description=(
@@ -1762,7 +1722,6 @@ SEEDS: list[SeedDef] = [
             ],
         ),
     ),
-    # === Strategy 5: Signal Peptide Genes (1 node - baseline) ===
     SeedDef(
         name="PF3D7 Signal Peptide Genes",
         description=(
@@ -1789,7 +1748,6 @@ SEEDS: list[SeedDef] = [
             tags=["signal-peptide", "secretome", "baseline"],
         ),
     ),
-    # === Strategy 6: Transmission-Blocking Vaccine Candidates (7 nodes) ===
     SeedDef(
         name="PF3D7 Transmission-Blocking Vaccine Candidates",
         description=(

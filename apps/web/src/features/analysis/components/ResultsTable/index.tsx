@@ -126,7 +126,11 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     manualSorting: true,
     manualPagination: true,
     manualExpanding: true,
-    rowCount: recordsState.meta?.totalCount ?? 0,
+    // Omitted when WDK published no count, so the table does not read a
+    // missing total as an empty result.
+    ...(recordsState.meta?.totalCount != null
+      ? { rowCount: recordsState.meta.totalCount }
+      : {}),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -145,7 +149,7 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     setExpandedRecordId(row.id);
   };
 
-  const totalCount = recordsState.meta?.totalCount ?? 0;
+  const totalCount = recordsState.meta?.totalCount ?? null;
 
   const displayError = attrError ?? recordsState.error;
   if (displayError != null && recordsState.records.length === 0) {

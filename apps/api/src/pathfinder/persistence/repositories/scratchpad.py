@@ -25,7 +25,7 @@ def _row_to_note(row: ScratchpadNote) -> Note:
 
 
 class ScratchpadRepository:
-    """Scratchpad persistence — all public methods return Pydantic models."""
+    """Scratchpad persistence. Every public method returns a Pydantic model."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -189,12 +189,7 @@ class ScratchpadRepository:
         conversation_id: UUID,
         recent_limit: int = 10,
     ) -> tuple[list[Note], int, int]:
-        """Combined index fetch: ``(notes_for_index, total_count, total_tokens)``.
-
-        Collapses the two-roundtrip ``list_for_index`` + ``totals`` pattern
-        used by the supervisor state block and the ``pinned_scratchpad``
-        dynamic instruction into a single session visit.
-        """
+        """Read the index notes and the totals in one session visit."""
         notes = await self.list_for_index(
             conversation_id=conversation_id,
             recent_limit=recent_limit,
@@ -210,10 +205,9 @@ class ScratchpadRepository:
         conversation_id: UUID,
         recent_limit: int = 10,
     ) -> list[Note]:
-        """Pinned notes (oldest→newest) plus last-N non-pinned (newest→oldest).
+        """List the pinned notes oldest first, then the newest non-pinned notes.
 
-        Pinned-first keeps load-bearing context at the top of the rendered
-        index.
+        The pinned notes come first so that they lead the rendered index.
         """
         pinned_stmt = (
             select(ScratchpadNote)
@@ -244,13 +238,10 @@ class ScratchpadRepository:
         ]
 
     async def totals(self, *, conversation_id: UUID) -> tuple[int, int]:
-        """All notes (pinned + non-pinned). Use for UI-facing "how big" labels.
+        """Count and size every note, for UI labels.
 
-        The compactor must NOT use this — pinned notes are untouchable during
-        compaction, so including them in the gating count causes infinite
-        re-triggering when the non-pinned tail is below threshold but the
-        pinned set pushes the total over it. Use ``compactable_totals``
-        instead for that gate.
+        The compactor uses `compactable_totals` instead, because compaction
+        cannot touch pinned notes.
         """
         stmt = select(
             func.count(ScratchpadNote.id),
@@ -266,7 +257,7 @@ class ScratchpadRepository:
         *,
         conversation_id: UUID,
     ) -> tuple[int, int]:
-        """Non-pinned notes only — the subset the compactor can act on."""
+        """Count and size the non-pinned notes, the subset the compactor can act on."""
         stmt = select(
             func.count(ScratchpadNote.id),
             func.coalesce(func.sum(ScratchpadNote.body_tokens), 0),
@@ -312,13 +303,10 @@ class ScratchpadRepository:
         source_conversation_id: UUID,
         target_conversation_id: UUID,
     ) -> dict[str, str]:
-        """Duplicate every note from ``source`` under ``target`` with fresh ids.
+        """Copy every source note under the target conversation with fresh ids.
 
-        Returns a mapping ``{old_id: new_id}`` so callers can rewrite stored
-        tool-call blobs / message parts that reference the old ids. The fork
-        must NOT share ids with the source — they live under different
-        conversation scopes, and a future update/delete in the fork would
-        silently clobber the source otherwise.
+        The returned old-to-new id map lets callers rewrite stored references.
+        A fork never shares note ids with its source.
         """
         stmt = select(ScratchpadNote).where(
             ScratchpadNote.conversation_id == source_conversation_id,

@@ -35,7 +35,7 @@ actually stated.
 
 # Why this one matters more than a wrong count
 
-A wrong count is visible. This is a **plausible** result -- 20 genes, real
+A wrong count is visible. This is a **plausible** result -- the intended genes, real
 kinases, verification green -- that answers a subtly different question than the
 one asked, and then asserts it answered the original. A scientist has no way to
 catch it without re-deriving the parameters by hand.

@@ -43,9 +43,7 @@ async def build_enrichment_params_from_gene_ids(
 ) -> tuple[str, dict[str, ParamValue], str]:
     """Create a WDK dataset from gene IDs and return enrichment parameters.
 
-    Returns ``(search_name, parameters, record_type)`` suitable for passing
-    to ``EnrichmentService.run_batch()``.  Uses the ``GeneByLocusTag`` search
-    (transcript record type) with a temporary WDK dataset.
+    The dataset is temporary and is addressed by a locus-tag search.
     """
     api = get_strategy_api(site_id)
     config = WDKDatasetConfigIdList(
@@ -86,10 +84,7 @@ async def resolve_wdk_context(
     gene_ids: list[str],
     ctx: GeneSetWdkContext,
 ) -> tuple[list[str], GeneSetWdkContext, int]:
-    """Resolve gene IDs and search context from a WDK strategy.
-
-    Returns ``(gene_ids, updated_ctx, step_count)``.
-    """
+    """Resolve gene IDs and search context from a WDK strategy."""
     wdk_strategy_id = ctx.wdk_strategy_id
     if gene_ids or wdk_strategy_id is None:
         return gene_ids, ctx, 1
@@ -184,11 +179,9 @@ async def _extract_step_search_context(
     step_id: int,
     record_type: str | None,
 ) -> tuple[str | None, str | None, dict[str, ParamValue] | None]:
-    """Extract searchName, recordType, parameters from a WDK step.
+    """Extract the search name, record type, and parameters from a WDK step.
 
-    Returns ``parameters=None`` when the step's wire parameters cannot be
-    decoded without a search spec; callers fall back to running enrichment
-    via ``step_id`` alone.
+    Wire parameters need a search spec to decode, so parameters stay unset.
     """
     search_name: str | None = None
     parameters: dict[str, ParamValue] | None = None

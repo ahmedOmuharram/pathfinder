@@ -1,12 +1,8 @@
-"""The per-request ``Authorization`` cookie must REPLACE any jar-held one.
+"""The per-request ``Authorization`` cookie replaces any jar-held one.
 
-WDK sets ``Authorization=<guest jwt>`` on every response — including the
-unauthenticated warmup calls a container makes at boot — and the shared
-httpx client jar stores it. Appending the real token after jar cookies
-sends TWO ``Authorization`` pairs, and Tomcat honors the first: every
-request silently acts as the boot-time jar guest no matter which user's
-token was injected. (Observed as WDK 403s on strategies the same user
-just created via the worker.)
+WDK sets an ``Authorization`` cookie on every response and the shared jar
+stores it. Two pairs of that name go out, and the server reads the first,
+so the request acts as the jar guest instead of the named user.
 """
 
 import httpx

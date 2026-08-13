@@ -1,17 +1,4 @@
-"""Tests for :func:`elide_consumed_tool_results`.
-
-The processor must:
-1. Replace ``ToolReturnPart.content`` for *older* tool returns with a stub.
-2. Leave the most-recent ``KEEP_RECENT_TOOL_PAIRS`` returns untouched.
-3. Preserve every ``ToolCallPart`` and ``ToolReturnPart.tool_call_id`` so
-   the provider doesn't reject the request as orphaned (Anthropic and
-   OpenAI both reject calls without matching returns and vice versa).
-4. Not mutate non-tool parts (system prompts, user prompts, text).
-
-These are the contractual properties — if any of them break, the next
-LLM request will either be billed for the bloat we tried to elide, or
-fail outright with a "tool_use_id has no matching tool_result" error.
-"""
+"""Tests for the tool-result elision history processor."""
 
 from __future__ import annotations
 
@@ -34,10 +21,8 @@ from pathfinder.ai.agents._history_processor import (
     elide_consumed_tool_results,
 )
 
-# Big enough to be worth eliding: results at or under the size guard are
-# deliberately kept whole, because re-fetching them costs more than storing.
+# Results at or under the size guard stay whole, so this payload is larger.
 _BIG_RESULT_PAYLOAD = "BIG_RESULT_PAYLOAD " * 40
-
 
 
 def _user(text: str) -> ModelRequest:
@@ -81,7 +66,7 @@ def _interleaved_tool_calls(
     *,
     return_content: str = _BIG_RESULT_PAYLOAD,
 ) -> list[ModelMessage]:
-    """User prompt followed by ``n`` assistant→toolReturn round-trips."""
+    """Build a user prompt followed by ``n`` call and return round-trips."""
     out: list[ModelMessage] = [_user("kick off")]
     for i in range(n):
         out.append(_assistant_with_call(f"call_{i}"))
@@ -109,13 +94,8 @@ def _calls_in_order(messages: list[ModelMessage]) -> list[ToolCallPart]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Empty / under-threshold cases — processor must be a no-op
-# ---------------------------------------------------------------------------
-
-
 def test_no_tool_calls_at_all() -> None:
-    """Pure text exchange: nothing to elide. Output identical to input."""
+    """A text-only exchange passes through unchanged."""
     msgs: list[ModelMessage] = [
         _system("you are an assistant"),
         _user("hello"),
@@ -126,8 +106,8 @@ def test_no_tool_calls_at_all() -> None:
 
 
 def test_under_keep_threshold_is_no_op() -> None:
-    """When tool-call count <= KEEP_RECENT_TOOL_PAIRS, every return body
-    must survive intact — none have been "consumed" yet."""
+    """Every return body survives while the call count is at or below the
+    keep threshold."""
     msgs = _interleaved_tool_calls(KEEP_RECENT_TOOL_PAIRS)
     out = elide_consumed_tool_results(list(msgs))
     for ret in _returns_in_order(out):
@@ -140,14 +120,9 @@ def test_exactly_at_keep_threshold_is_no_op() -> None:
     assert out == msgs
 
 
-# ---------------------------------------------------------------------------
-# The core elision contract
-# ---------------------------------------------------------------------------
-
-
 def test_older_returns_get_stub_recent_returns_keep_payload() -> None:
-    """The defining behaviour: with N tool calls where N > K, the first
-    N-K return bodies are replaced with the stub; the last K survive."""
+    """Older return bodies become a stub. The most recent returns keep the
+    full payload."""
     n = KEEP_RECENT_TOOL_PAIRS + 5
     msgs = _interleaved_tool_calls(n)
     out = elide_consumed_tool_results(list(msgs))
@@ -163,9 +138,8 @@ def test_older_returns_get_stub_recent_returns_keep_payload() -> None:
 
 
 def test_pairing_is_preserved() -> None:
-    """Provider-rejection guard: every ToolCallPart must still have a
-    matching ToolReturnPart with the same tool_call_id afterwards. The
-    elision changes the result *body*, never the wiring."""
+    """Each tool call keeps a matching return with the same tool_call_id.
+    Elision changes the result body only."""
     n = KEEP_RECENT_TOOL_PAIRS + 7
     msgs = _interleaved_tool_calls(n)
     out = elide_consumed_tool_results(list(msgs))
@@ -176,9 +150,7 @@ def test_pairing_is_preserved() -> None:
 
 
 def test_tool_call_args_are_not_touched() -> None:
-    """We elide *result* bodies, not call arguments. The model's own
-    output (the call args) is small and stays for context — only the
-    bulky tool result payload gets the stub."""
+    """Call arguments stay intact. Only result bodies get the stub."""
     msgs: list[ModelMessage] = [_user("go")]
     for i in range(KEEP_RECENT_TOOL_PAIRS + 3):
         call = ToolCallPart(
@@ -197,8 +169,7 @@ def test_tool_call_args_are_not_touched() -> None:
 
 
 def test_user_and_system_messages_untouched() -> None:
-    """Elision must never touch SystemPromptPart / UserPromptPart — those
-    aren't tool results and the agent's framing depends on them."""
+    """System and user prompt parts stay unchanged."""
     msgs: list[ModelMessage] = [
         _system("scoped to PathFinder"),
         _user("find Plasmodium kinases"),
@@ -219,8 +190,7 @@ def test_user_and_system_messages_untouched() -> None:
 
 
 def test_retry_prompt_parts_untouched() -> None:
-    """RetryPromptPart carries error feedback the model needs verbatim
-    — never elide those."""
+    """Retry prompt parts carry error feedback and stay verbatim."""
     retry = RetryPromptPart(
         content="invalid arguments — try again",
         tool_call_id="call_0",
@@ -254,16 +224,9 @@ def test_retry_prompt_parts_untouched() -> None:
     assert found_retry
 
 
-# ---------------------------------------------------------------------------
-# Idempotency + composition with pair_tool_calls
-# ---------------------------------------------------------------------------
-
-
 def test_idempotent_when_already_elided() -> None:
-    """Running the processor twice must not double-elide or otherwise
-    mutate. ``before_model_request`` fires before *every* LLM call, so
-    when the agent makes 30 model requests the same history may pass
-    through the processor 30 times. Successive runs must be no-ops."""
+    """The processor runs before every model request, so a second pass over
+    the same history is a no-op."""
     msgs = _interleaved_tool_calls(KEEP_RECENT_TOOL_PAIRS + 4)
     once = elide_consumed_tool_results(list(msgs))
     twice = elide_consumed_tool_results(once)
@@ -271,8 +234,7 @@ def test_idempotent_when_already_elided() -> None:
 
 
 def test_text_only_assistant_responses_not_dropped() -> None:
-    """Assistant ``TextPart`` content (model prose) must pass through
-    unchanged — only ``ToolReturnPart`` content gets elided."""
+    """Assistant text parts pass through unchanged."""
     msgs: list[ModelMessage] = [_user("go")]
     for i in range(KEEP_RECENT_TOOL_PAIRS + 1):
         msgs.append(
@@ -294,22 +256,8 @@ def test_text_only_assistant_responses_not_dropped() -> None:
     assert text_contents == expected
 
 
-# ---------------------------------------------------------------------------
-# Realistic discovery-phase shape (the actual cause of the 1.94M-token bug)
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# Structured (non-string) tool-return content — the real discovery shape
-# ---------------------------------------------------------------------------
-#
-# Discovery tools return Pydantic models / lists / dicts, NOT strings
-# (search_for_searches -> list[JSONObject], get_search_overview ->
-# SearchOverviewResult, get_parameter_options -> GetParameterOptionsResult).
-# pydantic-ai stores the raw object in ToolReturnPart.content and only
-# serializes to text at request-build time. If elision only fires on
-# str content, these never collapse and the discovery loop grows
-# unbounded (~440K input tokens for one dispatch in the captured run).
+# Tool returns hold Pydantic models, lists, or dicts. pydantic-ai keeps the raw
+# object in ToolReturnPart.content and serializes it only at request-build time.
 
 
 class _StructuredResult(BaseModel):
@@ -342,8 +290,7 @@ def _interleaved_structured(
 
 
 def test_older_structured_dict_returns_get_stubbed() -> None:
-    """A dict tool-return (the search_for_searches / JSONObject shape)
-    must be masked once consumed, exactly like a string one."""
+    """A dict tool return is masked once consumed."""
     payload = {"results": ["a", "b", "c"], "score": 0.91, "blob": "z" * 3000}
     n = KEEP_RECENT_TOOL_PAIRS + 5
     msgs = _interleaved_structured(n, payload=payload)
@@ -360,24 +307,21 @@ def test_older_structured_dict_returns_get_stubbed() -> None:
 
 
 def test_older_structured_list_returns_get_stubbed() -> None:
-    """search_for_searches returns ``list[JSONObject]`` — list content
-    must collapse to the stub once consumed."""
+    """A list tool return collapses to the stub once consumed."""
     payload = [{"name": f"GenesBy{i}", "description": "d" * 500} for i in range(8)]
     n = KEEP_RECENT_TOOL_PAIRS + 4
     msgs = _interleaved_structured(n, payload=payload)
     out = elide_consumed_tool_results(list(msgs))
     returns = _returns_in_order(out)
     elided = returns[: n - KEEP_RECENT_TOOL_PAIRS]
-    assert elided  # there ARE older returns to elide
+    assert elided
     assert all(
         isinstance(r.content, str) and _ELIDED_MARKER in r.content for r in elided
     )
 
 
 def test_older_pydantic_model_returns_get_stubbed() -> None:
-    """get_search_overview / get_parameter_options return Pydantic
-    models. The model object sits in .content until serialization; it
-    must still be masked once consumed."""
+    """A Pydantic model tool return is masked once consumed."""
     payload = _StructuredResult(search_name="GenesByText", rows=["r"] * 200)
     n = KEEP_RECENT_TOOL_PAIRS + 3
     msgs = _interleaved_structured(n, payload=payload)
@@ -393,8 +337,7 @@ def test_older_pydantic_model_returns_get_stubbed() -> None:
 
 
 def test_structured_elision_is_idempotent() -> None:
-    """Once a structured return is stubbed (now a str), a second pass
-    must leave it alone — before_model_request runs every request."""
+    """A second pass leaves an already stubbed structured return alone."""
     payload = {"big": "y" * 4000}
     msgs = _interleaved_structured(KEEP_RECENT_TOOL_PAIRS + 4, payload=payload)
     once = elide_consumed_tool_results(list(msgs))
@@ -403,12 +346,9 @@ def test_structured_elision_is_idempotent() -> None:
 
 
 def test_realistic_30_call_discovery_loop_collapses_payload() -> None:
-    """The exact shape that caused turn-2's 1.94M-token blowup: a
-    discovery loop with ~30 search/parameter inspections. Each tool
-    return is ~3KB. After elision, only the last K returns carry the
-    full payload — the rest collapse to the stub. Asserts on bytes
-    saved so a regression here would visibly bring the bug back."""
-    big = "X" * 3000  # 3KB synthetic tool result
+    """A long tool-call loop keeps the full payload only on the most recent
+    returns."""
+    big = "X" * 3000
     n = 30
     msgs = _interleaved_tool_calls(n, return_content=big)
     out = elide_consumed_tool_results(list(msgs))
@@ -418,5 +358,4 @@ def test_realistic_30_call_discovery_loop_collapses_payload() -> None:
     elided_bytes = sum(
         len(big) - len(str(r.content)) for r in returns if r.content != big
     )
-    # Sanity: we save (n - K) * (~3KB - stub_size) ≈ tens of KB per request.
     assert elided_bytes > 50_000

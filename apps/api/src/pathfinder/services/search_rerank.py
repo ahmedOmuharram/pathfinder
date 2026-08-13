@@ -1,14 +1,5 @@
-"""Reusable search result reranking utilities.
-
-Implements a "fetch wide, rerank narrow" pattern for VEuPathDB search:
-
-1. **Analyse** the query to detect intent (gene ID prefix, organism
-   abbreviation, free text, etc.)
-2. **Fetch** broadly from one or more sources (site-search, WDK).
-3. **Score** each result on multiple relevance signals.
-4. **Deduplicate** by primary key, keeping the highest-scored entry.
-5. **Return** the top-N results sorted by combined score.
-"""
+"""Query intent detection, relevance scoring, and deduplication for search
+results fetched wide from site-search and WDK."""
 
 import re
 from collections.abc import Callable, Sequence
@@ -20,10 +11,10 @@ _MIN_ORGANISM_MATCH_SCORE = 0.60
 
 
 def score_text_match(query: str, value: str) -> float:
-    """Score how well *query* matches *value* (0.0--1.0).
+    """Score how well the query matches the value, from 0.0 to 1.0.
 
-    Uses ``rapidfuzz`` for robust fuzzy matching, with bonuses for
-    exact and prefix matches that are critical for gene ID lookups.
+    Exact and prefix matches outrank fuzzy matches, because gene ID lookups
+    depend on them.
     """
     q = query.strip().lower()
     v = value.strip().lower()
@@ -37,8 +28,7 @@ def score_text_match(query: str, value: str) -> float:
     if q in v:
         return 0.80
 
-    # rapidfuzz.fuzz.WRatio handles partial, token-sort, and token-set
-    # ratios internally and returns the best score (0-100).
+    # WRatio returns the best of several ratio strategies on a 0-100 scale.
     return fuzz.WRatio(q, v) / 100.0
 
 
@@ -67,7 +57,7 @@ SECONDARY_MATCH_FIELDS: frozenset[str] = frozenset(
 
 
 def score_field_quality(matched_fields: Sequence[str]) -> float:
-    """Score based on *which* fields the query matched in."""
+    """Score a match by which fields it hit."""
     if not matched_fields:
         return 0.0
     if any(f in PRIMARY_MATCH_FIELDS for f in matched_fields):
@@ -113,7 +103,7 @@ _GENE_ID_PREFIX_RE = re.compile(
 
 @dataclass(frozen=True)
 class QueryIntent:
-    """What we think the user is looking for."""
+    """Detected intent behind a raw search query."""
 
     raw: str
     is_gene_id_like: bool = False
@@ -146,13 +136,7 @@ def analyse_query(
     available_organisms: list[str],
     organism_scorer: Callable[[str, str], float] | None = None,
 ) -> QueryIntent:
-    """Analyse a query string to detect search intent.
-
-    :param query: User's raw search text.
-    :param available_organisms: Canonical organism names from the site.
-    :param organism_scorer: A ``(query, organism) -> float`` scorer.
-    :returns: A :class:`QueryIntent` describing what the user likely wants.
-    """
+    """Analyse a query string to detect search intent."""
     q = query.strip()
     if not q:
         return QueryIntent(raw=q)
@@ -185,7 +169,7 @@ def analyse_query(
 
 
 def _default_organism_scorer(query: str, organism: str) -> float:
-    """Fallback organism scorer -- simple substring check."""
+    """Score an organism name by substring containment."""
     q = query.strip().lower()
     o = organism.strip().lower()
     if q == o:

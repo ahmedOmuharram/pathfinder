@@ -30,7 +30,7 @@ def _normalise_query_code(q: str) -> str:
 
 
 def _match_compact_code(q_nospace: str, compact: str) -> float:
-    """Return score for an exact-or-near match between q_nospace and compact."""
+    """Score an exact or near match between the normalised query and the code."""
     if q_nospace == compact:
         return 0.75
     if q_nospace.startswith(compact) and len(q_nospace) <= len(compact) + 2:
@@ -51,7 +51,7 @@ def _score_underscore_prefix(q: str, compact: str) -> float:
 
 
 def _score_compact_code_match(q: str, o: str) -> float:
-    """Score match against organism compact code (e.g. 'pf3d7' for 'Plasmodium falciparum 3D7')."""
+    """Score the query against the organism compact code."""
     compact = _compact_code(o)
     if not compact:
         return 0.0
@@ -70,7 +70,7 @@ def _score_token_overlap(q_tokens: set[str], o_tokens: set[str]) -> float:
 
 
 def _score_literal_match(q: str, o: str) -> float | None:
-    """Return a score if query has an exact/substring/abbreviation match, else None."""
+    """Score an exact, substring, or genus-abbreviation match. None if no match."""
     if q == o or q in o:
         return 1.0 if q == o else 0.85
     abbrev_match = re.match(r"^([a-z])\.?\s+(.+)$", q)
@@ -84,10 +84,10 @@ def _score_literal_match(q: str, o: str) -> float | None:
 
 
 def score_organism_match(query: str, organism: str) -> float:
-    """Score how well *query* matches *organism* (0.0 = no match, 1.0 = exact).
+    """Score how well the query matches the organism, from 0.0 to 1.0.
 
-    Handles exact match, substring, genus abbreviation (``P. falciparum``),
-    organism codes (``pf3d7``), and token-level overlap.
+    Handles exact match, substring, genus abbreviation, compact organism code,
+    and token overlap.
     """
     q = query.strip().lower()
     o = organism.strip().lower()
@@ -114,14 +114,7 @@ def suggest_organisms(
     max_suggestions: int = 5,
     min_score: float = 0.40,
 ) -> list[str]:
-    """Return organism names from *available* that fuzzy-match *query*.
-
-    :param query: User's organism input.
-    :param available: List of canonical organism names (from site-search).
-    :param max_suggestions: Maximum suggestions to return.
-    :param min_score: Minimum match score to include.
-    :returns: Suggested organism names, best match first.
-    """
+    """Return available organism names that fuzzy-match the query, best first."""
     if not query or not available:
         return []
 

@@ -70,10 +70,7 @@ def deduplicate_and_filter(
     options: LiteratureOutputOptions,
     filters: LiteratureFilters,
 ) -> tuple[list[EnrichedPaper], dict[str, Citation]]:
-    """Merge, filter, and deduplicate results from all sources.
-
-    Returns (filtered_results, citations_by_dedupe_key).
-    """
+    """Merge, filter, and deduplicate results from all sources."""
     filtered: list[EnrichedPaper] = []
     citations_by_key: dict[str, Citation] = {}
     index_by_key: dict[str, int] = {}
@@ -96,8 +93,7 @@ def deduplicate_and_filter(
             key = dedupe_key(paper)
             existing_index = index_by_key.get(key)
             if existing_index is not None:
-                # Same paper from another source — fill a missing abstract so the
-                # abstract-less copy (often crossref, seen first) doesn't win.
+                # The same paper from another source can supply a missing abstract.
                 kept = filtered[existing_index]
                 if not (kept.abstract or "").strip() and (paper.abstract or "").strip():
                     merged = (
@@ -153,7 +149,6 @@ def sort_results(
             reverse=True,
         )
 
-    # Relevance reranking only for source="all"
     if results and sort == "relevance" and source == "all":
         scored = [
             r.model_copy(

@@ -20,7 +20,7 @@ if spec is None or not spec.ready_to_build:
     )
 ```
 
-One message for two unrelated situations. Seen on a real 16-step drug-target build: FRAME bound **all 8 criteria** and left **7 open parameter slots** with `needs_user`. The Lead called build anyway and got told to run FRAME again -- which regenerates the same slots, because only the user can supply them.
+One message for two unrelated situations. Seen on a real multi-criterion drug-target build: FRAME bound **all 8 criteria** and left **7 open parameter slots** with `needs_user`. The Lead called build anyway and got told to run FRAME again -- which regenerates the same slots, because only the user can supply them.
 
 A `ModelRetry` says "you can fix this yourself and try again". That is true when no spec exists. It is false when a human has to answer, and stating it anyway invites a loop.
 

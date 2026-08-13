@@ -1,30 +1,7 @@
-"""Process-wide multiplexing LISTEN dispatcher.
+"""Process-wide LISTEN dispatcher that multiplexes one connection over many subscribers.
 
-A single psycopg connection holds ``LISTEN`` on every channel any
-subscriber cares about, and routes incoming ``NOTIFY`` messages to
-per-subscriber asyncio queues. Subscribers (e.g. the task-events SSE
-endpoint) register interest in a set of channel names, receive
-``(channel, payload)`` tuples, and unregister on disconnect.
-
-**Design — actor pattern.** Only the reader coroutine ever touches the
-underlying connection. :meth:`subscribe` and unsubscribe paths only
-mutate an in-memory registry and signal the reader with an
-``asyncio.Event``. The reader owns the connection lifecycle end-to-end:
-
-- opens on startup (with ``tenacity``-backed exponential retry)
-- reconnects on ``psycopg.OperationalError`` (same retry policy)
-- re-syncs LISTEN/UNLISTEN against the registry every wake-up
-
-Subscribers can never observe a torn connection state, and there is no
-lock contention between application code and reconnect logic because
-application code never holds the connection.
-
-The alternative — one psycopg connection per SSE client — exhausts
-Postgres' ``max_connections`` budget under load: at 200 concurrent
-researchers watching tasks, that's 200 backends just for LISTEN.
-
-Opened once per process in the FastAPI ``lifespan`` context; the
-worker does not need it.
+Only the reader coroutine touches the connection. Subscribe and unsubscribe mutate an
+in-memory registry and signal the reader, which owns the connection lifecycle.
 """
 
 from __future__ import annotations
@@ -53,12 +30,8 @@ logger = get_logger(__name__)
 
 @dataclass
 class _ChannelRegistry:
-    """Ref-counted set of channels subscribers care about.
-
-    The reader diffs this against its own ``_listened_channels`` to
-    decide which LISTEN / UNLISTEN commands to issue. Nothing in this
-    class talks to the database.
-    """
+    """Reference-counted set of the channels subscribers want. This class does no
+    database work; the reader diffs it against the active LISTENs."""
 
     counts: dict[str, int] = field(default_factory=dict)
 
@@ -80,14 +53,14 @@ class _ChannelRegistry:
 
 @dataclass(eq=False)
 class _Subscription:
-    """One per ``subscribe()`` call. Hashes by identity."""
+    """One record per subscribe call. It hashes by identity."""
 
     channels: frozenset[str]
     queue: asyncio.Queue[tuple[str, str]]
 
 
 class NotifyDispatcher:
-    """Singleton pg_notify multiplexer for the FastAPI process."""
+    """Multiplexes pg_notify channels for one process."""
 
     _QUEUE_MAXSIZE: int = 256
     _NOTIFIES_TIMEOUT_SECONDS: float = 0.2
@@ -108,12 +81,8 @@ class NotifyDispatcher:
         self._closed = False
 
     async def start(self) -> None:
-        """Launch the reader coroutine.
-
-        The reader opens the connection itself (with retry); ``start``
-        does not block on connection establishment. Idempotent — safe to
-        call once per process in ``lifespan``.
-        """
+        """Starts the reader coroutine. The reader opens the connection itself, so
+        this call does not block. A second call has no effect."""
         if self._reader_task is not None:
             return
         self._reader_task = asyncio.create_task(
@@ -126,7 +95,7 @@ class NotifyDispatcher:
         if self._closed:
             return
         self._closed = True
-        self._intent_changed.set()  # wake reader so it sees ``_closed``
+        self._intent_changed.set()  # Wake the reader so it sees the closed flag.
         reader = self._reader_task
         self._reader_task = None
         if reader is not None:
@@ -145,23 +114,11 @@ class NotifyDispatcher:
         self,
         channels: frozenset[str],
     ) -> AsyncIterator[asyncio.Queue[tuple[str, str]]]:
-        """Register interest in ``channels`` and yield a queue.
+        """Registers interest in the channels and yields a bounded queue.
 
-        Never touches the database. Updates the in-memory registry,
-        signals the reader, and waits (up to
-        :attr:`_SUBSCRIBE_SYNC_TIMEOUT_SECONDS`) for confirmation that
-        LISTEN has been issued on the active connection before yielding
-        — so callers can rely on NOTIFYs fired after ``subscribe``
-        returns actually reaching the queue, even under reconnect.
-
-        If the reader can't connect within the timeout, ``subscribe``
-        still yields — the channel stays registered and delivery
-        resumes once reconnect succeeds. Callers must replay durable
-        state from the DB before trusting this stream for authoritative
-        history (see ``/tasks/{id}/events`` :func:`_replay`).
-
-        Queue is bounded (:attr:`_QUEUE_MAXSIZE`) — if the subscriber
-        falls behind, new notifies are dropped and a warning is logged.
+        The call waits for the reader to confirm LISTEN, then yields even if the
+        timeout expires. The stream is not authoritative history, so a caller that
+        needs history replays durable state from the database first.
         """
         if self._reader_task is None:
             msg = "NotifyDispatcher.start() must be called first"
@@ -194,18 +151,10 @@ class NotifyDispatcher:
             self._intent_changed.set()
 
     async def _reader_loop(self) -> None:
-        """Own the connection lifecycle end-to-end.
+        """Owns the connection lifecycle.
 
-        On every iteration:
-        1. Ensure a healthy connection (reconnect with tenacity on failure).
-        2. Sync LISTEN / UNLISTEN against the registry.
-        3. Poll :meth:`notifies` with a short timeout.
-        4. Fan out notifications; loop.
-
-        On ``OperationalError`` the connection is discarded and step 1
-        re-establishes it on the next iteration. ``_intent_changed``
-        wakes the loop after subscribe/unsubscribe so step 2 re-syncs
-        promptly.
+        Each pass makes sure a connection exists, syncs LISTEN and UNLISTEN against
+        the registry, polls for notifications, and fans them out.
         """
         while not self._closed:
             try:
@@ -223,20 +172,16 @@ class NotifyDispatcher:
                 )
                 await self._close_conn()
             except RuntimeError:
-                # ``_connect_with_retry`` raises ``RuntimeError`` when
-                # all tenacity attempts are exhausted. Stop the loop —
-                # the lifespan owner will restart the process.
+                # Reconnect raises RuntimeError when all attempts fail. The loop stops
+                # and the lifespan owner restarts the process.
                 logger.exception(
                     "notify dispatcher gave up — reconnect exhausted",
                 )
                 return
 
     async def _connect_with_retry(self) -> None:
-        """Reopen the connection with exponential backoff via tenacity.
-
-        Exhausted retries raise ``RuntimeError`` from the ``AsyncRetrying``
-        context manager so the outer loop can terminate cleanly.
-        """
+        """Reopens the connection with exponential backoff. Exhausted retries raise
+        RuntimeError so the outer loop stops."""
         if self._closed:
             return
         conn_str = to_psycopg_url(self._database_url)
@@ -255,18 +200,14 @@ class NotifyDispatcher:
                     conn_str,
                     autocommit=True,
                 )
-                self._listened_channels.clear()  # new session
+                self._listened_channels.clear()  # A new session holds no LISTEN.
                 logger.info("notify dispatcher connected")
 
     async def _sync_subscriptions(self) -> None:
-        """Diff the registry against actual LISTENs; send the delta.
+        """Diffs the registry against the active LISTENs and sends the delta.
 
-        After the delta is applied, any subscribers that were waiting
-        on a sync confirmation are released (their
-        ``sync_confirmed`` events are set). If the connection is
-        missing we skip the DB work but still release waiters — the
-        reconnect path calls us again after ``_connect_with_retry``
-        succeeds, so waiters eventually see LISTEN.
+        Waiting subscribers are released only when the connection is healthy, so a
+        released waiter knows LISTEN is active.
         """
         self._intent_changed.clear()
         conn = self._conn
@@ -290,8 +231,6 @@ class NotifyDispatcher:
                         ),
                     )
                 self._listened_channels.discard(channel)
-        # Release any subscribers waiting on this sync. Do this ONLY
-        # when the connection is healthy so they know LISTEN is active.
         if conn is not None:
             pending = self._pending_syncs
             self._pending_syncs = []
@@ -299,11 +238,8 @@ class NotifyDispatcher:
                 event.set()
 
     async def _drain_notifies_once(self) -> None:
-        """One pass through the notifies iterator with a short timeout.
-
-        The timeout yields the connection between iterations so the next
-        ``_sync_subscriptions`` can run if the registry changed.
-        """
+        """Makes one pass through the notifies iterator with a short timeout, so the
+        next sync can run when the registry changes."""
         conn = self._conn
         if conn is None:
             return
@@ -311,7 +247,7 @@ class NotifyDispatcher:
             timeout=self._NOTIFIES_TIMEOUT_SECONDS,
         ):
             self._fanout(notify.channel, notify.payload)
-        # Yield so intent-changed signal can propagate.
+        # Yield so the intent-changed signal propagates.
         await asyncio.sleep(0)
 
     async def _close_conn(self) -> None:
@@ -324,8 +260,7 @@ class NotifyDispatcher:
             await conn.close()
 
     def _fanout(self, channel: str, payload: str) -> None:
-        # Snapshot to tolerate concurrent subscribe/unsubscribe without
-        # holding any lock during queue puts.
+        # Snapshot the set so concurrent subscribe and unsubscribe need no lock.
         for subscription in list(self._subscriptions):
             if channel not in subscription.channels:
                 continue

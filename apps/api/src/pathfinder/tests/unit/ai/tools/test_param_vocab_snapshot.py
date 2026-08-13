@@ -1,13 +1,5 @@
-"""Stage B regression: ``get_parameter_options`` writes the parameter's
-vocabulary back into ``agent_state.discovered_searches[name].param_vocab``
-so planning can copy values verbatim instead of guessing.
-
-The fa2deb2b failure: planner tried ``hard_floor='10'``, WDK rejected with
-``validOptions=[1693, 3386, 6772, ...]``, planner silently picked 6772 from
-the rejection error. With Stage B, ``get_parameter_options`` would have
-populated ``param_vocab['hard_floor']`` while discovery was still running,
-and planning would have seen that ``'10'`` is not in the snapshot.
-"""
+"""``get_parameter_options`` writes the parameter vocabulary into the agent
+state, so planning copies values verbatim instead of guessing them."""
 
 from __future__ import annotations
 
@@ -78,9 +70,7 @@ def _registered_search(name: str) -> SearchOverview:
 async def test_get_parameter_options_writes_param_vocab_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """After get_parameter_options(search='S', param='hard_floor'),
-    discovered_searches['S'].param_vocab['hard_floor'] is populated with
-    the same vocab fields ParameterInfo carries."""
+    """A parameter read populates param_vocab with the ParameterInfo fields."""
     state = AgentToolState()
     state.register_search("RNASeqHardFloor", _registered_search("RNASeqHardFloor"))
 
@@ -131,9 +121,7 @@ async def test_get_parameter_options_writes_param_vocab_snapshot(
 async def test_param_vocab_snapshot_accumulates_across_calls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Calling get_parameter_options for two different params on the same
-    search builds up param_vocab incrementally — earlier snapshots are not
-    clobbered."""
+    """Reading a second parameter keeps the first parameter's snapshot."""
     state = AgentToolState()
     state.register_search(
         "FoldChange",
@@ -195,9 +183,7 @@ async def test_param_vocab_snapshot_accumulates_across_calls(
 
 
 def test_pinned_discovered_searches_renders_param_vocab() -> None:
-    """The supervisor + downstream phases see the snapshot via
-    pinned_discovered_searches — values appear so the LLM can copy them
-    verbatim instead of guessing."""
+    """The pinned instruction renders the snapshot values and help text."""
     state = AgentToolState()
     overview = SearchOverview(
         search_name="GenesByRNASeqFoldChange",
@@ -237,15 +223,11 @@ def test_pinned_discovered_searches_renders_param_vocab() -> None:
     assert "hard_floor" in rendered
     assert "1693.23" in rendered
     assert "6772.93" in rendered
-    # Param help ("what it does") is surfaced so downstream phases know the
-    # meaning of the param, not just its allowed values.
     assert "Tier-quantile floor for read counts" in rendered
 
 
 def test_pinned_discovered_searches_omits_vocab_for_rejected() -> None:
-    """A rejected search shows its name + reason but NOT its param_vocab — the
-    model only needs to remember it rejected it, not re-read full vocabularies
-    for a dataset it threw out (the pinned-notebook cost lever)."""
+    """A rejected search renders its name and reason, but not its vocabulary."""
     state = AgentToolState()
     overview = SearchOverview(
         search_name="GenesByRNASeqGametocytesOnly",
@@ -278,9 +260,7 @@ def test_pinned_discovered_searches_omits_vocab_for_rejected() -> None:
     ctx.deps.agent_state = state
     rendered = pinned_discovered_searches(ctx)
     assert rendered is not None
-    # name + reason are kept
     assert "GenesByRNASeqGametocytesOnly" in rendered
     assert "sample vocab missing asexual blood stages" in rendered
-    # full vocab is dropped for a rejected search
     assert "param_vocab" not in rendered
     assert "6772.93" not in rendered

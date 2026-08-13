@@ -1,7 +1,7 @@
 """``build_strategy`` must not answer "call frame_problem first" when FRAME
 already ran and left open parameter slots.
 
-Observed on a real 16-step drug-target strategy: FRAME bound all 8 criteria
+Observed on a real multi-criterion drug-target strategy: FRAME bound all 8 criteria
 but left 7 open slots and set ``needs_user``. The Lead called
 ``build_strategy`` anyway, and the guard raised a ``ModelRetry`` telling it to
 re-run FRAME. Re-running FRAME produces the same open slots, so the advice is

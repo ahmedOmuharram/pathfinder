@@ -114,9 +114,7 @@ async def save_subtree_as_strategy(
         )
 
     # deep_clone works on the nested shape, so project this subtree first.
-    cloned_root = deep_clone_with_fresh_ids(
-        rebuild_tree(source_step_id, graph.steps)
-    )
+    cloned_root = deep_clone_with_fresh_ids(rebuild_tree(source_step_id, graph.steps))
     cloned_steps = flatten_tree(cloned_root)
     push_order = subtree_ids(cloned_root.id, cloned_steps)
 

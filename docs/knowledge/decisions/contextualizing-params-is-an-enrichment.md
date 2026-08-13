@@ -16,7 +16,7 @@ when WDK cannot, and raises only when the static view is unreachable too.
 
 # Why: the seam had no owner
 
-Ahmed pushed back that the same class of bug kept coming back, and the audit
+The same class of bug kept coming back, and an audit
 proved it. One operation, six implementations:
 
 | site | catches | recovery |
@@ -44,7 +44,7 @@ live PlasmoDB, `GenesByOrthologPattern`:
 | call | result |
 |---|---|
 | refresh, `organism: ["Plasmodium falciparum 3D7"]` + `profile_pattern` | **500** |
-| run, same values, gold parameter set | 200, `totalCount` 3347 |
+| run, same values, gold parameter set | 200, `totalCount` a large result |
 
 WDK returns 500 on the endpoint that narrows a vocabulary, for a value it
 accepts and executes on the endpoint that runs the search. So losing the

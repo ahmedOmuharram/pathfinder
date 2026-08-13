@@ -46,12 +46,10 @@ def _note_payload(note: Note) -> dict[str, object]:
 def _require_context(
     ctx: RunContext[AgentDeps],
 ) -> tuple[DBSessionFactory, UUID] | None:
-    """Return ``(factory, conversation_id)`` or ``None`` if unavailable.
+    """Return the session factory and conversation ID, or None when the scratchpad is unreachable.
 
-    ``None`` means the scratchpad can't be reached (missing DB or
-    conversation id). Callers must surface that to the model as a plain
-    tool-result string — a ``ModelRetry`` here would just loop the model
-    against a permanent condition.
+    None is a permanent condition. Callers must report it as a plain tool
+    result, never as a retry.
     """
     factory = ctx.deps.db_session_factory
     conversation_id = ctx.deps.conversation_id

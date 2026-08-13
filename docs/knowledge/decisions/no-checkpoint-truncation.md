@@ -12,7 +12,7 @@ status: stable
 
 The first call here was to skip the migration plan's checkpoint TRUNCATE, on two grounds: it would destroy valid conversations, and old checkpoints degrade harmlessly because Pydantic ignores unknown keys.
 
-The first ground was wrong. PathFinder has not shipped; there is no conversation history worth protecting, and Ahmed said so plainly: *"we can destroy convos it's fine ... i just dont want to have bandaided things and legacy-maintaining stuff when pathfinder hasnt even shipped yet once."*
+The first ground was wrong. PathFinder has not shipped, so there is no conversation history worth protecting, and a compatibility shim for it is exactly the pre-release legacy this project refuses to carry.
 
 The second ground was worse than wrong, because it was the bandaid. "Old checkpoints degrade harmlessly" is a description of a **compatibility shim**: `PipelineState` left `extra` at its permissive default, so any key the model does not declare was silently dropped. That is the same disease as an `as Step` cast. It does not just tolerate the dead five-phase shape; it means the **next** field rename half-lands, with writers setting a key readers quietly ignore, and nothing failing.
 
@@ -23,7 +23,7 @@ The second ground was worse than wrong, because it was the bandaid. "Old checkpo
 
 Strictness was verified as viable before committing to it: LangGraph injects no keys of its own (41 graph tests and 17 checkpointer round-trip tests pass under `forbid`; the only failures were the three compatibility tests written the turn before, which now assert rejection instead).
 
-Confirmed on a live turn after the migration: FRAME to BUILD to VERIFY on plasmodb, strategy `330519913`, 609 signal-peptide genes intersected with 1,649 transmembrane genes to give 326.
+Confirmed on a live turn after the migration: FRAME to BUILD to VERIFY on plasmodb, the built strategy, 609 signal-peptide genes intersected with 1,649 transmembrane genes to give 326.
 
 # The general rule
 

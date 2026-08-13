@@ -86,8 +86,7 @@ one of those is worth showing a user. Nothing below 500 is worth retrying.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/provider/ExceptionMapper.java#L106-L116
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/_http.py:_request_attempt
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_delayed_result.py::TestRecognisedByShape::test_the_sentinel_body_is_a_delay
 When the WSF plugin behind a process query has not finished,
 [`ProcessQueryInstance`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/ProcessQueryInstance.java#L282-L284)
 throws `WdkDelayedResultException`, and the mapper turns it into `202 Accepted` carrying
@@ -113,7 +112,7 @@ has neither guard.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/filter/CheckLoginFilter.java#L135-L148
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/auth_login.py:mint_guest_token
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/test_wdk_identity_is_one_guest.py::TestOneIdentityPerUser::test_the_second_call_does_not_mint_again
 
 `CheckLoginFilter` runs before every endpoint. With no bearer token it does not return
 401: `isValidTokenRequired` is false and `isGuestUserAllowed` is true by default, so it

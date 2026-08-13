@@ -55,7 +55,7 @@ class TestScalarsRoundTrip:
         )
 
     @settings(max_examples=200)
-    @given(st.integers(min_value=-10**9, max_value=10**9))
+    @given(st.integers(min_value=-(10**9), max_value=10**9))
     def test_number(self, value: int) -> None:
         restored = _round_trip("p", NumberValue(value=value), "number")
         assert isinstance(restored, NumberValue)
@@ -87,9 +87,7 @@ class TestVocabulariesRoundTrip:
         assert restored == MultiPickValue(values=values)
 
     def test_the_empty_selection_is_not_the_string_bracket_bracket(self) -> None:
-        restored = _round_trip(
-            "p", MultiPickValue(values=[]), "multi-pick-vocabulary"
-        )
+        restored = _round_trip("p", MultiPickValue(values=[]), "multi-pick-vocabulary")
         assert restored == MultiPickValue(values=[])
         assert restored != MultiPickValue(values=["[]"])
 
@@ -113,17 +111,15 @@ class TestVocabulariesRoundTrip:
 class TestRangesRoundTrip:
     @settings(max_examples=200)
     @given(
-        st.one_of(st.none(), st.integers(min_value=-10**6, max_value=10**6)),
-        st.one_of(st.none(), st.integers(min_value=-10**6, max_value=10**6)),
+        st.one_of(st.none(), st.integers(min_value=-(10**6), max_value=10**6)),
+        st.one_of(st.none(), st.integers(min_value=-(10**6), max_value=10**6)),
     )
     def test_number_range_including_negative_bounds(
         self, low: int | None, high: int | None
     ) -> None:
         assume(low is not None or high is not None)
         assume(low is None or high is None or low <= high)
-        restored = _round_trip(
-            "p", NumberRangeValue(min=low, max=high), "number-range"
-        )
+        restored = _round_trip("p", NumberRangeValue(min=low, max=high), "number-range")
         assert isinstance(restored, NumberRangeValue)
         assert (restored.min is None) == (low is None)
         assert (restored.max is None) == (high is None)
@@ -136,9 +132,7 @@ class TestRangesRoundTrip:
     @given(st.one_of(st.none(), _TERM), st.one_of(st.none(), _TERM))
     def test_date_range(self, low: str | None, high: str | None) -> None:
         assume(low is not None or high is not None)
-        restored = _round_trip(
-            "p", DateRangeValue(min=low, max=high), "date-range"
-        )
+        restored = _round_trip("p", DateRangeValue(min=low, max=high), "date-range")
         assert restored == DateRangeValue(min=low, max=high)
 
     def test_a_date_range_whose_bounds_contain_hyphens(self) -> None:

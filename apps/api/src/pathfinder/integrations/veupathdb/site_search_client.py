@@ -1,19 +1,7 @@
-"""HTTP client for VEuPathDB's site-search microservice (SOLR facade).
+"""HTTP client and response models for the VEuPathDB site-search service.
 
-This module contains the Pydantic response models and the SiteSearchClient class.
-It has no dependency on site_router to avoid circular imports — site_router manages
-SiteSearchClient lifecycle alongside VEuPathDBClient instances.
-
-The site-search service is distinct from the WDK service:
-- Different repo: VEuPathDB/SiteSearchService
-- Different deployment: own Docker image, own port
-- Different URL root: /site-search (not /{prefix}/service)
-- Different auth model: no cookies, no JSESSIONID
-- Different protocol: POST with JSON body
-
-Reference:
-    https://github.com/VEuPathDB/SiteSearchService
-    https://github.com/VEuPathDB/web-monorepo/blob/main/packages/libs/web-common/src/SiteSearch/Types.ts
+Site-search is a separate service from WDK. It has its own URL root, it
+takes a JSON POST body, and it uses no cookie authentication.
 """
 
 import asyncio
@@ -46,11 +34,7 @@ logger = get_logger(__name__)
 
 
 class SiteSearchDocumentTypeField(CamelModel):
-    """A field descriptor within a document type (search or summary field).
-
-    Aligned with web-monorepo SiteSearchDocumentTypeField type:
-    packages/libs/web-common/src/SiteSearch/Types.ts
-    """
+    """A field descriptor within a document type."""
 
     name: str
     display_name: str
@@ -61,12 +45,8 @@ class SiteSearchDocumentTypeField(CamelModel):
 class SiteSearchDocumentType(CamelModel):
     """A document type returned in the site-search response.
 
-    Discriminated union in TypeScript: when ``is_wdk_record_type`` is True,
-    ``wdk_search_name`` contains the WDK search name (e.g. ``"GenesByText"``)
-    that bridges site-search results to WDK strategy creation.
-
-    Aligned with web-monorepo SiteSearchDocumentType type:
-    packages/libs/web-common/src/SiteSearch/Types.ts
+    A WDK record type also carries the search name that bridges the
+    document type to WDK strategy creation.
     """
 
     id: str
@@ -81,22 +61,14 @@ class SiteSearchDocumentType(CamelModel):
 
 
 class SiteSearchCategory(CamelModel):
-    """A category grouping document types.
-
-    Aligned with web-monorepo SiteSearchCategory type:
-    packages/libs/web-common/src/SiteSearch/Types.ts
-    """
+    """A category that groups document types."""
 
     name: str
     document_types: list[str] = Field(default_factory=list)
 
 
 class SiteSearchDocument(CamelModel):
-    """A single document from site-search results.
-
-    Aligned with web-monorepo SiteSearchDocument type:
-    packages/libs/web-common/src/SiteSearch/Types.ts
-    """
+    """A single document from site-search results."""
 
     document_type: str = ""
     primary_key: list[str] = Field(default_factory=list)
@@ -110,7 +82,7 @@ class SiteSearchDocument(CamelModel):
     @field_validator("organism", mode="before")
     @classmethod
     def _coerce_organism(cls, v: object) -> list[str]:
-        """Handle both string and list forms (API returns list, TS type says string)."""
+        """The service sends the organism as either a string or a list."""
         if isinstance(v, str):
             return [v] if v else []
         if isinstance(v, list):
@@ -119,18 +91,14 @@ class SiteSearchDocument(CamelModel):
 
 
 class SiteSearchResults(CamelModel):
-    """The searchResults portion of a site-search response."""
+    """The results portion of a site-search response."""
 
     total_count: int = 0
     documents: list[SiteSearchDocument] = Field(default_factory=list)
 
 
 class SiteSearchResponse(CamelModel):
-    """Full response from the VEuPathDB site-search service.
-
-    All five top-level fields aligned with web-monorepo SiteSearchResponse type:
-    packages/libs/web-common/src/SiteSearch/Types.ts
-    """
+    """Full response from the site-search service."""
 
     search_results: SiteSearchResults = Field(default_factory=SiteSearchResults)
     organism_counts: dict[str, int] = Field(default_factory=dict)
@@ -141,32 +109,16 @@ class SiteSearchResponse(CamelModel):
 
 @dataclass(frozen=True)
 class DocumentTypeFilter:
-    """Filter for restricting site-search to a specific document type.
-
-    Mirrors the ``documentTypeFilter`` object in the SiteSearchService
-    POST request body.
-    """
+    """Restricts a site-search query to one document type."""
 
     document_type: str
     found_only_in_fields: list[str] | None = None
 
 
 class SiteSearchClient:
-    """HTTP client for VEuPathDB's site-search microservice (SOLR facade).
+    """HTTP client for the VEuPathDB site-search service.
 
-    Separate from VEuPathDBClient because site-search is a separate service
-    in the VEuPathDB ecosystem:
-    - Different repo: VEuPathDB/SiteSearchService
-    - Different deployment: own Docker image, own port
-    - Different URL root: /site-search (not /{prefix}/service)
-    - Different auth model: no cookies, no JSESSIONID
-    - Different protocol: POST with JSON body (not mixed GET/POST)
-
-    Lifecycle managed by SiteRouter alongside VEuPathDBClient instances.
-
-    Reference:
-        https://github.com/VEuPathDB/SiteSearchService
-        https://github.com/VEuPathDB/web-monorepo/blob/main/packages/libs/web-common/src/SiteSearch/Types.ts
+    The site router owns the lifecycle of each instance.
     """
 
     def __init__(
@@ -208,16 +160,9 @@ class SiteSearchClient:
         limit: int = 20,
         offset: int = 0,
     ) -> SiteSearchResponse:
-        """Query the site-search service via POST.
+        """Query the site-search service.
 
-        Uses POST with JSON body, matching the VEuPathDB frontend:
-        packages/libs/web-common/src/controllers/SiteSearchController.tsx
-
-        Field names match SearchRequest.java:
-        https://github.com/VEuPathDB/SiteSearchService
-
-        Wraps all errors (including RetryError after exhausted retries) into
-        AppError so callers only need ``except AppError``.
+        Every failure surfaces as an application error.
         """
         telemetry = SiteSearchRequestTelemetry(
             method="POST",
@@ -268,7 +213,7 @@ class SiteSearchClient:
         limit: int = 20,
         offset: int = 0,
     ) -> SiteSearchResponse:
-        """Raw POST with tenacity retry on transient errors."""
+        """Post the query, and retry on transient errors."""
         url = f"{self._base_url}/site-search"
         body: dict[str, object] = {
             "searchText": search_text or "*",

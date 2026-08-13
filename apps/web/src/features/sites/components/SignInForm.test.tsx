@@ -49,7 +49,7 @@ beforeEach(() => {
 describe("SignInForm", () => {
   it("logs in with the typed credentials + selected site, then calls onSuccess", async () => {
     mockLogin.mockResolvedValue({ success: true });
-    mockStatus.mockResolvedValue({ signedIn: true, name: "Dr. Ahmed" });
+    mockStatus.mockResolvedValue({ signedIn: true, name: "Dr. Rivera" });
     const { onSuccess } = renderForm();
 
     await fillCredentials("ahmed@upenn.edu", "hunter2");

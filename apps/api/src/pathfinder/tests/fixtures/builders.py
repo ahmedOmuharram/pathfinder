@@ -1,8 +1,4 @@
-"""Shared builder helpers for test data construction.
-
-Consolidates factory functions that were duplicated across 3+ test files.
-Import from here instead of redefining in each test module.
-"""
+"""Shared builder helpers for test data construction."""
 
 from dataclasses import dataclass
 
@@ -13,7 +9,7 @@ from pathfinder.domain.strategy.ops import CombineOp
 
 @dataclass
 class ParamSpecConfig:
-    """Configuration for :func:`make_param_spec`."""
+    """Configuration for the param spec builder."""
 
     name: str = "test_param"
     param_type: str = "string"
@@ -30,8 +26,7 @@ class ParamSpecConfig:
 
 
 # ---------------------------------------------------------------------------
-# StrategyStepNode builders -- used in test_graph_integrity, test_graph_ops,
-# test_strategy_session
+# StrategyStepNode builders
 # ---------------------------------------------------------------------------
 
 
@@ -83,8 +78,7 @@ def make_transform(
 
 
 # ---------------------------------------------------------------------------
-# ParamSpecNormalized builder -- used in test_normalizer, test_value_helpers,
-# test_canonicalize
+# ParamSpecNormalized builder
 # ---------------------------------------------------------------------------
 
 

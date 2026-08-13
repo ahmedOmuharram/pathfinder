@@ -172,7 +172,7 @@ And setting `domain_database` to `INTERPRO` alongside a Pfam accession refreshed
 did not appear, after which similarity matching supplied a wrong domain
 ([unmatched-accession-stops-the-chain](../../decisions/unmatched-accession-stops-the-chain.md)).
 The `INTERPRO` vocabulary is 5,405 terms on plasmodb.org and 6,592 on
-toxodb.org, against 2,364 and 2,916 for `PFAM` - re-measured on both sites on
+toxodb.org, against thousands and 2,916 for `PFAM` - re-measured on both sites on
 2026-08-10, and the plasmodb figure matches the one recorded when that bug was
 diagnosed.
 

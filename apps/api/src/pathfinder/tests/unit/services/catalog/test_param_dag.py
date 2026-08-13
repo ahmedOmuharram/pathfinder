@@ -1,5 +1,5 @@
-"""DAG-resolver: Tier-1 (single valid value) auto-resolves; multi-valued params
-become choices; the walk fetches a child's vocab under its resolved parent."""
+"""Tests for the parameter DAG resolver: auto-resolution, choices, and the
+dependent-vocabulary walk."""
 
 from __future__ import annotations
 
@@ -93,8 +93,7 @@ async def _embed_orthogonal(texts: Sequence[str]) -> list[list[float]]:
 
 
 async def _embed_prefers_female(texts: Sequence[str]) -> list[list[float]]:
-    # Align the query with "female" and leave "male" orthogonal, so the
-    # slot-agnostic semantic matcher picks female for BOTH sample selectors.
+    # The query aligns with "female" and stays orthogonal to "male".
     return [
         [1.0, 0.0] if t.startswith(SEARCH_QUERY_PREFIX) or "female" in t else [0.0, 1.0]
         for t in texts
@@ -102,8 +101,7 @@ async def _embed_prefers_female(texts: Sequence[str]) -> list[list[float]]:
 
 
 async def _embed_prefers_group1(texts: Sequence[str]) -> list[list[float]]:
-    # Align the query with "Group 1" (cosine 1.0 >= floor) and leave "Group 2"
-    # orthogonal, so the slot-agnostic semantic matcher picks g1 for BOTH params.
+    # The query aligns with "Group 1" and stays orthogonal to "Group 2".
     return [
         [1.0, 0.0]
         if t.startswith(SEARCH_QUERY_PREFIX) or "Group 1" in t
@@ -113,8 +111,8 @@ async def _embed_prefers_group1(texts: Sequence[str]) -> list[list[float]]:
 
 
 def test_apply_override_snaps_to_tree_box_leaf() -> None:
-    # A tree-box param exposes its values via the flattened leaves (not the flat
-    # `allowed_values`); an override must still snap to the real leaf string.
+    # A tree-box param carries its values as flattened leaves, not as allowed
+    # values, and an override snaps to a leaf string.
     info = ParameterInfo(
         name="organism",
         display_name="organism",
@@ -160,8 +158,8 @@ _SAMPLE_FACETS = [
 
 @pytest.mark.asyncio
 async def test_filter_param_defaults_to_include_all() -> None:
-    """WDK's canonical default for a filter param is the empty filter set — it
-    must RESOLVE (build-ready), never crash or dangle as an open slot."""
+    """The WDK default for a filter param is the empty filter set, and it
+    resolves rather than opening a slot."""
 
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
         return [_filter("ngsSnp_strain_meta", _SAMPLE_FACETS)]
@@ -207,9 +205,8 @@ async def _resolve_loffler(overrides: dict[str, str] | None) -> ResolvedParams:
 
 @pytest.mark.asyncio
 async def test_ref_comp_filter_pair_surfaces_instead_of_degenerate_all_vs_all() -> None:
-    # A differential search's ref/comp sample FILTER pair must NOT both default to
-    # the empty 'all samples' filter — that compares all-vs-all → zero DE genes
-    # (e.g. the Loffler antibody array). With no override they surface as choices.
+    # A reference and comparison filter pair must not both take the empty
+    # filter, because that compares a set against itself.
     rp = await _resolve_loffler(None)
     assert "ref_samples_filter_metadata_loffler" not in rp.params
     assert "comp_samples_filter_metadata_loffler" not in rp.params
@@ -240,8 +237,8 @@ async def test_ref_comp_filter_pair_resolves_to_distinct_groups_when_overridden(
 
 @pytest.mark.asyncio
 async def test_filter_param_override_builds_typed_clause() -> None:
-    """A `<field>=<v1>,<v2>` override selects members of one facet, typed from
-    the param's ontology (type/isRange), matched to real values."""
+    """A field-and-values override selects members of one facet and takes its
+    type from the parameter ontology."""
 
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
         return [_filter("ngsSnp_strain_meta", _SAMPLE_FACETS)]
@@ -298,8 +295,7 @@ async def _resolve_filter_override(override: str) -> FilterValue:
 
 @pytest.mark.asyncio
 async def test_filter_override_accepts_full_wdk_filter_json_string() -> None:
-    # The model's natural instinct is to emit the real WDK filter value. Accept
-    # it (as a JSON string) and match it to the facet's real values.
+    # An override can be a full WDK filter value as a JSON string.
     value = await _resolve_filter_override(
         '{"filters": [{"field": "Sample type", "type": "string", '
         '"isRange": false, "includeUnknown": false, "value": ["culture", "blood"]}]}'
@@ -312,8 +308,8 @@ async def test_filter_override_accepts_full_wdk_filter_json_string() -> None:
 
 @pytest.mark.asyncio
 async def test_filter_override_enriches_partial_clause_from_ontology() -> None:
-    # A partial clause (field + scalar value, no type/isRange) gets type/isRange
-    # filled from the ontology and the scalar wrapped into a member list.
+    # A partial clause takes its type from the ontology, and a scalar value
+    # becomes a member list.
     value = await _resolve_filter_override(
         '{"filters": [{"field": "Sample type", "value": "specimen from organism"}]}'
     )
@@ -340,18 +336,19 @@ async def test_filter_override_garbage_degrades_to_include_all() -> None:
 async def test_resolve_params_with_intent_tiers_and_dependent_chain() -> None:
     def schema_for(context: dict[str, str]) -> list[ParameterInfo]:
         params = [
-            _p("organism", "multi-pick-vocabulary"),  # Tier-2 rule
+            _p("organism", "multi-pick-vocabulary"),
             _p(
                 "strand",
                 "single-pick-vocabulary",
                 allowed=[VocabOption(value="sense", display="Sense")],
-            ),  # Tier-1 auto
-            _p("min_tm", "number", default="1"),  # scalar default fill
+            ),
+            _p("min_tm", "number", default="1"),
+            # A resolved profileset reveals the samples parameter.
             _p(
                 "profileset",
                 "single-pick-vocabulary",
                 allowed=[VocabOption(value="ds_x", display="DS X")],
-            ),  # Tier-1, gates samples
+            ),
         ]
         if "profileset" in context:
             params.append(
@@ -364,7 +361,7 @@ async def test_resolve_params_with_intent_tiers_and_dependent_chain() -> None:
                     ],
                     depends_on=["profileset"],
                 )
-            )  # required, no rule, semantic miss -> Tier-3
+            )
         return params
 
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
@@ -383,7 +380,8 @@ async def test_resolve_params_with_intent_tiers_and_dependent_chain() -> None:
     assert rp.params["min_tm"].value == 1.0
     assert isinstance(rp.params["profileset"], SinglePickValue)
     assert rp.params["profileset"].value == "ds_x"
-    # samples revealed only after profileset resolved, then unresolvable -> Tier-3
+    # The samples parameter appears after profileset resolves, and it stays
+    # open.
     assert "samples" not in rp.params
     assert any(s.param_name == "samples" for s in rp.open_slots)
     assert "samples" in rp.unresolved_required
@@ -391,8 +389,8 @@ async def test_resolve_params_with_intent_tiers_and_dependent_chain() -> None:
 
 @pytest.mark.asyncio
 async def test_same_vocab_default_not_duplicated_into_degenerate_pair() -> None:
-    # Two selectors drawn from the SAME vocabulary (a DESeq ref-vs-comp contrast).
-    # Defaulting both to the same value compares a group to itself -> 0 results.
+    # Two selectors that share a vocabulary must not take the same default,
+    # because that compares a group against itself.
     groups = [
         VocabOption(value="g1", display="Group 1"),
         VocabOption(value="g2", display="Group 2"),
@@ -416,10 +414,8 @@ async def test_same_vocab_default_not_duplicated_into_degenerate_pair() -> None:
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at, intent=intent, embed=_embed_orthogonal
     )
-    # The COMPARATOR takes the default and the reference becomes the question:
-    # WDK measures the comparator against the reference, so when neither value
-    # is grounded in the user's intent the baseline is what must be asked about.
-    # (Which of the pair binds is role-driven now, not list order.)
+    # WDK measures the comparator against the reference, so the comparator
+    # takes the default and the reference becomes the open question.
     assert isinstance(rp.params["samples_de_comp"], SinglePickValue)
     assert rp.params["samples_de_comp"].value == "g1"
     assert "samples_de_ref" not in rp.params
@@ -428,10 +424,8 @@ async def test_same_vocab_default_not_duplicated_into_degenerate_pair() -> None:
 
 @pytest.mark.asyncio
 async def test_same_vocab_intent_match_not_duplicated_into_degenerate_pair() -> None:
-    # The degenerate-pair guard must also cover values chosen via Tier-2 INTENT,
-    # not just defaults. The matcher is slot-agnostic (same text + same vocab ->
-    # same value), so a DESeq ref/comp pair both match "Group 1" from the intent.
-    # The second must surface as a user choice, not silently bind a self-contrast.
+    # The guard against a same-value pair also covers values that come from the
+    # intent, not defaults alone.
     groups = [
         VocabOption(value="g1", display="Group 1"),
         VocabOption(value="g2", display="Group 2"),
@@ -454,9 +448,8 @@ async def test_same_vocab_intent_match_not_duplicated_into_degenerate_pair() -> 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at, intent=intent, embed=_embed_prefers_group1
     )
-    # The intent names what the user wants enriched, so it belongs in the
-    # COMPARATOR; the reference is then the only remaining group. Nothing needs
-    # to be asked, and the contrast points the right way.
+    # The intent names the enriched group, so it binds the comparator and the
+    # remaining group becomes the reference.
     comp = rp.params["samples_de_comp_generic_deseq"]
     ref = rp.params["samples_de_ref_generic_deseq"]
     assert isinstance(comp, SinglePickValue)
@@ -468,8 +461,8 @@ async def test_same_vocab_intent_match_not_duplicated_into_degenerate_pair() -> 
 
 @pytest.mark.asyncio
 async def test_user_override_fills_an_open_slot() -> None:
-    # A required selector with no auto-resolution → open slot. A user override
-    # (matched to the vocab, even via display text) closes it as Tier-0.
+    # A required selector with no auto-resolution opens a slot, and an override
+    # that matches the vocabulary closes it.
     groups = [
         VocabOption(value="gametocyte", display="Gametocyte"),
         VocabOption(value="asexual", display="Asexual blood stage"),
@@ -499,9 +492,7 @@ async def test_user_override_fills_an_open_slot() -> None:
 
 @pytest.mark.asyncio
 async def test_filter_override_without_field_eq_means_include_all() -> None:
-    # A filter param can't be built from a plain phrase like "All field isolates"
-    # (no `<facet>=<value>`); rather than crash or dangle as an open slot it
-    # resolves to WDK's canonical include-all empty filter set.
+    # An override without a facet and value resolves to the empty filter set.
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
         del context
         return [_filter("ngsSnp_strain_meta", _SAMPLE_FACETS)]
@@ -521,8 +512,7 @@ async def test_filter_override_without_field_eq_means_include_all() -> None:
 
 @pytest.mark.asyncio
 async def test_distinct_vocab_defaults_both_apply() -> None:
-    # Two single-pick params from DIFFERENT vocabularies both default cleanly —
-    # the dedup only blocks identical-vocab degenerate pairs.
+    # The same-value guard applies to one shared vocabulary only.
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
         del context
         return [
@@ -561,12 +551,8 @@ async def test_distinct_vocab_defaults_both_apply() -> None:
 
 @pytest.mark.asyncio
 async def test_single_value_vocab_pair_both_bind_instead_of_opening_a_slot() -> None:
-    # A one-option vocabulary cannot form a MEANINGFUL degenerate pair: there is
-    # no second value either selector could take, and WDK ships that value as the
-    # default for both. Blocking the second one strands a required param on a
-    # question whose only answer is the value already rejected. Real case:
-    # VectorBase microarray fold-change searches, where `min_max_avg_ref` and
-    # `min_max_avg_comp` both draw from ["average1"].
+    # A one-option vocabulary leaves no second value, so both selectors bind it
+    # and neither opens a slot.
     only = [VocabOption(value="average1", display="average")]
 
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
@@ -602,9 +588,7 @@ async def test_single_value_vocab_pair_both_bind_instead_of_opening_a_slot() -> 
 
 @pytest.mark.asyncio
 async def test_user_override_outranks_the_degenerate_pair_guard() -> None:
-    # Tier-0 is the highest tier: an explicit override is the user answering an
-    # open slot. The dedup guard must not discard it — otherwise re-answering the
-    # slot re-opens it forever and the turn can never proceed.
+    # An explicit override outranks the same-value guard.
     groups = [
         VocabOption(value="g1", display="Group 1"),
         VocabOption(value="g2", display="Group 2"),
@@ -640,12 +624,7 @@ async def test_user_override_outranks_the_degenerate_pair_guard() -> None:
 
 @pytest.mark.asyncio
 async def test_override_claims_its_value_before_siblings_auto_resolve() -> None:
-    # An override is authoritative, so it must claim its vocabulary value BEFORE
-    # an un-overridden sibling auto-resolves -- otherwise the sibling grabs the
-    # same value first and the override (which outranks the dedup guard) lands
-    # on top of it, silently producing a self-comparison that returns 0 rows.
-    # Real case: intent "upregulated in female vs male" matches `female` for the
-    # reference slot, while the caller pins the comparison slot to `female`.
+    # An override claims its vocabulary value before a sibling auto-resolves.
     groups = [
         VocabOption(value="male", display="male"),
         VocabOption(value="female", display="female"),
@@ -678,12 +657,8 @@ async def test_override_claims_its_value_before_siblings_auto_resolve() -> None:
 
 @pytest.mark.asyncio
 async def test_override_evicts_a_guess_even_when_deferred_by_a_dependency() -> None:
-    # The real shape on VectorBase: the comparison selector declares
-    # ``vocab_depends_on=[profileset]``, so it is skipped on the first pass while
-    # the reference selector resolves and takes ``female``. Ordering within a
-    # pass cannot fix that -- by the time the override is considered, the guess
-    # is already bound -- so the override must evict it. Without this the pair
-    # is female-vs-female and every downstream step returns zero rows.
+    # A dependent selector waits for its parent, so a sibling can bind the
+    # overridden value first. The override then evicts that guess.
     groups = [
         VocabOption(value="male", display="male"),
         VocabOption(value="female", display="female"),
@@ -819,7 +794,7 @@ async def test_child_vocab_fetched_under_resolved_parent() -> None:
     samples_choice = next(c for c in res.choices if c.name == "samples")
     assert [o.value for o in samples_choice.options] == ["ref", "comp"]
     assert {"profileset": "exp1"} in seen
-    # the context-refreshed infos are exposed so the tool can snapshot + summarise
+    # The result carries the context-refreshed parameter infos.
     samples_info = next(i for i in res.param_infos if i.name == "samples")
     assert samples_info.allowed_values is not None
     assert [v.value for v in samples_info.allowed_values] == ["ref", "comp"]

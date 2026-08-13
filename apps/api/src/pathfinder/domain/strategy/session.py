@@ -1,8 +1,5 @@
-"""Stateful strategy session types (in-memory).
-
-These types model the *working* state while a user (or an AI agent) is building a
-VEuPathDB strategy during a chat session.
-"""
+"""In-memory working state for a strategy that is under construction during a
+chat session."""
 
 from uuid import uuid4
 
@@ -36,26 +33,21 @@ class StrategyGraph:
         self.id = graph_id
         self.name = name
         self.site_id = site_id
-        # Best-effort record type context for the working graph (e.g. "gene").
-        # Set when the first step is created or when importing a WDK strategy.
+        # The record type is set on the first step or on import of a strategy.
         self.record_type: str | None = None
         self.description: str | None = None
         self.steps: dict[str, StrategyStep] = {}
-        # Current subtree root IDs.  Every step creation updates this set:
-        # the new step is added as a root and any inputs it consumes are
-        # removed.  A complete strategy has exactly one root.
+        # A root is a step that no other step consumes. A complete strategy has
+        # exactly one root.
         self.roots: set[str] = set()
         self.history: list[_HistoryEntry] = []
         self.last_step_id: str | None = None
 
     def primary_root_id(self) -> str | None:
-        """Which root is the strategy proper when several exist.
+        """Return the root of the main strategy tree.
 
-        Adding a search leaves a second root until the user combines the two,
-        and one of them has to be the tree that gets pushed. The biggest
-        component wins, because that is the strategy the researcher has been
-        building; ties go to whichever step was added first, so the choice
-        does not move around between calls.
+        The largest subtree wins. A tie goes to the step that was added first,
+        so the result is stable across calls.
         """
         if not self.roots:
             return None
@@ -77,10 +69,10 @@ class StrategyGraph:
         *,
         include_detached: bool = True,
     ) -> StrategyAst | None:
-        """Produce a typed plan payload for API responses and DB persistence.
+        """Produce a typed plan payload for API responses and persistence.
 
-        ``include_detached=False`` yields just the subtree under ``root_step_id``
-        - what WDK is offered, which must not carry components it cannot hold.
+        With ``include_detached=False`` the payload holds only the subtree
+        under the root, which is the shape WDK accepts.
         """
         root_id = root_step_id or self.primary_root_id()
         if root_id is None or root_id not in self.steps:
@@ -125,13 +117,8 @@ class StrategyGraph:
         )
 
     def add_step(self, step: StrategyStep) -> str:
-        """Add a step and maintain the subtree-root set.
-
-        The new step becomes a root. Any step it consumes stops being one.
-
-        :param step: Step to add.
-        :returns: Step ID.
-        """
+        """Add a step and update the root set. The new step becomes a root and
+        every step it consumes stops being one."""
         self.steps[step.id] = step
         self.roots.add(step.id)
         for input_id in step.inputs():
@@ -146,12 +133,8 @@ class StrategyGraph:
         return step.id
 
     def find_parent(self, step_id: str) -> tuple[StrategyStep, str] | None:
-        """Find the parent of a step and which input slot it occupies.
-
-        :param step_id: Step ID to look up.
-        :returns: ``(parent_step, 'primary' | 'secondary')`` or ``None`` if
-            *step_id* is a root or does not exist.
-        """
+        """Return the parent of a step and the input slot it occupies, or
+        ``None`` when the step is a root or is absent."""
         return find_parent(step_id, self.steps)
 
     def insert_step_with_combine(
@@ -161,28 +144,20 @@ class StrategyGraph:
         operator: CombineOp,
         combine_display_name: str | None = None,
     ) -> tuple[str, str]:
-        """Atomic leaf+combine creation maintaining the single-root invariant.
+        """Add a step together with a combine node in one operation.
 
-        Creates *new_step* and a combine node, inserting the combine between
-        *combine_with_step_id* and its parent (or making it the new root).
-
-        :param new_step: The new search/transform step to add.
-        :param combine_with_step_id: ID of the existing step to combine with.
-        :param operator: Boolean operator for the combine.
-        :param combine_display_name: Optional display name for the combine node.
-        :returns: ``(new_step_id, combine_step_id)``.
-        :raises KeyError: If *combine_with_step_id* is not in the graph.
+        The combine node goes between the target step and its parent, or
+        becomes the new root. The graph keeps its single-root shape.
         """
         target = self.steps.get(combine_with_step_id)
         if target is None:
             msg = f"Step '{combine_with_step_id}' not found in graph"
             raise KeyError(msg)
 
-        # Find the parent BEFORE adding new nodes (otherwise the combine
-        # itself would be returned as the parent of the target).
+        # The parent lookup runs before the new nodes exist, or the combine
+        # node itself is the parent of the target.
         parent_info = self.find_parent(combine_with_step_id)
 
-        # Register the new leaf in the graph.
         self.steps[new_step.id] = new_step
 
         combine = StrategyStep(
@@ -195,14 +170,12 @@ class StrategyGraph:
         )
         self.steps[combine.id] = combine
 
-        # Splice the combine between the target and its parent.
         if parent_info is not None:
             parent, slot = parent_info
             if slot == "primary":
                 parent.primary_input_id = combine.id
             else:
                 parent.secondary_input_id = combine.id
-        # Otherwise target was a root - combine replaces it.
 
         self.recompute_roots()
         self.last_step_id = combine.id
@@ -210,30 +183,17 @@ class StrategyGraph:
         return new_step.id, combine.id
 
     def get_step(self, step_id: str) -> StrategyStep | None:
-        """Get a step by ID.
-
-        :param step_id: Step ID.
-        :returns: Step or None.
-        """
         return self.steps.get(step_id)
 
     def find_consumer(self, step_id: str) -> str | None:
-        """Find the step that consumes *step_id* as a primary or secondary input.
-
-        :param step_id: Step ID to search for.
-        :returns: ID of the consuming step, or None if unconsumed.
-        """
+        """Return the id of the step that consumes this step as an input, or
+        ``None`` when no step consumes it."""
         parent = find_parent(step_id, self.steps)
         return parent[0].id if parent is not None else None
 
     def recompute_roots(self) -> None:
-        """Recompute ``roots`` from the current ``steps`` dict.
-
-        A root is any step that is not referenced as the ``primary_input``
-        or ``secondary_input`` of another step.  Call this after bulk
-        mutations (delete, hydration) where incremental root tracking is
-        impractical.
-        """
+        """Recompute the root set from the current steps. Call this after a
+        bulk mutation such as a delete or a hydration."""
         self.roots = root_ids(self.steps)
 
     def save_history(self, description: str) -> None:
@@ -245,13 +205,10 @@ class StrategyGraph:
             )
 
     def undo(self) -> bool:
-        """Undo to previous state.
-
-        Restores steps, roots, and last_step_id from the history snapshot.
-        """
+        """Restore the graph from the previous history snapshot."""
         if len(self.history) < _MIN_UNDO_HISTORY:
             return False
-        self.history.pop()  # remove current
+        self.history.pop()
         previous = self.history[-1]
         ast = previous.strategy_ast
         self.steps = flatten_tree(ast.root)
@@ -271,13 +228,8 @@ class StrategySession:
         self.sync_state: SyncStateProtocol | None = None
 
     def add_graph(self, graph: StrategyGraph) -> None:
-        """Register an existing graph in the session.
-
-        Logs a warning if a different graph is already active (the new graph
-        is ignored to avoid silently discarding in-progress work).
-
-        :param graph: Strategy graph to register.
-        """
+        """Register a graph in the session. A session holds one graph, so a
+        second, different graph is ignored."""
         if self.graph and self.graph.id != graph.id:
             logger.warning(
                 "Ignoring add_graph: session already has an active graph",
@@ -288,15 +240,8 @@ class StrategySession:
         self.graph = graph
 
     def create_graph(self, name: str, graph_id: str | None = None) -> StrategyGraph:
-        """Create a new empty graph, or return the existing one.
-
-        When a graph already exists the session reuses it (single-graph
-        model). The name is updated if it differs.
-
-        :param name: Graph name.
-        :param graph_id: Optional graph ID (default: None).
-        :returns: The graph.
-        """
+        """Create an empty graph, or return the existing one with the name
+        updated."""
         if self.graph:
             if name and name != self.graph.name:
                 logger.debug(
@@ -313,11 +258,8 @@ class StrategySession:
         return graph
 
     def get_graph(self, graph_id: str | None) -> StrategyGraph | None:
-        """Get graph by ID (or active graph if None).
-
-        :param graph_id: Graph ID, or None for active graph.
-        :returns: Graph or None.
-        """
+        """Return the graph with this id, or the active graph when the id is
+        ``None``."""
         if not self.graph:
             return None
         if graph_id is None or graph_id == self.graph.id:

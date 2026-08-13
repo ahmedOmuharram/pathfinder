@@ -11,3 +11,5 @@ us aligned. `SILENT` is why this exists.
 - [Searches and answers](searches-and-answers.md) - `WDK-SEARCH-001..004` and `WDK-ANS-001..008`
 - [Parameters and vocabularies](parameters-and-vocabularies.md) - `WDK-PARAM-001..009` and `WDK-VOCAB-001..006`
 - [Filters](filters.md) - `WDK-FILTER-001..006`
+- [Validation](validation.md) - `WDK-VALID-001..011`
+- [PathFinder mapping](pathfinder-mapping.md) - `WDK-MAP-001..008`

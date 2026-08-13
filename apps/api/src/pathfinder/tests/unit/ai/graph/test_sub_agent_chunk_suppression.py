@@ -11,7 +11,7 @@ error."). That native error chunk leaked through for a call whose *input* chunks
 had been suppressed, so the client had no invocation to attach it to:
 
     Response failed: No tool invocation found for tool call ID
-    "call_8CXtPSTVTx4PDD5yYjVOPkaW".
+    "call_EXAMPLE".
 
 That id was the ``frame_problem`` dispatch. The Vercel AI SDK throws
 ``UIMessageStreamError`` on the unmatched id and marks the whole response
@@ -46,8 +46,7 @@ from pathfinder.ai.graph._lead_events import (
     sub_agent_result_failed,
 )
 
-_CALL_ID = "call_8CXtPSTVTx4PDD5yYjVOPkaW"
-
+_CALL_ID = "call_EXAMPLE"
 
 
 def _claim_the_dispatch() -> dict[str, str]:
@@ -112,7 +111,12 @@ class TestOrdinaryToolsAreUntouched:
 
 class TestEveryDispatchToolName:
     def test_each_sub_agent_tool_claims_its_id(self) -> None:
-        for name in ("frame_problem", "build_strategy", "recover_failed_steps", "verify_strategy"):
+        for name in (
+            "frame_problem",
+            "build_strategy",
+            "recover_failed_steps",
+            "verify_strategy",
+        ):
             claimed: dict[str, str] = {}
             is_suppressed_sub_agent_chunk(
                 ToolInputStartChunk(tool_call_id=f"call_{name}", tool_name=name),
@@ -142,8 +146,10 @@ def test_every_tool_chunk_type_is_classified() -> None:
         if issubclass(obj, BaseModel) and "tool_call_id" in obj.model_fields
     }
 
-    unclassified = carries_tool_call_id - set(_TOOL_CALL_CHUNKS) - set(
-        _CHUNKS_EXEMPT_FROM_SUPPRESSION
+    unclassified = (
+        carries_tool_call_id
+        - set(_TOOL_CALL_CHUNKS)
+        - set(_CHUNKS_EXEMPT_FROM_SUPPRESSION)
     )
 
     assert not unclassified, (

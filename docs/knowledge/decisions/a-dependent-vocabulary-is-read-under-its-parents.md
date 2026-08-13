@@ -45,7 +45,7 @@ context and warns that another parent yields a different list.
 
 # Evidence
 
-Live PlasmoDB, same call, before and after:
+Observed: same call, before and after:
 
 | read | 23 Hour | 29 Hour | 47 Hour | 48 Hour |
 |---|---|---|---|---|

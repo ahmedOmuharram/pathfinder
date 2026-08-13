@@ -1,10 +1,5 @@
-"""Repository for chat (conversation) identity + sidebar/strategy metadata.
-
-Replaces the legacy ``StreamRepository`` (streams + stream_projections + the
-operations side-channel) — the ``operations`` table is gone with the chat
-overhaul, so this repository exposes a single clean surface for creating
-chats, updating strategy metadata, and driving the conversation sidebar.
-"""
+"""Data access for chat conversations: identity, strategy metadata, and the
+conversation sidebar."""
 
 from __future__ import annotations
 
@@ -25,10 +20,8 @@ from pathfinder.persistence.models import Conversation
 class ConversationUpdate:
     """Partial update payload for a ``Conversation``.
 
-    Only fields explicitly set to non-None (or flagged with ``*_set=True``)
-    are written. Use ``wdk_strategy_id_set=True`` to explicitly set that
-    field (even to ``None``), similarly for ``is_saved_set``,
-    ``estimated_size_set``, ``gene_set_id_set``.
+    Only non-None fields are written. A ``*_set=True`` flag writes its field
+    even when the value is ``None``.
     """
 
     name: str | None = None
@@ -64,7 +57,7 @@ _FLAGGED_FIELDS: tuple[tuple[str, str], ...] = (
 
 
 def _collect_chat_values(upd: ConversationUpdate) -> dict[str, Any]:
-    """Build the SQL column-value dict from non-None / flagged fields."""
+    """Build the column-value dict from non-None and flagged fields."""
     values: dict[str, Any] = {}
     if upd.touch_updated_at:
         values["updated_at"] = datetime.now(UTC)
@@ -79,8 +72,7 @@ def _collect_chat_values(upd: ConversationUpdate) -> dict[str, Any]:
             by_alias=True, exclude_none=True, mode="json"
         )
     elif upd.strategy_ast_set:
-        # Deleting the last step leaves nothing to serialize; the row has to
-        # say so, or the strategy reappears on the next read.
+        # An explicit clear writes NULL, which removes the stored strategy.
         values["strategy_ast"] = None
 
     if upd.imported_saved_strategy_ids is not None:
@@ -94,12 +86,10 @@ def _collect_chat_values(upd: ConversationUpdate) -> dict[str, Any]:
 
 
 class ConversationRepository:
-    """Data access for chat conversations (identity + strategy metadata)."""
+    """Data access for chat conversations."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-
-    # ── Helpers ──
 
     async def _deduplicate_name(
         self,
@@ -108,10 +98,8 @@ class ConversationRepository:
         name: str,
         exclude_conversation_id: UUID | None = None,
     ) -> str:
-        """Return a unique name for a chat within (user, site).
-
-        If ``name`` already exists, appends ``(1)``, ``(2)``, etc.
-        """
+        """Return a unique chat name for the user and site. A taken name gets
+        a numeric suffix."""
         query = select(Conversation.name).where(
             Conversation.user_id == user_id, Conversation.site_id == site_id
         )
@@ -128,8 +116,6 @@ class ConversationRepository:
             i += 1
         return f"{name} ({i})"
 
-    # ── Identity ──
-
     async def create(
         self,
         user_id: UUID,
@@ -138,11 +124,8 @@ class ConversationRepository:
         conversation_id: UUID | None = None,
         name: str = "",
     ) -> Conversation:
-        """Create a new chat with a deduplicated name.
-
-        The keyword ``conversation_id`` lets callers supply a pre-generated UUID so
-        the same id travels through ``useChat({ id })`` on the frontend.
-        """
+        """Create a chat with a deduplicated name. Callers can supply the id so
+        the client and the server use the same value."""
         resolved_name = await self._deduplicate_name(
             user_id,
             site_id,
@@ -167,9 +150,8 @@ class ConversationRepository:
     async def get_by_id_with_strategy_lock(
         self, conversation_id: UUID
     ) -> Conversation | None:
-        # Postgres advisory xact lock keyed on the strategy id. Auto-released
-        # at transaction end (same lifecycle as SELECT FOR UPDATE) but doesn't
-        # block concurrent reads of the same row.
+        # The advisory lock releases at transaction end and does not block
+        # concurrent reads of the row.
         await self.session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
             {"k": f"strategy:{conversation_id}"},
@@ -187,12 +169,8 @@ class ConversationRepository:
     ) -> None:
         """Delete a conversation.
 
-        Two modes:
-        * ``cascade=False`` (default): delete only this node; promote its
-          direct children to this node's parent, inheriting the fork point
-          so the remaining tree stays meaningful.
-        * ``cascade=True``: delete this node and every descendant. Uses a
-          recursive CTE to find the full subtree in one query.
+        Without ``cascade`` the direct children move up to the deleted node's
+        parent. With ``cascade`` the whole subtree goes.
         """
         if cascade:
             sql = text(
@@ -227,15 +205,13 @@ class ConversationRepository:
         )
         await self.session.flush()
 
-    # ── Strategy metadata reads ──
-
     async def list_conversations(
         self,
         user_id: UUID,
         site_id: str | None = None,
         limit: int = 50,
     ) -> list[Conversation]:
-        """List active (non-dismissed) chats, newest-updated first."""
+        """List chats that are not dismissed, most recently updated first."""
         stmt = (
             select(Conversation)
             .where(Conversation.user_id == user_id)
@@ -282,12 +258,7 @@ class ConversationRepository:
         user_id: UUID,
         site_id: str,
     ) -> dict[int, int]:
-        """Return {wdk_strategy_id: consumer_count} for the user's saved strategies.
-
-        Used by the library UI to show "X consumers" before delete. Iterates
-        every conversation row once and tallies wdk strategy ids found in
-        ``imported_saved_strategy_ids`` arrays — fine at our row counts.
-        """
+        """Return the consumer count for each saved WDK strategy id."""
         result = await self.session.execute(
             select(Conversation.imported_saved_strategy_ids).where(
                 Conversation.user_id == user_id,
@@ -309,12 +280,8 @@ class ConversationRepository:
         *,
         exclude_conversation_id: UUID | None = None,
     ) -> list[Conversation]:
-        """Return conversations that import the given saved WDK strategy.
-
-        Used as the deletion guard: a conversation whose ``wdk_strategy_id``
-        appears in another conversation's ``imported_saved_strategy_ids``
-        cannot be hard-deleted without breaking that consumer.
-        """
+        """Return conversations that import the given saved WDK strategy. A
+        strategy with consumers cannot be hard-deleted."""
         stmt = select(Conversation).where(
             Conversation.user_id == user_id,
             Conversation.imported_saved_strategy_ids.contains([wdk_strategy_id]),
@@ -324,12 +291,10 @@ class ConversationRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    # ── Strategy metadata writes ──
-
     async def update_conversation(
         self, conversation_id: UUID, upd: ConversationUpdate
     ) -> None:
-        """Dynamically update chat metadata based on provided fields."""
+        """Update chat metadata from the fields present in the payload."""
         values = _collect_chat_values(upd)
         if upd.name is not None:
             conversation = await self.get_by_id(conversation_id)
@@ -353,7 +318,7 @@ class ConversationRepository:
         await self.session.flush()
 
     async def dismiss(self, conversation_id: UUID) -> None:
-        """Soft-delete: mark a chat as dismissed (hidden from main list)."""
+        """Mark a chat as dismissed, which hides it from the main list."""
         await self.session.execute(
             update(Conversation)
             .where(Conversation.id == conversation_id)
@@ -362,7 +327,7 @@ class ConversationRepository:
         await self.session.flush()
 
     async def restore(self, conversation_id: UUID) -> None:
-        """Un-dismiss a chat and reset strategy AST for fresh WDK import."""
+        """Restore a dismissed chat and clear its strategy AST."""
         await self.session.execute(
             update(Conversation)
             .where(Conversation.id == conversation_id)
@@ -376,10 +341,8 @@ class ConversationRepository:
         site_id: str,
         live_wdk_ids: set[int],
     ) -> int:
-        """Delete chats whose ``wdk_strategy_id`` is not in the live set.
-
-        Returns the number of pruned chats.
-        """
+        """Delete chats whose WDK strategy id is not in the live set and
+        return how many are deleted."""
         stmt = select(Conversation.id, Conversation.wdk_strategy_id).where(
             Conversation.user_id == user_id,
             Conversation.site_id == site_id,

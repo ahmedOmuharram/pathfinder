@@ -107,15 +107,21 @@ status-code or error-message claim read off the pinned sha:
 
 | Rule | Unconfirmed part |
 |---|---|
-| [WDK-STRAT-005](rules/strategies-and-steps.md) | that a `PUT .../step-tree` accepts a strategy whose parameters are invalid |
 | [WDK-STEP-003](rules/strategies-and-steps.md) | that `PUT .../search-config` rejects a changed answer parameter |
 | [WDK-STEP-004](rules/strategies-and-steps.md) | that a half-wired combined step comes back 500 rather than 422 |
 | [WDK-STEP-007](rules/strategies-and-steps.md) | that deleting a step inside a strategy is a 409 |
 | [WDK-ANS-001](rules/searches-and-answers.md) | the step-report half only. The search-report half was confirmed live. |
+| [WDK-VALID-009](rules/validation.md) | that `EXPIRED` and `INTERRUPTED` carry `requiresRerun`. Neither status was provoked on either site; the rest of the rule's file is live-confirmed throughout. |
 
 Each is reachable with a guest session and should be confirmed the next time one of them
 matters. None is marked `WITHDRAWN`, because there is no evidence against any of them - only
 an absence of evidence for them.
+
+`WDK-STRAT-005` was on this list and has been removed: the
+[WDK-VALID-004](rules/validation.md) experiment pushed a step tree over a deliberately
+invalidated leaf on both sites on 2026-08-10 and got a **204**, which confirms the rule's
+whole claim - the endpoint accepts a strategy whose parameters are invalid. This ledger is
+only useful if it also records what has since been settled.
 
 # The live sites
 

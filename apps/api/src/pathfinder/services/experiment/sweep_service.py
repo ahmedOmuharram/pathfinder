@@ -1,9 +1,4 @@
-"""Threshold sweep service.
-
-Orchestrates batch parameter sweeps with concurrency control, per-point
-timeouts, and SSE event generation. Separated from ``evaluation.py``
-which handles single re-evaluation only.
-"""
+"""Batch parameter sweeps with concurrency control, timeouts, and SSE events."""
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -42,11 +37,7 @@ logger = get_logger(__name__)
 
 
 class SweepMetrics(CamelModel):
-    """Subset of :class:`ExperimentMetrics` emitted per sweep point.
-
-    Uses :data:`RoundedFloat` so the frontend receives 4 dp numbers matching
-    its ``ThresholdSweepPoint`` type.
-    """
+    """Subset of :class:`ExperimentMetrics` emitted per sweep point."""
 
     sensitivity: RoundedFloat
     specificity: RoundedFloat
@@ -59,7 +50,7 @@ class SweepMetrics(CamelModel):
 
 
 class SweepPoint(CamelModel):
-    """A single completed sweep point — the value + metrics (or error)."""
+    """A completed sweep point: the value with either metrics or an error."""
 
     value: float | str
     metrics: SweepMetrics | None = None
@@ -76,7 +67,7 @@ class SweepPointEvent(CamelModel):
 
 
 class SweepCompleteEvent(CamelModel):
-    """Terminal event with every point sorted by value (numeric) or input order (categorical)."""
+    """Terminal event that carries every sweep point in sorted order."""
 
     type: Literal["sweep_complete"] = "sweep_complete"
     parameter: str
@@ -85,20 +76,20 @@ class SweepCompleteEvent(CamelModel):
 
 
 SweepEvent = SweepPointEvent | SweepCompleteEvent
-"""Discriminated union of all threshold-sweep event types."""
+"""Union of all threshold-sweep event types."""
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 SWEEP_CONCURRENCY = 3
-"""Max parallel WDK control-test runs per sweep."""
+"""Maximum parallel WDK control-test runs per sweep."""
 
 SWEEP_TIMEOUT_S = 4 * 60
 """Server-side timeout for the entire sweep."""
 
 SWEEP_POINT_TIMEOUT_S = 90
-"""Per-point timeout; prevents one slow point from blocking all."""
+"""Timeout for one sweep point."""
 
 # ---------------------------------------------------------------------------
 # Sweep validation helpers
@@ -133,14 +124,7 @@ def compute_sweep_values(
 
 
 def validate_sweep_parameter(exp: Experiment, param_name: str) -> None:
-    """Ensure *param_name* exists in the experiment config.
-
-    For single-step experiments, checks ``exp.config.parameters``.
-    For tree-mode experiments, walks the step tree looking for the parameter
-    in any leaf node's ``parameters`` dict.
-
-    :raises ValidationError: If the parameter is missing.
-    """
+    """Raise a ValidationError when the experiment config has no such parameter."""
     if exp.config.is_tree_mode and exp.config.step_tree is not None:
         if _tree_has_parameter(exp.config.step_tree, param_name):
             return
@@ -154,7 +138,7 @@ def validate_sweep_parameter(exp: Experiment, param_name: str) -> None:
 
 
 def _tree_has_parameter(tree: StrategyStepNode, param_name: str) -> bool:
-    """Check whether any node in a plan step tree contains *param_name*."""
+    """Report whether any node of a plan step tree holds the parameter."""
     found = False
 
     def _check(node: StrategyStepNode) -> None:
@@ -167,7 +151,7 @@ def _tree_has_parameter(tree: StrategyStepNode, param_name: str) -> bool:
 
 
 def _metrics_to_sweep(m: ExperimentMetrics) -> SweepMetrics:
-    """Project an :class:`ExperimentMetrics` onto the 8-field :class:`SweepMetrics`."""
+    """Project experiment metrics onto the sweep metrics subset."""
     return SweepMetrics(
         sensitivity=m.sensitivity,
         specificity=m.specificity,
@@ -192,15 +176,7 @@ async def run_sweep_point(
     value: str,
     is_categorical: bool,
 ) -> SweepPoint:
-    """Run a single sweep point: modify the parameter and evaluate.
-
-    For tree-mode experiments, clones the step tree and injects the swept
-    parameter value into every node that contains it, then calls
-    :func:`run_controls_against_tree`.  For single-step experiments, modifies
-    the flat parameter dict and calls :func:`run_positive_negative_controls`.
-
-    :returns: :class:`SweepPoint` with ``value``, ``metrics`` (or ``None``), and optionally ``error``.
-    """
+    """Set the parameter to one value and evaluate it against the controls."""
     try:
         response_value: float | str = float(value) if not is_categorical else value
     except ValueError:
@@ -252,11 +228,7 @@ async def _run_sweep_point_tree(
     param_name: str,
     value: str,
 ) -> ControlTestResult:
-    """Run a single tree-mode sweep point.
-
-    Deep-copies the step tree, injects *value* into every node whose
-    ``parameters`` dict contains *param_name*, then evaluates against controls.
-    """
+    """Run one sweep point over a copy of the step tree."""
     if exp.config.step_tree is None:
         msg = "step_tree must be set in tree mode"
         raise ValidationError(detail=msg)
@@ -306,11 +278,7 @@ async def generate_sweep_events(
     sweep_type: Literal["numeric", "categorical"],
     sweep_values: list[str],
 ) -> AsyncIterator[SweepEvent]:
-    """Run the full sweep and yield typed :class:`SweepEvent` values.
-
-    Yields :class:`SweepPointEvent` as each point completes, then a final
-    :class:`SweepCompleteEvent` with all sorted results.
-    """
+    """Run the full sweep and yield a point event per result, then a final event."""
     is_categorical = sweep_type == "categorical"
     total_points = len(sweep_values)
 
@@ -353,7 +321,7 @@ async def generate_sweep_events(
         for task in tasks:
             task.cancel()
 
-    # Sort: numeric by value, categorical by original order.
+    # Categorical points keep the input order. Numeric points sort by value.
     if is_categorical:
         order = {v: i for i, v in enumerate(sweep_values)}
         all_points.sort(key=lambda p: order.get(str(p.value), 0))

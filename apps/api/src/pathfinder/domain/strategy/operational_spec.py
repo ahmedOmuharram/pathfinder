@@ -50,6 +50,9 @@ class Criterion(CamelModel):
     search_name: str = ""
     role: CriterionRole = "filter"
     resolved_params: dict[str, ParamValue] = Field(default_factory=dict)
+    # Params holding the search default rather than a value the request states.
+    # Reported to the user, because a default is a safe choice and a silent one.
+    defaulted_params: list[str] = Field(default_factory=list)
     open_params: list[OpenSlot] = Field(default_factory=list)
     confidence: float = 0.0
 

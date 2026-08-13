@@ -47,10 +47,8 @@ SubAgentName = Literal[
 class ContrastSummary(CamelModel):
     """Which way a differential criterion points.
 
-    WDK computes fold change as comparator-vs-reference, so swapping the two
-    inverts the biology while still returning a full, plausible gene set. That
-    failure is silent unless the direction is shown, so the ledger states it in
-    the order a biologist would: "up-regulated in female vs male".
+    WDK computes fold change as comparator against reference. A swap of the two
+    inverts the biology and still returns a plausible gene set.
     """
 
     criterion_id: str
@@ -89,7 +87,7 @@ def _contrast_for(crit: Criterion) -> ContrastSummary | None:
 
 
 def _plain_value(value: ParamValue) -> str:
-    """A vocabulary term as a human would read it, not its JSON wire form."""
+    """Return a vocabulary term in readable form instead of its JSON wire form."""
     if isinstance(value, MultiPickValue):
         return ", ".join(value.values)
     if isinstance(value, SinglePickValue):
@@ -98,9 +96,11 @@ def _plain_value(value: ParamValue) -> str:
 
 
 class FrameSection(CamelModel):
-    """The OperationalSpec the FRAME phase produced — criteria bound to real WDK
-    searches with resolved params + a combine structure. Replaces the old
-    scoping/discovery/planning sections: FRAME does all three in one pass."""
+    """The OperationalSpec the FRAME phase produced.
+
+    It holds criteria bound to WDK searches with resolved params and a
+    combine structure.
+    """
 
     spec: OperationalSpec | None = None
 
@@ -150,8 +150,7 @@ class FrameSection(CamelModel):
 
     @computed_field
     def structure_render(self) -> str | None:
-        """Compact combine-tree string (e.g. ``(GenesByText INTERSECT
-        GenesByTaxon)``) for the UI's Frame tab."""
+        """Compact combine-tree string for the UI."""
         if self.spec is None or self.spec.structure is None:
             return None
         return _render_structure(self.spec.structure.root, self.spec)
@@ -159,8 +158,7 @@ class FrameSection(CamelModel):
 
 class BuildSection(CamelModel):
     outcome: BuildOutcome | None = None
-    # Set when a live read shows the strategy changed since this build —
-    # e.g. the user edited a parameter in the graph editor.
+    # Set when a live read shows the strategy changed since this build.
     stale_build: StaleBuild | None = None
     pushed_count: int = 0
     failed_count: int = 0
@@ -180,8 +178,7 @@ class BuildSection(CamelModel):
 
     @computed_field
     def node_results(self) -> list[NodeResult]:
-        """Per-node build detail (search, gene count, status, error) for the UI's
-        Build tab — clean camelCase, not the raw snake_case BuildOutcome."""
+        """Per-node build detail for the UI."""
         return list(self.outcome.node_results) if self.outcome else []
 
     @computed_field
@@ -226,13 +223,10 @@ class SubAgentCallRecord(CamelModel):
 
 
 class InvestigationLedger(CamelModel):
-    """Lead reads this in full each turn. Sub-agents do NOT read it; they
-    receive scoped slices via typed work orders.
+    """State of one investigation, read in full by the Lead each turn.
 
-    Constructed by ``derive_ledger`` (in ``derive.py``). The Ledger is derived,
-    not persisted — only ``user_intent``, ``operational_spec`` and
-    ``last_build_outcome`` live on ``PipelineState``; every other field composes
-    from those.
+    Sub-agents receive scoped slices through typed work orders instead.
+    The ledger is derived from pipeline state, not persisted.
     """
 
     user_intent: UserIntent | None
@@ -246,11 +240,9 @@ class InvestigationLedger(CamelModel):
     sub_agent_calls_total: int = 0
 
     def render_summary(self) -> str:
-        """Compact markdown view the Lead reads in pinned context.
+        """Render the compact markdown view the Lead reads in pinned context.
 
-        Counts + derived booleans. Full content of any section is fetched via
-        ``read_ledger_section`` tool, keeping the Lead's prompt bounded for
-        20+-step strategies.
+        It holds counts and derived booleans only, to keep the prompt bounded.
         """
         intent = self.user_intent
         intent_line = (
@@ -308,7 +300,7 @@ class InvestigationLedger(CamelModel):
         return "\n".join(lines)
 
     def render_section(self, section: str) -> str:
-        """Full detail of one section. Used by ``read_ledger_section`` tool."""
+        """Render the full detail of one section."""
         if section == "frame":
             return _render_frame_full(self.frame)
         if section == "build":

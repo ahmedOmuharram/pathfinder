@@ -1,15 +1,5 @@
-"""Pure WDK-mirroring value objects + typed walkers for parameter vocabularies.
-
-These model the real shapes WDK returns (verified against wdk-client +
-live API): standard-enum vocabularies (``[term, display, null]`` triples),
-treeBox vocabulary trees, filter ontologies, and dataset parsers. They live
-in the domain layer so both the integration parser (``wdk_parameters``) and
-the transport DTOs can reference them without crossing layer boundaries.
-
-The walkers (``flatten_vocab``, ``collect_leaf_terms``, ``find_vocab_node``,
-``vocab_keys``) operate strictly on the typed union — no dict/list isinstance
-dispatch, no raw-JSON access.
-"""
+"""Value objects and walkers for WDK parameter vocabularies: standard enum
+lists, tree-box trees, filter ontologies, and dataset parsers."""
 
 from __future__ import annotations
 
@@ -22,21 +12,21 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 
 class WDKVocabNodeData(CamelModel):
-    """The ``data`` payload of a treeBox vocabulary node."""
+    """The data payload of a tree-box vocabulary node."""
 
     term: str = ""
     display: str = ""
 
 
 class WDKTreeBoxVocabNode(CamelModel):
-    """A node in a treeBox enum vocabulary tree."""
+    """A node in a tree-box enum vocabulary."""
 
     data: WDKVocabNodeData = Field(default_factory=WDKVocabNodeData)
     children: list[WDKTreeBoxVocabNode] = Field(default_factory=list)
 
 
 class WDKVocabTerm(RootModel[tuple[str, str, None]]):
-    """A standard-enum vocabulary entry: ``[term, display, null]``."""
+    """A standard enum vocabulary entry as a term, display, null triple."""
 
     @property
     def term(self) -> str:
@@ -48,7 +38,7 @@ class WDKVocabTerm(RootModel[tuple[str, str, None]]):
 
 
 class WDKFilterOntologyTerm(CamelModel):
-    """A node in a filter parameter's ontology tree."""
+    """A node in the ontology tree of a filter parameter."""
 
     term: str
     parent: str | None = None
@@ -68,18 +58,19 @@ class WDKDatasetParser(CamelModel):
 
 
 WDKVocabulary = list[WDKVocabTerm] | WDKTreeBoxVocabNode
-"""Standard enum vocab (list of triples) or treeBox vocab (recursive tree)."""
+"""A standard enum vocabulary list, or a tree-box vocabulary tree."""
 
 
 class VocabOption(CamelModel):
-    """A flattened vocabulary entry: the WDK-submittable term plus its label."""
+    """A flattened vocabulary entry with the submittable term and its
+    label."""
 
     value: str
     display: str
 
 
 def normalize_vocab_key(value: str) -> str:
-    """Lowercase + collapse whitespace for tolerant vocabulary matching."""
+    """Lowercase the value and collapse its whitespace for matching."""
     return re.sub(r"\s+", " ", value.strip()).lower()
 
 
@@ -93,10 +84,10 @@ def _walk_tree(node: WDKTreeBoxVocabNode) -> list[VocabOption]:
 
 
 def flatten_vocab(vocab: WDKVocabulary | None) -> list[VocabOption]:
-    """Flatten any vocabulary to ``VocabOption`` entries (tree walked DFS).
+    """Flatten a vocabulary into options.
 
-    For treeBox vocabularies this emits every node (parents and leaves); WDK
-    accepts only leaves but PathFinder expands parents at submission time.
+    A tree yields every node. WDK accepts leaf terms only, and a parent term
+    expands to its leaves at submission time.
     """
     if vocab is None:
         return []
@@ -106,7 +97,8 @@ def flatten_vocab(vocab: WDKVocabulary | None) -> list[VocabOption]:
 
 
 def collect_leaf_terms(node: WDKTreeBoxVocabNode) -> list[str]:
-    """Collect every leaf term under *node* (inclusive of leaf *node* itself)."""
+    """Collect every leaf term under the node. A leaf node returns its own
+    term."""
     if not node.children:
         return [node.data.term] if node.data.term else []
     leaves: list[str] = []
@@ -121,9 +113,9 @@ def find_vocab_node(
     *,
     normalize: bool = False,
 ) -> WDKTreeBoxVocabNode | None:
-    """Find the treeBox node whose term or display equals *match* (DFS).
+    """Find the tree node whose term or display equals the match.
 
-    List vocabularies have no tree structure and always return ``None``.
+    A list vocabulary has no tree, so it always returns ``None``.
     """
     if not isinstance(vocab, WDKTreeBoxVocabNode) or not match:
         return None
@@ -147,7 +139,8 @@ def find_vocab_node(
 
 
 def vocab_keys(vocab: WDKVocabulary | None) -> set[str]:
-    """All WDK-submittable terms: leaf terms for a tree, every term for a list."""
+    """Return the submittable terms: the leaf terms of a tree, or every term
+    of a list."""
     if vocab is None:
         return set()
     if isinstance(vocab, WDKTreeBoxVocabNode):

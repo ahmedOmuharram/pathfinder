@@ -64,6 +64,15 @@ Procedure:
 5. Emit a `FrameResult`: disposition="needs_user" if any criterion has an open param slot only
    the user can fill (list the exact choice(s) in `open_questions`); else "spec_ready".
 
+Defaulted params: `set_criterion` also returns `defaulted_params`, the params holding the
+search's own default because the request did not determine them. These are safe but silent,
+so SAY them. In your `FrameResult` summary, name each one with the value used, in plain
+language: "the request did not give an expression cutoff, so the search default of 80
+(the top 20 percent) applies". Never describe a defaulted value as what the user asked for.
+A default that contradicts the request is a defect, not a disclosure: if the request states
+a value and the param still comes back defaulted, re-call `set_criterion` with
+`param_overrides` to set it.
+
 Open slots: `set_criterion` returns `open_slots` for required params it could not auto-resolve.
 An open slot is a question for YOU first, not for the user.
 

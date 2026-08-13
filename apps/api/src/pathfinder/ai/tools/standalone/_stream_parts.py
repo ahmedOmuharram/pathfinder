@@ -1,17 +1,7 @@
-"""Helpers for building ``DataChunk`` / ``SourceUrlChunk`` entries from
-PathFinder domain objects.
+"""Builds the stream chunks that tools attach to their return metadata.
 
-These build the ``ToolReturn.metadata`` payloads emitted by tools in the
-new AI SDK v6 streaming protocol. Each helper maps internal domain state
-onto a typed ``shared_py.stream_parts.*`` payload model, then wraps the
-JSON-serialized model in a ``DataChunk`` with the conventional
-``data-<name>`` type.
-
-Only ``DataChunk``, ``SourceUrlChunk``, ``SourceDocumentChunk``, and
-``FileChunk`` survive adapter filtering into the client stream. All other
-chunk shapes placed in ``ToolReturn.metadata`` are dropped silently — so
-never put ``StartChunk`` / ``FinishChunk`` / ``MessageMetadataChunk``
-here.
+Only data, source, and file chunks reach the client. The adapter drops
+every other chunk shape without an error.
 """
 
 from __future__ import annotations
@@ -37,13 +27,10 @@ from pathfinder.domain.strategy.graph_model import wdk_search_name
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
 
-# ── Operator coercion ──────────────────────────────────────────────────────
+# --- Operator coercion -----------------------------------------------------
 
 
-# Maps upper-cased input values to the canonical WDK operator Literal values
-# defined on ``shared_py.stream_parts.graph.GraphEdgeOperator``. The dict
-# structure lets mypy narrow the returned value to the Literal set without
-# a ``cast`` or ``type: ignore``.
+# Maps upper-cased input values to the canonical WDK operator set.
 _OPERATOR_MAP: dict[str, GraphEdgeOperator] = {
     "INTERSECT": "INTERSECT",
     "UNION": "UNION",
@@ -56,21 +43,17 @@ _OPERATOR_MAP: dict[str, GraphEdgeOperator] = {
 
 
 def _coerce_operator(op: str | None) -> GraphEdgeOperator | None:
-    """Return a stream-part-compatible operator or ``None`` if unknown.
-
-    Matches the frontend/WDK canonical 7-operator set in
-    ``shared_py.stream_parts.graph.GraphEdgeOperator``.
-    """
+    """Return a stream-part operator, or None when the name is unknown."""
     if op is None:
         return None
     return _OPERATOR_MAP.get(op.upper())
 
 
-# ── Graph snapshot ─────────────────────────────────────────────────────────
+# --- Graph snapshot --------------------------------------------------------
 
 
 def _count_for_step(step_id: str, sync_state: SyncStateProtocol | None) -> int:
-    """Safe lookup of estimated size for a step, default 0."""
+    """Look up the estimated size of a step. Unknown steps count as 0."""
     if sync_state is None:
         return 0
     count = sync_state.step_counts.get(step_id)
@@ -79,8 +62,6 @@ def _count_for_step(step_id: str, sync_state: SyncStateProtocol | None) -> int:
 
 def _snapshot_nodes(graph: StrategyGraph) -> list[GraphNode]:
     sync_state = None
-    # A graph is only wired to a session for read-only purposes; in tools
-    # that call this helper we always fetch sync_state through the session.
     return [
         GraphNode(
             id=step.id,
@@ -94,7 +75,6 @@ def _snapshot_nodes(graph: StrategyGraph) -> list[GraphNode]:
 def _snapshot_edges(graph: StrategyGraph) -> list[GraphEdge]:
     edges: list[GraphEdge] = []
     for step in graph.steps.values():
-        # Primary input edge
         primary = step.primary_input_id
         if primary is not None:
             edges.append(
@@ -106,7 +86,6 @@ def _snapshot_edges(graph: StrategyGraph) -> list[GraphEdge]:
                     ),
                 )
             )
-        # Secondary input edge
         secondary = step.secondary_input_id
         if secondary is not None:
             edges.append(
@@ -125,7 +104,7 @@ def build_graph_snapshot_payload(
     session: StrategySession,
     graph: StrategyGraph,
 ) -> GraphSnapshot:
-    """Build a ``GraphSnapshot`` stream-part payload for the current graph."""
+    """Build the graph snapshot payload for the current graph."""
     sync_state = session.sync_state
     total_genes = 0
     for root_id in graph.roots:
@@ -148,7 +127,7 @@ def build_graph_snapshot_payload(
 
 
 def graph_snapshot_chunk(session: StrategySession, graph: StrategyGraph) -> DataChunk:
-    """Build the ``data-graph-snapshot`` DataChunk for a graph."""
+    """Build the graph snapshot chunk for a graph."""
     payload = build_graph_snapshot_payload(session, graph)
     return DataChunk(
         type="data-graph-snapshot",
@@ -157,7 +136,7 @@ def graph_snapshot_chunk(session: StrategySession, graph: StrategyGraph) -> Data
 
 
 def graph_cleared_chunk(*, reason: str | None = None) -> DataChunk:
-    """Build the ``data-graph-cleared`` DataChunk."""
+    """Build the graph cleared chunk."""
     payload = GraphCleared(reason=reason)
     return DataChunk(
         type="data-graph-cleared",
@@ -165,11 +144,11 @@ def graph_cleared_chunk(*, reason: str | None = None) -> DataChunk:
     )
 
 
-# ── Strategy metadata ──────────────────────────────────────────────────────
+# --- Strategy metadata -----------------------------------------------------
 
 
 def strategy_meta_chunk(graph: StrategyGraph) -> DataChunk:
-    """Build the ``data-strategy-meta`` DataChunk for a graph's metadata."""
+    """Build the strategy metadata chunk for a graph."""
     sync_state = getattr(graph, "sync_state", None)
     total_size = 0
     if sync_state is not None:
@@ -196,10 +175,7 @@ def strategy_link_chunk(
     url: str,
     title: str | None = None,
 ) -> DataChunk:
-    """Build the ``data-strategy-link`` DataChunk.
-
-    Pydantic validates ``url`` starts with ``http://`` or ``https://``.
-    """
+    """Build the strategy link chunk. The URL must be an HTTP URL."""
     payload = StrategyLink(strategy_id=strategy_id, url=url, title=title)
     return DataChunk(
         type="data-strategy-link",
@@ -207,7 +183,7 @@ def strategy_link_chunk(
     )
 
 
-# ── Gene set ───────────────────────────────────────────────────────────────
+# --- Gene set --------------------------------------------------------------
 
 
 def gene_set_chunk(
@@ -217,7 +193,7 @@ def gene_set_chunk(
     gene_count: int,
     site_id: str,
 ) -> DataChunk:
-    """Build the ``data-gene-set`` DataChunk for a workbench gene set."""
+    """Build the gene set chunk for a workbench gene set."""
     payload = GeneSetPart(
         gene_set_id=gene_set_id,
         name=name,
@@ -230,19 +206,13 @@ def gene_set_chunk(
     )
 
 
-# ── Source URLs (citations) ────────────────────────────────────────────────
+# --- Source URLs (citations) -----------------------------------------------
 
 
 def source_url_chunks_from_citations(
     citations: list[object],
 ) -> list[SourceUrlChunk]:
-    """Emit one ``SourceUrlChunk`` per citation with a URL.
-
-    The citation type is kept loose here so any object with ``id``, ``url``,
-    and ``title`` attributes works — the research domain's ``Citation``
-    model and similar shapes. Citations without a URL are skipped because
-    ``SourceUrlChunk.url`` is required.
-    """
+    """Emit one source chunk per citation. A citation without a URL is skipped."""
     chunks: list[SourceUrlChunk] = []
     for cit in citations:
         url = getattr(cit, "url", None)

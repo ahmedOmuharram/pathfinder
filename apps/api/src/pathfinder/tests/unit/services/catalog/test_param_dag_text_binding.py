@@ -1,22 +1,7 @@
-"""Binding rules for free-text and full-default params (the GenesByText shape).
+"""Binding rules for free-text params and for params with a full-list default.
 
-A live ``GenesByText`` run returned 0 genes for "odorant binding protein" while
-the same search returns 3,789 when bound correctly. Two independent defects,
-each fatal on its own (verified against VectorBase):
-
-    *reductase              + ["Epitopes"]    -> 0   <- what PathFinder ran
-    odorant binding protein + ["Epitopes"]    -> 0   <- fixing only the expression
-    odorant binding protein + full field list -> 3789
-
-1. ``text_expression`` is a visible, required, free-text ``string`` param whose
-   WDK ``default_value`` is the *example* shown in the form (``*reductase``).
-   Binding it silently turns an OBP search into a reductase search.
-2. ``text_fields`` ships WDK's curated "search every field" default (25 entries)
-   and the intent matcher replaced it with one weakly-matched option.
-
-The discriminator for (1) is ``is_visible``: ``document_type`` is also a
-required ``string`` with a default, but it is hidden -- an internal switch whose
-``gene`` default is correct and must be preserved.
+A visible free-text param holds an example value as its WDK default, so the
+binder must leave it open. A hidden param keeps its default.
 """
 
 from __future__ import annotations
@@ -54,7 +39,7 @@ ORGANISM_LEAVES = [
 
 
 class _Spec(BaseModel):
-    """The subset of WDK param metadata these bindings actually turn on."""
+    """The subset of WDK param metadata that these bindings depend on."""
 
     allowed: list[VocabOption] | None = None
     leaves: list[VocabOption] = Field(default_factory=list)
@@ -80,7 +65,7 @@ def _p(name: str, param_type: str, spec: _Spec | None = None) -> ParameterInfo:
 
 
 async def _embed_matches_epitopes(texts: Sequence[str]) -> list[list[float]]:
-    """Reproduce the real failure: the matcher latches onto one field option."""
+    """An embedder that makes the matcher select one field option only."""
     return [
         [1.0, 0.0]
         if t.startswith(SEARCH_QUERY_PREFIX) or "Epitopes" in t
@@ -137,8 +122,7 @@ async def test_visible_free_text_param_is_never_bound_from_the_wdk_example() -> 
 
 @pytest.mark.asyncio
 async def test_hidden_string_param_keeps_its_default() -> None:
-    """``document_type`` is required with a default too, but it is hidden -- an
-    internal switch, not a user-facing query. Its default is correct."""
+    """A hidden required string param is an internal switch, so its default holds."""
     rp = await _resolve()
     value = rp.params["document_type"]
     assert isinstance(value, StringValue)
@@ -157,9 +141,7 @@ async def test_free_text_param_accepts_an_explicit_override() -> None:
 
 @pytest.mark.asyncio
 async def test_full_list_default_survives_a_single_weak_semantic_match() -> None:
-    """WDK's default is "search every field". Collapsing it to one option makes
-    the search miss everything -- proven live: the same expression returns 0
-    against ["Epitopes"] and 3,789 against the full list."""
+    """The WDK default searches every field, so a weak match must not narrow it."""
     rp = await _resolve()
     fields = rp.params["text_fields"]
     assert isinstance(fields, MultiPickValue)
@@ -178,9 +160,7 @@ async def test_an_explicit_override_still_narrows_the_field_list() -> None:
 
 @pytest.mark.asyncio
 async def test_open_slot_offers_the_tree_vocabulary_instead_of_no_options() -> None:
-    """``text_search_organism`` carries its 158 real values in ``vocab_leaves``
-    (``allowed_values`` is empty for tree-box params). Offering the user a
-    question with zero options is unanswerable."""
+    """A tree-box param keeps its values in the leaves, because the allowed list is empty."""
     rp = await _resolve()
     slot = next(
         (s for s in rp.open_slots if s.param_name == "text_search_organism"), None

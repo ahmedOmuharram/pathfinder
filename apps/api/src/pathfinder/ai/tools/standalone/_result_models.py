@@ -39,17 +39,16 @@ class SampleRecordsResult(CamelModel):
 
 _MAX_SAMPLE_LIMIT = 100
 
-# Gene attributes that enrich a sample record beyond its id: the readable
-# product name, the gene symbol, and the organism.
+# Gene attributes that a sample record carries in addition to its id.
 _SAMPLE_ATTRIBUTES = ("gene_product", "gene_name", "organism")
 _GENE_RECORD_TYPES = frozenset({"transcript", "gene"})
 
 
 def _sample_attributes(record_type: str | None) -> list[str] | None:
-    """The gene attributes to request for a step's records, or ``None`` for a
-    record class that doesn't have them (so the preview stays id-only). The
-    app's steps are transcript/gene, so an absent record type defaults to
-    requesting them."""
+    """Give the gene attributes to request, or None to keep the preview id-only.
+
+    An unknown record type counts as a gene record type.
+    """
     if (record_type or "transcript") in _GENE_RECORD_TYPES:
         return list(_SAMPLE_ATTRIBUTES)
     return None
@@ -116,8 +115,8 @@ async def _fetch_step_preview(
     limit: int,
     attributes: list[str] | None = None,
 ) -> WDKAnswer | ToolErrorPayload:
-    """Fetch a step preview. When ``attributes`` are requested but the record
-    class rejects them, fall back to an id-only preview instead of failing."""
+    """Fetch a step preview. A record class that rejects the attributes gets an
+    id-only preview."""
     pagination = {"offset": 0, "numRecords": limit}
     if attributes:
         try:
@@ -125,7 +124,7 @@ async def _fetch_step_preview(
                 wdk_step_id, attributes=attributes, pagination=pagination
             )
         except AppError, OSError:
-            pass  # record class lacks these attributes -> id-only below
+            pass  # The record class lacks these attributes.
     try:
         return await strategy_api.get_step_answer(wdk_step_id, pagination=pagination)
     except (AppError, OSError) as e:
@@ -137,7 +136,9 @@ def _extract_sample_response(
 ) -> SampleRecordsResult:
     """Extract sample records from a WDK answer response."""
     records: list[JSONObject] = []
-    total_count = answer.meta.total_count or 0
+    # The same count the size tool reports. The raw total counts the id query,
+    # which is transcripts where the record class counts genes.
+    total_count = answer.meta.records_returned()
     attributes = list(answer.meta.attributes or [])
 
     for rec in answer.records:

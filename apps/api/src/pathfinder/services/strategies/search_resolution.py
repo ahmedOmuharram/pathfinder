@@ -82,7 +82,7 @@ async def resolve_search_and_validate_params(
         graph.record_type = rt
 
     try:
-        canonical = await validate_parameters(
+        validated = await validate_parameters(
             SearchContext(site_id, rt, search_name),
             parameters=parameters,
             callbacks=callbacks,
@@ -93,4 +93,4 @@ async def resolve_search_and_validate_params(
             raise
         return rt, parameters, error_fn(exc)
 
-    return rt, canonical, None
+    return rt, validated.params, None

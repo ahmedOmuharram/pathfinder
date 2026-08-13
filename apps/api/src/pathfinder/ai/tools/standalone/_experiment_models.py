@@ -62,7 +62,7 @@ async def _run_step_control_tests(
     results_api = get_results_api(site_id)
     answer = await results_api.get_step_preview(wdk_step_id, limit=50000)
     result_ids = {r.display_name for r in answer.records}
-    estimated_size = answer.meta.total_count or len(result_ids)
+    estimated_size = answer.meta.records_returned()
 
     result = StepControlTestResult(
         step_id=wdk_step_id,

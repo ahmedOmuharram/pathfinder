@@ -1,13 +1,6 @@
-"""Strategy AST: the canonical typed representation of a built/buildable strategy.
+"""The canonical typed representation of a strategy graph.
 
-``StrategyAst`` is the serialized graph state (root ``StrategyStepNode`` tree,
-step counts, WDK step IDs, metadata). It is the output of both the planning
-phase (declarative tree the agent produces) and the execution phase (the
-materialized state with ``wdk_step_ids`` populated). The UI renders it as
-``StrategyGraph``.
-
-The single-root invariant is enforced: every strategy must reduce to one
-root step matching WDK's stepTree shape. Multi-root state is invalid.
+A pushed strategy has one root step, which matches the WDK step tree shape.
 """
 
 from pydantic import ConfigDict, Field, model_validator
@@ -24,14 +17,8 @@ class StrategyAst(CamelModel):
     record_type: str
     root: StrategyStepNode
     detached_roots: list[StrategyStepNode] = Field(default_factory=list)
-    """Components not reachable from ``root``, kept but never pushed to WDK.
-
-    Adding a search to an existing strategy leaves two roots until the user
-    combines them. That state has to survive a reload, and WDK cannot hold it:
-    a step with inputs must belong to a strategy
-    (``Step.java``: "Confirm left and right child null iff strategyId = null"),
-    so a detached component with internal edges has nowhere to live there.
-    It lives here instead, and the push planner walks ``root`` only.
+    """Components that the root cannot reach. WDK holds no step with inputs
+    outside a strategy, so these stay here and the push planner walks the root only.
     """
 
     name: str | None = None
@@ -41,23 +28,13 @@ class StrategyAst(CamelModel):
     wdk_step_ids: dict[str, int] | None = None
     step_validations: dict[str, StepValidation] | None = None
     wdk_push_errors: dict[str, str] | None = None
-    """Why WDK rejected a step, kept per step rather than per operation.
-
-    A rejected step used to abort the whole commit with ``PartialPushError``
-    after the edit had already been written, so the client rolled back while
-    the server kept the change. The rejection belongs to the step.
-    """
+    """Why WDK rejected a step. The rejection belongs to the step, not to the commit."""
 
     @model_validator(mode="after")
     def _validate_single_root_and_unique_ids(self) -> "StrategyAst":
         """Reject duplicate step ids anywhere in the graph.
 
-        The pushed strategy is single-rooted, guaranteed structurally by
-        ``root: StrategyStepNode``. This validator catches the other
-        WDK-incompatible shape: the same step id appearing in two positions
-        (which would also fail WDK's "step belongs to one strategy" invariant
-        on push). Detached components are included because a step cannot be
-        in the pushed tree and floating at the same time.
+        A step belongs to one position only, so the detached components count too.
         """
         nodes = list(walk_step_tree(self.root))
         for detached in self.detached_roots:
@@ -78,11 +55,7 @@ class StrategyAst(CamelModel):
 
 
 class PersistedStrategyGraph(CamelModel):
-    """Outer container shape for strategy AST snapshots.
-
-    Parsed at the load boundary via model_validate() so downstream code gets
-    typed attribute access instead of isinstance guards on JSONObject dicts.
-    """
+    """Outer container for a strategy AST snapshot, parsed at the load boundary."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -95,10 +68,7 @@ class PersistedStrategyGraph(CamelModel):
 
 
 class _HistoryEntry(CamelModel):
-    """Internal: typed undo history entry for StrategyGraph.
-
-    Transient (not persisted — rebuilt on load).
-    """
+    """One undo history entry. The history is transient and rebuilds on load."""
 
     description: str
     strategy_ast: StrategyAst

@@ -3833,7 +3833,7 @@
                     "experiments"
                 ],
                 "summary": "Get Experiment Attributes",
-                "description": "Get available attributes for an experiment's record type.",
+                "description": "Returns the available attributes for the experiment record type.",
                 "operationId": "get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get",
                 "security": [
                     {
@@ -3896,7 +3896,7 @@
                     "experiments"
                 ],
                 "summary": "Get Experiment Records",
-                "description": "Get paginated result records for an experiment.",
+                "description": "Returns one page of classified result records.",
                 "operationId": "get_experiment_records_api_v1_experiments__experiment_id__results_records_get",
                 "security": [
                     {
@@ -4060,7 +4060,7 @@
                     "experiments"
                 ],
                 "summary": "Get Experiment Record Detail",
-                "description": "Get a single record's full details by primary key.",
+                "description": "Returns the full detail of one record, selected by primary key.",
                 "operationId": "get_experiment_record_detail_api_v1_experiments__experiment_id__results_record_post",
                 "security": [
                     {
@@ -4133,7 +4133,7 @@
                     "experiments"
                 ],
                 "summary": "Get Experiment Distribution",
-                "description": "Get distribution data for an attribute using the byValue column reporter.",
+                "description": "Returns the distribution of one attribute from the byValue column reporter.",
                 "operationId": "get_experiment_distribution_api_v1_experiments__experiment_id__results_distributions__attribute_name__get",
                 "security": [
                     {
@@ -4205,7 +4205,7 @@
                     "experiments"
                 ],
                 "summary": "Refine Experiment",
-                "description": "Add a step to the experiment's strategy (combine, transform, etc.).",
+                "description": "Adds a combine or transform step to the experiment strategy.",
                 "operationId": "refine_experiment_api_v1_experiments__experiment_id__refine_post",
                 "security": [
                     {
@@ -15666,11 +15666,25 @@
             "RecordsMeta": {
                 "properties": {
                     "totalCount": {
-                        "type": "integer",
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
                         "title": "Totalcount"
                     },
                     "displayTotalCount": {
-                        "type": "integer",
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
                         "title": "Displaytotalcount"
                     },
                     "responseCount": {
@@ -15697,14 +15711,13 @@
                 },
                 "type": "object",
                 "required": [
-                    "totalCount",
-                    "displayTotalCount",
                     "responseCount",
                     "pagination",
                     "attributes",
                     "tables"
                 ],
-                "title": "RecordsMeta"
+                "title": "RecordsMeta",
+                "description": "Counts for one page of records.\n\nA count is optional because WDK does not always publish one, and a client\nthat shows zero there states a result nobody measured."
             },
             "RecordsPagination": {
                 "properties": {
@@ -17388,7 +17401,7 @@
                 },
                 "type": "object",
                 "title": "StepValidation",
-                "description": "Step/search/strategy validation state."
+                "description": "A validity claim, and the level the claim was made at."
             },
             "StepValidationErrors": {
                 "properties": {

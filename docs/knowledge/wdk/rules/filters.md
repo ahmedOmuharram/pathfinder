@@ -55,7 +55,7 @@ The fourth name, `viewFilters`, is in none of these places -
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/filter/FilterDefinition.java#L120-L136
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/filters.py:set_step_filter
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_always_applied_filter.py::TestAWriteKeepsTheFiltersItDidNotSet::test_a_disabled_filter_stays_disabled
 
 `FilterDefinition` carries an `isAlwaysApplied` flag onto every `Filter` it
 builds, documented on the interface as
@@ -127,8 +127,7 @@ describe something else - and something that would 400 if it were attempted.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/reporter/DefaultJsonReporter.java#L123-L143
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/reports.py:get_step_count
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_result_counts.py::TestTheCountMatchesTheRecords::test_the_view_filtered_display_count_wins
 `getMetaData` emits four counts and computes two of them from a
 [clone of the answer with the view filters stripped out](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/reporter/DefaultJsonReporter.java#L145-L152).
 `totalCount` and `displayTotalCount` are the unfiltered pair; `viewTotalCount`
@@ -162,8 +161,7 @@ costs nothing.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StepService.java#L239-L282
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKStep
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_result_counts.py::TestAbsenceIsNotZero::test_all_absent_raises_rather_than_reporting_zero
 Running a step report writes `getResultSizeFactory().getDisplayResultSize()` back
 onto the step, and `getDisplayResultSize`
 [delegates to the record class's own result-size plugin](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/answer/ResultSizeFactory.java#L44-L58)

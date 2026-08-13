@@ -1,11 +1,7 @@
-"""A transcript quotes numbers that were true when the message was written.
+"""Tests for the strategy revision fingerprint.
 
-Editing the strategy afterwards (graph editor, WDK web UI) leaves those numbers
-on screen with nothing marking them historical — observed in UAT: a message
-reporting 2,862 transcripts at fold-change 1 sat above a panel showing 587
-after the threshold was edited to 2. The revision fingerprint is what lets the
-UI tell those two states apart, so it must move on parameter/topology edits and
-stay put on count refreshes.
+The fingerprint must change on parameter and topology edits, and stay the same
+on count refreshes.
 """
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
@@ -42,7 +38,7 @@ def test_revision_is_stable_for_the_same_strategy() -> None:
 
 
 def test_editing_a_parameter_changes_the_revision() -> None:
-    """The UAT case: fold-change 1 -> 2 turned 2,862 genes into 587."""
+    """A parameter edit changes the gene set, so it must change the fingerprint."""
     assert strategy_revision(_ast(_leaf("1"))) != strategy_revision(_ast(_leaf("2")))
 
 
@@ -131,15 +127,14 @@ def test_swapping_the_inputs_changes_the_revision() -> None:
 
 
 def test_regenerated_step_ids_do_not_change_the_revision() -> None:
-    """Duplicating a conversation re-keys steps without changing the science."""
+    """A duplicated conversation re-keys steps without changing the science."""
     assert strategy_revision(_ast(_leaf(step_id="step_a"))) == strategy_revision(
         _ast(_leaf(step_id="step_zzz")),
     )
 
 
 def test_a_step_added_but_not_yet_combined_moves_the_revision() -> None:
-    """A second root is a real edit. If it did not move the fingerprint, an
-    agent holding the older revision could still overwrite it."""
+    """A second root is a real edit."""
     base = StrategyAst(record_type="transcript", root=_leaf(step_id="a"))
     with_detached = StrategyAst(
         record_type="transcript",
@@ -151,7 +146,7 @@ def test_a_step_added_but_not_yet_combined_moves_the_revision() -> None:
 
 
 def test_detached_roots_are_order_independent_in_the_fingerprint() -> None:
-    """Two roots have no meaningful order; ordering must not look like an edit."""
+    """Two roots have no meaningful order, so their order is not an edit."""
     one = StrategyAst(
         record_type="transcript",
         root=_leaf(step_id="a"),

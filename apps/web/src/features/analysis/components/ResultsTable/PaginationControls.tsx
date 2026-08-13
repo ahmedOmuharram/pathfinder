@@ -6,7 +6,7 @@ import { PAGE_SIZE_OPTIONS } from "./ResultsTableColumns";
 
 interface PaginationControlsProps {
   table: Table<ClassifiedRecord>;
-  totalCount: number;
+  totalCount: number | null;
   loading: boolean;
 }
 
@@ -17,9 +17,14 @@ export function PaginationControls({
 }: PaginationControlsProps) {
   const { pageIndex, pageSize } = table.getState().pagination;
   const currentPage = pageIndex + 1;
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const totalPages =
+    totalCount == null ? null : Math.max(1, Math.ceil(totalCount / pageSize));
   const hasPrev = pageIndex > 0;
-  const hasNext = (pageIndex + 1) * pageSize < totalCount;
+  // Without a total, a full page is the only evidence that more rows exist.
+  const hasNext =
+    totalCount == null
+      ? table.getRowModel().rows.length === pageSize
+      : (pageIndex + 1) * pageSize < totalCount;
 
   return (
     <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -43,7 +48,7 @@ export function PaginationControls({
 
       <div className="flex items-center gap-3">
         <span className="tabular-nums">
-          Page {currentPage} of {totalPages}
+          {totalPages == null ? `Page ${currentPage}` : `Page ${currentPage} of ${totalPages}`}
         </span>
         <div className="flex items-center gap-1">
           <Button

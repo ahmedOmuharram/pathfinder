@@ -46,10 +46,6 @@ class LiteratureSearchService:
         self._arxiv = ArxivClient(timeout_seconds=timeout_seconds)
         self._preprint = PreprintClient(timeout_seconds=timeout_seconds)
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     async def search(
         self,
         query: str,
@@ -119,10 +115,6 @@ class LiteratureSearchService:
             ),
         )
 
-    # ------------------------------------------------------------------
-    # Input validation
-    # ------------------------------------------------------------------
-
     def _validate_inputs(
         self,
         query: str,
@@ -146,10 +138,6 @@ class LiteratureSearchService:
                 citations=[],
             )
         return None
-
-    # ------------------------------------------------------------------
-    # Source dispatch
-    # ------------------------------------------------------------------
 
     _ALL_SOURCE_NAMES: ClassVar[list[str]] = [
         "europepmc",

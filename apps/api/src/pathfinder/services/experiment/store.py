@@ -1,10 +1,5 @@
-"""Experiment store with write-through DB persistence.
-
-Provides CRUD operations for experiment lifecycle management.
-Keeps an in-memory dict for fast synchronous access during experiment
-execution, and persists every mutation to PostgreSQL so experiments
-survive API restarts.
-"""
+"""Experiment store that serves an in-memory cache and writes every mutation
+through to the database."""
 
 from datetime import UTC, datetime
 from functools import cache
@@ -20,13 +15,9 @@ from pathfinder.services.experiment.types import (
     experiment_to_json,
 )
 
-# ---------------------------------------------------------------------------
-# Row conversion helpers
-# ---------------------------------------------------------------------------
-
 
 def _parse_created_at(iso_str: str) -> datetime:
-    """Parse an ISO datetime string to a timezone-aware datetime."""
+    """Parse an ISO datetime string into a timezone-aware datetime."""
     if not iso_str:
         return datetime.now(UTC)
     dt = datetime.fromisoformat(iso_str)
@@ -36,7 +27,7 @@ def _parse_created_at(iso_str: str) -> datetime:
 
 
 def _row_from_experiment(exp: Experiment) -> dict[str, object]:
-    """Build column values for an ExperimentRow upsert."""
+    """Build the column values for an experiment row upsert."""
     return {
         "id": exp.id,
         "site_id": exp.config.site_id,
@@ -51,20 +42,16 @@ def _row_from_experiment(exp: Experiment) -> dict[str, object]:
 
 
 def _experiment_from_row(row: ExperimentRow) -> Experiment:
-    """Reconstruct an Experiment from a DB row."""
+    """Reconstruct an experiment from a database row."""
     return experiment_from_json(row.data)
-
-
-# ---------------------------------------------------------------------------
-# DB list helpers (domain-specific queries, not covered by base class)
-# ---------------------------------------------------------------------------
 
 
 async def _list_from_db(
     site_id: str | None = None,
     user_id: str | None = None,
 ) -> list[Experiment]:
-    """List experiments from the database, optionally filtered by site and user."""
+    """List experiments from the database with optional site and user
+    filters."""
     stmt = select(ExperimentRow)
     if site_id:
         stmt = stmt.where(ExperimentRow.site_id == site_id)
@@ -79,7 +66,7 @@ async def _list_from_db(
 
 
 async def _list_by_benchmark_from_db(benchmark_id: str) -> list[Experiment]:
-    """List experiments from the database by benchmark_id."""
+    """List the experiments of one benchmark from the database."""
     stmt = select(ExperimentRow).where(ExperimentRow.benchmark_id == benchmark_id)
     async with async_session_factory() as session:
         result = await session.execute(stmt)
@@ -87,31 +74,21 @@ async def _list_by_benchmark_from_db(benchmark_id: str) -> list[Experiment]:
         return [_experiment_from_row(r) for r in rows]
 
 
-# ---------------------------------------------------------------------------
-# Store
-# ---------------------------------------------------------------------------
-
-
 class ExperimentStore(WriteThruStore[Experiment]):
-    """Experiment repository with in-memory cache and DB write-through.
-
-    Inherits save/get/delete/aget/adelete from WriteThruStore.
-    Adds domain-specific listing methods.
-    """
+    """Experiment repository with an in-memory cache and database
+    write-through."""
 
     _model = ExperimentRow
     _to_row = staticmethod(_row_from_experiment)
     _from_row = staticmethod(_experiment_from_row)
 
-    # -- Async listing (used by endpoint handlers) -------------------------
-
     async def alist_all(
         self, site_id: str | None = None, user_id: str | None = None
     ) -> list[Experiment]:
-        """List experiments: merges DB rows with in-memory (fresher) state."""
+        """List experiments from the database and the cache. A cached entry
+        wins, because a running experiment holds the newer state."""
         db_exps = await _list_from_db(site_id, user_id)
         merged: dict[str, Experiment] = {e.id: e for e in db_exps}
-        # In-memory entries override DB (running experiments have fresher state)
         for eid, exp in self._cache.items():
             if site_id and exp.config.site_id != site_id:
                 continue
@@ -123,7 +100,8 @@ class ExperimentStore(WriteThruStore[Experiment]):
         return result
 
     async def alist_by_benchmark(self, benchmark_id: str) -> list[Experiment]:
-        """List experiments by benchmark: merges DB + in-memory."""
+        """List the experiments of one benchmark from the database and the
+        cache."""
         db_exps = await _list_by_benchmark_from_db(benchmark_id)
         merged: dict[str, Experiment] = {e.id: e for e in db_exps}
         merged.update(
@@ -140,5 +118,5 @@ class ExperimentStore(WriteThruStore[Experiment]):
 
 @cache
 def get_experiment_store() -> ExperimentStore:
-    """Get the global experiment store singleton."""
+    """Return the process-wide experiment store."""
     return ExperimentStore()

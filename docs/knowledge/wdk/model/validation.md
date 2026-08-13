@@ -34,18 +34,22 @@ hypothetical; it is what the deployment returns at the lowest level, below.
 # Five levels on the schema, six on the wire
 
 The schema enumerates `NONE`, `UNSPECIFIED`, `SYNTACTIC`, `SEMANTIC`,
-`RUNNABLE`. They are ordered, and each is a strictly stronger question:
+`RUNNABLE`. Four of the five are levels a build actually happens at, and they
+are ordered: each asks a strictly stronger question than the one above it.
 
 | Level | What has been checked |
 |---|---|
 | `NONE` | nothing. The object was built without validating it at all. |
-| `UNSPECIFIED` | not a level a build requests. It is the synthetic level stamped on an error body - see below. |
+| `UNSPECIFIED` | not a level anything is built at. It is a string literal stamped on an error body - see below. |
 | `SYNTACTIC` | each value has the right shape for its parameter type |
 | `SEMANTIC` | each value is a legal value: in the vocabulary, inside the bounds, non-empty when required |
 | `RUNNABLE` | the step can actually be executed: its inputs resolve, they are of an accepted record type, and they are themselves runnable |
 
-**There is a sixth, `DISPLAYABLE`, and it is live.** It sits between `SEMANTIC`
-and `RUNNABLE` and it is what the step-analysis form endpoint validates at:
+**There is a sixth, `DISPLAYABLE`, and it is live.** It is a real member of the
+ordering -
+[`Param.validate` compares against it with `isGreaterThanOrEqualTo`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/Param.java#L599-L614)
+to decide whether depended queries must actually run - and it is what the
+step-analysis form endpoint validates at:
 [`getStepAnalysisTypeDataFromName`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StepAnalysisFormService.java#L108-L130)
 builds the form spec at `ValidationLevel.DISPLAYABLE` and hands the resulting
 bundle straight to the formatter. On 2026-08-10 both plasmodb.org and
@@ -57,6 +61,39 @@ So the schema include is not a complete enumeration of what the platform emits,
 and a client that validates a validation bundle against it rejects a legitimate
 response. WDK does exactly that to itself
 ([WDK-VALID-007](../rules/validation.md)).
+
+**The schema is wrong in the other direction too.** `GET .../steps/{id}` parses
+its `validationLevel` query parameter with `ValidationLevel.valueOf`, so a name
+the enum does not have falls back to `RUNNABLE`. Sent `DISPLAYABLE`, both sites
+validated at `DISPLAYABLE` and then **500**ed in the outbound validator, which is
+the table below and is the proof that it is a real constant: an unrecognised name
+would have fallen back and answered 200 at `RUNNABLE`, so only a name the enum
+*has* can reach the formatter and be rejected there. Sent `UNSPECIFIED`, both
+sites answered 200 at `RUNNABLE` - so `UNSPECIFIED` is not a constant at all, and
+the only place it can come from is
+[the hard-coded string literal](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/ValidationFormatter.java#L24-L31)
+in the error-body form, which never calls `.name()`.
+
+That is an inference from two live probes rather than a reading of the enum,
+and it is worth saying why: `ValidationLevel` lives in `org.gusdb.fgputil`,
+which is not one of the four repositories [sources.md](../sources.md) pins. **We
+could not read the enum, not "the enum does not exist".** Everything asserted
+about it here is either WDK's own use of it or a measurement.
+
+So the levels the platform actually orders and the levels its schema lists are
+two overlapping sets, each missing one of the other's members. Where
+`DISPLAYABLE` sits relative to `SEMANTIC` is not readable from WDK's source and
+is not asserted here; what is measurable is that it is above `NONE`, that it
+gates dependent-query execution, and that it reaches the wire.
+
+**File this as a contradiction inside the pin, not as a pin-versus-deployment
+divergence.** The two disagreeing parts - the schema include and the form
+service that validates at `DISPLAYABLE` - are both in the WDK repository at the
+sha [sources.md](../sources.md) names, so plasmodb.org and toxodb.org are doing
+exactly what that source says. The live requests establish that the
+inconsistency is reachable, not that the deployment differs from the pin. The
+divergence list in sources.md is for the other thing entirely, and this
+distinction is easy to lose on the way over from it.
 
 # `isValid: false` at level `NONE` means nobody looked
 
@@ -155,6 +192,23 @@ So a consumer's `byKey` entry for its answer parameter can contain a
 pretty-printed JSON document rather than a sentence. Parse the consumer's own
 errors; do not try to read the nested one out of a string.
 
+Both halves are confirmed live. On plasmodb.org and toxodb.org on 2026-08-10, a
+combined step wired over one invalid leaf and one good one reported
+`isValid: true` at `SEMANTIC` and, at `RUNNABLE`:
+
+```json
+{"level": "RUNNABLE", "isValid": false, "errors": {"general": [], "byKey": {
+  "bq_left_op_TranscriptRecordClasses_TranscriptRecordClass": [
+    "The step referenced by ID '440085983' is not runnable because: {\n  \"keyedErrors\": {\"organism\": [...]},\n  \"validationLevel\": \"RUNNABLE\",\n  \"validationStatus\": \"FAILED\",\n  \"errors\": []\n}"]}}}
+```
+
+Note the nested document. It is `ValidationBundle.toString(2)` - the Java
+object's own serialization, with `keyedErrors`, `validationLevel` and
+`validationStatus` - not the `{level, isValid, errors}` wire form the same
+response uses one nesting level out. **Two different JSON shapes for a
+validation bundle appear in the same body**, and the inner one is inside a
+string.
+
 The empty-string case has a deliberate exemption and it explains a result that
 otherwise looks like a bug.
 [`Param.validate`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/Param.java#L574-L590)
@@ -169,10 +223,10 @@ The invariant that keeps that from being a hole is enforced outside validation:
 if a step has a strategy and a null answer parameter, or has no strategy and a
 non-null one. That is a `WdkModelException` - a 500 - not a validation error.
 
-# You cannot make an invalid step through the REST API
+# Every write path refuses an invalid value, except the one that does not
 
-Every write path validates before it stores, and each returns the failure as a
-validation bundle in the 422 body. Measured on plasmodb.org on 2026-08-10:
+Measured on plasmodb.org on 2026-08-10, each failure returned as a validation
+bundle in the 422 body:
 
 | Request | Status | Body |
 |---|---|---|
@@ -188,13 +242,31 @@ run. **`UNSPECIFIED` is therefore a reliable marker that the message is prose
 rather than a parameter verdict**, and it never appears on a resource's own
 `validation` field.
 
-The practical conclusion is that a step in WDK becomes invalid because the
-*model* changed underneath it - a search retired, a vocabulary term withdrawn,
-a record class renamed - and not because a client wrote something bad. That is
-why invalid steps show up on old saved strategies and almost never on new ones,
-and it is why PathFinder treats a WDK rejection as that step's problem rather
-than as a failure of the operation
+There is one deliberate hole, and it is worth knowing because it is the only
+way to reproduce an invalid step on demand.
+[`putAnswerSpec` takes an undocumented `allowInvalid` query parameter](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StepService.java#L318-L337),
+labelled in the source "for use by developers", which skips the
+throw-on-invalid path and stores the spec anyway. Live on both sites,
+`PUT .../steps/{id}/search-config?allowInvalid=true` carrying an unknown
+organism term is a **204**, and the step afterwards reports `isValid: false` at
+`SEMANTIC` and `RUNNABLE`, `isValid: true` at `SYNTACTIC` - the value has the
+right shape, it is simply not in the vocabulary - and no `estimatedSize` at any
+level.
+
+Without that parameter, a step becomes invalid because the *model* changed
+underneath it: a search retired, a vocabulary term withdrawn, a record class
+renamed. That is why invalid steps show up on old saved strategies and almost
+never on new ones, and it is why PathFinder treats a WDK rejection as that
+step's problem rather than as a failure of the operation
 ([local-edit-is-the-truth](../../decisions/local-edit-is-the-truth.md)).
+
+**The two strategy endpoints then disagree about that step's strategy.**
+Measured on both sites in the same minute, over the strategy holding the step
+just invalidated: `GET .../strategies/{id}` reported `isValid: false`, and
+`GET .../strategies` reported `isValid: true` for the same strategy. The list
+fills missing or invalid parameters before judging and judges at `SYNTACTIC`;
+the detail judges the stored values at `SEMANTIC`. Neither is lying, and a
+client that reads whichever it happened to fetch gets a coin flip.
 
 PathFinder derives its own four-state step status rather than storing one, for
 the same reason WDK recomputes a bundle on every read
@@ -252,6 +324,11 @@ So the four states, and what each one is:
 | `estimatedSize` absent, on a step | nobody has run this step yet, or it is invalid at the level you asked | zero |
 | `estimatedSize: -1`, on a strategy detail | the formatter was handed a non-runnable copy | a count, a negative count, or an error |
 | `[]` from `GET .../strategies` | possibly a lost identity, since a fresh guest owns nothing | an empty workspace |
+
+The second row carries the conflation this whole page exists for, and it was
+measured directly: an invalid step and a never-run step produce **the same
+absent key**, on both sites. `estimatedSize` cannot distinguish them and
+`validation` can, which is the only reason to read `validation` at all.
 
 The fourth is the one that does not look like it belongs on this list, and it is
 the reason the list exists. A client that has lost its `Authorization` cookie is

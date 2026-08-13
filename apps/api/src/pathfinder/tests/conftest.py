@@ -5,13 +5,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-# ---------------------------------------------------------------------------
-# PIGuard ONNX model — MUST run before any pathfinder imports.
-# ---------------------------------------------------------------------------
-# UserInputScanner is module-level in ai.capabilities.security; the model
-# must be available before the import chain reaches it. huggingface_hub
-# caches to ~/.cache/huggingface/hub/ — the network download only happens
-# once per machine.
+# The scanner is built at module import, so the PIGuard model must be on disk
+# before the first pathfinder import.
 
 if "PIGUARD_MODEL_DIR" not in os.environ:
     from huggingface_hub import hf_hub_download
@@ -26,7 +21,8 @@ if "PIGUARD_MODEL_DIR" not in os.environ:
         )
     os.environ["PIGUARD_MODEL_DIR"] = str(_piguard_cache)
 
-# Persistent fastembed cache; fastembed's default OS temp dir gets pruned mid-download.
+# The default fastembed cache is a temporary directory that can disappear
+# during a download, so tests use a durable one.
 os.environ.setdefault(
     "FASTEMBED_CACHE_DIR",
     str(Path.home() / ".cache" / "pathfinder" / "fastembed"),
@@ -68,12 +64,12 @@ from pathfinder.persistence.models import Base, User
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.security import create_user_token, limiter
 
-# Block real LLM calls in all tests — use TestModel/FunctionModel instead.
+# A test must never send a request to a real model.
 pydantic_ai.models.ALLOW_MODEL_REQUESTS = False
 
 
 async def _probe_connection(url: str) -> bool:
-    """Try connecting to the given URL. Returns False if role does not exist."""
+    """Returns False when the database role does not exist."""
     engine = create_async_engine(url, poolclass=NullPool)
     try:
         async with engine.begin() as _:
@@ -98,7 +94,7 @@ def _get_test_database_url() -> str:
         msg = f"Tests require PostgreSQL DATABASE_URL, got: {url!r}."
         raise RuntimeError(msg)
 
-    # Safety: refuse to run against a non-test DB unless explicitly overridden.
+    # Tests refuse to run against a database that is not a test database.
     allow = os.environ.get("ALLOW_NONTEST_DATABASE") == "1"
     if not allow and "pathfinder_test" not in url:
         msg = (
@@ -110,14 +106,12 @@ def _get_test_database_url() -> str:
     return url
 
 
-# ---------------------------------------------------------------------------
-# PostgreSQL
-# ---------------------------------------------------------------------------
+# PostgreSQL.
 
 
 @pytest.fixture(scope="session")
 def database_url() -> str:
-    # Prefer explicit env var. If absent, we will start a disposable Postgres below.
+    # An empty result makes the session start a disposable Postgres.
     return os.environ.get("DATABASE_URL", "").strip()
 
 
@@ -127,10 +121,8 @@ def postgres_container(
 ) -> Generator[PostgresContainer | None]:
     url = database_url or os.environ.get("DATABASE_URL", "").strip()
     if url and "postgresql" in url:
-        # Validate connection. On macOS, localhost:5432 may point to Homebrew
-        # Postgres which uses the system user, not "postgres".
-        # Connection refused / timeout / OS errors propagate so the user
-        # can fix DATABASE_URL or start Postgres.
+        # A local Postgres can lack the configured role, so probe it first.
+        # Every other connection error propagates.
         parsed = make_url(url)
         probe_url = (
             str(
@@ -168,7 +160,6 @@ def postgres_container(
         )
         raise RuntimeError(msg) from exc
 
-    # Convert the container URL to asyncpg for SQLAlchemy async engine.
     url_obj = make_url(container.get_connection_url()).set(
         drivername="postgresql+asyncpg"
     )
@@ -186,13 +177,10 @@ _PROCRASTINATE_SCHEMA_SQL = (
 
 
 def _apply_procrastinate_schema_sync(database_url: str) -> None:
-    """Apply the Procrastinate schema via psycopg.
+    """Applies the Procrastinate schema through psycopg.
 
-    Asyncpg rejects multi-statement SQL inside a single prepared statement, so
-    the procrastinate DDL (which contains ~600 lines of CREATE FUNCTION /
-    CREATE TRIGGER blocks) must be applied through a driver that accepts it.
-    Psycopg happily executes multi-statement strings. We only apply when the
-    target tables are missing so the call is idempotent across test sessions.
+    Asyncpg rejects multi-statement SQL, and this schema is multi-statement.
+    The call is idempotent, because it runs only when the tables are absent.
     """
     psycopg_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
     with (
@@ -214,17 +202,14 @@ async def db_engine(
 ) -> AsyncGenerator[AsyncEngine]:
     del postgres_container
     database_url = _get_test_database_url()
-    # pytest-asyncio runs tests on different event loops. Asyncpg connections are bound
-    # to the loop they were created in. Use NullPool to avoid cross-loop reuse.
+    # An asyncpg connection belongs to the event loop that created it, and
+    # tests run on different loops. NullPool prevents reuse across loops.
     engine = create_async_engine(database_url, poolclass=NullPool)
 
-    # Ensure pgvector extension + tables exist once for the session.
     async with engine.begin() as conn:
         await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
         await conn.run_sync(Base.metadata.create_all)
 
-    # Procrastinate's DDL is multi-statement and asyncpg rejects that inside
-    # prepared statements. Apply via psycopg (same driver Alembic uses).
     _apply_procrastinate_schema_sync(database_url)
 
     try:
@@ -247,20 +232,10 @@ def session_maker(db_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 def patch_app_db_engine(
     db_engine: AsyncEngine, session_maker: async_sessionmaker[AsyncSession]
 ) -> None:
-    """Patch the app's global DB engine/sessionmaker so:
-    - FastAPI lifespan init_db() uses the test engine
-    - get_db_session dependency uses the test engine
-    - the module-level Procrastinate connector points at the test DB
+    """Points the global engine, session maker and job connector at the test database.
 
-    The last point matters because ``pathfinder.jobs.app`` builds a
-    ``PsycopgConnector`` at import time using ``get_settings().database_url``.
-    When a test uses ``testcontainers``, the DB URL is assigned to
-    ``os.environ["DATABASE_URL"]`` *after* that import happens, so we must
-    rebuild the connector once the test DB is known.
-
-    :param db_engine: Database engine.
-    :param session_maker: Async session maker.
-
+    The job connector is built at import time, which can happen before the
+    test database is known, so this rebuilds it.
     """
     session_module._engine = db_engine
     session_module._session_factory_instance = session_maker
@@ -276,8 +251,7 @@ def patch_app_db_engine(
 @pytest.fixture
 async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     yield
-    # New chat dispatcher is single-request (no background tasks to drain).
-    # Truncate after each test so request-level commits don't leak state.
+    # Truncate after each test so committed rows do not leak into the next one.
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
             "TRUNCATE TABLE "
@@ -285,9 +259,7 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
             "experiments, gene_sets, control_sets, users "
             "RESTART IDENTITY CASCADE"
         )
-        # LangGraph's cross-thread Store tables are created lazily by
-        # ``store.setup()`` (only in memory tests), so guard on existence —
-        # cleaning them prevents memory state leaking across tests.
+        # The store tables exist only after a memory test creates them.
         await conn.exec_driver_sql(
             "DO $$ BEGIN "
             "IF to_regclass('public.store') IS NOT NULL THEN "
@@ -296,21 +268,18 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
         )
 
 
-# ---------------------------------------------------------------------------
-# Environment + App
-# ---------------------------------------------------------------------------
+# Environment and app.
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _test_env_defaults() -> None:
-    # Keep tests deterministic and avoid background ingestion/LLM calls.
-    # Disable rate limiting so chat tests don't get 429s.
+    # The rate limiter stays off, because a test can exceed the request rate.
     limiter.enabled = False
 
 
 @pytest.fixture
 def app() -> FastAPI:
-    # Ensure settings reads current env, not cached values from prior imports.
+    # Settings must read the current environment, not a cached value.
     get_settings.cache_clear()
     return create_app()
 
@@ -335,12 +304,9 @@ async def authed_user_id(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> UUID:
-    """
-    Create an anonymous user row and return its id.
+    """Creates an anonymous user row and returns its id.
 
-    Shares the user row with ``authed_client``; tests needing only the id
-    (e.g. direct store calls) depend on this fixture, while tests needing
-    an HTTP client depend on ``authed_client``.
+    The authenticated client fixture shares this user row.
     """
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -355,7 +321,7 @@ async def authed_client(
     client: httpx.AsyncClient,
     authed_user_id: UUID,
 ) -> httpx.AsyncClient:
-    """Client with a valid `pathfinder-auth` cookie set."""
+    """Returns a client that carries a valid authentication cookie."""
     token = create_user_token(authed_user_id)
     client.cookies.set("pathfinder-auth", token)
     return client
@@ -366,11 +332,9 @@ async def app_notify_dispatcher(
     app: FastAPI,
     patch_app_db_engine: None,
 ) -> AsyncGenerator[Any]:
-    """Attach a running :class:`NotifyDispatcher` to ``app.state``.
+    """Attaches a running notify dispatcher to the application state.
 
-    Tests that hit the task-events SSE endpoint need this — production
-    ``main.py`` lifespan opens the dispatcher, but the ASGI test transport
-    skips lifespan.
+    The test transport skips the lifespan that normally opens it.
     """
     del patch_app_db_engine
     from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
@@ -389,13 +353,9 @@ async def app_memory_store(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> AsyncGenerator[Any]:
-    """Open a `MemoryStore` bound to the test DB and attach it to `app.state`.
+    """Attaches a memory store and a notify dispatcher to the application state.
 
-    The production `main.py` lifespan does this attachment; tests skip the
-    FastAPI lifespan (ASGITransport mounts the app without running startup),
-    so we do it explicitly here. We also open a
-    :class:`NotifyDispatcher` so endpoints that subscribe via
-    ``app.state.notify_dispatcher`` see a functioning multiplexer.
+    The test transport skips the lifespan that normally opens them.
     """
     del patch_app_db_engine, db_cleaner
     from pathfinder.ai.memory.lifespan import (  # noqa: PLC0415
@@ -419,12 +379,9 @@ async def app_memory_store(
 
 @pytest.fixture(autouse=True)
 def _no_wdk_guest_minting(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the guest-identity seam inert in tests by default.
+    """Keeps guest-identity minting inert, so no test makes a live WDK mint call.
 
-    ``with_wdk_identity`` runs on every conversations/chat/gene-sets request;
-    without this, each fresh test user would trigger a live WDK mint call.
-    Returning None fails open (ctx stays unset — the pre-seam behavior).
-    Tests that exercise minting monkeypatch ``mint_guest_token`` themselves.
+    A test that covers minting patches the mint function itself.
     """
     from pathfinder.services import wdk_identity  # noqa: PLC0415
 
@@ -437,12 +394,9 @@ def _no_wdk_guest_minting(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 async def _close_wdk_clients_after_test() -> AsyncGenerator[None]:
-    """Close shared WDK clients and clear discovery cache after each test.
+    """Closes the shared WDK clients and clears the discovery cache after a test.
 
-    The site_router caches httpx clients and the DiscoveryService caches
-    catalogs.  Clearing both between tests prevents cross-test state
-    leakage — stale catalogs causing apparent test isolation failures,
-    or closed clients being reused by later tests.
+    Both are process-wide caches, so a test must not inherit them.
     """
     from pathfinder.integrations.veupathdb.discovery_service import (  # noqa: PLC0415
         _discovery_holder,
@@ -455,26 +409,17 @@ async def _close_wdk_clients_after_test() -> AsyncGenerator[None]:
         router = get_site_router()
         await router.close_all()
     except RuntimeError, OSError:
-        pass  # Client already closed or event loop torn down
+        pass  # The client is closed or the event loop is gone.
 
 
-# ---------------------------------------------------------------------------
-# Background task control
-# ---------------------------------------------------------------------------
+# Background task control.
 
 
 @pytest.fixture(autouse=True)
 async def _eager_spawn(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
-    """Replace spawn() with a tracked version that awaits all tasks in teardown.
+    """Tracks every spawned task and awaits it during teardown.
 
-    Real ``spawn()`` creates fire-and-forget background tasks.  In tests,
-    these can outlive the test, hit closed DB connections, or make
-    unexpected WDK calls.  This fixture creates real ``asyncio.Task``
-    objects (so background logic actually runs) but tracks them and awaits
-    completion in teardown before ``db_cleaner`` runs TRUNCATE.
-
-    Autouse: every test gets this automatically.  No more per-test
-    ``@patch("...spawn")`` decorators needed.
+    The tasks still run, but none of them outlives the test that started it.
     """
     pending: set[asyncio.Task[Any]] = set()
 
@@ -490,13 +435,12 @@ async def _eager_spawn(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
         task.add_done_callback(pending.discard)
         return task
 
-    # spawn is imported by name in multiple modules — patch all binding sites
+    # Several modules import spawn by name, so patch every binding site.
     monkeypatch.setattr("pathfinder.platform.tasks.spawn", _tracked_spawn)
     monkeypatch.setattr("pathfinder.platform.store.spawn", _tracked_spawn)
 
     yield
 
-    # Await all spawned tasks before test teardown
     if pending:
         _done, timed_out = await asyncio.wait(pending, timeout=10.0)
         for t in timed_out:

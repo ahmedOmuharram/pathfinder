@@ -1,4 +1,4 @@
-"""Site routing: choose portal vs component sites intelligently."""
+"""Routes requests to a VEuPathDB portal or component site and owns their clients."""
 
 import threading
 from functools import lru_cache
@@ -16,9 +16,6 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 
 logger = get_logger(__name__)
-
-
-# ── Pydantic config models ───────────────────────────────────────────
 
 
 class SiteConfig(BaseModel):
@@ -48,12 +45,8 @@ class SitesConfig(BaseModel):
 
 @lru_cache
 def load_sites_config(config_path: str | None = None) -> SitesConfig:
-    """Load and validate sites configuration from YAML.
-
-    :param config_path: Optional path to a YAML file. If unset or empty, uses
-        the bundled ``sites.yaml`` next to this module.
-    :returns: Validated SitesConfig model.
-    """
+    """Loads and validates the sites configuration from YAML. An empty path selects
+    the bundled sites.yaml next to this module."""
     path = (
         Path(config_path).resolve()
         if (config_path and config_path.strip())
@@ -89,7 +82,7 @@ class SiteInfo(CamelModel):
 
     @classmethod
     def from_config(cls, site_id: str, cfg: SiteConfig) -> SiteInfo:
-        """Construct a SiteInfo from a validated SiteConfig."""
+        """Builds a SiteInfo from a validated SiteConfig."""
         return cls(
             id=site_id,
             name=cfg.name,
@@ -101,38 +94,31 @@ class SiteInfo(CamelModel):
 
     @property
     def service_url(self) -> str:
-        """Get WDK service URL (already included in base_url from config)."""
+        """Returns the WDK service URL, which the configured base URL already holds."""
         return self.base_url
 
     @property
     def web_base_url(self) -> str:
-        """Get web UI base URL (strip /service if present)."""
+        """Returns the web UI base URL without the service suffix."""
         return self.base_url.removesuffix("/service")
 
     @property
     def site_origin(self) -> str:
-        """Get the site origin URL (scheme + host, no path).
-
-        Site-search lives at the origin (e.g. https://plasmodb.org/site-search),
-        not under the WDK service prefix.
+        """Returns the site origin, which is the scheme and host with no path.
+        Site search lives at the origin, not under the WDK service prefix.
         """
         parsed = urlparse(self.base_url)
         return f"{parsed.scheme}://{parsed.netloc}"
 
     def strategy_url(self, strategy_id: int, root_step_id: int | None = None) -> str:
-        """Build a strategy URL for the web UI.
-
-        :param strategy_id: WDK strategy ID.
-        :param root_step_id: Root step ID (default: None).
-
-        """
+        """Builds a strategy URL for the web UI."""
         if root_step_id is not None:
             return f"{self.web_base_url}/app/workspace/strategies/{strategy_id}/{root_step_id}"
         return f"{self.web_base_url}/app/workspace/strategies/{strategy_id}"
 
 
 class SiteRouter:
-    """Router for choosing appropriate VEuPathDB site."""
+    """Selects a VEuPathDB site and owns the client for each one."""
 
     def __init__(self) -> None:
         settings = get_settings()
@@ -144,18 +130,14 @@ class SiteRouter:
         self._load_sites()
 
     def _load_sites(self) -> None:
-        """Load site configurations from validated config."""
+        """Loads the site configurations from the validated config."""
         logger.info("Loading sites", count=len(self._config.sites))
         for site_id, site_cfg in self._config.sites.items():
             self._sites[site_id] = SiteInfo.from_config(site_id, site_cfg)
         logger.info("Sites loaded", site_ids=list(self._sites.keys()))
 
     def get_site(self, site_id: str) -> SiteInfo:
-        """Get site by ID.
-
-        :param site_id: VEuPathDB site identifier.
-
-        """
+        """Returns the site with this identifier."""
         logger.debug(
             "Getting site", site_id=site_id, available=list(self._sites.keys())
         )
@@ -168,21 +150,17 @@ class SiteRouter:
         return self._sites[site_id]
 
     def list_sites(self) -> list[SiteInfo]:
-        """List all available sites."""
+        """Returns every available site."""
         return list(self._sites.values())
 
     def get_default_site(self) -> SiteInfo:
-        """Get the default site."""
+        """Returns the default site."""
         settings = get_settings()
         default_id = self._config.default_site or settings.veupathdb_default_site
         return self.get_site(default_id)
 
     def get_client(self, site_id: str) -> VEuPathDBClient:
-        """Get or create HTTP client for a site.
-
-        :param site_id: VEuPathDB site identifier.
-
-        """
+        """Returns the HTTP client for a site and creates it on first use."""
         if site_id in self._clients:
             return self._clients[site_id]
         with self._client_lock:
@@ -203,14 +181,12 @@ class SiteRouter:
             return self._clients[site_id]
 
     def get_portal_client(self) -> VEuPathDBClient:
-        """Get client for the portal."""
+        """Returns the client for the portal site."""
         return self.get_client("veupathdb")
 
     def get_site_search_client(self, site_id: str) -> SiteSearchClient:
-        """Get or create site-search client for a site.
-
-        Site-search is a separate VEuPathDB microservice (VEuPathDB/SiteSearchService)
-        that lives at the site origin URL, not under the WDK service prefix.
+        """Returns the site search client for a site and creates it on first use.
+        Site search is a separate service that lives at the site origin URL.
         """
         if site_id in self._site_search_clients:
             return self._site_search_clients[site_id]
@@ -225,7 +201,7 @@ class SiteRouter:
             return self._site_search_clients[site_id]
 
     async def close_all(self) -> None:
-        """Close all HTTP clients."""
+        """Closes every HTTP client."""
         for wdk_client in self._clients.values():
             await wdk_client.close()
         self._clients.clear()
@@ -234,13 +210,12 @@ class SiteRouter:
         self._site_search_clients.clear()
 
 
-# Global router instance
 _router_holder: dict[str, SiteRouter] = {}
 _router_lock = threading.Lock()
 
 
 def get_site_router() -> SiteRouter:
-    """Get the global site router."""
+    """Returns the process-wide site router."""
     if "v" in _router_holder:
         return _router_holder["v"]
     with _router_lock:

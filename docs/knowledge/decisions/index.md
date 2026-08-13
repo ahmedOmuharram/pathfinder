@@ -20,6 +20,7 @@ Choices with a real alternative, where the reasoning is not recoverable from the
 - [An override list stays a list](an-override-list-stays-a-list.md) - encoding at the tool boundary made the whole array one candidate option
 - [A dependent vocabulary is read under its parents](a-dependent-vocabulary-is-read-under-its-parents.md) - the model was shown HB3's time points for a criterion bound to 3D7
 - [A contextualized param view is an enrichment, and it has one owner](contextualizing-params-is-an-enrichment.md) - six implementations, four exception types, two with no policy at all
+- [A small model reads the request; embeddings only shortlist](the-model-reads-the-request-not-a-cosine-score.md) - the 0.45 threshold decided 108 of 237 uncovered params, and picked a phosphofructokinase domain
 - [A value the request already states is not a question](a-value-in-the-request-is-not-a-question.md) - polarity, vocabulary-less identifiers, and an EC wildcard the regex could not match
 - [An unmatched accession stops the chain](unmatched-accession-stops-the-chain.md) - PF00069 became phosphofructokinase because a miss fell through to similarity
 - [A number's initial value is a default, not an example](numeric-default-is-not-an-example.md) - the free-text guard swallowed five WDK-declared defaults

@@ -1,9 +1,4 @@
-"""Parameter spec formatting and annotation.
-
-Pure module (no I/O). Transforms raw WDK parameter specs into
-formatted info dicts for AI tool consumption, including dependency
-annotation and vocabulary rendering.
-"""
+"""Pure formatting of WDK parameter specs into AI-facing info objects."""
 
 from dataclasses import dataclass
 from typing import Annotated, Literal, Self
@@ -80,16 +75,14 @@ _PROFILE_PATTERN_HELP = (
     "Example: '%MAMM:N%pfal:Y%' → P.falciparum present, all mammals absent\n"
     "\n"
     "CRITICAL: The 'organism' parameter controls which organisms' genes appear in "
-    "results. You MUST select ALL relevant organisms (use all leaf values from the "
-    "organism vocabulary tree, or use the tree's root '@@fake@@' sentinel for 'select all'). "
+    "results. Select every relevant organism by listing the leaf values from the "
+    "organism vocabulary tree. A parent term selects the leaves beneath it. "
     "If you only select one organism, you will get 0 results even if the pattern is correct."
 )
 
 
 class FilterFieldInfo(CamelModel):
-    """A selectable facet of a WDK filter param — one leaf ontology term, with
-    its valid values. Surfaced so a criterion can target it via a
-    ``<field>=<value>`` override; category nodes (``type is None``) are omitted."""
+    """A selectable facet of a WDK filter param: one leaf ontology term with its values."""
 
     term: str
     display: str
@@ -108,8 +101,6 @@ class ParameterInfo(CamelModel):
     required: bool
     is_visible: bool
     # WDK reports numeric bounds as ``type: "string"`` with ``isNumber: true``.
-    # The free-text guard needs the distinction: a number's initial value is a
-    # default, a text query's is an example.
     is_number: bool = False
     help: str
     value_format: str
@@ -121,9 +112,7 @@ class ParameterInfo(CamelModel):
     vocab_depends_on: list[str] | None = None
     note: str | None = None
     filter_fields: list[FilterFieldInfo] = Field(default_factory=list)
-    # Flattened vocabulary leaves for internal override matching (esp. tree-box
-    # params, whose values are not in ``allowed_values``). Excluded from the
-    # model-facing payload — the model sees ``allowed_values``/``_tree`` instead.
+    # Flattened vocabulary leaves for internal matching. Never sent to the model.
     vocab_leaves: list[VocabOption] = Field(default_factory=list, exclude=True)
     # `type` is the WDK ParamKind; `kind` is the model discriminator.
     param_kind: ParamKind = "string"
@@ -135,11 +124,9 @@ class ParameterInfo(CamelModel):
 
 
 class ParameterNotOnSearch(CamelModel):
-    """Returned by ``get_parameter_options`` when ``parameter_id`` is not a
-    valid parameter on ``search_name``. Carries the same did-you-mean
-    info that ``ModelRetry`` used to raise — but as a normal tool return,
-    so the call doesn't consume retry budget. The model self-corrects on
-    its next call from this payload.
+    """Returned when ``parameter_id`` is not a parameter of ``search_name``.
+
+    This is a normal tool return, so it does not consume retry budget.
     """
 
     kind: Literal["parameter_not_on_search"] = "parameter_not_on_search"
@@ -164,11 +151,7 @@ GetParameterOptionsResult = Annotated[
 def _build_typed_dependency_map(
     params: list[WDKParameter],
 ) -> dict[str, list[str]]:
-    """Build ``depends_on`` map from typed WDK parameters.
-
-    Returns ``depends_on[child]`` = list of parent param names whose values
-    determine this child's vocabulary.
-    """
+    """Map each child param to the parent params that determine its vocabulary."""
     depends_on: dict[str, list[str]] = {}
     for param in params:
         if param.dependent_params:
@@ -180,11 +163,7 @@ def _build_typed_dependency_map(
 def _build_typed_controls_map(
     params: list[WDKParameter],
 ) -> dict[str, list[str]]:
-    """Build ``controls`` map from typed WDK parameters.
-
-    Returns ``controls[parent]`` = list of child param names whose vocabulary
-    depends on this parent.
-    """
+    """Map each parent param to the child params whose vocabulary it controls."""
     controls: dict[str, list[str]] = {}
     for param in params:
         if param.dependent_params:
@@ -249,13 +228,11 @@ def format_typed_param(
     depends_on: dict[str, list[str]],
     controls: dict[str, list[str]],
     applied_context: dict[str, ParamValue] | None = None,
+    parent_defaults: dict[str, str] | None = None,
 ) -> ParameterInfo:
-    """Format a single typed WDK parameter into an AI-consumable info object.
+    """Format one typed WDK parameter for the model.
 
-    ``applied_context`` names the parent values this vocabulary was actually
-    fetched under. Without it the note can only say the values are the default
-    context's, which stops being true once a read inherits bound parents -- and
-    a note that lies about which dataset produced a list is worse than none.
+    The note names the parent values the vocabulary was fetched under.
     """
     name = param.name
     help_text = param.help or ""
@@ -281,12 +258,20 @@ def format_typed_param(
                 f"does not exist without re-reading under the parent you mean."
             )
         else:
+            defaults = parent_defaults or {}
+            used = {p: defaults[p] for p in parents if defaults.get(p)}
+            under = (
+                ", ".join(f"{p}={v}" for p, v in sorted(used.items()))
+                if used
+                else "the search defaults"
+            )
             note = (
                 f"The allowed values for this param change based on the value of "
-                f"{', '.join(parents)}. The values shown here are for the default "
-                f"context only. Use get_parameter_options(search_name, parameter_id='{name}', "
-                f"context_values={{'{parents[0]}': '<your chosen value>'}}) to see "
-                f"the full vocabulary after setting {parents[0]}."
+                f"{', '.join(parents)}. No parent value was supplied, so the values "
+                f"below are the vocabulary under {under}. A different parent value "
+                f"yields a DIFFERENT list. Re-read with "
+                f"context_values={{'{parents[0]}': '<your chosen value>'}} before "
+                f"concluding that any value does or does not exist."
             )
 
     return ParameterInfo(
@@ -306,10 +291,7 @@ def format_typed_param(
         vocab_depends_on=vocab_depends_on,
         note=note,
         filter_fields=filter_fields_for(param),
-        # Always flattened, not only when ``allowed_values`` is empty. That
-        # list is capped at 50 entries, so an accession the user named in a
-        # 2,364-entry typeahead is invisible without this. Excluded from the
-        # model-facing payload, so it costs no tokens.
+        # Always flattened, because ``allowed_values`` is capped and can omit a value.
         vocab_leaves=flatten_vocab(param.vocabulary),
     )
 
@@ -318,9 +300,10 @@ _MAX_FILTER_FIELD_VALUES = 12
 
 
 def filter_fields_for(param: WDKParameter) -> list[FilterFieldInfo]:
-    """The selectable facets of a filter param: each leaf ontology term (those
-    carrying a data ``type``) paired with its valid values. Category/branch
-    nodes (``type is None``) are not selectable and are skipped."""
+    """Return the leaf ontology terms of a filter param with their valid values.
+
+    Category nodes carry no ``type`` and are not selectable, so they are skipped.
+    """
     if param.type != "filter":
         return []
     values = param.values or {}
@@ -386,17 +369,7 @@ def _format_normalized_one(
 
 
 def format_param_info_typed(params: list[WDKParameter]) -> list[ParameterInfo]:
-    """Format typed WDK parameters for LLM display.
-
-    Typed equivalent of :func:`format_param_info`.  Accepts parsed
-    ``WDKParameter`` models instead of raw JSON dicts, using attribute
-    access for type safety.
-
-    Phyletic structural params are filtered out.
-
-    :param params: Typed WDK parameter models.
-    :returns: Formatted parameter info objects.
-    """
+    """Format typed WDK parameters for the model. Phyletic structural params are dropped."""
     depends_on = _build_typed_dependency_map(params)
     controls = _build_typed_controls_map(params)
     return [

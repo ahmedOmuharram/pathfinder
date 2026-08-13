@@ -8,7 +8,7 @@ import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordA
 import { recordCountLabel } from "./recordCountLabel";
 
 interface ResultsTableHeaderProps {
-  totalCount: number;
+  totalCount: number | null;
   recordType: string | null;
   table: Table<ClassifiedRecord>;
   attributes: RecordAttribute[];

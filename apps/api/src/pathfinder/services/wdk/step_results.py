@@ -1,8 +1,5 @@
-"""Shared service for browsing WDK step results.
-
-Used by both experiment and gene set endpoints to avoid duplicating
-attribute listing, record browsing, distribution, and analysis logic.
-"""
+"""Shared service for browsing WDK step results: attributes, records,
+distributions, and step analyses."""
 
 from pathfinder.integrations.veupathdb.factory import get_site
 from pathfinder.integrations.veupathdb.strategy_api.api import StrategyAPI
@@ -36,11 +33,7 @@ logger = get_logger(__name__)
 
 
 class StepResultsService:
-    """Provides read-only access to WDK step results.
-
-    Encapsulates the shared logic for attributes, records, distributions,
-    and analyses that both experiments and gene sets need.
-    """
+    """Provides read-only access to the results of one WDK step."""
 
     def __init__(
         self,
@@ -104,8 +97,7 @@ class StepResultsService:
     ) -> tuple[JSONObject, JSONObject]:
         """Run a WDK step analysis with merged defaults.
 
-        Returns (raw_result, merged_params) so callers can handle
-        enrichment parsing and persistence as needed.
+        Returns the raw result and the merged parameters.
         """
         form_meta = await self._api.get_analysis_type(self._step_id, analysis_name)
         params = merge_analysis_params(

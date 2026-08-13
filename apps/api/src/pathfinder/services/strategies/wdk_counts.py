@@ -1,10 +1,7 @@
-"""Step count computation: get per-step result counts from WDK.
+"""Per-step result counts from WDK, cached by plan hash.
 
-Supports two paths:
-- **Leaf-only strategies**: parallel anonymous reports (fast, no strategy creation)
-- **Complex strategies**: temporary WDK strategy via step creation
-
-Results are cached by plan hash to avoid redundant API calls.
+A leaf-only strategy uses parallel anonymous reports. Any other strategy needs
+a temporary WDK strategy.
 """
 
 import asyncio
@@ -47,10 +44,7 @@ _STEP_COUNTS_CACHE: LRUCache[str, dict[str, int | None]] = LRUCache(maxsize=20)
 def invalidate_counts_for(sync_state: WDKSyncState, step_ids: Iterable[str]) -> None:
     """Mark the cached counts of ``step_ids`` unknown.
 
-    Called after a successful push: the step's parameters just changed, so
-    whatever it returned before no longer describes it. ``None`` reads as
-    "recompute me" everywhere, while a stale integer reads as fact — and
-    gets quoted to the user as one.
+    ``None`` means the count must be recomputed. A stale integer reads as fact.
     """
     for step_id in step_ids:
         if step_id in sync_state.step_counts:
@@ -73,11 +67,10 @@ async def _count_via_anonymous_report(
     search_name: str,
     parameters: dict[str, ParamValue],
 ) -> int | None:
-    """Get result count for a single search using the anonymous report endpoint.
+    """Get the result count for one search from the anonymous report endpoint.
 
-    ``POST /record-types/{recordType}/searches/{searchName}/reports/standard``
-    with ``numRecords: 0`` returns only ``meta.totalCount`` -- no step or
-    strategy creation needed. Returns ``None`` on failure.
+    A report with ``numRecords: 0`` returns only ``meta.totalCount``, so no
+    step or strategy is created. Returns ``None`` on failure.
     """
     config = WDKSearchConfig(parameters=encode_params(parameters))
     report_config: JSONObject = {"pagination": {"offset": 0, "numRecords": 0}}
@@ -94,11 +87,11 @@ async def _count_via_anonymous_report(
         )
         return None
     else:
-        return answer.meta.total_count
+        return answer.meta.records_returned()
 
 
 def is_leaf_only_plan(root: StrategyStepNode) -> bool:
-    """Check if all steps in the plan tree are leaf (search) steps."""
+    """Whether every step in the plan tree is a search step."""
     return all(step.infer_kind() == "search" for step in walk_step_tree(root))
 
 
@@ -108,14 +101,8 @@ async def compute_step_counts_for_plan(
 ) -> dict[str, int | None]:
     """Compute per-step result counts for a strategy plan.
 
-    For **leaf-only strategies** (all search steps, no combines/transforms),
-    uses WDK's anonymous report endpoint in parallel -- no step or strategy
-    creation needed. This is dramatically faster than full compilation.
-
-    For **complex strategies** (with combines/transforms), falls back to
-    creating a temporary WDK strategy to get server-computed counts.
-
-    Results are cached by plan hash.
+    A leaf-only plan uses parallel anonymous reports. A plan with combines or
+    transforms needs a temporary WDK strategy. Results are cached by plan hash.
     """
     cache_key = plan_cache_key(site_id, payload)
     cached: dict[str, int | None] | None = _STEP_COUNTS_CACHE.get(cache_key)
@@ -124,7 +111,6 @@ async def compute_step_counts_for_plan(
 
     api = get_strategy_api(site_id)
 
-    # Fast path: leaf-only strategies use parallel anonymous reports.
     if is_leaf_only_plan(payload.root):
         counts = await _compute_leaf_counts_parallel(
             api.client, payload.root, payload.record_type
@@ -132,7 +118,6 @@ async def compute_step_counts_for_plan(
         _cache_counts(cache_key, counts)
         return counts
 
-    # Slow path: complex strategies require creating steps + temporary strategy.
     counts = await _compute_counts_via_temp_strategy(api, payload, site_id)
     _cache_counts(cache_key, counts)
     return counts
@@ -171,9 +156,8 @@ async def _create_combine_wdk_step(
         coloc = step.colocation_params
         if coloc is None:
             return None
-        # See step_wdk_push._push_combine_step for why create_transform_step
-        # is used here: GenesBySpanLogic AnswerParams (span_a, span_b) are
-        # blanked at creation and auto-wired from the step tree later.
+        # The GenesBySpanLogic AnswerParams are blank at creation and WDK wires
+        # them from the step tree later.
         result = await api.create_transform_step(
             NewStepSpec(
                 search_name="GenesBySpanLogic",
@@ -273,14 +257,13 @@ async def _compute_counts_via_temp_strategy(
     payload: StrategyAst,
     site_id: str,
 ) -> dict[str, int | None]:
-    """Compute counts by creating steps, a temporary strategy, and reading counts.
+    """Compute counts from a temporary WDK strategy.
 
-    Creates each step on WDK, builds a step tree, creates a temporary
-    strategy, reads counts from the strategy payload, then cleans up.
+    The strategy is deleted once its counts are read.
     """
     all_steps = walk_step_tree(payload.root)
 
-    # Create each step on WDK and collect local->WDK ID mapping.
+    # Maps a local step id to the WDK step id.
     wdk_step_ids: dict[str, int] = {}
     for step in all_steps:
         wdk_id = await _create_wdk_step(api, step, payload.record_type, wdk_step_ids)
@@ -289,11 +272,10 @@ async def _compute_counts_via_temp_strategy(
 
     counts: dict[str, int | None] = {step.id: None for step in all_steps}
 
-    # If we couldn't create all steps, return None counts.
+    # Every step must exist on WDK before the tree can be built.
     if len(wdk_step_ids) != len(all_steps):
         return counts
 
-    # Build step tree and create temporary strategy.
     try:
         step_tree = build_step_tree_from_graph(payload.root, wdk_step_ids)
     except AppError:

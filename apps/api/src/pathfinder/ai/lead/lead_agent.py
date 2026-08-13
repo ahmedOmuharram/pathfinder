@@ -1,39 +1,7 @@
-"""The Lead Agent — the user's voice and the only LLM in the dispatcher.
+"""The Lead agent, which owns the user-facing voice and calls the sub-agent tools.
 
-The Lead orchestrates the investigation by calling sub-agent tools, reads
-the typed Ledger to know what's true after each call, and produces the
-single user-facing voice. Phases are not nodes; they are tools the Lead
-decides to invoke. There is no deterministic supervisor — the Lead is
-the brain.
-
-Tool surface (in three groups):
-
-  Reasoning / inspection
-    - ``classify_user_intent`` — sets the typed UserIntent on deps once
-      per turn. The Lead calls this first.
-    - ``read_ledger_section`` — fetch full detail of a Ledger section
-      (frame / build / verification). The Lead reads a compact summary in
-      pinned instructions; this lets it drill in when a section's counts
-      indicate something needs attention.
-
-  Sub-agent tools (work-order wrappers around phase agents)
-    - ``frame_problem`` — runs FRAME: operationalize the goal into criteria,
-      bind each to a real WDK search, resolve params → an OperationalSpec.
-    - ``build_strategy`` — declarative no-LLM materialization of the spec
-      into a real WDK strategy.
-    - ``recover_failed_steps`` — runs the LLM execution-recovery agent.
-    - ``verify_strategy`` — runs the verification sub-agent.
-
-  User-touching (deferred-tool that pauses with a ToolApprovalRequest)
-    - ``consult_user`` — ask the user design questions that shape the
-      investigation at a genuine fork (which arm to add, a threshold that
-      changes the steps). The carousel renders them as question slides
-      (options + free-text note); answers come back to the Lead.
-
-The Lead's final output is a ``LeadResponse`` containing user-facing
-prose and a turn-state literal (``await_user`` vs ``complete``). All
-intent classification, sub-agent dispatch, and slot logic happen via
-tools; the ``prose`` field is purely user-facing copy.
+The Lead reads the typed ledger after each call and decides the next tool. A phase is
+a tool the Lead invokes, not a node in a fixed graph.
 """
 
 from __future__ import annotations
@@ -98,14 +66,13 @@ class LeadResponse(CamelModel):
 
 
 def pinned_ledger_summary(ctx: RunContext[LeadDeps]) -> str:
-    """Compact Ledger summary, derived fresh each instruction render."""
+    """Builds the compact ledger summary. It is derived on each render."""
     ledger = derive_ledger(ctx.deps.state, ctx.deps.intent)
     return ledger.render_summary()
 
 
 def pinned_operational_spec(ctx: RunContext[LeadDeps]) -> str | None:
-    """The in-progress Operational Spec FRAME produces — the Lead reads this to
-    decide BUILD readiness."""
+    """Renders the operational spec, which the Lead reads to decide build readiness."""
     spec = ctx.deps.state.operational_spec
     if spec is None:
         return "## Operational Spec\nNot framed yet. Call ``frame_problem``."

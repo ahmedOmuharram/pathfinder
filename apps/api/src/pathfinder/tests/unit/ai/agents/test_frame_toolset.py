@@ -27,6 +27,7 @@ from pathfinder.domain.strategy.operational_spec import (
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.platform.errors import ValidationError
 from pathfinder.services.catalog.param_dag import ResolvedParams
+from pathfinder.services.catalog.param_validation import ValidatedParams
 
 
 def _ctx(state: AgentToolState) -> MagicMock:
@@ -181,14 +182,14 @@ async def test_set_criterion_retries_on_invalid_resolved_param(
     # surface a did-you-mean retry at FRAME — not slip through to fail the build.
     st = AgentToolState()
 
-    async def _resolve(**_kw: object) -> ResolvedParams:
+    async def _resolve(_ctx: object, **_kw: object) -> ResolvedParams:
         return ResolvedParams(
             params={"text_fields": MultiPickValue(values=["product,Notes"])},
             open_slots=[],
             unresolved_required=[],
         )
 
-    async def _validate(_ctx: object, **_kw: object) -> dict[str, object]:
+    async def _validate(_ctx: object, **_kw: object) -> ValidatedParams:
         raise ValidationError(
             title="Invalid parameter value: Parameter 'text_fields' does not "
             "accept 'product,Notes'."
@@ -218,17 +219,17 @@ async def test_set_criterion_skips_validation_when_open_slots(
     st = AgentToolState()
     validated = False
 
-    async def _resolve(**_kw: object) -> ResolvedParams:
+    async def _resolve(_ctx: object, **_kw: object) -> ResolvedParams:
         return ResolvedParams(
             params={"organism": MultiPickValue(values=["Pf3D7"])},
             open_slots=[OpenSlot(param_name="samples", question="pick")],
             unresolved_required=["samples"],
         )
 
-    async def _validate(_ctx: object, **_kw: object) -> dict[str, object]:
+    async def _validate(_ctx: object, **_kw: object) -> ValidatedParams:
         nonlocal validated
         validated = True
-        return {}
+        return ValidatedParams()
 
     monkeypatch.setattr(frame_spec, "resolve_search_params", _resolve)
     monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
@@ -247,15 +248,15 @@ async def test_set_criterion_binds_when_resolved_params_valid(
 ) -> None:
     st = AgentToolState()
 
-    async def _resolve(**_kw: object) -> ResolvedParams:
+    async def _resolve(_ctx: object, **_kw: object) -> ResolvedParams:
         return ResolvedParams(
             params={"organism": MultiPickValue(values=["Pf3D7"])},
             open_slots=[],
             unresolved_required=[],
         )
 
-    async def _validate(_ctx: object, **_kw: object) -> dict[str, object]:
-        return {"organism": MultiPickValue(values=["Pf3D7"])}
+    async def _validate(_ctx: object, **_kw: object) -> ValidatedParams:
+        return ValidatedParams(params={"organism": MultiPickValue(values=["Pf3D7"])})
 
     monkeypatch.setattr(frame_spec, "resolve_search_params", _resolve)
     monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
@@ -395,9 +396,8 @@ def _resolved_no_slots() -> ResolvedParams:
     return ResolvedParams(params={}, open_slots=[])
 
 
-async def _noop_validate(*_args: object, **_kwargs: object) -> dict[str, object]:
-    return {}
-
+async def _noop_validate(*_args: object, **_kwargs: object) -> ValidatedParams:
+    return ValidatedParams()
 
 
 class TestMultiValueOverrides:
@@ -405,10 +405,10 @@ class TestMultiValueOverrides:
 
     ``param_overrides`` was ``dict[str, str]``, so answering a multi-pick
     open slot with the natural ``["20 Hour", "21 Hour", ...]`` raised a
-    Pydantic ``string_type`` error before any WDK call. Observed live: the
+    Pydantic ``string_type`` error before any WDK call. Observed: the
     model retried, then told the user "the API rejected the combined sample
     encoding" and offered to build 13 separate search arms -- for a payload
-    WDK accepts (13 DeRisi time points, totalCount 841).
+    WDK accepts (13 DeRisi time points, a non-empty result).
 
     The tool surface, not WDK, could not express the value.
 
@@ -420,10 +420,13 @@ class TestMultiValueOverrides:
     """
 
     @pytest.mark.asyncio
-    async def test_a_list_override_is_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_a_list_override_is_accepted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         captured: dict[str, object] = {}
 
-        async def fake_resolve(**kwargs: object) -> ResolvedParams:
+        async def fake_resolve(ctx: object, **kwargs: object) -> ResolvedParams:
+            captured["ctx"] = ctx
             captured.update(kwargs)
             return _resolved_no_slots()
 
@@ -449,7 +452,8 @@ class TestMultiValueOverrides:
     ) -> None:
         captured: dict[str, object] = {}
 
-        async def fake_resolve(**kwargs: object) -> ResolvedParams:
+        async def fake_resolve(ctx: object, **kwargs: object) -> ResolvedParams:
+            captured["ctx"] = ctx
             captured.update(kwargs)
             return _resolved_no_slots()
 

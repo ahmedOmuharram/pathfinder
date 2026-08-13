@@ -1,4 +1,5 @@
 """WDK parameter fetching, caching, and expansion."""
+
 from collections.abc import Callable, Mapping
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
@@ -117,7 +118,7 @@ def drop_unusable_context_values(
     while remaining:
         try:
             return canonicalize(remaining)
-        except (CoreValidationError, ValueError):
+        except CoreValidationError, ValueError:
             remaining.pop(next(reversed(remaining)))
     return {}
 

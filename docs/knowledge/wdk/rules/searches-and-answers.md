@@ -168,7 +168,7 @@ site. See [the pin-versus-deployment note](../sources.md).
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/config/AnswerDetailsFactory.java#L165-L191
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/reports.py:get_step_records
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_report_config_contract.py::TestAttributesAreOnlyWhatWeAskFor::test_asking_for_none_sends_no_attributes_key
 
 `parseAttributeJson` ends with `// if unspecified, do not include any attributes; user could
 just be requesting tables` and returns an empty map. Tables behave the same way. The
@@ -204,7 +204,7 @@ that works because record identity is not an attribute (see
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/config/AnswerDetailsFactory.java#L101-L111
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/reports.py:get_step_count
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_report_config_contract.py::TestACountAsksForZeroRecords::test_the_count_page_is_exactly_zero_records
 
 The factory reads `numRecords` and replaces it with
 [`ALL_RECORDS`, which is `-1`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/config/AnswerDetails.java#L13-L32),
@@ -235,7 +235,7 @@ page.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/util/RecordFormatter.java#L41-L52
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKRecordInstance
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_record_shapes.py::TestTheTwoRecordClassNames::test_one_is_not_the_other
 
 `RecordFormatter.getRecordJson` writes `JsonKeys.RECORD_CLASS_NAME` from
 `record.getRecordClass().getFullName()`.
@@ -264,7 +264,7 @@ attribute. Those are present even when `attributes` is `{}`.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/reporter/StandardReporter.java#L52-L66
 - anchor: apps/api/src/pathfinder/services/wdk/step_results.py:StepResultsService
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_report_config_contract.py::TestOnlyTheJsonReporterHonoursThePage::test_records_go_through_the_standard_reporter
 
 Two reporter base classes take the same `reportConfig` and treat it differently.
 
@@ -391,7 +391,7 @@ empty one.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/report/util/RecordFormatter.java#L110-L140
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKRecordInstance
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_record_shapes.py::TestComparingAnAttributeToText::test_a_link_value_compares_by_its_display_text
 
 `getAttributeValueJson` branches on the attribute's Java class before it branches on the
 requested format. A `LinkAttributeValue` becomes a `{url, displayText}` **object** under

@@ -77,8 +77,8 @@ class RunArgs(BaseModel):
 
 
 class RespondArgs(RunArgs):
-    """Args for the ``respond`` subcommand — answer the gate a prior step
-    surfaced. ``prompt`` is unused (no new user message)."""
+    """Arguments for the respond subcommand, which answers a pending gate. There is
+    no new user message, so the prompt field stays empty."""
 
     prompt: str = ""
     accept: bool = False
@@ -92,9 +92,8 @@ class MissingCredentialsError(RuntimeError):
 
 
 async def _wdk_token(args: RunArgs) -> str:
-    """Resolve a real WDK auth token for a non-mock run. Credentials come from
-    --email/--password or the WDK_DEV_EMAIL/WDK_DEV_PASSWORD env vars (set in
-    .env.dev). Raises if they are missing or rejected."""
+    """Resolves a real WDK auth token for a run that is not mocked. Credentials come
+    from the command line or the environment. Missing or rejected credentials raise."""
 
     email = args.email or os.environ.get("WDK_DEV_EMAIL")
     password = args.password or os.environ.get("WDK_DEV_PASSWORD")
@@ -240,9 +239,8 @@ def parse_respond_args(argv: list[str]) -> RespondArgs:
 
 
 def _route_framework_logs_to_stderr() -> None:
-    """Reserve stdout for the clean trace + summary. Framework chatter uses
-    structlog's default config (PrintLogger → stdout); point it at stderr so a
-    caller can drop it with ``2>/dev/null`` without losing the trace."""
+    """Sends framework log output to stderr so stdout carries only the trace and the
+    summary."""
 
     structlog.configure(logger_factory=structlog.PrintLoggerFactory(file=sys.stderr))
 
@@ -269,9 +267,8 @@ def _current_gate(capture: RunCapture) -> Gate:
 
 
 async def _gate_from_checkpoint(conversation_id: UUID, settings_url: str) -> Gate:
-    """Derive the pending gate from the conversation's LangGraph checkpoint —
-    the SSOT for what the turn is blocked on, independent of which run-dir
-    produced it. Lets ``respond`` approve/answer a gate from any run-dir."""
+    """Derives the pending gate from the conversation checkpoint, which is the single
+    source of truth for what the turn waits on."""
     async with lifespan_checkpointer(settings_url) as saver:
         graph = build_graph(checkpointer=saver)
         config: RunnableConfig = {"configurable": {"thread_id": str(conversation_id)}}
@@ -307,8 +304,8 @@ def _auto_answer(q: GateConsultQuestion) -> UserQuestionAnswer:
 def _auto_respond(
     args: RunArgs, gate: Gate, message_id: UUID
 ) -> ChatRequestBody | None:
-    """Autopilot body for --approve auto|deny; None stops at the gate so the
-    operator can answer it with ``respond``."""
+    """Builds the automatic reply to a gate. None stops at the gate so the operator
+    answers it."""
     if gate.kind in {"none", "durable"} or args.approve not in {"auto", "deny"}:
         return None
     if gate.kind == "consult":
@@ -345,7 +342,7 @@ async def _exec_one(
     settings_url: str,
     wdk_token: str | None,
 ) -> None:
-    """Run one body to completion-or-gate, in-process or through the worker."""
+    """Runs one body until it completes or reaches a gate, in process or in the worker."""
     if args.via_worker:
         await _exec_via_worker(args, capture, body, wdk_token=wdk_token)
         return
@@ -371,8 +368,8 @@ async def _exec_one(
 async def _exec_via_worker(
     args: RunArgs, capture: RunCapture, body: ChatRequestBody, *, wdk_token: str | None
 ) -> None:
-    """Defer a real ``chat_turn:run`` job (worker runs durable tools), stream
-    task progress while it settles, then replay persisted chat_events."""
+    """Defers a real chat turn job to the worker, reports task progress while it runs,
+    then replays the persisted events."""
     before = await latest_turn_boundary(args.conversation_id)
     payload = ChatTurnPayload(
         body=body,
@@ -427,8 +424,8 @@ async def _drive_conversation(
     settings_url: str,
     wdk_token: str | None,
 ) -> Gate:
-    """Run ``body``, then autopilot through gates (--approve auto|deny) until a
-    gate needs the operator (or completion). Returns the final pending gate."""
+    """Runs the body, then answers gates automatically until a gate needs the operator
+    or the turn completes. Returns the final pending gate."""
     for _ in range(_MAX_RESUMES):
         capture.turn_id = uuid4()
         await _exec_one(
@@ -443,8 +440,8 @@ async def _drive_conversation(
 
 
 async def _replay_run_dir(capture: RunCapture, run_dir: Path) -> None:
-    """Rebuild capture state from a prior step's events.jsonl so ``respond``
-    continues with the full conversation context (and the pending gate)."""
+    """Rebuilds the capture state from a prior step's event log, so the next step keeps
+    the full conversation context and the pending gate."""
     events_path = run_dir / "events.jsonl"
     if not events_path.is_file():
         return

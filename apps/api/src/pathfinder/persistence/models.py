@@ -38,9 +38,7 @@ from pathfinder.platform.types import JSONArray, JSONObject
 class GUID(TypeDecorator[UUID]):
     """Platform-independent GUID type.
 
-    Uses CHAR(36) and stores UUIDs as strings.
-    Returns proper ``UUID`` objects on read so that Python-side comparisons
-    (e.g. ``conversation.user_id == some_uuid``) work correctly.
+    The column stores a UUID as CHAR(36). A read returns a UUID object.
     """
 
     impl = CHAR
@@ -89,9 +87,8 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     monthly_cost_limit_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # Durable WDK guest identity used when no browser-supplied Authorization
-    # token exists (dev login / expired session). Shared by api + worker so
-    # WDK strategies stay owned by ONE guest user across containers/restarts.
+    # Durable WDK guest identity used when the request carries no WDK token.
+    # All processes share it, so one guest user owns the WDK strategies.
     wdk_guest_token: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     conversations: Mapped[list[Conversation]] = relationship(
@@ -195,7 +192,7 @@ class GeneSetRow(Base):
 
 
 class Conversation(Base):
-    """A conversation — message thread + built strategy AST + WDK linkage on one row."""
+    """One row that holds a message thread, its strategy AST and its WDK links."""
 
     __tablename__ = "conversations"
     __table_args__ = (
@@ -244,9 +241,8 @@ class Conversation(Base):
         ForeignKey("messages.id", ondelete="SET NULL"),
         nullable=True,
     )
-    # WDK strategy ids of saved sub-strategies referenced by this conversation
-    # (via expanded combiner inputs). Used as a deletion guard: a saved
-    # strategy with at least one consumer cannot be deleted.
+    # WDK ids of the saved strategies that this conversation references.
+    # A saved strategy with at least one consumer cannot be deleted.
     imported_saved_strategy_ids: Mapped[list[int]] = mapped_column(
         JSONB,
         nullable=False,
@@ -263,8 +259,10 @@ class Conversation(Base):
 
 
 class Message(Base):
-    """Per-turn metadata row — the chunk log in ``conversation_events`` is the
-    canonical source for ``parts``. Kept for usage accounting + trace ids."""
+    """Per-turn metadata row that holds usage accounting and trace ids.
+
+    The chunk log in conversation_events is the source of truth for parts.
+    """
 
     __tablename__ = "messages"
     __table_args__ = (
@@ -286,9 +284,8 @@ class Message(Base):
         nullable=False,
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
-    # Python attribute name uses a trailing underscore because ``metadata`` is
-    # reserved on SQLAlchemy's ``DeclarativeBase``. The underlying column name
-    # is still ``metadata``.
+    # The attribute has a trailing underscore because DeclarativeBase reserves
+    # the name metadata. The column name stays metadata.
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
         JSONB,
@@ -422,7 +419,7 @@ class TaskProgress(Base):
 
 
 class ConversationEvent(Base):
-    """Durable conversation stream chunk — enables resume/catchup after reconnect."""
+    """Durable conversation stream chunk that lets a client resume after a reconnect."""
 
     __tablename__ = "conversation_events"
 
@@ -558,11 +555,10 @@ class ScratchpadCompaction(Base):
 
 
 class MonthlyUsage(Base):
-    """Per-user, per-month accumulated token + cost usage.
+    """Accumulated token and cost usage for one user in one month.
 
-    ``period_start`` is always the first-of-month UTC date; the quota
-    rolls over when a new month begins. Accumulation is an UPSERT keyed on
-    ``(user_id, period_start)``.
+    period_start is always the first UTC day of the month. Accumulation is
+    an upsert on the user and the period.
     """
 
     __tablename__ = "monthly_usage"

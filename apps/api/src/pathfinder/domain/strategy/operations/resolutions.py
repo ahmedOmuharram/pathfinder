@@ -50,9 +50,7 @@ def _transform_choices(step_id: str) -> list[OperationChoice]:
     ]
 
 
-def _root_choices(
-    graph: StrategyGraph, target: StrategyStep
-) -> list[OperationChoice]:
+def _root_choices(graph: StrategyGraph, target: StrategyStep) -> list[OperationChoice]:
     if target.kind is StepKind.COMBINE:
         secondary_subtree_ids = (
             subtree_ids(target.secondary_input_id, graph.steps)

@@ -1,14 +1,4 @@
-"""Tool result extractors for cross-turn context compression.
-
-Each extractor takes a ToolCallRecord and returns a short summary string
-describing what the tool returned. Used to compress prior-turn tool activity
-into brief notes the model can read in compressed history.
-
-Dispatch:
-    ``extract_tool_summary(record)`` is the public entry point.
-    It checks ``is_error`` first, then looks up the extractor registry,
-    falling back to a generic truncation on parse failures.
-"""
+"""Per-tool result extractors that compress a prior turn's tool calls into short notes."""
 
 import json
 from collections.abc import Callable
@@ -67,7 +57,7 @@ def _extract_graph_mutation(record: ToolCallRecord) -> str:
     resp = StepOkResponse.model_validate_json(record.result)
     step = resp.step
     step_id = step.id
-    # For combine steps use the operator; for search/transform use search_name
+    # A combine step carries an operator. Every other step carries a search name.
     label = step.operator or step.search_name or step.display_name or "?"
     size_part = (
         f", {step.estimated_size} genes" if step.estimated_size is not None else ""
@@ -233,28 +223,21 @@ _SEARCH_DISCOVERY_TOOLS = frozenset(
 )
 
 _EXTRACTOR_REGISTRY: dict[str, ToolResultExtractor] = {
-    # Group 2
     "get_search_overview": _extract_search_overview,
-    # Group 3
     "get_parameter_options": _extract_parameter_options,
-    # Group 4
     "get_parameter_dependencies": _extract_parameter_dependencies,
-    # Group 6
     "get_sample_records": _extract_sample_records,
     "get_estimated_size": _extract_estimated_size,
     "get_download_url": _extract_download_url,
-    # Group 7
     "create_workbench_gene_set": _extract_create_gene_set,
     "list_workbench_gene_sets": _extract_list_gene_sets,
     "get_enrichment_results": _extract_enrichment_results,
     "get_evaluation_summary": _extract_evaluation_summary,
 }
 
-# Register all graph mutation tools with the same extractor
 for _tool in _GRAPH_MUTATION_TOOLS:
     _EXTRACTOR_REGISTRY[_tool] = _extract_graph_mutation
 
-# Register all search discovery tools with the same extractor
 for _tool in _SEARCH_DISCOVERY_TOOLS:
     _EXTRACTOR_REGISTRY[_tool] = _extract_search_discovery
 
@@ -265,10 +248,10 @@ for _tool in _SEARCH_DISCOVERY_TOOLS:
 
 
 def extract_tool_summary(record: ToolCallRecord) -> str:
-    """Return a brief summary string for a completed tool call.
+    """Return a short summary of a completed tool call.
 
-    Checks ``is_error`` first. Looks up the extractor registry by tool name.
-    Falls back to generic truncation on ValidationError, ValueError, or KeyError.
+    A tool with no registered extractor, or an unparsable result, falls back
+    to truncation.
     """
     if record.is_error:
         return _extract_error(record)

@@ -20,10 +20,7 @@ def generate_step_id() -> str:
 
 
 class StepFilter(CamelModel):
-    """Filter applied to a step's result.
-
-    WDK FilterValueArray element: { name: string, value: any, disabled?: boolean }.
-    """
+    """One element of a WDK filter value array on a step."""
 
     name: str
     value: JsonValue = None
@@ -44,7 +41,7 @@ class StepFilter(CamelModel):
 
     @classmethod
     def from_list(cls, raw: object) -> list[StepFilter]:
-        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        """Parse a list from raw JSON and drop the invalid items."""
         if not isinstance(raw, list):
             return []
         result: list[StepFilter] = []
@@ -57,10 +54,7 @@ class StepFilter(CamelModel):
 
 
 class StepAnalysis(CamelModel):
-    """Analysis configuration for a step.
-
-    WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).
-    """
+    """Analysis configuration attached to a step."""
 
     analysis_type: str
     parameters: JSONObject = Field(default_factory=dict)
@@ -74,15 +68,13 @@ class StepAnalysis(CamelModel):
             msg = "StepAnalysis requires a dict"
             raise PydanticCustomError(code, msg)
         result: dict[str, JsonValue] = dict(data)
-        # Accept both camelCase alias and snake_case field name
+        # Raw input arrives in either camelCase or snake_case.
         at = result.get("analysisType") or result.get("analysis_type")
         if not isinstance(at, str) or not at:
             msg = "StepAnalysis requires 'analysisType'"
             raise ValueError(msg)
-        # Coerce non-dict parameters to empty dict
         if not isinstance(result.get("parameters"), dict):
             result["parameters"] = {}
-        # Coerce non-string customName to None
         cn = result.get("customName") or result.get("custom_name")
         if cn is not None and not isinstance(cn, str):
             result.pop("customName", None)
@@ -91,7 +83,7 @@ class StepAnalysis(CamelModel):
 
     @classmethod
     def from_list(cls, raw: object) -> list[StepAnalysis]:
-        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        """Parse a list from raw JSON and drop the invalid items."""
         if not isinstance(raw, list):
             return []
         result: list[StepAnalysis] = []
@@ -104,10 +96,7 @@ class StepAnalysis(CamelModel):
 
 
 class StepReport(CamelModel):
-    """Report request attached to a step.
-
-    WDK fields: reportName (str, default "standard"), config (JSONObject).
-    """
+    """Report request attached to a step."""
 
     report_name: str = "standard"
     config: JSONObject = Field(default_factory=dict)
@@ -126,7 +115,7 @@ class StepReport(CamelModel):
 
     @classmethod
     def from_list(cls, raw: object) -> list[StepReport]:
-        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        """Parse a list from raw JSON and drop the invalid items."""
         if not isinstance(raw, list):
             return []
         result: list[StepReport] = []
@@ -141,17 +130,14 @@ class StepReport(CamelModel):
 class StrategyStepNode(CamelModel):
     """Recursive strategy node.
 
-    Kind is inferred from structure:
-    - combine: primary_input and secondary_input
-    - transform: primary_input only
-    - search: no inputs
-
+    The kind follows the structure: two inputs is a combine, one input is a
+    transform, and no input is a search.
     """
 
     @model_validator(mode="before")
     @classmethod
     def _default_combine_search_name(cls, data: JsonValue) -> JsonValue:
-        """Inject ``__combine__`` for combine nodes missing ``searchName``."""
+        """Give a combine node the sentinel search name when it has none."""
         if not isinstance(data, dict):
             return data
         has_search = "searchName" in data or "search_name" in data
@@ -174,10 +160,8 @@ class StrategyStepNode(CamelModel):
     analyses: list[StepAnalysis] = Field(default_factory=list)
     reports: list[StepReport] = Field(default_factory=list)
     wdk_weight: int | None = None
-    # Saved sub-strategy reference (WDK ``expanded`` / ``expandedName``).
-    # Only valid on combine steps. When set, this combiner's input subtree
-    # is rendered as a collapsed reference to the saved strategy in the UI
-    # and serialized to WDK with ``expanded=true``.
+    # A saved sub-strategy reference is valid on combine steps only. It marks
+    # the input subtree as a collapsed reference to that saved strategy.
     expanded_strategy_id: int | None = None
     expanded_name: str | None = None
     id: str = Field(default_factory=generate_step_id)
@@ -235,8 +219,8 @@ class StrategyStepNode(CamelModel):
 
     @property
     def display_label(self) -> str:
-        """User-facing label. Never surfaces the ``__combine__`` sentinel: a
-        combine with no explicit name renders as ``Combine``."""
+        """User-facing label. The sentinel search name never reaches the
+        user."""
         if self.display_name:
             return self.display_name
         if self.search_name == COMBINE_SEARCH_NAME:
@@ -245,11 +229,8 @@ class StrategyStepNode(CamelModel):
 
 
 def walk_step_tree(root: StrategyStepNode) -> list[StrategyStepNode]:
-    """Depth-first traversal of a StrategyStepNode tree.
-
-    Visits primary_input before secondary_input, appends current node last.
-    Visits primary_input before secondary_input, appends current node last.
-    """
+    """Walk a step tree depth first. Each node comes after its inputs, and the
+    primary input comes before the secondary input."""
     steps: list[StrategyStepNode] = []
 
     def visit(node: StrategyStepNode) -> None:

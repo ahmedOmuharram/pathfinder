@@ -1,14 +1,4 @@
-"""Integration tests for the conversation fork tree + delete semantics.
-
-Covers:
-
-* ``fork_conversation``: copies messages up through the chosen anchor,
-  sets ``parent_conversation_id`` / ``parent_message_id`` on the new row.
-* ``ConversationRepository.delete(cascade=False)``: promotes children to the
-  deleted node's parent, inheriting the fork point.
-* ``ConversationRepository.delete(cascade=True)``: recursive CTE wipes the
-  whole subtree.
-"""
+"""Integration tests for the conversation fork tree and the delete semantics."""
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
@@ -50,10 +40,9 @@ from pathfinder.services.conversations.fork import (
 async def _langgraph_checkpoint_tables(
     patch_app_db_engine: None,
 ) -> AsyncIterator[None]:
-    """Ensure LangGraph's checkpoint/blob/write tables exist for this module.
+    """Creates the LangGraph checkpoint tables.
 
-    ``AsyncPostgresSaver.setup()`` is the only path that creates them; the
-    main Alembic migrations and ``Base.metadata.create_all`` don't.
+    Only ``AsyncPostgresSaver.setup()`` creates them. The migrations do not.
     """
     del patch_app_db_engine
     async with lifespan_checkpointer(get_settings().database_url):
@@ -62,7 +51,7 @@ async def _langgraph_checkpoint_tables(
 
 @pytest.fixture(autouse=True)
 async def _truncate_langgraph_tables() -> AsyncIterator[None]:
-    """Clear checkpoint tables between tests so rows don't leak across cases."""
+    """Clears the checkpoint tables between tests."""
     yield
     async with session_module.async_session_factory() as session:
         await session.execute(
@@ -82,7 +71,7 @@ async def _seed_checkpoint(
     parent_checkpoint_id: str | None,
     ts: datetime,
 ) -> None:
-    """Insert a minimal LangGraph checkpoint row with the given timestamp."""
+    """Inserts a minimal LangGraph checkpoint row with the given timestamp."""
     await session.execute(
         text(
             "INSERT INTO checkpoints "
@@ -199,8 +188,7 @@ async def test_fork_copies_prefix_and_sets_parent_refs(
         await _seed_conversation(session, conversation_id=source_id, user_id=user_id)
         await session.commit()
 
-    # Separate commits = distinct ``created_at`` per message. Matches production
-    # where each turn writes a single message in its own transaction.
+    # A separate commit per message gives each message a distinct created_at.
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
         await _insert_message(messages, conv_id=source_id, role="user", text="hi")
@@ -315,7 +303,7 @@ async def test_delete_non_cascade_promotes_children(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Deleting ``b`` in a→b→c chain moves ``c`` under ``a``."""
+    """Deleting b in the a-b-c chain moves c under a."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     a_id, b_id, c_id = uuid4(), uuid4(), uuid4()
@@ -381,7 +369,7 @@ async def test_delete_non_cascade_promotes_children(
         assert a_gone is None
         assert c is not None
         assert c.parent_conversation_id == a_id
-        # c inherits B's fork point in A, since B was B's link to A.
+        # A promoted child inherits the fork point of the deleted parent.
         assert c.parent_message_id == anchor_msg
 
 
@@ -496,15 +484,10 @@ async def test_delete_root_non_cascade_promotes_children_to_roots(
         assert child.parent_message_id is None
 
 
-# ────────────────────────────────────────────────────────────────────
-# Checkpoint-chain fork tests
-# ────────────────────────────────────────────────────────────────────
-#
-# The dispatcher keys LangGraph checkpoints by ``thread_id = conversation_id``.
-# ``fork_conversation`` must duplicate the chain so the branch's supervisor
-# sees the same state the source had at the anchor moment. The cutoff is
-# the ``created_at`` of the message immediately following the anchor; every
-# checkpoint with ``ts < cutoff`` is copied, everything later is dropped.
+# Checkpoint-chain fork tests.
+# LangGraph checkpoints are keyed by thread_id, which equals the conversation
+# id. The fork cutoff is the created_at of the message after the anchor. A
+# checkpoint is copied only when its ts is less than that cutoff.
 
 
 async def _set_message_created_at(
@@ -513,7 +496,7 @@ async def _set_message_created_at(
     message_id: UUID,
     ts: datetime,
 ) -> None:
-    """Override a message's ``created_at`` for deterministic cutoff tests."""
+    """Sets a message created_at to a chosen value."""
     await session.execute(
         text("UPDATE messages SET created_at = :ts WHERE id = :id"),
         {"ts": ts, "id": message_id},
@@ -528,12 +511,10 @@ async def _insert_message_at(
     text_body: str,
     ts: datetime,
 ) -> UUID:
-    """Insert a message and explicitly pin its ``created_at``.
+    """Inserts a message and sets its created_at to a chosen value.
 
-    The base ``_insert_message`` helper leans on the DB default (``now()``),
-    which is racy with the checkpoint timestamps we seed. Tests that exercise
-    the cutoff logic need deterministic ordering, so we flush and then
-    UPDATE the row to a chosen ``ts``.
+    Cutoff tests need a message time that is ordered against the seeded
+    checkpoint times, which the database default does not give.
     """
     messages = MessagesRepository(session)
     msg_id = await _insert_message(
@@ -552,27 +533,10 @@ async def _two_turn_source(
     user_id: UUID,
     source_id: UUID,
 ) -> tuple[list[UUID], list[datetime]]:
-    """Seed a source conversation with two turns (4 messages) and 4 checkpoints.
+    """Seeds a source conversation with two turns and one checkpoint per message.
 
-    Production-realistic timeline: an end-of-turn checkpoint is written
-    *after* ``finalize_turn_node`` persists its assistant message, and the
-    next turn's first checkpoint is written *after* the incoming user
-    message lands. This matters because the fork cutoff is the created_at
-    of the message right after the anchor; checkpoints strictly earlier
-    than that cutoff are preserved.
-
-    Synthetic timeline (anchored 2026-01-01, seconds-precision):
-
-      t=10 — user message 1
-      t=15 — checkpoint ``cp_u1``  (mid-turn-1)
-      t=19 — assistant message 1 (persisted by finalize_turn_node)
-      t=20 — checkpoint ``cp_a1``  (end-of-turn-1 — just after msg write)
-      t=40 — user message 2
-      t=45 — checkpoint ``cp_u2``  (mid-turn-2)
-      t=49 — assistant message 2
-      t=50 — checkpoint ``cp_a2``  (end-of-turn-2)
-
-    Returns ``(message_ids, checkpoint_timestamps)`` ordered chronologically.
+    The message and checkpoint times interleave the same way a live turn
+    writes them. Returned lists are in chronological order.
     """
     base = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
     cp_ts = [base + timedelta(seconds=s) for s in (15, 20, 45, 50)]
@@ -640,18 +604,14 @@ async def _two_turn_source(
     return message_ids, cp_ts
 
 
-# ────────────────────────────────────────────────────────────────────
-# Invariant & resume helpers
-# ────────────────────────────────────────────────────────────────────
+# Invariant and resume helpers.
 
 
 async def _chain_is_valid(session: AsyncSession, thread_id: str) -> bool:
-    """True if every surviving checkpoint's parent reference resolves.
+    """True when every surviving checkpoint parent reference resolves.
 
-    This is the fork correctness invariant: after a time-based cutoff, the
-    surviving rows must form a valid chain — each non-null
-    ``parent_checkpoint_id`` must point at another surviving row. An orphan
-    parent would make LangGraph's chain walk unresolvable on resume.
+    Each non-null parent_checkpoint_id must point at another surviving row.
+    LangGraph cannot walk a chain that has an orphan parent.
     """
     result = await session.execute(
         text(
@@ -666,7 +626,7 @@ async def _chain_is_valid(session: AsyncSession, thread_id: str) -> bool:
             continue
         if parent not in surviving:
             return False
-        _ = cp_id  # satisfy linters
+        _ = cp_id
     return True
 
 
@@ -687,12 +647,10 @@ async def _put_real_checkpoint(
     ts: datetime,
     channel_values: dict[str, object],
 ) -> None:
-    """Write a LangGraph checkpoint via the real saver at a chosen ``ts``.
+    """Writes a checkpoint through the real saver at a chosen time.
 
-    Going through ``AsyncPostgresSaver.aput`` means every field LangGraph
-    depends on (channel_versions, blob references, metadata) is populated
-    the same way production does it — so resume tests exercise the full
-    serialize/deserialize path rather than hand-rolled JSON stubs.
+    The saver populates every field that LangGraph reads on resume, so the
+    test covers the full serialize path.
     """
     parent_config: RunnableConfig = {
         "configurable": {"thread_id": thread_id, "checkpoint_ns": ""},
@@ -729,19 +687,14 @@ async def _resume_latest(
     )
 
 
-# ────────────────────────────────────────────────────────────────────
-# Behavioral tests for the checkpoint-chain truncation
-# ────────────────────────────────────────────────────────────────────
+# Behavioral tests for the checkpoint-chain truncation.
 
 
 async def test_fork_from_latest_count_matches_source(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Fork-from-latest: every checkpoint row in the source lands in the branch.
-
-    Doesn't care about specific ids — just cardinality and chain validity.
-    """
+    """A fork from the latest message copies every source checkpoint row."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -769,11 +722,7 @@ async def test_fork_from_mid_chat_drops_later_turn_count(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Fork mid-chat copies strictly fewer checkpoints than the source.
-
-    Exact count depends on the timeline; we verify the inequality + that
-    the remaining chain is still internally consistent.
-    """
+    """A fork from a middle message copies fewer checkpoints than the source."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -782,8 +731,6 @@ async def test_fork_from_mid_chat_drops_later_turn_count(
     async with session_module.async_session_factory() as session:
         source_count = await _count_checkpoints(session, str(source_id))
 
-    # Anchor = first assistant (end of turn 1). Second-turn checkpoints
-    # must not leak in.
     async with session_module.async_session_factory() as session:
         fork = await fork_conversation(
             session,
@@ -804,11 +751,9 @@ async def test_fork_cutoff_is_strictly_less_than(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """A checkpoint whose ``ts`` equals the cutoff is NOT copied.
+    """A checkpoint whose ts equals the cutoff is not copied.
 
-    Production rule: the first checkpoint of turn N+1 is created after the
-    user message of turn N+1 is persisted; if by coincidence its ``ts``
-    ties the cutoff, it still belongs to turn N+1 and must be excluded.
+    The cutoff is exclusive. A tie belongs to the following turn.
     """
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -816,8 +761,8 @@ async def test_fork_cutoff_is_strictly_less_than(
 
     base = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
     anchor_msg_ts = base + timedelta(seconds=10)
-    boundary_ts = base + timedelta(seconds=20)  # cutoff = next_msg.created_at
-    next_msg_ts = boundary_ts  # identical to checkpoint ts
+    boundary_ts = base + timedelta(seconds=20)
+    next_msg_ts = boundary_ts
 
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
@@ -888,7 +833,6 @@ async def test_fork_cutoff_is_strictly_less_than(
             {"t": str(fork_id)},
         )
         ids = {r[0] for r in result}
-        # ``pre`` (ts < cutoff) is in; ``boundary`` (ts == cutoff) is out.
         assert "pre" in ids
         assert "boundary" not in ids
         assert await _chain_is_valid(session, str(fork_id))
@@ -898,9 +842,7 @@ async def test_fork_identical_message_timestamps_deterministic(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Two adjacent messages with identical ``created_at``: fork still runs
-    safely and produces a valid chain. Edge case for clock-resolution ties.
-    """
+    """A fork stays valid when two adjacent messages share a created_at."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -961,7 +903,7 @@ async def test_fork_with_no_checkpoints(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Conversation without any checkpoints forks cleanly — empty thread."""
+    """A conversation without checkpoints forks into an empty thread."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1001,7 +943,7 @@ async def test_fork_messages_are_copied_in_order(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Message prefix is a fresh copy with the same order and content."""
+    """The message prefix is a fresh copy with the same order and content."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1032,7 +974,7 @@ async def test_fork_cascade_delete_removes_descendants(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """``delete(cascade=True)`` on source wipes every descendant branch row."""
+    """A cascade delete of the source removes every descendant branch row."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1063,9 +1005,7 @@ async def test_fork_survives_noncascade_delete_of_source(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Non-cascade delete of source: branch is promoted to root, its own
-    checkpoint copy untouched and still a valid chain.
-    """
+    """A non-cascade delete promotes the branch to a root and keeps its chain."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1092,7 +1032,6 @@ async def test_fork_survives_noncascade_delete_of_source(
         )
         assert surviving is not None
         assert surviving.parent_conversation_id is None
-        # Checkpoints copy is unaffected.
         assert await _count_checkpoints(session, str(fork_id)) == fork_count_before
         assert await _chain_is_valid(session, str(fork_id))
 
@@ -1101,9 +1040,7 @@ async def test_fork_of_fork_scopes_to_parent_branch(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Grand-fork pulls only from its direct parent (mid fork), never the
-    grandparent. Tests that fork() doesn't follow ``parent_conversation_id``.
-    """
+    """A fork of a fork reads only its direct parent, never the grandparent."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1136,7 +1073,6 @@ async def test_fork_of_fork_scopes_to_parent_branch(
         grand_id = grand.id
 
     async with session_module.async_session_factory() as session:
-        # Grand = full copy of mid (latest fork); mid was partial copy of source.
         assert await _count_checkpoints(session, str(grand_id)) == mid_count
         assert await _chain_is_valid(session, str(grand_id))
 
@@ -1145,11 +1081,7 @@ async def test_fork_resume_returns_anchor_state(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """*The* behavioral test. Seed a conversation whose checkpoints carry
-    distinct ``turn_total_tokens`` values, fork mid-chat, and verify that
-    ``AsyncPostgresSaver.aget_tuple`` on the fork returns the anchor-turn
-    state — not the source's later state.
-    """
+    """A resume of the fork returns the anchor-turn state, not a later state."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1228,11 +1160,8 @@ async def test_fork_resume_returns_anchor_state(
 
     assert fork_tuple is not None
     assert source_tuple is not None
-    # Source's latest state is the third (later) turn.
     assert source_tuple.checkpoint["channel_values"]["turn_total_tokens"] == 1500
     assert source_tuple.checkpoint["channel_values"]["current_phase"] == "execution"
-    # Fork's latest state is the end-of-anchor-turn checkpoint — never
-    # the later one, regardless of how many ts-buckets follow.
     assert fork_tuple.checkpoint["channel_values"]["turn_total_tokens"] == 250
     assert fork_tuple.checkpoint["channel_values"]["current_phase"] == "verification"
 
@@ -1244,10 +1173,9 @@ async def test_fork_resume_latest_matches_source_exactly(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Fork-from-latest: fork's resume state is byte-identical to source's.
+    """A fork from the latest message resumes into the same state as the source.
 
-    Any field LangGraph reads on resume (channel_values, channel_versions,
-    updated_channels) must survive the copy unchanged.
+    Every field that LangGraph reads on resume survives the copy unchanged.
     """
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -1315,10 +1243,7 @@ async def test_fork_scales_to_many_turns(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Multi-turn conversation: fork at an arbitrary anchor copies the
-    expected count of preceding-turn checkpoints, keeps the chain valid,
-    and resumes at the anchor turn's state.
-    """
+    """A fork of a long conversation keeps a valid chain and a pre-cutoff state."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1367,13 +1292,6 @@ async def test_fork_scales_to_many_turns(
             msg_ids.append(msg)
             await session.commit()
 
-    # Fork at turn 3 (0-indexed). Cutoff = turn-4 message's created_at
-    # (=turn*10+9 with turn=4 → 49s). Checkpoints with ts < 49: turns 0-4
-    # (ts in {5,15,25,35,45}). Anchor turn 3 contributes its end-of-turn
-    # checkpoint at ts=35; turn 4's start-of-next-turn checkpoint at
-    # ts=45 is also included (because it falls before the next message).
-    # The KEY behavioral property isn't the exact count — it's that the
-    # resume state's turn_total_tokens reflects pre-cutoff state.
     async with session_module.async_session_factory() as session:
         fork = await fork_conversation(
             session,
@@ -1386,7 +1304,6 @@ async def test_fork_scales_to_many_turns(
 
     async with session_module.async_session_factory() as session:
         assert await _chain_is_valid(session, str(fork_id))
-        # Strictly fewer checkpoints than source.
         source_count = await _count_checkpoints(session, str(source_id))
         fork_count = await _count_checkpoints(session, str(fork_id))
         assert 0 < fork_count < source_count
@@ -1394,9 +1311,7 @@ async def test_fork_scales_to_many_turns(
     async with lifespan_checkpointer(get_settings().database_url) as saver:
         frk = await _resume_latest(saver, str(fork_id))
     assert frk is not None
-    # The latest surviving checkpoint in the fork is turn 4's start-of-turn
-    # (ts=45 < cutoff=49). Its turn_total_tokens = (4+1)*100 = 500.
-    # Turn 5+ (tokens 600+) must NOT be present.
+    # The latest surviving checkpoint is the last one before the cutoff.
     assert frk.checkpoint["channel_values"]["turn_total_tokens"] <= 500
     assert frk.checkpoint["channel_values"]["turn_total_tokens"] >= 100
 
@@ -1405,9 +1320,7 @@ async def test_fork_writes_only_reference_surviving_checkpoints(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Every ``checkpoint_writes`` row in the fork must join back to a
-    checkpoint that also exists in the fork. No orphan writes.
-    """
+    """Every write row in the fork joins back to a checkpoint in the fork."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1445,15 +1358,10 @@ async def test_fork_preserves_blob_bytes_exactly(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Every (channel, version) blob in the source lands in the fork with
-    byte-for-byte-identical ``blob`` contents.
+    """Each source blob lands in the fork with identical bytes.
 
-    Cheap mistake this test catches: any mid-copy transformation of the
-    ``blob`` column (re-encoding, compression toggle, truncation, serde
-    version bump) would change the bytes even when (channel, version) stay
-    the same. LangGraph's deserialize path would then decode to something
-    different, and the supervisor's resumed state would diverge silently —
-    hardest kind of bug.
+    The copy must not re-encode the blob column. A changed encoding decodes
+    into a different resumed state.
     """
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -1542,9 +1450,7 @@ async def test_fork_preserves_blob_bytes_exactly(
                 f"source={len(bytes(src_blob))}B fork={len(bytes(dst_blob))}B"
             )
 
-    # Round-trip: the saver should decode the fork's blobs back into the
-    # same Python values as the source's, confirming the bytes really do
-    # round-trip through LangGraph's serde and not just through raw COPY.
+    # The saver must decode the fork blobs into the same values as the source.
     async with lifespan_checkpointer(get_settings().database_url) as saver:
         src_tuple = await _resume_latest(saver, str(source_id))
         frk_tuple = await _resume_latest(saver, str(fork_id))
@@ -1556,22 +1462,16 @@ async def test_fork_preserves_blob_bytes_exactly(
     )
 
 
-# ────────────────────────────────────────────────────────────────────
-# Scratchpad fork copy (MAJOR 1)
-# ────────────────────────────────────────────────────────────────────
+# Scratchpad fork copy.
 
 
 async def test_fork_copies_scratchpad_notes_with_fresh_ids(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Forking a conversation duplicates its scratchpad notes under the fork.
+    """A fork duplicates the scratchpad notes of its source under new ids.
 
-    The copies get FRESH ids (source ids must not leak into the fork scope),
-    the copied rows preserve title/body/pinned, and the source scratchpad
-    stays intact. Guards MAJOR 1 of the scratchpad design review: without
-    this copy, the fork's checkpointed message history referenced note ids
-    that didn't exist under the new conversation_id.
+    The copied rows keep title, body and pinned. The source stays intact.
     """
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -1631,7 +1531,6 @@ async def test_fork_copies_scratchpad_notes_with_fresh_ids(
     assert len(fork_notes) == 2
     assert len(src_notes) == 2
 
-    # Titles/bodies/pinned replicated exactly.
     by_title = {n.title: n for n in fork_notes}
     assert by_title["GenesByRNASeq leads"].body == "Full scratchpad body #1"
     assert by_title["GenesByRNASeq leads"].pinned is True
@@ -1639,7 +1538,6 @@ async def test_fork_copies_scratchpad_notes_with_fresh_ids(
     assert by_title["Dead end: GenesByGO"].body == "Do not retry."
     assert by_title["Dead end: GenesByGO"].pinned is False
 
-    # Ids are distinct across source and fork — no shared primary keys.
     src_ids = {n.id for n in src_notes}
     fork_ids = {n.id for n in fork_notes}
     assert src_ids.isdisjoint(fork_ids)
@@ -1650,14 +1548,7 @@ async def test_fork_copies_scratchpad_notes_with_fresh_ids(
 
 
 def _three_step_combine_ast() -> dict[str, object]:
-    """A realistic built strategy_ast: INTERSECT over two leaf searches.
-
-    Mirrors what the execution phase persists: a ``root`` combine node whose
-    primary input is a ``GenesByTaxon`` leaf and secondary input is a
-    ``GenesByText`` leaf, plus a ``wdkStepIds`` map from local ids to live
-    WDK step ids. Used to prove the fork copies the AST as an independent
-    deep structure (no aliasing back into the parent row).
-    """
+    """Builds a strategy AST with a combine root over two leaf searches."""
     return {
         "recordType": "transcript",
         "name": "Pf erythrocytic invasion",
@@ -1686,7 +1577,7 @@ def _three_step_combine_ast() -> dict[str, object]:
 
 
 class _AstLeaf(BaseModel):
-    """Typed view of a leaf step in the persisted fork AST (camelCase JSON)."""
+    """Typed view of a leaf step in the persisted AST."""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -1696,7 +1587,7 @@ class _AstLeaf(BaseModel):
 
 
 class _AstRoot(BaseModel):
-    """Typed view of the persisted combine root for assertion (no dict chains)."""
+    """Typed view of the persisted combine root."""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -1707,7 +1598,7 @@ class _AstRoot(BaseModel):
 
 
 class _AstView(BaseModel):
-    """Typed view of the persisted ``strategy_ast`` JSON blob."""
+    """Typed view of the persisted strategy AST blob."""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -1742,17 +1633,10 @@ async def test_fork_copies_ast_as_independent_deep_structure(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Forking a built strategy must deep-copy the AST.
+    """A fork deep-copies the AST, so a change to the fork leaves the parent.
 
-    ``fork_conversation`` shallow-copies ``strategy_ast`` with
-    ``dict(source.strategy_ast)``. Nested mutable structures (``root``
-    subtree, ``wdkStepIds``) must not remain aliased to the parent row —
-    otherwise mutating the fork's tree corrupts the parent's strategy.
-
-    Source has no WDK strategy id, so the WDK-duplication path is skipped
-    and ``wdkStepIds`` is stripped from the fork (documented no-WDK fork
-    fallback). The ``root`` topology, operator, and params must survive the
-    copy verbatim, and the parent must stay byte-identical.
+    A source without a WDK strategy id skips the WDK duplication path, and
+    the fork drops the WDK step id map.
     """
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -1791,7 +1675,6 @@ async def test_fork_copies_ast_as_independent_deep_structure(
         )
         assert forked is not None
         fork_view = _AstView.model_validate(forked.strategy_ast)
-        # Topology + operator + params preserved verbatim.
         assert fork_view.root.id == "step_combine"
         assert fork_view.root.operator == "INTERSECT"
         assert fork_view.root.primary_input.search_name == "GenesByTaxon"
@@ -1802,14 +1685,11 @@ async def test_fork_copies_ast_as_independent_deep_structure(
         assert fork_view.root.secondary_input.parameters["text_expression"] == (
             "invasion"
         )
-        # No WDK strategy → wdkStepIds stripped (no-WDK fork fallback).
         assert fork_view.wdk_step_ids is None
         assert forked.wdk_strategy_id is None
         assert forked.record_type == "transcript"
 
-        # Mutate the fork's persisted AST and write it back. Reassigning
-        # ``strategy_ast`` (rather than mutating in place) is required for
-        # SQLAlchemy to flag the JSON column dirty.
+        # SQLAlchemy marks a JSON column dirty on assignment only.
         mutated_root = fork_view.root.model_copy(update={"operator": "UNION"})
         forked.strategy_ast = {
             "recordType": "transcript",
@@ -1817,7 +1697,6 @@ async def test_fork_copies_ast_as_independent_deep_structure(
         }
         await session.commit()
 
-    # The parent strategy must be completely untouched by mutating the fork.
     async with session_module.async_session_factory() as session:
         parent = await session.scalar(
             select(Conversation).where(Conversation.id == source_id),
@@ -1831,7 +1710,6 @@ async def test_fork_copies_ast_as_independent_deep_structure(
         assert parent_view.root.primary_input.parameters["organism"] == (
             "Plasmodium falciparum 3D7"
         )
-        # Parent keeps its own wdkStepIds map untouched.
         assert parent_view.wdk_step_ids == {
             "step_combine": 9000,
             "step_taxon": 9001,
@@ -1843,11 +1721,7 @@ async def test_fork_imported_saved_strategy_ids_is_independent_list(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """The fork's ``imported_saved_strategy_ids`` is a fresh list copy.
-
-    Appending to the fork's list must not extend the parent's (lead #4:
-    shared-by-reference artifact corruption).
-    """
+    """The imported strategy id list of a fork is a fresh copy of the source list."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1902,11 +1776,7 @@ async def test_fork_at_middle_message_excludes_later_messages(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> None:
-    """Branch-at-message boundary is inclusive of the anchor, exclusive after.
-
-    Four messages u1/a1(anchor)/u2/a2: forking at a1 must copy exactly
-    {u1, a1} and drop {u2, a2} (lead #3: off-by-one on the branch boundary).
-    """
+    """The branch boundary includes the anchor message and excludes later ones."""
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1928,7 +1798,7 @@ async def test_fork_at_middle_message_excludes_later_messages(
             msg_ids.append(mid)
             await session.commit()
 
-    anchor_id = msg_ids[1]  # the first assistant message
+    anchor_id = msg_ids[1]
 
     async with session_module.async_session_factory() as session:
         fork = await fork_conversation(
@@ -1945,7 +1815,6 @@ async def test_fork_at_middle_message_excludes_later_messages(
         assert [r.role for r in rows] == ["user", "assistant"], (
             "fork must copy exactly the anchor prefix, not later messages"
         )
-        # Parent retains all four messages, untouched.
         src_rows = await MessagesRepository(session).list_messages_for_conversation(
             source_id,
         )

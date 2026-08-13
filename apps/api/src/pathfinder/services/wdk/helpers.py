@@ -1,9 +1,5 @@
-"""Shared WDK helpers for record parsing, attribute inspection, and param merging.
-
-These functions are used by experiment results, gene set, and workbench
-endpoints to work with WDK record types, primary keys, and analysis
-parameters. Previously duplicated across multiple router modules.
-"""
+"""Shared WDK helpers for record parsing, attribute inspection, and analysis
+parameter merging."""
 
 from collections.abc import Sequence
 
@@ -15,10 +11,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.types import JSONObject
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 from pathfinder.services.enrichment.params import (
     encode_vocab_params,
     extract_default_params,
@@ -27,11 +19,10 @@ from pathfinder.services.enrichment.params import (
 _SORTABLE_WDK_TYPES = {"number", "float", "integer", "double"}
 
 DETAIL_ATTRIBUTE_LIMIT = 50
-"""Max attributes to request when fetching a single record detail.
+"""Maximum attributes to request for one record detail.
 
-WDK record types can have thousands of attributes (e.g. 3000+ expression
-columns on transcript).  Requesting all would timeout.  The first ~50
-``isInReport`` attributes cover core gene/record fields.
+A WDK record type can have thousands of attributes, and a request for all of
+them times out.
 """
 
 _SCORE_ATTRIBUTE_KEYWORDS = {
@@ -47,35 +38,22 @@ _SCORE_ATTRIBUTE_KEYWORDS = {
     "confidence",
 }
 
-# ---------------------------------------------------------------------------
-# Attribute classification
-# ---------------------------------------------------------------------------
-
 
 def is_sortable(attr_type: str | None) -> bool:
-    """Return ``True`` if a WDK attribute type supports numeric sorting."""
+    """Return ``True`` when a WDK attribute type supports numeric sorting."""
     if not attr_type:
         return False
     return attr_type.lower() in _SORTABLE_WDK_TYPES
 
 
 def is_suggested_score(name: str) -> bool:
-    """Heuristic: flag well-known score attributes as suggested for ranking."""
+    """Return ``True`` when an attribute name looks like a score."""
     lower = name.lower()
     return any(kw in lower for kw in _SCORE_ATTRIBUTE_KEYWORDS)
 
 
-# ---------------------------------------------------------------------------
-# Primary key extraction
-# ---------------------------------------------------------------------------
-
-
 def extract_pk(record: WDKRecordInstance) -> str | None:
-    """Extract primary key string from a WDK record.
-
-    WDK records use ``id: [{name, value}, ...]`` for the composite
-    primary key.  Returns the first part's value, stripped.
-    """
+    """Return the first part of a WDK record composite primary key."""
     if not record.id:
         return None
     return record.id[0].value.strip() or None
@@ -86,18 +64,13 @@ def extract_record_ids(
     *,
     preferred_key: str | None = None,
 ) -> list[str]:
-    """Extract gene/record IDs from WDK standard report records.
-
-    If *preferred_key* is given, looks it up in each record's
-    ``attributes`` dict first; falls back to the primary-key array.
-    """
+    """Extract record ids from WDK standard report records. A preferred key
+    reads from the record attributes, and the primary key is the fallback."""
     ids: list[str] = []
     for rec in records:
         extracted: str | None = None
         if preferred_key:
-            val = rec.attributes.get(preferred_key)
-            if isinstance(val, str) and val.strip():
-                extracted = val.strip()
+            extracted = (rec.attribute_text(preferred_key) or "").strip() or None
         if extracted is None:
             extracted = extract_pk(rec)
         if extracted:
@@ -105,26 +78,15 @@ def extract_record_ids(
     return ids
 
 
-# ---------------------------------------------------------------------------
-# Primary key ordering
-# ---------------------------------------------------------------------------
-
-
 def order_primary_key(
     pk_parts: list[dict[str, str]],
     pk_refs: list[str],
     pk_defaults: dict[str, str],
 ) -> list[dict[str, str]]:
-    """Reorder and fill primary key parts to match WDK record class definition.
+    """Reorder and fill primary key parts to match the record class.
 
-    WDK requires PK columns in the exact order defined by
-    ``primaryKeyColumnRefs``.  Step reports may omit columns like
-    ``project_id`` and may return them in a different order.
-
-    :param pk_parts: Client-provided PK parts (``[{name, value}, ...]``).
-    :param pk_refs: Column names in record-class order.
-    :param pk_defaults: Default values for missing columns (e.g. ``project_id``).
-    :returns: Ordered PK parts matching ``pk_refs``.
+    WDK requires the primary key columns in the order that the record class
+    declares. A step report can omit columns or return them in another order.
     """
     pk_by_name: dict[str, str] = {
         p.get("name", ""): p.get("value", "") for p in pk_parts
@@ -136,17 +98,8 @@ def order_primary_key(
     return ordered
 
 
-# ---------------------------------------------------------------------------
-# Attribute list building
-# ---------------------------------------------------------------------------
-
-
 def build_attribute_list(attrs: list[WDKAttributeField]) -> list[JsonValue]:
-    """Build a normalized attribute list from WDK attribute fields.
-
-    Each entry includes: ``name``, ``displayName``, ``help``, ``type``,
-    ``isDisplayable``, ``isSortable``, ``isSuggested``.
-    """
+    """Build a normalized attribute list from WDK attribute fields."""
     attributes: list[JsonValue] = []
     for field in attrs:
         sortable = is_sortable(field.type)
@@ -164,19 +117,13 @@ def build_attribute_list(attrs: list[WDKAttributeField]) -> list[JsonValue]:
     return attributes
 
 
-# ---------------------------------------------------------------------------
-# Detail attribute extraction
-# ---------------------------------------------------------------------------
-
-
 def extract_detail_attributes(
     attrs: list[WDKAttributeField],
 ) -> tuple[list[str], dict[str, str]]:
     """Extract attribute names and display names for the record detail view.
 
-    Uses ``is_in_report`` as primary signal; falls back to ``is_displayable``
-    only when ``is_in_report`` is False (preserving original WDK semantics).
-    Caps at :data:`DETAIL_ATTRIBUTE_LIMIT`.
+    An attribute qualifies when it is in the report or is displayable. The
+    result stops at :data:`DETAIL_ATTRIBUTE_LIMIT`.
     """
     names: list[str] = []
     display_names: dict[str, str] = {}
@@ -190,26 +137,15 @@ def extract_detail_attributes(
     return names, display_names
 
 
-# ---------------------------------------------------------------------------
-# Analysis parameter merging
-# ---------------------------------------------------------------------------
-
-
 def merge_analysis_params(
     wdk_params: Sequence[WDKParameter],
     user_params: JSONObject,
 ) -> JSONObject:
     """Merge WDK form defaults with user-supplied parameters.
 
-    Always extracts defaults from the typed WDK parameters and layers
-    user-supplied parameters on top so that required fields are never
-    missing (which would cause WDK 422 errors).
-
-    After merging, vocabulary params (``single-pick-vocabulary``,
-    ``multi-pick-vocabulary``) are re-encoded as JSON arrays using
-    the parameter type info.  This ensures that user-supplied plain strings
-    don't bypass the encoding required by
-    ``AbstractEnumParam.convertToTerms()``.
+    User values sit on top of the defaults, so every required field stays
+    present. Vocabulary parameters are re-encoded as JSON arrays, which is the
+    form WDK accepts.
     """
     defaults = extract_default_params(wdk_params)
     merged: JSONObject = {**defaults, **user_params}

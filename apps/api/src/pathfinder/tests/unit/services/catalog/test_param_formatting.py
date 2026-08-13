@@ -83,7 +83,7 @@ def test_filter_param_exposes_selectable_leaf_facets() -> None:
 class TestDependentParamNote:
     """The note must say which parent values produced the list it accompanies.
 
-    Saying "default context only" when the read actually inherited a bound
+    Naming the wrong context when the read inherited a bound
     parent is a lie about provenance, and the model has no way to detect it: it
     sees a plausible list of 46 time points either way.
     """
@@ -132,7 +132,7 @@ class TestDependentParamNote:
         )
 
         assert info.note is not None
-        assert "default context" not in info.note
+        assert "No parent value was supplied" not in info.note
 
     def test_warns_that_another_parent_yields_another_list(self) -> None:
         info = format_typed_param(
@@ -151,7 +151,7 @@ class TestDependentParamNote:
         info = format_typed_param(self._samples(), self._DEPENDS, {})
 
         assert info.note is not None
-        assert "default context" in info.note
+        assert "No parent value was supplied" in info.note
 
     def test_ignores_context_for_parents_this_param_does_not_have(self) -> None:
         info = format_typed_param(
@@ -162,4 +162,4 @@ class TestDependentParamNote:
         )
 
         assert info.note is not None
-        assert "default context" in info.note
+        assert "No parent value was supplied" in info.note

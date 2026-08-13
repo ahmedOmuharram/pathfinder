@@ -1,16 +1,7 @@
-"""Sub-agent tool wrappers — invoked by the Lead Agent.
+"""Sub-agent tool wrappers that the Lead Agent calls.
 
-Each wrapper:
-  1. Builds a focused work-order prompt from the Lead's input args.
-  2. Constructs ``AgentDeps`` for the phase agent from ``LeadDeps.state``.
-  3. Runs the phase agent (or runs declarative execution).
-  4. Applies the typed delta back into ``LeadDeps.state`` (mutates the
-     working PipelineState copy that the Lead's node will return to
-     LangGraph at turn end).
-  5. Returns the delta to the Lead.
-
-The phase agents and their prompts/toolsets are unchanged from Stage 3 —
-they just emit typed deltas instead of PhaseOutcome.
+Each wrapper runs one phase agent and applies its typed delta into the
+working ``PipelineState`` that the Lead's node returns at turn end.
 """
 
 from __future__ import annotations
@@ -134,10 +125,11 @@ def sub_agent_model_id(tool_name: str) -> str:
 
 @dataclass
 class SubAgentRunUsage:
-    """Per-run usage from one sub-agent dispatch — fed back to lead_node so
-    sub-agent tokens roll into the cumulative turn cost using the
-    sub-agent's own model pricing (each phase may run a different model, so
-    the Lead's pricing would be wrong for a sub-agent's tokens)."""
+    """Usage from one sub-agent dispatch.
+
+    Each phase can run a different model, so the cost uses the sub-agent's
+    own model pricing, not the Lead's.
+    """
 
     usage: RunUsage
     model_name: str | None
@@ -209,10 +201,8 @@ def _forward_tool_metadata(writer: Any, metadata: object) -> None:
     """Forward a sub-agent tool's ``ToolReturn.metadata`` chunks to the
     main stream.
 
-    Sub-agent tools run outside the VercelAIAdapter that surfaces
-    direct-agent tool metadata, so their ``DataChunk`` / source / file
-    payloads would be dropped. Re-emit the same chunk shapes the adapter
-    would, so artifacts (gene set, graph) reach the UI.
+    A sub-agent tool runs outside the VercelAIAdapter, so the adapter does
+    not emit these chunks.
     """
     if not isinstance(metadata, list):
         return
@@ -307,11 +297,10 @@ def _phase_override_kwargs(
     runtime: Context,
     role: PhaseRole,
 ) -> dict[str, Any]:
-    """Resolve the effective model + provider settings for a phase run.
+    """Resolve the model and the provider settings for a phase run.
 
-    Always overrides: the effective model (user pick, else the phase default)
-    is paired with provider-correct settings (caching + reasoning effort), so
-    caching is applied on every run.
+    The model is the user pick, else the phase default. Settings always
+    accompany it, because caching is provider specific.
     """
     if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
         return {"model": get_mock_model()}
@@ -344,16 +333,13 @@ async def _stream_sub_agent[OutputT: BaseModel](
     deps: LeadDeps,
 ) -> OutputT | None:
     agent = _SUB_AGENT_BY_ROLE[role]
-    """Run a sub-agent, forward its inner events as
-    ``data-sub-agent-step`` chunks, push its usage into the Lead's
-    accumulator (using the sub-agent's own model for cost attribution),
-    and return the typed delta."""
+    """Run a sub-agent, forward its inner events, and return the typed delta."""
     writer = get_stream_writer()
     inner_calls: dict[str, str] = {}
     output: OutputT | None = None
     usage = RunUsage()
-    # Let the deterministic mock target a site-valid search/organism and
-    # branch the canned plan on what the user asked for.
+    # The mock model reads these to pick a site-valid search and branch its
+    # canned plan.
     current_site_id.set(deps.runtime.site_id)
     current_user_text.set(deps.state.user_prompt)
     override_kwargs = _phase_override_kwargs(deps.runtime, role)
@@ -408,13 +394,9 @@ async def _stream_sub_agent[OutputT: BaseModel](
                             writer, role, parent_tool_call_id, usage
                         )
         except UsageLimitExceeded as exc:
-            # A sub-agent writes each result into the shared draft as it goes,
-            # so everything it bound before the ceiling is already durable.
-            # Letting this propagate threw all of it away -- eight of nine
-            # criteria on the observed run -- and ended the turn with nothing.
-            # A ceiling is a budget, not a correctness failure: stop here and
-            # let the Lead read the partial draft, as it would any other
-            # incomplete result.
+            # A usage ceiling is a budget, not a correctness failure. The
+            # sub-agent writes each result into the shared draft as it goes,
+            # so the Lead reads the partial draft.
             logger.warning(
                 "sub-agent hit its usage ceiling; keeping partial progress",
                 role=role,
@@ -461,10 +443,7 @@ def _emit_live_ledger(
     deps: LeadDeps,
     agent_deps: AgentDeps,
 ) -> None:
-    """After every sub-agent tool call, sync state and broadcast a fresh
-    ledger snapshot so the UI sees discovery decisions, plan edits, etc. as
-    they happen instead of waiting for the sub-agent to return to the Lead.
-    """
+    """Sync state and broadcast a ledger snapshot after a sub-agent tool call."""
     _apply_agent_state(deps, agent_deps)
     ledger = derive_ledger(deps.state, deps.intent)
     writer(

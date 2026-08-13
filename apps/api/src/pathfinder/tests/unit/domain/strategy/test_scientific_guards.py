@@ -115,9 +115,9 @@ class TestCrossOrganismIntersect:
             _taxon("b", "Toxoplasma gondii ME49"),
         )
 
-        joined = " ".join(issue.message for issue in validate_strategy(
-            step, "transcript"
-        ).errors)
+        joined = " ".join(
+            issue.message for issue in validate_strategy(step, "transcript").errors
+        )
         assert "organism" in joined.lower()
 
     def test_the_same_organism_on_both_sides_passes(self) -> None:

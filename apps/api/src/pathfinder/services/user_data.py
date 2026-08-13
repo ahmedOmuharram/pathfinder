@@ -1,11 +1,5 @@
-"""User data purge service.
-
-Business logic for purging user data across all local stores (PostgreSQL,
-in-memory caches) and optionally deleting WDK strategies.
-
-The transport layer (``transport.http.routers.user_data``) is a thin HTTP
-adapter that delegates to this module.
-"""
+"""Purges user data from the database and the in-memory caches, and optionally
+from WDK."""
 
 import asyncio
 from dataclasses import dataclass
@@ -54,26 +48,19 @@ async def purge_user_data(
 ) -> PurgeResult:
     """Purge user data from all local stores.
 
-    When ``delete_wdk=False`` (default): every chat is **dismissed** (soft
-    delete) so WDK sync won't re-import it; nothing is hard-deleted and no WDK
-    strategy is touched. Permanent removal of dismissed chats happens later.
-
-    When ``delete_wdk=True``: every chat is hard-deleted locally AND all WDK
-    strategies are deleted from VEuPathDB.
-
-    Always deletes: gene sets, experiments, control sets.
+    Without ``delete_wdk``, chats are dismissed rather than deleted, so WDK
+    sync does not re-import them. With ``delete_wdk``, chats and their WDK
+    strategies are deleted. Gene sets, experiments, and control sets are
+    always deleted.
     """
-    # 1. Find all conversations (for WDK cleanup)
     conversation_query = select(Conversation).where(Conversation.user_id == user_id)
     if site_id:
         conversation_query = conversation_query.where(Conversation.site_id == site_id)
     conversations = list((await session.execute(conversation_query)).scalars().all())
     conversation_ids = [str(c.id) for c in conversations]
 
-    # 2. Delete WDK strategies (only when explicitly requested)
     wdk_deleted = await _purge_wdk_strategies(site_id, delete_wdk=delete_wdk)
 
-    # 3. Handle conversations
     dismissed_count = 0
     hard_deleted_count = 0
 
@@ -92,14 +79,12 @@ async def purge_user_data(
         )
         dismissed_count = len(conversation_ids)
 
-    # 4. Delete gene sets, experiments, control sets
     pg_gene_sets, pg_experiments, pg_control_sets = await _purge_related_data(
         session, user_id, site_id
     )
 
     await session.commit()
 
-    # 5. Clear in-memory caches so stale data doesn't reappear
     _clear_gene_set_cache(user_id, site_id)
 
     strategies_handled = hard_deleted_count + dismissed_count
@@ -136,8 +121,8 @@ async def _purge_wdk_strategies(site_id: str | None, *, delete_wdk: bool) -> int
     else:
         sites_to_purge.update(s.id for s in list_sites())
 
-    # Delete concurrently (bounded) — a sequential per-strategy loop across all
-    # sites can run for minutes and trip the upstream connection's idle reset.
+    # Deletes run concurrently. A sequential loop over every site exceeds the
+    # upstream connection idle timeout.
     semaphore = asyncio.Semaphore(10)
     wdk_deleted = 0
     for purge_site in sites_to_purge:

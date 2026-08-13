@@ -1,8 +1,4 @@
-"""Strategy build service: root resolution and result count lookup.
-
-Step creation and strategy sync are now handled by step_creation.py and sync.py
-respectively. This module retains root resolution and result count helpers.
-"""
+"""Strategy build service: root resolution and result count lookup."""
 
 from dataclasses import dataclass
 from typing import Protocol
@@ -69,13 +65,7 @@ def resolve_root_step(
     graph: StrategyGraph,
     explicit_root_step_id: str | None,
 ) -> StrategyStep:
-    """Resolve the root step from the graph.
-
-    :param graph: Strategy graph.
-    :param explicit_root_step_id: Optional explicit root step ID override.
-    :returns: The resolved root StrategyStepNode.
-    :raises RootResolutionError: When root cannot be determined.
-    """
+    """Resolve the root step from the graph."""
 
     if explicit_root_step_id:
         step = graph.get_step(explicit_root_step_id)

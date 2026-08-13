@@ -1,8 +1,10 @@
 import type { TaskCompleted, TaskProgressChunk } from "@pathfinder/shared";
 
+/** The endpoint frames every chunk as `custom` and names it in `kind`. */
 export type TaskEventChunk =
-  | { type: "data-task-progress"; data: TaskProgressChunk }
-  | { type: "data-task-completed"; data: TaskCompleted };
+  | { type: "custom"; kind: "data-task-progress"; data: TaskProgressChunk }
+  | { type: "custom"; kind: "data-task-completed"; data: TaskCompleted }
+  | { type: "done"; reason: string };
 
 export interface TaskLiveState {
   latest: TaskProgressChunk | null;
@@ -27,7 +29,8 @@ export function deriveTaskLiveState(chunks: readonly TaskEventChunk[]): TaskLive
   const variants = new Map<string, TaskProgressChunk>();
   let completed: TaskCompleted | null = null;
   for (const chunk of chunks) {
-    if (chunk.type === "data-task-progress") {
+    if (chunk.type !== "custom") continue;
+    if (chunk.kind === "data-task-progress") {
       latest = chunk.data;
       const vid = variantId(chunk.data);
       if (vid !== null) variants.set(vid, chunk.data);

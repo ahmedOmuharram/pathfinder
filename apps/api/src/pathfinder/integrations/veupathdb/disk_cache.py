@@ -14,21 +14,12 @@ from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Cache config
-# ---------------------------------------------------------------------------
-
 _CATALOG_CACHE_DIR = Path(__file__).resolve().parents[3] / "data" / "catalogs"
-_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60  # 1 week
-
-
-# ---------------------------------------------------------------------------
-# Snapshot model
-# ---------------------------------------------------------------------------
+_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 class CatalogSnapshot(BaseModel):
-    """Serializable snapshot of a site's catalog metadata."""
+    """A snapshot of one site's catalog metadata."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -46,17 +37,12 @@ class CatalogSnapshot(BaseModel):
         return (time.time() - self.cached_at) > _CACHE_TTL_SECONDS
 
 
-# ---------------------------------------------------------------------------
-# Disk I/O
-# ---------------------------------------------------------------------------
-
-
 def catalog_cache_path(site_id: str) -> Path:
     return _CATALOG_CACHE_DIR / f"{site_id}.json"
 
 
 def try_load_catalog_cache(site_id: str) -> CatalogSnapshot | None:
-    """Load a cached catalog snapshot from disk. Returns None if missing or unreadable."""
+    """Loads a cached snapshot. A missing or unreadable file returns None."""
     path = catalog_cache_path(site_id)
     if not path.exists():
         return None
@@ -69,7 +55,7 @@ def try_load_catalog_cache(site_id: str) -> CatalogSnapshot | None:
 
 
 def save_catalog_cache(site_id: str, snapshot: CatalogSnapshot) -> None:
-    """Save a catalog snapshot to disk."""
+    """Writes a catalog snapshot to disk."""
     _CATALOG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = catalog_cache_path(site_id)
     try:
@@ -78,9 +64,7 @@ def save_catalog_cache(site_id: str, snapshot: CatalogSnapshot) -> None:
         logger.warning("Failed to save catalog cache", path=str(path), exc_info=True)
 
 
-# ---------------------------------------------------------------------------
-# Models for parsing the WDK dataset report (AllDatasets/reports/standard)
-# ---------------------------------------------------------------------------
+# The models below parse the WDK dataset report.
 
 
 class DatasetPkPart(BaseModel):
@@ -112,7 +96,7 @@ class DatasetRecord(BaseModel):
         summaries: dict[str, str],
         contacts: dict[str, str],
     ) -> None:
-        """Write this record's summary/contact into the provided dicts."""
+        """Writes this record's summary and contact into the given maps."""
         ds_id = self.dataset_id
         if not ds_id:
             return

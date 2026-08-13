@@ -1,15 +1,11 @@
-/**
- * Label a result count with the unit WDK actually counted.
- *
- * A gene set of 438 genes returns 448 transcript records, because one gene
- * can have several transcripts. Rendering both as bare "records" vs "genes"
- * reads as a data inconsistency; naming the unit explains it.
- */
-export function recordCountLabel(count: number, recordType: string | null): string {
-  const formatted = count.toLocaleString();
-  if (recordType == null || recordType === "") {
-    return `${formatted} records`;
+/** Label for a page of records, when the total may be unknown. */
+export function recordCountLabel(
+  count: number | null,
+  recordType: string | null,
+): string {
+  const noun = recordType == null || recordType === "" ? "record" : recordType.replace(/_/g, " ");
+  if (count == null) {
+    return `${noun}s, count unavailable`;
   }
-  const noun = recordType.replace(/_/g, " ");
-  return `${formatted} ${count === 1 ? noun : `${noun}s`}`;
+  return `${count.toLocaleString()} ${count === 1 ? noun : `${noun}s`}`;
 }

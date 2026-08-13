@@ -15,13 +15,13 @@ from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.integrations.veupathdb.search_context import (
-    get_search_params_under_context,
-)
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
 from pathfinder.platform.errors import ValidationError
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
+from pathfinder.services.catalog.search_context import (
+    get_search_params_under_context,
+)
 from pathfinder.services.wdk import get_strategy_api
 
 LoadSearchDetails = Callable[

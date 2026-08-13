@@ -1,12 +1,8 @@
 """Durable per-user WDK identity for requests without a browser token.
 
-Real logins put the user's WDK ``Authorization`` token on every request
-(header/cookie -> ``veupathdb_auth_token_ctx``), and worker jobs inherit it
-via payload capture — one identity everywhere. Without a token (dev login,
-mock e2e), each container's cookie jar used to drift into its OWN ephemeral
-WDK guest: strategies built in the worker returned 403 when edited through
-the api. This module converges those paths on one minted-and-persisted guest
-token per PathFinder user.
+WDK answers an uncredentialed request as a new guest, so every container
+would otherwise hold its own. One guest token is minted and persisted per
+PathFinder user, and every path uses it.
 """
 
 from uuid import UUID

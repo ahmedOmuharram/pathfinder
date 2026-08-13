@@ -10,7 +10,7 @@ status: stable
 
 # Symptom
 
-The 16-step drug-target prompt, live PlasmoDB, in the browser:
+The multi-criterion drug-target prompt, live PlasmoDB, in the browser:
 
 > The next tool call(s) would exceed the tool_calls_limit of 60 (tool_calls=61).
 

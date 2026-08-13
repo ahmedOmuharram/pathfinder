@@ -9,9 +9,7 @@ from pathfinder.services.experiment.seed.helpers import (
 )
 from pathfinder.services.experiment.seed.types import ControlSetDef, SeedDef
 
-# ---------------------------------------------------------------------------
 # Organism constants
-# ---------------------------------------------------------------------------
 CP_ORG = "Cryptosporidium parvum Iowa II"
 CP_EC_SOURCES = [
     "KEGG_Enzyme",
@@ -22,11 +20,9 @@ CP_EC_SOURCES = [
 ]
 
 
-# ---------------------------------------------------------------------------
 # Gene ID lists
-# ---------------------------------------------------------------------------
 
-# Kinases (GO:0004672 - protein kinase activity) -- 87 genes
+# Kinases (GO:0004672 - protein kinase activity)
 CRYPTO_KINASES = [
     "cgd1_1220",
     "cgd1_1490",
@@ -117,7 +113,7 @@ CRYPTO_KINASES = [
     "cgd8_750",
 ]
 
-# Proteases (GO:0008233 - peptidase activity) -- 82 genes
+# Proteases (GO:0008233 - peptidase activity)
 CRYPTO_PROTEASES = [
     "cgd1_1100",
     "cgd1_1170",
@@ -203,7 +199,7 @@ CRYPTO_PROTEASES = [
     "cgd8_4340",
 ]
 
-# Transporters (GO:0005215 - transporter activity) -- 84 genes
+# Transporters (GO:0005215 - transporter activity)
 CRYPTO_TRANSPORTERS = [
     "Cgd7_260",
     "cgd1_1350",
@@ -291,7 +287,7 @@ CRYPTO_TRANSPORTERS = [
     "cgd8_5270",
 ]
 
-# Ribosomal proteins (GO:0003735 - structural constituent of ribosome) -- 70 genes
+# Ribosomal proteins (GO:0003735 - structural constituent of ribosome)
 CRYPTO_RIBOSOMAL = [
     "Cgd2_2990",
     "cgd1_1660",
@@ -365,7 +361,7 @@ CRYPTO_RIBOSOMAL = [
     "cgd8_650",
 ]
 
-# Signal peptide genes (GenesWithSignalPeptide) -- 100 representative genes
+# Signal peptide genes (GenesWithSignalPeptide)
 CRYPTO_SIGNAL_PEPTIDE = [
     "Cgd5_40",
     "Cgd7_2213",
@@ -469,7 +465,7 @@ CRYPTO_SIGNAL_PEPTIDE = [
     "cgd3_1770",
 ]
 
-# Transmembrane domain genes (1+ TM) -- 100 representative genes
+# Transmembrane domain genes (1+ TM)
 CRYPTO_TRANSMEMBRANE = [
     "Cgd2_140",
     "Cgd5_1900",
@@ -573,7 +569,7 @@ CRYPTO_TRANSMEMBRANE = [
     "cgd2_1050",
 ]
 
-# Thrombospondin/TRAP family (invasion) -- 9 genes
+# Thrombospondin/TRAP family (invasion)
 CRYPTO_TRAP_TSP = [
     "cgd1_3500",
     "cgd8_150",
@@ -586,7 +582,7 @@ CRYPTO_TRAP_TSP = [
     "cgd6_800",
 ]
 
-# Oocyst wall proteins -- 6 genes
+# Oocyst wall proteins
 CRYPTO_OOCYST_WALL = [
     "cgd4_3090",
     "cgd4_500",
@@ -703,7 +699,7 @@ CRYPTO_SECRETED = [
     "cgd1_160",
 ]
 
-# Ubiquitin system -- 50 genes
+# Ubiquitin system
 CRYPTO_UBIQUITIN = [
     "cgd5_2550",
     "cgd1_290",
@@ -757,7 +753,7 @@ CRYPTO_UBIQUITIN = [
     "cgd3_2190",
 ]
 
-# Translation machinery (GO:0006412) -- 80 genes
+# Translation machinery (GO:0006412)
 CRYPTO_TRANSLATION = [
     "Cgd2_2990",
     "cgd1_1660",
@@ -841,7 +837,7 @@ CRYPTO_TRANSLATION = [
     "cgd7_2110",
 ]
 
-# DNA binding (GO:0003677) -- 80 genes
+# DNA binding (GO:0003677)
 CRYPTO_DNA_BINDING = [
     "Cgd3_2720",
     "cgd1_1560",
@@ -980,9 +976,7 @@ CRYPTO_OXIDOREDUCTASES = [
 ]
 
 
-# ---------------------------------------------------------------------------
 # Parameter helpers
-# ---------------------------------------------------------------------------
 def _ec_wildcard(organism: str, ec_sources: list[str], wildcard: str) -> dict[str, str]:
     """Build GenesByEcNumber with hardcoded ec_number="2.7.11.1".
 
@@ -995,9 +989,7 @@ def _ec_wildcard(organism: str, ec_sources: list[str], wildcard: str) -> dict[st
     )
 
 
-# ---------------------------------------------------------------------------
 # Seeds
-# ---------------------------------------------------------------------------
 SEEDS: list[SeedDef] = [
     # === Strategy 1: CpIowaII Surface Invasion Machinery (10 nodes) ===
     SeedDef(

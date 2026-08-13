@@ -12,13 +12,8 @@ from pathfinder.platform.pydantic_base import CamelModel
 logger = get_logger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Dataset metadata
-# ---------------------------------------------------------------------------
-
-
 class DatasetMetadata:
-    """Result of loading dataset summaries and contacts."""
+    """Dataset summaries and contacts, keyed by dataset name."""
 
     __slots__ = ("contacts", "summaries")
 
@@ -34,10 +29,7 @@ class DatasetMetadata:
 async def load_dataset_metadata(
     client: VEuPathDBClient, site_id: str
 ) -> DatasetMetadata:
-    """Fetch all dataset summaries and contacts in one call.
-
-    Returns empty metadata on failure (non-fatal).
-    """
+    """Fetch all dataset summaries and contacts. Return empty metadata on failure."""
     summaries: dict[str, str] = {}
     contacts: dict[str, str] = {}
     try:
@@ -65,13 +57,8 @@ async def load_dataset_metadata(
     return DatasetMetadata(summaries=summaries, contacts=contacts)
 
 
-# ---------------------------------------------------------------------------
-# Ontology categories
-# ---------------------------------------------------------------------------
-
-
 class OntologyCategories:
-    """Result of loading ontology category mappings."""
+    """Mappings from search name to ontology category and label."""
 
     __slots__ = ("available_categories", "search_categories", "search_category_labels")
 
@@ -87,7 +74,7 @@ class OntologyCategories:
 
 
 class _OntologyNodeProps(CamelModel):
-    """Properties bag on a Categories ontology node."""
+    """Properties on a Categories ontology node."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -109,7 +96,7 @@ class _OntologyNodeProps(CamelModel):
 
 
 class _OntologyNode(CamelModel):
-    """Minimal parse of a Categories ontology tree node."""
+    """One node of the Categories ontology tree."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -118,7 +105,7 @@ class _OntologyNode(CamelModel):
 
 
 class _OntologyResponse(CamelModel):
-    """Top-level response from /ontologies/Categories."""
+    """Top-level Categories ontology response."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -128,12 +115,9 @@ class _OntologyResponse(CamelModel):
 async def load_ontology_categories(
     client: VEuPathDBClient, site_id: str
 ) -> OntologyCategories:
-    """Fetch the Categories ontology and map searches to subcategories.
+    """Map each search to its ontology subcategory and readable label.
 
-    Also extracts top-level human-readable category labels for semantic
-    index enrichment (e.g. "Protein features and properties").
-
-    Returns empty mappings on failure (non-fatal).
+    Return empty mappings on failure.
     """
     search_categories: dict[str, str] = {}
     search_category_labels: dict[str, str] = {}
@@ -190,15 +174,10 @@ async def load_ontology_categories(
     )
 
 
-# ---------------------------------------------------------------------------
-# Record type processing helpers
-# ---------------------------------------------------------------------------
-
-
 async def load_searches_for_rt(
     client: VEuPathDBClient, rt_name: str
 ) -> list[WDKSearch] | None:
-    """Fetch searches for a record type, returning None on error."""
+    """Fetch searches for a record type. Return None on error."""
     try:
         return await client.get_searches(rt_name)
     except AppError as e:
@@ -215,10 +194,10 @@ def process_record_type_entry(
     *,
     expanded_supported: bool,
 ) -> tuple[WDKRecordType, list[WDKSearch] | None] | None:
-    """Extract (typed_rt, inline_searches) from a record type entry.
+    """Return the record type and its inline searches.
 
-    Returns None if the entry should be skipped. Returns (model, None) when
-    searches need to be fetched separately.
+    Return None to skip the entry. A None search list means the searches need a
+    separate fetch.
     """
     if not rt.url_segment:
         return None

@@ -2,18 +2,55 @@ from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import Literal
 
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
-from pathfinder.integrations.embeddings.prefixes import (
-    SEARCH_DOCUMENT_PREFIX,
-    SEARCH_QUERY_PREFIX,
-)
+from pathfinder.integrations.embeddings.embed_fn import EmbedFn
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_formatting import ParameterInfo
+from pathfinder.services.catalog.vocab_narrowing import DIRECT_MAX, narrow_candidates
 
-EmbedFn = Callable[[Sequence[str]], Awaitable[list[list[float]]]]
-_SEMANTIC_FLOOR = 0.45
+# One value, or the several values a multi-pick param takes.
+ParamAnswer = str | list[str]
+
+
+class Provenance(StrEnum):
+    """Where a bound value came from. A guess must stay distinguishable."""
+
+    STATED = "stated"
+    DEFAULTED = "defaulted"
+    INFERRED = "inferred"
+
+
+class IntentMatch(CamelModel):
+    """A value together with how it was found."""
+
+    value: ParamAnswer
+    provenance: Provenance
+
+
+# Decides a vocabulary value from the criterion text. Injected so this layer
+# does not depend on `ai/`.
+VocabResolver = Callable[
+    [str, ParameterInfo, list[VocabOption]], Awaitable[ParamAnswer | None]
+]
+
+# Reads a value for a param that has no vocabulary.
+FreeValueResolver = Callable[[str, ParameterInfo], Awaitable[str | None]]
+
+
+@dataclass(frozen=True)
+class ValueResolvers:
+    """The two ways to read a value from a request."""
+
+    vocab: VocabResolver | None = None
+    free: FreeValueResolver | None = None
+
+
+NO_RESOLVERS = ValueResolvers()
+
 
 _ORG_TERMS: list[tuple[str, str]] = [
     ("falciparum", "Plasmodium falciparum 3D7"),
@@ -42,8 +79,7 @@ def _direction_from_text(text: str) -> Literal["up", "down"] | None:
 
 
 def match_option(options: list[VocabOption], hint: str) -> str | None:
-    """Map a free-text hint to a vocab value: exact (value/display) first, then
-    substring. Returns ``None`` when nothing matches."""
+    """Map a free-text hint to a vocab value: exact match first, then substring."""
     h = hint.lower()
     for o in options:
         if h in (o.value.lower(), o.display.lower()):
@@ -54,11 +90,51 @@ def match_option(options: list[VocabOption], hint: str) -> str | None:
     return None
 
 
+# How a contrast is written. The group before the marker is the one being
+# tested; the group after it is the baseline.
+_CONTRAST_MARKERS = (" vs ", " vs. ", " versus ", " compared to ", " against ")
+
+
+def _comparator_in_text(options: list[VocabOption], text: str) -> str | None:
+    """The group named on the comparator side of a written contrast.
+
+    WDK computes fold change as comparator against reference, so taking the
+    wrong side inverts the result. A plain substring match takes the longest
+    name anywhere in the text, which is decided by word order rather than by
+    which side it names.
+    """
+    low = text.lower()
+    cut = min((low.index(m) for m in _CONTRAST_MARKERS if m in low), default=None)
+    if cut is None:
+        return _named_in_text(options, text)
+    named = _named_in_text(options, text[:cut])
+    if named is not None:
+        return named
+    # A side is usually written by the tokens that tell it apart, not by the
+    # full option name. The best overlap wins, and only when it wins outright.
+    left = _words(text[:cut])
+    scored = sorted(
+        ((len(_words(o.display or o.value) & left), o.value) for o in options),
+        reverse=True,
+    )
+    if (
+        scored
+        and scored[0][0] > 0
+        and (len(scored) == 1 or scored[0][0] > scored[1][0])
+    ):
+        return scored[0][1]
+    return _named_in_text(options, text)
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))
+
+
 def _named_in_text(options: list[VocabOption], text: str) -> str | None:
-    """A vocab value whose name appears verbatim in the criterion text — an
-    intentional, specific per-criterion choice (e.g. the TARGET organism of an
-    orthology search). Prefers the longest match so 'Toxoplasma gondii ME49'
-    beats a bare 'Toxoplasma'. Vocab-driven — no per-search special-casing."""
+    """A vocab value whose name appears verbatim in the criterion text.
+
+    The longest match wins.
+    """
     low = text.lower()
     named = [
         o.value for o in options if o.display.lower() in low or o.value.lower() in low
@@ -66,12 +142,9 @@ def _named_in_text(options: list[VocabOption], text: str) -> str | None:
     return max(named, key=len) if named else None
 
 
-# Database accessions: Pfam/PANTHER (PF00069), InterPro (IPR000023), GO
-# (GO:0016301), EC (2.7.11.1). Distinctive enough that a token matching one in
-# the vocabulary is a deliberate reference, not a coincidence.
-# The trailing boundary is a lookahead, not ``\b``: an EC wildcard ends in a
-# hyphen ("2.7.-.-"), and ``\b`` requires a word character before it, so the
-# most common EC form in a request matched nothing at all.
+# Database accessions: Pfam, PANTHER, InterPro, GO, and EC numbers.
+# The trailing boundary is a lookahead because an EC wildcard can end in a
+# hyphen, which ``\b`` does not follow.
 _ACCESSION_RE = re.compile(
     r"\b(?:[A-Z]{2,}[:_]?\d{3,}|\d+(?:\.[\d-]+){2,})(?![0-9A-Za-z])",
     re.IGNORECASE,
@@ -79,17 +152,9 @@ _ACCESSION_RE = re.compile(
 
 
 def names_absent_accession(options: list[VocabOption], text: str) -> bool:
-    """The text names an accession and the vocabulary has none of them.
+    """The text names an accession and the vocabulary contains none of them.
 
-    That is a contradiction, not an ambiguity: the user gave an exact
-    identifier for a vocabulary that does not contain it -- typically because
-    a dependent param narrowed it (asking for Pfam ``PF00069`` while
-    ``domain_database`` is INTERPRO, whose 5,405 entries are all ``IPR``).
-
-    Guessing here is how ``PF00069`` became ``IPR000023 :
-    Phosphofructokinase_dom``. Returning True stops the chain so a Tier-3
-    slot is opened and the model must pick a real value, fix the dependent
-    param, or drop the criterion.
+    True stops the resolution chain so the caller opens a slot.
     """
     if not _ACCESSION_RE.search(text):
         return False
@@ -99,34 +164,71 @@ def names_absent_accession(options: list[VocabOption], text: str) -> bool:
 def sole_identifier_in_text(text: str) -> str | None:
     """The one database identifier the criterion names, if it names exactly one.
 
-    For a param with NO vocabulary there is nothing to validate an identifier
-    against, so the literal the user wrote is the value and WDK is what checks
-    it. ``GenesByEcNumber.ec_wildcard`` is the case that exposed this: a visible
-    required string whose declared default is the placeholder ``'N/A'``, so
-    refusing the default is right -- and then the user was asked to confirm the
-    ``2.7.-.-`` they had already written in the request.
-
-    Two identifiers in one criterion is genuinely ambiguous and stays a
-    question; guessing which one a param wants is how ``PF00069`` once became a
-    phosphofructokinase domain.
+    Two identifiers in one criterion are ambiguous and stay unresolved.
     """
     tokens = {m.group(0) for m in _ACCESSION_RE.finditer(text)}
     return next(iter(tokens)) if len(tokens) == 1 else None
 
 
+# A search term the request quotes. Longer spans are prose, not a term.
+_QUOTED_RE = re.compile("['\"\u2018\u201c]([^'\"\u2019\u201d]{1,40})['\"\u2019\u201d]")
+_MAX_TERM_WORDS = 4
+
+
+def quoted_term_in_text(text: str) -> str | None:
+    """The one term the request quotes, when it quotes exactly one.
+
+    Two spans are ambiguous, and a long span is prose.
+    """
+    spans = {m.group(1).strip() for m in _QUOTED_RE.finditer(text)}
+    terms = [s for s in spans if s and len(s.split()) <= _MAX_TERM_WORDS]
+    return terms[0] if len(terms) == 1 and len(spans) == 1 else None
+
+
+def _is_free_text_query(pi: ParameterInfo) -> bool:
+    """A visible required param with no vocabulary: the search's own query."""
+    return pi.is_visible and pi.required and not pi.is_number
+
+
+def _identifier_for(
+    pi: ParameterInfo, text: str, siblings: Sequence[ParameterInfo] = ()
+) -> str | None:
+    """The identifier in the text, when the param could hold it.
+
+    A strain name matches the accession shape, so a numeric param must refuse
+    anything that is not a number.
+    """
+    found = sole_identifier_in_text(text)
+    if found is None:
+        return None
+    if (pi.is_number or pi.param_kind == "number") and not _is_numeric(found):
+        return None
+    if any(_offers(other, found) for other in siblings if other.name != pi.name):
+        # A vocabulary that lists the identifier is where the value belongs.
+        return None
+    return found
+
+
+def _offers(pi: ParameterInfo, value: str) -> bool:
+    """Whether this param's vocabulary contains the value."""
+    target = value.casefold()
+    return any(
+        o.value.casefold() == target
+        or o.value.casefold().startswith((f"{target} ", f"{target}:"))
+        for o in [*(pi.allowed_values or []), *pi.vocab_leaves]
+    )
+
+
+def _is_numeric(value: str) -> bool:
+    """Whether a literal is a number WDK would accept, including EC-style dotted forms."""
+    return bool(re.fullmatch(r"-?\d+(?:[.\d-]*\d|[.-]+)?", value))
+
+
 def accession_in_text(options: list[VocabOption], text: str) -> str | None:
     """A vocabulary entry whose value carries an accession named in the text.
 
-    A user who writes "InterPro domain PF00069" has given an exact identifier.
-    Semantic matching once bound `IPR000023 : Phosphofructokinase_dom` for that
-    request -- the display text contains "kinase" -- and the strategy searched
-    phosphofructokinase, returning 2 genes instead of 87 with verification
-    reporting success.
-
-    Only matches accessions that actually appear in the vocabulary. An
-    identifier the vocabulary does not contain is handled by
-    ``names_absent_accession`` rather than falling through, because the fuzzy
-    tier is exactly what bound the wrong domain.
+    An accession is an exact identifier and takes priority over a similarity
+    match. Accessions absent from the vocabulary are not matched here.
     """
     tokens = {m.group(0).casefold() for m in _ACCESSION_RE.finditer(text)}
     if not tokens:
@@ -143,28 +245,20 @@ _REFERENCE_MARKERS = ("_ref_", "_ref", "reference")
 _COMPARISON_MARKERS = ("_comp_", "_comp", "comparison", "comparator")
 
 
-# A contrast is between SAMPLE GROUPS. WDK also names an "operation" pair with
-# the same ref/comp markers (``min_max_avg_ref`` / ``_comp``: mean, median, min,
-# max applied to each side) -- there, both sides taking "average" is normal and
-# correct, so those must not be treated as a contrast at all.
+# A contrast is between sample groups.
 _CONTRAST_SUBJECT_MARKERS = ("sample", "group")
-# ...but WDK labels the operation pair "Operation Applied to Reference Samples",
-# which mentions samples without selecting any. Exclude aggregation selectors
-# explicitly: choosing "average" for both sides of a contrast is correct.
+# WDK names an aggregation pair with the same reference/comparison markers.
 _AGGREGATION_MARKERS = ("operation", "min_max_avg")
 
 
 def is_aggregation_param(name: str) -> bool:
-    """Whether a param selects HOW to aggregate a side (mean/median/min/max)
-    rather than WHICH samples that side contains. Both sides of a contrast
-    legitimately use the same operation, so the degenerate-pair rule -- which
-    exists to stop a group being compared against itself -- must not apply."""
+    """Whether a param selects how to aggregate a side rather than which samples
+    that side contains."""
     return any(m in name.lower() for m in _AGGREGATION_MARKERS)
 
 
 def contrast_role_of(name: str) -> Literal["reference", "comparison"] | None:
-    """Contrast role from a param name/label alone (no ``ParameterInfo``), for
-    callers that only hold resolved param names -- e.g. the ledger view."""
+    """Contrast role from a param name or label alone."""
     haystack = name.lower()
     if any(m in haystack for m in _AGGREGATION_MARKERS):
         return None
@@ -186,13 +280,10 @@ _ROLE_SLOT = "\x00"
 
 
 def contrast_pair_key(name: str) -> str:
-    """A key shared by the two halves of ONE contrast pair.
+    """A key shared by the two halves of one contrast pair.
 
-    ``samples_fc_comp_generic`` and ``samples_fc_ref_generic`` both reduce to
-    ``samples_fc_\x00_generic``; ``min_max_avg_comp``/``_ref`` reduce to their
-    own stem. Pairing on the stem keeps unrelated pairs independent, which a
-    bare role match does not -- and unlike a vocabulary signature it survives a
-    dependent param still carrying its pre-parent option set.
+    The role marker is replaced by a slot, so the remaining stem keeps unrelated
+    pairs independent.
     """
     low = name.lower()
     for marker in (*_COMPARISON_MARKERS, *_REFERENCE_MARKERS):
@@ -204,11 +295,8 @@ def contrast_pair_key(name: str) -> str:
 def contrast_role(pi: ParameterInfo) -> Literal["reference", "comparison"] | None:
     """Which side of a differential contrast this sample selector fills.
 
-    WDK computes fold change as comparator-vs-reference, so the two are NOT
-    interchangeable: the group the user wants enriched belongs in the
-    comparator, and the baseline in the reference. Read from the param name and
-    its display label ("Reference Samples" / "Comparison Samples"), both of
-    which WDK supplies consistently across the DESeq and fold-change families.
+    WDK computes fold change as comparator against reference, so the two sides
+    are not interchangeable.
     """
     return contrast_role_of(f"{pi.name} {pi.display_name}")
 
@@ -219,9 +307,7 @@ _YES_NO = frozenset({"yes", "no"})
 def _concept_from_param_name(name: str) -> str:
     """The thing a boolean param is asking about: ``isSyntenic`` -> "syntenic".
 
-    WDK names these for the positive case, while a request is just as likely to
-    be phrased as the negative ("non-syntenic orthologs"). The concept is what
-    survives stripping the ``is``/``has`` prefix.
+    The concept is what remains after the ``is`` or ``has`` prefix is removed.
     """
     stem = re.sub(r"^(is|has)[_-]?", "", name, flags=re.IGNORECASE)
     return re.sub(r"[_-]+", " ", stem).strip().lower()
@@ -230,8 +316,8 @@ def _concept_from_param_name(name: str) -> str:
 def _boolean_polarity(pi: ParameterInfo, text: str) -> str | None:
     """Resolve a yes/no vocabulary from how the criterion phrases the concept.
 
-    ``None`` when the concept is not mentioned at all -- silence is not a
-    choice, and the param's own default is the right answer there.
+    ``None`` when the criterion does not mention the concept. The param default
+    applies there.
     """
     options = pi.allowed_values or []
     if {o.value.strip().lower() for o in options} != _YES_NO:
@@ -248,8 +334,8 @@ def _boolean_polarity(pi: ParameterInfo, text: str) -> str | None:
 
 
 def _organism_value(pi: ParameterInfo, intent: ParamIntent) -> str | None:
-    """An organism named in THIS criterion's text (e.g. an orthology target) is
-    more specific than the strategy-wide anchor and wins over it."""
+    """An organism named in the criterion text overrides the strategy-wide
+    scope."""
     opts = pi.allowed_values or []
     named = _named_in_text(opts, intent.text)
     if named is not None:
@@ -262,9 +348,11 @@ def _organism_value(pi: ParameterInfo, intent: ParamIntent) -> str | None:
 
 
 def _direction_value(pi: ParameterInfo, intent: ParamIntent) -> str | None:
-    """Match the FULL label before the bare token: "up" is a substring of "up or
-    down regulated", so the token alone silently selects the both-directions
-    option and drops the directional filter entirely."""
+    """Resolve a direction value.
+
+    The full label is matched before the bare token, because the bare token is
+    also a substring of the both-directions label.
+    """
     want = intent.direction_hint or _direction_from_text(intent.text)
     if want is None:
         return None
@@ -278,12 +366,8 @@ def _rule_value(pi: ParameterInfo, intent: ParamIntent) -> str | None:
     if "organism" in low:
         return _organism_value(pi, intent)
     if contrast_role(pi) == "comparison":
-        # The group named literally in the criterion text is the subject of the
-        # contrast. A verbatim vocabulary term is much stronger evidence than a
-        # similarity score -- real embeddings score both "male" and "female"
-        # below the floor here, leaving the contrast unresolvable when the
-        # answer is right there in the text.
-        named = _named_in_text(pi.allowed_values or [], intent.text)
+        # The group named in the criterion text is the subject of the contrast.
+        named = _comparator_in_text(pi.allowed_values or [], intent.text)
         if named is not None:
             return named
     polarity = _boolean_polarity(pi, intent.text)
@@ -294,61 +378,110 @@ def _rule_value(pi: ParameterInfo, intent: ParamIntent) -> str | None:
     return None
 
 
-def _cosine(a: list[float], b: list[float]) -> float:
-    return sum(x * y for x, y in zip(a, b, strict=False))
-
-
-async def _semantic_value(
-    options: list[VocabOption], text: str, embed: EmbedFn
-) -> str | None:
-    if not options or not text.strip():
+async def _resolved_without_vocabulary(
+    pi: ParameterInfo,
+    intent: ParamIntent,
+    resolvers: ValueResolvers,
+    siblings: Sequence[ParameterInfo] = (),
+) -> IntentMatch | None:
+    """Resolve a param with no options from a named rule, the identifier in the
+    text, or the free-value resolver."""
+    named = _rule_value(pi, intent) or _identifier_for(pi, intent.text, siblings)
+    if named is None and _is_free_text_query(pi):
+        named = quoted_term_in_text(intent.text)
+    if named is not None:
+        return IntentMatch(value=named, provenance=Provenance.STATED)
+    if resolvers.free is None:
         return None
-    texts = [SEARCH_QUERY_PREFIX + text]
-    texts.extend(SEARCH_DOCUMENT_PREFIX + (o.display or o.value) for o in options)
-    vectors = await embed(texts)
-    query = vectors[0]
-    best: str | None = None
-    best_sim = _SEMANTIC_FLOOR
-    for option, vector in zip(options, vectors[1:], strict=False):
-        sim = _cosine(query, vector)
-        if sim >= best_sim:
-            best, best_sim = option.value, sim
-    return best
+    read = await resolvers.free(intent.text, pi)
+    if read is None:
+        return None
+    return IntentMatch(value=read, provenance=Provenance.INFERRED)
+
+
+async def _resolved_from_vocabulary(
+    pi: ParameterInfo,
+    intent: ParamIntent,
+    embed: EmbedFn,
+    resolve_vocab: VocabResolver | None,
+) -> IntentMatch | None:
+    """Shortlist the vocabulary and let the resolver read it.
+
+    Returns ``None`` when there is no resolver, nothing to choose from, or the
+    criterion does not determine a value. ``None`` opens a slot and never falls
+    through to a WDK default.
+    """
+    # A tree-box param holds its values in `vocab_leaves` and leaves
+    # `allowed_values` empty.
+    options = pi.allowed_values or pi.vocab_leaves
+    if resolve_vocab is None or not options:
+        return None
+    if pi.param_kind == "multi-pick-vocabulary" and len(options) > DIRECT_MAX:
+        # A set answer is trustworthy only if the resolver saw every option. An
+        # incomplete answer over a shortlist still validates.
+        return None
+    candidates = await narrow_candidates(options, intent.text, embed=embed)
+    answer = await resolve_vocab(intent.text, pi, candidates)
+    validated = _validated_answer(answer, pi, candidates)
+    if validated is None:
+        return None
+    return IntentMatch(value=validated, provenance=Provenance.INFERRED)
+
+
+def _validated_answer(
+    answer: ParamAnswer | None,
+    pi: ParameterInfo,
+    candidates: list[VocabOption],
+) -> ParamAnswer | None:
+    """Every element must be a candidate, and a single-pick may name only one.
+
+    A partly valid multi-pick is refused whole.
+    """
+    if answer is None:
+        return None
+    wanted = [answer] if isinstance(answer, str) else answer
+    if not wanted:
+        return None
+    if pi.param_kind != "multi-pick-vocabulary" and len(wanted) > 1:
+        return None
+    valid = {o.value for o in candidates}
+    if any(value not in valid for value in wanted):
+        return None
+    return wanted if pi.param_kind == "multi-pick-vocabulary" else wanted[0]
 
 
 async def map_intent_to_value(
-    pi: ParameterInfo, intent: ParamIntent, *, embed: EmbedFn
-) -> str | None:
-    """Tier-2: map a criterion's intent to a valid vocab value (rules first,
-    injected semantic match second). Returns ``None`` when genuinely
-    ambiguous — the caller then opens a Tier-3 slot rather than guessing."""
-    # `allowed_values` is capped at 50 entries, so an accession in a large
-    # vocabulary is only visible in `vocab_leaves` (excluded from the
-    # model-facing payload, kept for internal lookup like this).
+    pi: ParameterInfo,
+    intent: ParamIntent,
+    *,
+    embed: EmbedFn,
+    resolvers: ValueResolvers = NO_RESOLVERS,
+    siblings: Sequence[ParameterInfo] = (),
+) -> IntentMatch | None:
+    """Map a criterion's intent to a valid vocab value, rules first and the
+    injected resolver second. ``None`` means ambiguous, and the caller opens a
+    slot. The match carries its provenance so a guess stays distinguishable from
+    a value the request states."""
+    # `allowed_values` is capped, so an accession in a large vocabulary appears
+    # only in `vocab_leaves`.
     if not pi.allowed_values and not pi.vocab_leaves:
-        # Nothing to match an identifier against, so the literal in the text is
-        # the value itself and WDK is what validates it. Handled as its own
-        # branch because ``names_absent_accession`` below is trivially true
-        # without a vocabulary, and would turn every such param into a question
-        # whose answer the user already wrote. The named rules still win: an
-        # organism scope resolves without options at all.
-        return _rule_value(pi, intent) or sole_identifier_in_text(intent.text)
+        # Without a vocabulary there is nothing to match an identifier against,
+        # so the literal in the text is the value and WDK validates it.
+        return await _resolved_without_vocabulary(pi, intent, resolvers, siblings)
     named = accession_in_text(
         [*(pi.allowed_values or []), *pi.vocab_leaves], intent.text
     )
     if named is not None:
-        return named
+        return IntentMatch(value=named, provenance=Provenance.STATED)
     if names_absent_accession(
         [*(pi.allowed_values or []), *pi.vocab_leaves], intent.text
     ):
         return None
     rule = _rule_value(pi, intent)
     if rule is not None:
-        return rule
+        return IntentMatch(value=rule, provenance=Provenance.STATED)
     if contrast_role(pi) == "reference":
-        # The criterion text names what the user wants ENRICHED, which is the
-        # comparator. Semantic-matching it into the reference slot inverts the
-        # contrast. Leave the baseline to be deduced from the remaining option
-        # (or asked about) once the comparator has taken the subject.
+        # The criterion text names the comparator side. A semantic match into
+        # the reference slot inverts the contrast.
         return None
-    return await _semantic_value(pi.allowed_values or [], intent.text, embed)
+    return await _resolved_from_vocabulary(pi, intent, embed, resolvers.vocab)

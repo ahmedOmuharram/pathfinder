@@ -10,7 +10,7 @@ status: stable
 
 # The shape
 
-Three separate failures on the 16-step prompt, all reducible to: the criterion
+Three separate failures on a multi-criterion request, all reducible to: the criterion
 text carried the answer, and resolution either asked for it or made one up.
 
 ## 1. Polarity
@@ -54,7 +54,7 @@ are symmetric, and both were present in a single run.
 
 # Evidence
 
-Live PlasmoDB, same prompt, across three runs:
+Observed: same prompt, across three runs:
 
 | run | outcome |
 |---|---|
@@ -67,3 +67,24 @@ Live PlasmoDB, same prompt, across three runs:
 `ms_assay` -- the request says "trophozoite samples" without naming a WDK
 experiment, so there is a real choice only the user can make. That question is
 the system working.
+
+# Measured, and extended
+
+A benchmark over the verified gold strategies scores every parameter as exact,
+wrong, asked or unset, and splits the wrong ones by provenance. That split is
+the number that matters: a value the search defaulted is disclosable, while a
+value we claim the request stated and got wrong is a result nobody can check.
+
+The stated-wrong count went from nine to zero across three fixes, each a value
+bound to a parameter that could not hold it:
+
+- a strain name matches the accession shape, so it bound to a numeric bound; a
+  numeric param now refuses a non-numeric literal
+- a contrast written "A vs B" bound B as the comparator, because a substring
+  match takes the longest name anywhere in the text rather than the one on the
+  comparator side; the fold change was therefore inverted
+- a search that offers both a real vocabulary and a spare string field had the
+  identifier taken by the string field; the vocabulary that lists a value owns it
+
+The quoted-term rule closes the mirror case: a term the request puts in quotes
+answers the search's own free-text query, where before it was asked back.

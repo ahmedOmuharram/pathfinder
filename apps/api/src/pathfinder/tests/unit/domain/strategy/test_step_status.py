@@ -53,7 +53,6 @@ class TestReady:
 
 
 class TestDraft:
-
     def test_unfilled_required_params_make_a_draft(self) -> None:
         """The 422 this exists to prevent: the UI adds the step first and
         collects its parameters second."""
@@ -86,7 +85,9 @@ class TestDraft:
 class TestBuilt:
     def test_a_pushed_complete_step_is_built(self) -> None:
         assert (
-            step_status(_leaf(), wdk_step_id=100, validation=None, has_open_params=False)
+            step_status(
+                _leaf(), wdk_step_id=100, validation=None, has_open_params=False
+            )
             is StepStatus.BUILT
         )
 

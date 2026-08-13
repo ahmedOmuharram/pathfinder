@@ -1,16 +1,9 @@
-"""Standalone catalog v2 tools for pydantic-ai migration.
+"""Catalog inspection tools: search overview, parameter vocabularies, and the
+parameter dependency DAG.
 
-Three focused tools replacing the old get_search_parameters / get_dependent_vocab:
-
-1. ``get_search_overview`` -- high-level overview + state registration
-2. ``get_parameter_options`` -- drill into one parameter's vocabulary
-3. ``get_parameter_dependencies`` -- dependency DAG for fill ordering
-
-Tools that take an opaque-identifier argument (search name, parameter id)
-raise :class:`pydantic_ai.exceptions.ModelRetry` with did-you-mean
-candidates instead of returning a tool error. The library threads the
-retry message back into the same step so the model self-corrects on the
-next request — no wasted round-trip, no spammed retry loop.
+Tools that take an opaque identifier (search name, parameter id) raise
+``ModelRetry`` with did-you-mean candidates so the model corrects itself in
+the same step.
 """
 
 from difflib import get_close_matches
@@ -31,9 +24,6 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _resolve_record_type,
 )
 from pathfinder.domain.parameters.values import coerce_context_values
-from pathfinder.integrations.veupathdb.search_context import (
-    get_search_params_under_context,
-)
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.overview_formatting import (
@@ -47,6 +37,9 @@ from pathfinder.services.catalog.param_formatting import (
     ParameterNotOnSearch,
     format_typed_param,
 )
+from pathfinder.services.catalog.search_context import (
+    get_search_params_under_context,
+)
 from pathfinder.services.catalog.searches import get_raw_searches
 from pathfinder.services.wdk import (
     WDKBaseParameter,
@@ -59,8 +52,7 @@ from pathfinder.services.wdk import (
 class AlreadyReadNotice(CamelModel):
     """Returned when the model re-reads something it already read this turn.
 
-    The full payload is suppressed — the model already has it in context —
-    so redundant read loops cost one short line instead of a full re-dump.
+    The full payload is suppressed because the model already holds it.
     """
 
     kind: Literal["already_read"] = "already_read"
@@ -83,8 +75,8 @@ class ResolvedParamSummary(CamelModel):
 
 
 class ResolvedSearchParams(CamelModel):
-    """Result of ``resolve_search_parameters`` — every required param's vocab,
-    resolved and snapshotted so planning copies validated values."""
+    """Every required parameter of a search, resolved and snapshotted so
+    planning copies validated values."""
 
     kind: Literal["resolved_search_params"] = "resolved_search_params"
     search_name: str
@@ -101,9 +93,7 @@ def _did_you_mean(
     kind: str,
     search_name: str | None = None,
 ) -> str:
-    """Build a ``ModelRetry`` message body that lists candidates the model
-    can copy verbatim. Anthropic / OpenAI both treat this as the model's
-    cue to re-emit the tool call with one of the listed values."""
+    """Build a retry message that lists valid candidates to copy verbatim."""
     suggestions = get_close_matches(candidate, valid, n=5, cutoff=0.3)
     where = f" on search {search_name!r}" if search_name else ""
     parts = [f"{kind} {candidate!r} does not exist{where}."]
@@ -114,11 +104,9 @@ def _did_you_mean(
 
 
 def _fix_gene(record_type: str | None) -> str | None:
-    """Rewrite 'gene' to None so _resolve_record_type auto-resolves.
+    """Drop the 'gene' record type so the record type is auto-resolved.
 
-    The 'gene' record type has almost no searches — models pick it by mistake
-    when looking for gene searches, which actually live under 'transcript'.
-    Passing None lets the SearchCatalog find the correct record type.
+    In WDK, gene searches live under the 'transcript' record type.
     """
     if record_type == "gene":
         return None
@@ -175,7 +163,6 @@ async def get_search_overview(
         params=params,
     )
 
-    # Register in agent state (discovery gate)
     visible_params = [p for p in params if p.is_visible]
     overview = SearchOverview(
         search_name=search.url_segment,
@@ -231,9 +218,8 @@ async def get_parameter_options(
     """
     deps = ctx.deps
     explicit = coerce_context_values(context_values) if context_values else {}
-    # Parents the spec has already bound outrank the search's defaults, which is
-    # what WDK falls back to when context is absent. An explicit argument still
-    # wins -- that is the model deliberately exploring another parent value.
+    # Parents already bound by the spec outrank WDK defaults; an explicit
+    # argument outranks both.
     inherited = deps.agent_state.resolved_params_for(search_name)
     merged = {**inherited, **explicit}
     typed_context = merged or None
@@ -276,6 +262,11 @@ async def get_parameter_options(
                 depends_on=depends_on,
                 controls=controls,
                 applied_context=typed_context,
+                parent_defaults={
+                    other.name: other.initial_display_value
+                    for other in all_params
+                    if other.initial_display_value
+                },
             )
             _snapshot_param_vocab(deps, search_name, info)
             deps.agent_state.mark_param_read(read_key)

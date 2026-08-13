@@ -138,7 +138,7 @@ plasmodb.org, run three ways on 2026-08-10:
 
 | Request | `profile_pattern` | `totalCount` |
 |---|---|---|
-| No cookies at all | `%hsap:N%pfal:Y%` | 3347 |
+| No cookies at all | `%hsap:N%pfal:Y%` | a large result |
 | No cookies at all | `%ggor:N%hsap:N%mmus:N%pfal:Y%` | 3337 |
 | Cookie jar seeded by `GET /plasmo/app`, which sets `JSESSIONID` | `%ggor:N%hsap:N%mmus:N%pfal:Y%` | 3337 |
 

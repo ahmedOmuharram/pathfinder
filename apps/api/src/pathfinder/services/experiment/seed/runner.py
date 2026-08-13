@@ -1,11 +1,4 @@
-"""Seed strategy runner.
-
-Creates real WDK strategies (visible in the sidebar) and curated control sets
-(available in the Experiments tab) across multiple VEuPathDB sites.
-
-Seeds are processed concurrently across sites using ``asyncio.TaskGroup``,
-with a semaphore to cap the number of parallel WDK requests.
-"""
+"""Seed runner. Creates real WDK strategies and curated control sets across sites."""
 
 import asyncio
 import json
@@ -50,14 +43,9 @@ _MAX_CONCURRENT_SEEDS = 10
 
 
 def _coerce_param_value(value: object) -> object:
-    """Normalize a legacy wire-format seed parameter into a typed ParamValue.
+    """Convert a seed parameter from WDK wire format into a typed ParamValue.
 
-    Seed definitions encode parameters as WDK wire strings (JSON-array for
-    multi-pick vocabularies, ``{"min","max"}`` for ranges, plain text
-    otherwise). ``StrategyStepNode`` requires typed ``ParamValue`` objects, so
-    adapt at the seed boundary. Scalars become string values — they serialize
-    back to the same wire form on the WDK push regardless of the WDK param's
-    declared kind. Already-typed values pass through unchanged.
+    A value that is already typed passes through unchanged.
     """
     if isinstance(value, dict) or not isinstance(value, str):
         return value
@@ -93,11 +81,7 @@ def _coerce_step_tree_params(node: object) -> object:
 
 @dataclass
 class _SeedRunContext:
-    """Shared execution infrastructure for seed processing.
-
-    Groups the four per-run resources that ``_process_single_seed`` needs
-    to keep its parameter count within the 6-argument limit.
-    """
+    """Per-run resources shared by every seed."""
 
     total: int
     semaphore: asyncio.Semaphore
@@ -112,7 +96,7 @@ async def _process_single_seed(
     seed: Any,
     ctx: _SeedRunContext,
 ) -> tuple[bool, bool]:
-    """Process a single seed. Returns (strategy_ok, control_set_ok)."""
+    """Create one seed strategy and its control set."""
     idx = i + 1
     async with ctx.semaphore:
         await ctx.queue.put(
@@ -204,13 +188,9 @@ async def run_seed(
     session: AsyncSession,
     site_id: str | None = None,
 ) -> AsyncIterator[SeedEvent]:
-    """Create seed strategies and control sets, yielding typed progress events.
+    """Create the seed strategies and control sets, yielding typed progress events.
 
-    Seeds run concurrently (up to ``_MAX_CONCURRENT_SEEDS`` at a time).
-    Progress events are streamed back via an ``asyncio.Queue``.
-
-    If *site_id* is provided, only seeds for that database are created.
-    Otherwise all available seeds are used.
+    A ``site_id`` limits the run to the seeds of that site.
     """
     seeds = get_seeds_for_site(site_id) if site_id else get_all_seeds()
     total = len(seeds)
@@ -234,7 +214,7 @@ async def run_seed(
     )
 
     async def _run_all() -> list[tuple[bool, bool]]:
-        """Launch all seeds concurrently, signal completion via sentinel."""
+        """Run every seed concurrently and put a sentinel on the queue at the end."""
         results: list[tuple[bool, bool]] = []
         try:
             async with asyncio.TaskGroup() as tg:

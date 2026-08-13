@@ -1,143 +1,120 @@
-"""Seed definitions for OrthoMCL.
-
-Ortholog group strategies covering conserved kinase orthologs, apicomplexa-specific
-groups, core metabolism, pathogen-enriched proteases, and stress response signaling.
-All group IDs (OG7_XXXXXXX) verified against live OrthoMCL API (Mar 2026).
-"""
+"""OrthoMCL seed strategies and their ortholog-group control sets."""
 
 import json
 
 from pathfinder.services.experiment.seed.types import ControlSetDef, SeedDef
 
-# ---------------------------------------------------------------------------
-# Group ID lists — verified against live API
-# ---------------------------------------------------------------------------
-
-# Protein Kinase domain groups (PF00069) — kinases across all taxa
-# Source: GroupsByPFamIdOrKeyword with pfam_id_type_ahead=PF00069, min_fraction=0.3
+# Protein kinase domain groups, from GroupsByPFamIdOrKeyword on PF00069.
 KINASE_GROUPS = [
-    "OG7_0000000",  # 177 members — serine/threonine protein kinase
-    "OG7_0000001",  # 20 members — protein kinase (single-copy orthogroup)
-    "OG7_0000002",  # 114 members — protein kinase domain containing
-    "OG7_0000003",  # 9521 members — large kinase superfamily
-    "OG7_0000004",  # 1538 members — serine/threonine-protein kinase
-    "OG7_0000005",  # 21 members — protein kinase domain containing
-    "OG7_0000006",  # 44 members — NEK kinase family
-    "OG7_0000007",  # 1985 members — protein kinase
-    "OG7_0000008",  # 1943 members — protein kinase domain containing
+    "OG7_0000000",  # serine/threonine protein kinase
+    "OG7_0000001",  # protein kinase, single-copy orthogroup
+    "OG7_0000002",  # protein kinase domain containing
+    "OG7_0000003",  # large kinase superfamily
+    "OG7_0000004",  # serine/threonine-protein kinase
+    "OG7_0000005",  # protein kinase domain containing
+    "OG7_0000006",  # NEK kinase family
+    "OG7_0000007",  # protein kinase
+    "OG7_0000008",  # protein kinase domain containing
 ]
 
-# Protease/peptidase groups (PF00082 = Subtilase/Peptidase S8)
-# Source: GroupsByPFamIdOrKeyword with pfam_id_type_ahead=PF00082
+# Subtilase and peptidase S8 groups, from GroupsByPFamIdOrKeyword on PF00082.
 PROTEASE_GROUPS = [
-    "OG7_0001372",  # 627 members — peptidase_S8 domain containing
-    "OG7_0001373",  # 39 members — peptidase_S8 domain containing
-    "OG7_0001375",  # 737 members — peptidase_S8 domain containing
-    "OG7_0001376",  # 2623 members — subtilase family
-    "OG7_0002302",  # 1368 members — convertase domain containing
-    "OG7_0003250",  # 372 members — subtilisin protease
-    "OG7_0006983",  # 1133 members — peptidase S53
-    "OG7_0007386",  # 304 members — tripeptidyl-peptidase 2
+    "OG7_0001372",  # peptidase S8 domain containing
+    "OG7_0001373",  # peptidase S8 domain containing
+    "OG7_0001375",  # peptidase S8 domain containing
+    "OG7_0001376",  # subtilase family
+    "OG7_0002302",  # convertase domain containing
+    "OG7_0003250",  # subtilisin protease
+    "OG7_0006983",  # peptidase S53
+    "OG7_0007386",  # tripeptidyl-peptidase 2
 ]
 
-# ABC transporter groups (PF00005)
-# Source: GroupsByPFamIdOrKeyword with pfam_id_type_ahead=PF00005
+# ABC transporter groups, from GroupsByPFamIdOrKeyword on PF00005.
 TRANSPORTER_GROUPS = [
-    "OG7_0000138",  # 43 members — ABC transporter domain containing
-    "OG7_0000139",  # 5 members — ABC transporter ATP binding
-    "OG7_0000140",  # 5 members — ABC transporter ATP binding
-    "OG7_0000141",  # 8 members — vitamin B12 import ATP binding
-    "OG7_0000142",  # 23 members — iron ABC transporter
-    "OG7_0000145",  # 19 members — hemin import ATP binding
-    "OG7_0000147",  # 6 members — ABC transporter ATP binding
-    "OG7_0000148",  # 6 members — ABC transporter ATP binding
+    "OG7_0000138",  # ABC transporter domain containing
+    "OG7_0000139",  # ABC transporter ATP binding
+    "OG7_0000140",  # ABC transporter ATP binding
+    "OG7_0000141",  # vitamin B12 import ATP binding
+    "OG7_0000142",  # iron ABC transporter
+    "OG7_0000145",  # hemin import ATP binding
+    "OG7_0000147",  # ABC transporter ATP binding
+    "OG7_0000148",  # ABC transporter ATP binding
 ]
 
-# Heat shock protein groups (PF00012 = HSP70)
-# Source: GroupsByPFamIdOrKeyword with pfam_id_type_ahead=PF00012
+# HSP70 groups, from GroupsByPFamIdOrKeyword on PF00012.
 HSP_GROUPS = [
-    "OG7_0000776",  # 992 members — heat shock protein
-    "OG7_0000777",  # 159 members — heat shock protein 70
-    "OG7_0000778",  # 58 members — mitochondrial chaperone protein
-    "OG7_0000779",  # 6840 members — heat shock protein superfamily
-    "OG7_0000780",  # 90 members — chaperone protein dnaK
-    "OG7_0000781",  # 28 members — chaperone protein dnaK
+    "OG7_0000776",  # heat shock protein
+    "OG7_0000777",  # heat shock protein 70
+    "OG7_0000778",  # mitochondrial chaperone protein
+    "OG7_0000779",  # heat shock protein superfamily
+    "OG7_0000780",  # chaperone protein dnaK
+    "OG7_0000781",  # chaperone protein dnaK
 ]
 
-# Apicomplexa-specific groups (APIC>=2, absent in human and mouse)
-# Source: GroupsByPhyleticPattern with "APIC>=2T AND hsap=0 AND mmus=0"
+# Apicomplexa groups absent from human and mouse, from GroupsByPhyleticPattern.
 APICOMPLEXA_SPECIFIC_GROUPS = [
-    "OG7_0000022",  # 197 members — 3-oxoacyl acyl-carrier-protein reductase
-    "OG7_0000049",  # 90 members — short chain dehydrogenase
-    "OG7_0000087",  # 365 members — maoC domain containing
-    "OG7_0000108",  # 77 members — ATP dependent RNA helicase
-    "OG7_0000115",  # 641 members — RNA helicase
-    "OG7_0000380",  # 375 members — ABC transporter
-    "OG7_0000394",  # 155 members — ABC transporter domain containing
-    "OG7_0000414",  # 414 members — J domain containing protein
-    "OG7_0000452",  # 118 members — thioredoxin domain containing
+    "OG7_0000022",  # 3-oxoacyl acyl-carrier-protein reductase
+    "OG7_0000049",  # short chain dehydrogenase
+    "OG7_0000087",  # maoC domain containing
+    "OG7_0000108",  # ATP dependent RNA helicase
+    "OG7_0000115",  # RNA helicase
+    "OG7_0000380",  # ABC transporter
+    "OG7_0000394",  # ABC transporter domain containing
+    "OG7_0000414",  # J domain containing protein
+    "OG7_0000452",  # thioredoxin domain containing
 ]
 
-# Universally conserved groups (EUKA>=10, BACT>=5, ARCH>=3)
-# Source: GroupsByPhyleticPattern with "EUKA>=10T AND BACT>=5T AND ARCH>=3T"
+# Groups present in eukaryotes, bacteria, and archaea, from GroupsByPhyleticPattern.
 UNIVERSAL_GROUPS = [
-    "OG7_0000012",  # 148 members — conserved across all domains
-    "OG7_0000032",  # 469 members — 3-dehydrogenase
-    "OG7_0000034",  # 43 members — short-chain dehydrogenase/reductase
-    "OG7_0000035",  # 177 members — conserved unknown
-    "OG7_0000054",  # 86 members — short-chain dehydrogenase
-    "OG7_0000069",  # 41 members — dehydrogenase
-    "OG7_0000074",  # 219 members — carrier domain containing
-    "OG7_0000085",  # 3283 members — dehydrogenase
+    "OG7_0000012",  # conserved across all domains
+    "OG7_0000032",  # 3-dehydrogenase
+    "OG7_0000034",  # short-chain dehydrogenase/reductase
+    "OG7_0000035",  # conserved unknown
+    "OG7_0000054",  # short-chain dehydrogenase
+    "OG7_0000069",  # dehydrogenase
+    "OG7_0000074",  # carrier domain containing
+    "OG7_0000085",  # dehydrogenase
 ]
 
-# Highly conserved across many taxa (>100 taxa, >50 core taxa)
-# Source: GroupsByGenomeCount with all_taxon min=100
+# Groups spanning many taxa, from GroupsByGenomeCount.
 CORE_METABOLISM_GROUPS = [
-    "OG7_0000048",  # 268 members — SDR dehydrogenase/reductase
-    "OG7_0000079",  # 469 members — SDR dehydrogenase/reductase
-    "OG7_0000537",  # 232 members — acyl-CoA synthetase
-    "OG7_0000759",  # 241 members — enoyl-CoA hydratase
-    "OG7_0001008",  # 678 members — RNA helicase
-    "OG7_0001201",  # 473 members — long-chain-fatty-acid-CoA ligase
-    "OG7_0001305",  # 1832 members — hexosyltransferase
-    "OG7_0001432",  # 213 members — propionyl-CoA carboxylase
-    "OG7_0001471",  # 384 members — alanine-glyoxylate aminotransferase
-    "OG7_0001596",  # 197 members — nudix hydrolase
+    "OG7_0000048",  # SDR dehydrogenase/reductase
+    "OG7_0000079",  # SDR dehydrogenase/reductase
+    "OG7_0000537",  # acyl-CoA synthetase
+    "OG7_0000759",  # enoyl-CoA hydratase
+    "OG7_0001008",  # RNA helicase
+    "OG7_0001201",  # long-chain-fatty-acid-CoA ligase
+    "OG7_0001305",  # hexosyltransferase
+    "OG7_0001432",  # propionyl-CoA carboxylase
+    "OG7_0001471",  # alanine-glyoxylate aminotransferase
+    "OG7_0001596",  # nudix hydrolase
 ]
 
-# GTPase/Ras family groups (PF00071)
-# Source: GroupsByPFamIdOrKeyword with pfam_id_type_ahead=PF00071
+# Ras and GTPase groups, from GroupsByPFamIdOrKeyword on PF00071.
 GTPASE_GROUPS = [
-    "OG7_0000131",  # 16791 members — ras superfamily
-    "OG7_0001070",  # 4490 members — ras family
-    "OG7_0001254",  # 4259 members — GTPase
-    "OG7_0003858",  # 450 members — GTPase domain/ankyrin repeat
-    "OG7_0004122",  # 753 members — mitochondrial rho GTPase
-    "OG7_0005954",  # 921 members — GTP binding nuclear protein
+    "OG7_0000131",  # ras superfamily
+    "OG7_0001070",  # ras family
+    "OG7_0001254",  # GTPase
+    "OG7_0003858",  # GTPase domain and ankyrin repeat
+    "OG7_0004122",  # mitochondrial rho GTPase
+    "OG7_0005954",  # GTP binding nuclear protein
 ]
 
-# Phosphofructokinase groups (EC 2.7.1.11) — glycolysis
-# Source: GroupsByEcNumber with ec_number_type_ahead=2.7.1.11
+# Phosphofructokinase groups, from GroupsByEcNumber on EC 2.7.1.11.
 GLYCOLYSIS_GROUPS = [
-    "OG7_0002780",  # 725 members — ATP dependent 6-phosphofructokinase
-    "OG7_0002781",  # 273 members — ATP dependent 6-phosphofructokinase
-    "OG7_0002782",  # 10 members — pyrophosphate-fructose phosphotransferase
-    "OG7_0002783",  # 49 members — phosphofructokinase
-    "OG7_0002784",  # 9 members — ATP dependent 6-phosphofructokinase
-    "OG7_0010524",  # 388 members — 6-phosphofructokinase
+    "OG7_0002780",  # ATP dependent 6-phosphofructokinase
+    "OG7_0002781",  # ATP dependent 6-phosphofructokinase
+    "OG7_0002782",  # pyrophosphate-fructose phosphotransferase
+    "OG7_0002783",  # phosphofructokinase
+    "OG7_0002784",  # ATP dependent 6-phosphofructokinase
+    "OG7_0010524",  # 6-phosphofructokinase
 ]
-
-
-# ---------------------------------------------------------------------------
-# Parameter helpers
-# ---------------------------------------------------------------------------
 
 
 def _pfam_search_params(
     pfam_id: str, min_proteins: str = "5", min_fraction: str = "0.3"
 ) -> dict[str, str]:
-    """Build GroupsByPFamIdOrKeyword parameters."""
+    """Build the parameters for a PFam-domain group search."""
     return {
         "pfam_id_type_ahead": pfam_id,
         "min_num_proteins": min_proteins,
@@ -146,14 +123,14 @@ def _pfam_search_params(
 
 
 def _phyletic_pattern_params(expression: str) -> dict[str, str]:
-    """Build GroupsByPhyleticPattern parameters."""
+    """Build the parameters for a phyletic-pattern group search."""
     return {
         "phyletic_expression": expression,
     }
 
 
 def _ec_search_params(ec_number: str) -> dict[str, str]:
-    """Build GroupsByEcNumber parameters."""
+    """Build the parameters for an EC-number group search."""
     return {
         "ec_number_type_ahead": ec_number,
         "ec_wildcard": "N/A",
@@ -168,7 +145,7 @@ def _genome_count_params(
     periph_min: str = "0",
     periph_max: str = "100000",
 ) -> dict[str, str]:
-    """Build GroupsByGenomeCount parameters."""
+    """Build the parameters for a genome-count group search."""
     return {
         "all_taxon": json.dumps({"min": all_min, "max": all_max}),
         "core_taxon": json.dumps({"min": core_min, "max": core_max}),
@@ -176,16 +153,7 @@ def _genome_count_params(
     }
 
 
-# ---------------------------------------------------------------------------
-# Seed definitions
-# ---------------------------------------------------------------------------
-
-
 SEEDS: list[SeedDef] = [
-    # -------------------------------------------------------------------
-    # 1) Conserved Kinase Orthologs — kinase domain groups INTERSECT
-    #    universally conserved groups (present across euk/bact/arch)
-    # -------------------------------------------------------------------
     SeedDef(
         name="Conserved Kinase Orthologs",
         description=(
@@ -226,10 +194,6 @@ SEEDS: list[SeedDef] = [
         ),
         record_type="group",
     ),
-    # -------------------------------------------------------------------
-    # 2) Apicomplexan-Specific Ortholog Groups — present in Apicomplexa
-    #    but ABSENT in humans and mice (potential drug targets)
-    # -------------------------------------------------------------------
     SeedDef(
         name="Apicomplexan-Specific Groups",
         description=(
@@ -258,10 +222,6 @@ SEEDS: list[SeedDef] = [
         ),
         record_type="group",
     ),
-    # -------------------------------------------------------------------
-    # 3) Core Metabolism Groups — highly conserved across >100 taxa,
-    #    INTERSECT with specific EC number (glycolysis enzymes)
-    # -------------------------------------------------------------------
     SeedDef(
         name="Core Metabolism Groups",
         description=(
@@ -320,10 +280,6 @@ SEEDS: list[SeedDef] = [
         ),
         record_type="group",
     ),
-    # -------------------------------------------------------------------
-    # 4) Drug Target Discovery — protease groups MINUS universally
-    #    conserved groups (pathogen-enriched proteases)
-    # -------------------------------------------------------------------
     SeedDef(
         name="Pathogen-Enriched Proteases",
         description=(
@@ -365,10 +321,6 @@ SEEDS: list[SeedDef] = [
         ),
         record_type="group",
     ),
-    # -------------------------------------------------------------------
-    # 5) Stress Response Orthologs — HSP70 UNION GTPase signaling,
-    #    representing conserved stress and signaling networks
-    # -------------------------------------------------------------------
     SeedDef(
         name="Stress Response and Signaling Orthologs",
         description=(

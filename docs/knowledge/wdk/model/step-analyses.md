@@ -64,7 +64,8 @@ each puts on the wire, dependent vocabularies - is the search parameter system
 unchanged, described in [parameters](parameters.md) and
 [dependent parameters and vocabularies](dependent-params-and-vocabularies.md).
 The analysis form endpoints mirror the search ones, including
-`refreshed-dependent-params`.
+[`refreshed-dependent-params`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StepAnalysisFormService.java#L211-L220),
+which takes the same `{changedParam, contextParamValues}` body.
 
 # Create, run, poll, fetch - and two of the four are not 200
 
@@ -117,17 +118,32 @@ carries two booleans per constant, and they are not the same partition:
 | `UNKNOWN` | no | no |
 
 `isTerminal` means the plugin finished, successfully or not. `requiresRerun`
-means re-running **the same instance** is the correct response - WDK resets it
-to `PENDING` and re-executes, so there is no need to create a second instance.
-Six statuses carry it. `INTERRUPTED` and `ERROR` carry both flags at once,
-which is the pair that a client written around "terminal means stop" gets
-wrong ([WDK-VALID-009](../rules/validation.md)).
+means re-running **the same instance** is the correct response, and it is the
+flag WDK itself branches on:
+[`runAnalysis`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/analysis/StepAnalysisFactoryImpl.java#L338-L374)
+resets the execution to `PENDING` and re-executes when the stored status carries
+it, and otherwise returns the stored status untouched. So a second `POST` to the
+result path is either a re-run or a no-op, decided by the platform - there is
+never a need to create a second instance. Six statuses carry the flag.
+`INTERRUPTED` and `ERROR` carry both flags at once, which is the pair a client
+written around "terminal means stop" gets wrong
+([WDK-VALID-009](../rules/validation.md)).
 
 A separate enum,
 [`RevisionStatus`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/analysis/RevisionStatus.java#L3-L7),
 tracks whether the instance has run since its step was last revised:
-`STEP_CLEAN`, `NEW`, `STEP_DIRTY`. It is not on the wire; it is what turns into
-a `STEP_REVISED` execution status.
+`STEP_CLEAN`, `NEW`, `STEP_DIRTY`. It never appears on the wire itself. What it
+does is decide the status you get back when there is no cached execution:
+[`calculateStatus`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/analysis/StepAnalysisFactoryImpl.java#L545-L581)
+returns `INVALID` for an instance that is not runnable, then - if either the
+execution record or the results directory is missing - maps `NEW` to `CREATED`,
+`STEP_DIRTY` to `STEP_REVISED` and `STEP_CLEAN` to `OUT_OF_DATE`. Only when both
+are intact does it return the execution's own stored status.
+
+So three of the eleven statuses are not states an execution was ever in. They
+are derived on read, which is why polling can hand you `OUT_OF_DATE` for an
+analysis that completed successfully an hour ago: the cache was cleared, and the
+correct response is to run it again.
 
 # The instance list is two fields, and the instance detail is ten
 

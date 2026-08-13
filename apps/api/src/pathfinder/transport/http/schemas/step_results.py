@@ -30,8 +30,14 @@ class RecordsPagination(CamelModel):
 
 
 class RecordsMeta(CamelModel):
-    total_count: int
-    display_total_count: int
+    """Counts for one page of records.
+
+    A count is optional because WDK does not always publish one, and a client
+    that shows zero there states a result nobody measured.
+    """
+
+    total_count: int | None = None
+    display_total_count: int | None = None
     response_count: int
     pagination: RecordsPagination
     attributes: list[str]

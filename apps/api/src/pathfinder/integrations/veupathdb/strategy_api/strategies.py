@@ -1,8 +1,4 @@
-"""Strategy CRUD methods for the Strategy API.
-
-Provides :class:`StrategiesMixin` with methods to create, read, update,
-and delete WDK strategies.
-"""
+"""Strategy CRUD methods for the Strategy API."""
 
 import pydantic
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
@@ -55,14 +51,7 @@ class StrategiesMixin(StrategyAPIBase):
     ) -> WDKIdentifier:
         """Create a strategy from a step tree.
 
-        :param step_tree: Root of the step tree.
-        :param name: Strategy name.
-        :param description: Optional description.
-        :param is_public: Whether the strategy is public.
-        :param is_saved: Whether the strategy is saved.
-        :param is_internal: Whether to tag as internal (Pathfinder helper).
-        :param user_id: Optional explicit user ID override.
-        :returns: WDK identifier with the created strategy ID.
+        An internal strategy is never public and never saved.
         """
         if is_internal:
             name = tag_internal_wdk_strategy_name(name)
@@ -95,14 +84,10 @@ class StrategiesMixin(StrategyAPIBase):
         *,
         user_id: str | None = None,
     ) -> WDKIdentifier:
-        """Duplicate a strategy by signature via WDK's copy endpoint.
+        """Duplicate a strategy by signature. The copy belongs to the caller.
 
-        WDK's ``POST /users/{uid}/strategies`` accepts
-        ``{"sourceStrategySignature": "<sig>"}`` and creates a deep copy
-        owned by the calling user (StrategyService.copyStrategy /
-        StepFactory.copyStrategy in WDK). All steps are duplicated with
-        fresh step ids; the caller must remap any locally-tracked
-        ``wdk_step_ids`` against the new strategy's step tree.
+        Every step gets a fresh id, so the caller must remap any step id it
+        tracks against the new step tree.
         """
         uid = await self._get_user_id(user_id)
         raw = await self.client.post(
@@ -132,10 +117,7 @@ class StrategiesMixin(StrategyAPIBase):
     async def list_public_strategies(self) -> list[WDKStrategySummary]:
         """List all public strategies from WDK.
 
-        Endpoint: GET /strategy-lists/public
-        No authentication required. Uses the same tolerant parsing as
-        :meth:`list_strategies` — individual items that fail validation
-        are silently skipped.
+        The endpoint needs no authentication.
         """
         adapter = pydantic.TypeAdapter(list[WDKStrategySummary])
         raw = await self.client.get("/strategy-lists/public")
@@ -171,7 +153,6 @@ class StrategiesMixin(StrategyAPIBase):
                 json={"name": name},
             )
 
-        # Return the updated strategy payload (best-effort).
         return await self.get_strategy(strategy_id, user_id=user_id)
 
     async def set_saved(
@@ -196,12 +177,7 @@ class StrategiesMixin(StrategyAPIBase):
     ) -> WDKStepTree:
         """Get a duplicated step tree for a strategy.
 
-        Matches monorepo's ``getDuplicatedStrategyStepTree`` which unwraps
-        the ``stepTree`` wrapper from the response.
-
-        :param strategy_id: WDK strategy ID to duplicate.
-        :param user_id: Optional explicit user ID override.
-        :returns: Duplicated step tree.
+        WDK wraps the tree in a ``stepTree`` envelope, which this unwraps.
         """
         uid = await self._get_user_id(user_id)
         raw = await self.client.post(

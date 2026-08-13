@@ -1,12 +1,4 @@
-"""Pydantic models for WDK parameter types.
-
-WDK parameters are discriminated on the ``type`` field.  The union type
-``WDKParameter`` dispatches to the correct concrete class at parse time.
-
-See Also
---------
-wdk_models : Structural response models that reference ``WDKParameter``.
-"""
+"""Models for WDK parameter types, as a union discriminated on the type field."""
 
 from typing import Annotated, Literal
 
@@ -21,13 +13,10 @@ from pathfinder.integrations.veupathdb.wdk_models import WDKModel
 
 
 class WDKBaseParameter(WDKModel):
-    """Common fields for all WDK parameter types.
+    """Fields common to all WDK parameter types.
 
-    Subtype-specific fields (vocabulary, min/max, etc.) are declared here with
-    tight types so adapters like ``ParamSpecNormalized.from_wdk()`` can read
-    them directly without ``getattr`` / ``isinstance`` narrowing.  Concrete
-    subtypes shadow these with their own declarations where semantically
-    meaningful.
+    Subtype fields also appear here, so a reader needs no type narrowing.
+    Concrete subtypes shadow them where the meaning differs.
     """
 
     name: str
@@ -54,12 +43,12 @@ class WDKBaseParameter(WDKModel):
     length: int = 0
     is_number: bool = False
 
-    # Filter-only fields (declared on base so the formatter can read uniformly).
+    # Filter-only fields.
     ontology: list[WDKFilterOntologyTerm] = Field(default_factory=list)
     values: dict[str, list[str]] | None = None
     filter_data_type_display_name: str | None = None
 
-    # Dataset-only fields (declared on base for the same reason).
+    # Dataset-only fields.
     default_id_list: str | None = None
     record_class_name: str | None = None
     parsers: list[WDKDatasetParser] = Field(default_factory=list)
@@ -67,7 +56,7 @@ class WDKBaseParameter(WDKModel):
     @field_validator("max_selected_count", mode="before")
     @classmethod
     def _normalize_unlimited(cls, v: object) -> object:
-        """WDK uses -1 for 'unlimited'. Normalize to None at the boundary."""
+        """WDK sends a negative count for unlimited. Normalize it to None."""
         if isinstance(v, int) and v < 0:
             return None
         return v
@@ -123,7 +112,7 @@ class WDKTimestampParam(WDKBaseParameter):
 
 
 class WDKAnswerParam(WDKBaseParameter):
-    """WDK answer/step-input parameter."""
+    """WDK step-input parameter."""
 
     type: Literal["input-step"] = "input-step"
 
@@ -138,10 +127,9 @@ class WDKDatasetParam(WDKBaseParameter):
 
 
 class WDKEnumParam(WDKBaseParameter):
-    """WDK enum parameter (single-pick and multi-pick vocabulary).
+    """WDK enum parameter, single-pick or multi-pick.
 
-    The secondary discriminator ``display_type`` determines the vocabulary
-    shape and the corresponding wdk-client union member.
+    The display type is a second discriminator. It sets the vocabulary shape.
     """
 
     type: Literal["single-pick-vocabulary", "multi-pick-vocabulary"]

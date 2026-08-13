@@ -1,9 +1,7 @@
 """Apply one operation to the working graph.
 
-Steps are keyed by id and reference each other by id, so an edit here changes
-exactly one step. Under the old nested model ``graph.steps`` indexed the very
-objects the tree hung off, and rewiring a slot silently rewrote both views at
-once - which is why callers needed a deep copy to work out what had changed.
+Steps are keyed by id and refer to each other by id, so one operation changes
+one step.
 """
 
 from dataclasses import dataclass, field
@@ -46,7 +44,7 @@ class ApplyResult:
 
 
 class ApplyError(Exception):
-    """Raised when an operation cannot be applied (rejected, not validated)."""
+    """Raised when the graph rejects an operation."""
 
 
 def apply_operation(graph: StrategyGraph, op: GraphOperation) -> ApplyResult:
@@ -134,11 +132,10 @@ def _settle(graph: StrategyGraph, last_step_id: str | None = None) -> None:
 
 
 def _step_from_node(node: StrategyStepNode, kind: StepKind) -> StrategyStep:
-    """Convert an incoming wire node into a keyed step.
+    """Convert an incoming node into a keyed step.
 
-    Any nesting the caller sent is dropped on purpose: wiring travels in the
-    operation's own fields (``attach``, ``left_id``/``right_id``, ``input_id``),
-    so a node arriving with inputs already set would silently contradict them.
+    Nesting on the node is dropped, because the wiring travels in the fields of
+    the operation itself.
     """
     return StrategyStep(
         id=node.id,
@@ -192,8 +189,8 @@ def _apply_add_transform(graph: StrategyGraph, op: AddTransformOp) -> ApplyResul
     _reject_existing(graph, op.step.id, "step id")
     transform = _step_from_node(op.step, StepKind.TRANSFORM)
     transform.primary_input_id = op.input_id
-    consumer_info = graph.find_parent(op.input_id) if op.mode == "before-consumer" else (
-        None
+    consumer_info = (
+        graph.find_parent(op.input_id) if op.mode == "before-consumer" else (None)
     )
     graph.steps[transform.id] = transform
     if consumer_info is not None:
@@ -239,8 +236,7 @@ def _delete_subtree(
     if parent_info is not None:
         parent, slot = parent_info
         if parent.kind is StepKind.TRANSFORM:
-            # A transform with nothing to consume has no meaning, so it goes
-            # too, and its own consumer loses that input.
+            # A transform needs an input, so it goes with the deleted subtree.
             to_delete.add(parent.id)
             grandparent_info = graph.find_parent(parent.id)
             if grandparent_info is not None:
@@ -269,9 +265,7 @@ def _collapse_combine(
     return _collapse_combine_parent(graph, target, parent, slot)
 
 
-def _collapse_root_combine(
-    graph: StrategyGraph, target: StrategyStep
-) -> ApplyResult:
+def _collapse_root_combine(graph: StrategyGraph, target: StrategyStep) -> ApplyResult:
     if target.kind is not StepKind.COMBINE:
         msg = "collapse-combine on non-combine root"
         raise ApplyError(msg)
@@ -329,10 +323,10 @@ def _collapse_combine_parent(
 
 
 def _demote_to_single_input(step: StrategyStep, slot: str) -> None:
-    """Clear a slot, moving the survivor up if the primary one was cleared.
+    """Clear an input slot and move the survivor up.
 
-    A secondary input with no primary is not a shape WDK or the node model
-    accepts, so the remaining branch takes the primary slot.
+    A secondary input without a primary input is not a valid shape, so the
+    remaining branch takes the primary slot.
     """
     _set_input_slot(step, slot, None)
     if slot == "primary" and step.secondary_input_id is not None:
@@ -349,12 +343,10 @@ def _orphan_sibling(
     target: StrategyStep,
     parent_info: tuple[StrategyStep, str] | None,
 ) -> ApplyResult:
-    """Delete this branch and let the combine and its other input float.
+    """Delete this branch and detach the combine and its other input.
 
-    The survivors stay as their own component. That is what the dialog offers
-    ("leave them as orphan nodes, not pushed") and what
-    ``StrategyAst.detached_roots`` carries: persisted locally, never sent to
-    WDK, which rejects a step that has inputs but no strategy.
+    The survivors form their own component. WDK rejects a step that has inputs
+    but no strategy, so a detached component stays local.
     """
     if parent_info is None:
         msg = "orphan-sibling requires a combine parent"
@@ -414,9 +406,7 @@ def _apply_delete_edge(graph: StrategyGraph, op: DeleteEdgeOp) -> ApplyResult:
         )
 
     wired = (
-        target.primary_input_id
-        if op.slot == "primary"
-        else target.secondary_input_id
+        target.primary_input_id if op.slot == "primary" else target.secondary_input_id
     )
     if wired != op.source_id:
         msg = (
@@ -452,13 +442,11 @@ def _apply_replace_subtree(graph: StrategyGraph, op: ReplaceSubtreeOp) -> ApplyR
     )
 
 
-def _apply_replace_strategy(
-    graph: StrategyGraph, op: ReplaceStrategyOp
-) -> ApplyResult:
-    """Swap the whole graph for ``op.root``.
+def _apply_replace_strategy(graph: StrategyGraph, op: ReplaceStrategyOp) -> ApplyResult:
+    """Replace the whole graph with the given tree.
 
-    Undo and redo replay a captured tree through this, so it restores a shape
-    exactly rather than merging: anything the tree does not mention is gone.
+    The result is the tree exactly. A step that the tree does not name is
+    gone.
     """
     try:
         rebuilt = flatten_tree(op.root)

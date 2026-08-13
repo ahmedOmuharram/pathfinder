@@ -1,4 +1,4 @@
-"""Integration test for ``apply_and_commit`` (the unified verb pipeline)."""
+"""Integration tests for the ``apply_and_commit`` pipeline."""
 
 from __future__ import annotations
 
@@ -359,12 +359,7 @@ async def test_deleting_the_whole_strategy_clears_the_persisted_ast(
     seed_user: User,
     stub_api: _CountingAPI,
 ) -> None:
-    """An empty graph has no root, and a rootless AST is not representable.
-
-    ``persist`` used to return early on that, so "Delete strategy" pushed the
-    deletions to WDK and then left the old AST in the row: reopening the chat
-    brought the deleted strategy back while WDK no longer had it.
-    """
+    """An empty graph has no root, so the persisted AST must be cleared."""
     a = _leaf("step_a")
     conv_id = await _seed_conversation(
         db_session,
@@ -441,9 +436,7 @@ async def test_a_batch_of_operations_lands_in_one_commit(
     seed_user: User,
     stub_api: _CountingAPI,
 ) -> None:
-    """One edit used to mean re-sending the whole strategy. Operations carry
-    the intent instead, and the planner diffs trees, so N of them still cost a
-    single sync."""
+    """A batch of operations costs one sync, whatever its length."""
     a = _leaf("step_a")
     conv_id = await _seed_conversation(
         db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
@@ -481,9 +474,7 @@ async def test_a_rejected_batch_changes_nothing(
     seed_user: User,
     stub_api: _CountingAPI,
 ) -> None:
-    """``apply_operation`` edits live nodes, so an operation that fails partway
-    has already mutated the graph. The pre-batch tree is replayed so a rejected
-    batch is a no-op instead of a half-applied edit."""
+    """A batch that fails partway leaves the graph exactly as it was."""
     a = _leaf("step_a")
     conv_id = await _seed_conversation(
         db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
@@ -523,7 +514,7 @@ async def test_a_rejected_batch_restores_a_multi_step_shape(
     seed_user: User,
     stub_api: _CountingAPI,
 ) -> None:
-    """Restoring has to rebuild the tree, not just undo the last operation."""
+    """Restore rebuilds the whole tree, not only the last operation."""
     a, b = _leaf("step_a"), _leaf("step_b")
     c = _combine("step_c", a, b)
     wdk_ids = {"step_a": 100, "step_b": 200, "step_c": 300}
@@ -562,13 +553,7 @@ async def test_adding_a_second_root_step_is_persisted(
     seed_user: User,
     stub_api: _CountingAPI,
 ) -> None:
-    """Adding a search to an existing strategy leaves two roots until the user
-    combines them, and that intermediate state has to survive a reload.
-
-    ``to_strategy_ast`` returns None whenever there is more than one root, and
-    persist treated that as "nothing to write" - so the new step lived only in
-    memory and vanished when the conversation was reopened.
-    """
+    """A strategy with two roots is a valid intermediate state and persists."""
     a = _leaf("step_a")
     conv_id = await _seed_conversation(
         db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
@@ -606,11 +591,7 @@ async def test_the_operation_response_reflects_the_operation(
     seed_user: User,
     stub_api: _CountingAPI,
 ) -> None:
-    """The route re-reads the row after committing, and the commit runs in its
-    own session. Without expiring the caller's identity map that re-read hands
-    back the cached pre-operation object, so the canvas replaces the user's
-    optimistic edit with the state from before it.
-    """
+    """A re-read after the commit returns the post-operation state."""
     a = _leaf("step_a")
     conv_id = await _seed_conversation(
         db_session, seed_user, root=a, wdk_step_ids={"step_a": 100}
@@ -622,8 +603,7 @@ async def test_the_operation_response_reflects_the_operation(
         db_session_factory=session_maker,
     )
 
-    # Read once through this session so the row is in its identity map, the
-    # way the route does before applying.
+    # The route reads the row before applying, so the identity map holds it.
     outer = ConversationRepository(db_session)
     assert await outer.get_by_id(conv_id) is not None
 
@@ -670,15 +650,9 @@ async def test_a_partial_push_leaves_every_store_agreeing(
     seed_user: User,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A step WDK rejects must not make the whole edit look like it failed.
+    """A step that WDK rejects is a per-step failure, not an operation failure.
 
-    The edit is applied in memory and written to Postgres, so raising made the
-    client roll back its optimistic state and show "Operation failed" while the
-    server had in fact kept the change - and the next read handed it straight
-    back. Memory, Postgres, WDK and the canvas told four different stories.
-
-    The edit is local truth. A rejected step is that STEP's problem, carried on
-    the step, not a failure of the operation.
+    The edit is local truth, so memory, Postgres, and the response all agree.
     """
     api = _FailingAPI()
     monkeypatch.setattr(commit_module, "get_strategy_api", lambda _s: api)
@@ -706,7 +680,7 @@ async def test_a_partial_push_leaves_every_store_agreeing(
         db_session_factory=session_maker,
     )
 
-    # No raise: the operation reports what landed instead of failing wholesale.
+    # The operation reports what landed instead of raising.
     result = await apply_and_commit(
         deps=deps,
         op=UpdateStepMetaOp(step_id="step_a", display_name="Renamed"),
@@ -723,6 +697,5 @@ async def test_a_partial_push_leaves_every_store_agreeing(
         assert refetched is not None
         ast = StrategyAst.model_validate(refetched.strategy_ast)
         assert ast.root.display_name == "Renamed"
-        # The rejection is durable and attributed to the step that caused it,
-        # so reopening the conversation still shows which one needs attention.
+        # The rejection is durable and attributed to the step that caused it.
         assert (ast.wdk_push_errors or {}).get("step_a")

@@ -133,8 +133,10 @@ belongs to no strategy, has no inputs, and cannot be run
 Two things about the replacement are easy to get wrong.
 
 It **validates structure, not values**. The new strategy is built at `ValidationLevel.NONE`,
-so a 200 from this endpoint says the tree is a tree and the steps are yours; it says nothing
-about whether any step will run ([WDK-STRAT-005](../rules/strategies-and-steps.md)).
+so a success from this endpoint says the tree is a tree and the steps are yours; it says
+nothing about whether any step will run
+([WDK-STRAT-005](../rules/strategies-and-steps.md)). That success is a **204**, not a 200 -
+`replaceStepTree` returns `void`, and 204 was what both sites answered on 2026-08-10.
 
 It **will not steal a step from another strategy**.
 [`treeToSteps` rejects](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/request/strategy/StrategyRequest.java#L162-L172)
