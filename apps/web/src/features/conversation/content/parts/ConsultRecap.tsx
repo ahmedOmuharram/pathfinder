@@ -2,7 +2,7 @@
 
 import { HelpCircle } from "lucide-react";
 
-import type { ConsultRecap } from "./planCarouselData";
+import type { ConsultRecap } from "./consultData";
 
 export function ConsultRecapView({ recap }: { recap: ConsultRecap }) {
   const answerByQuestion = new Map(recap.answers.map((a) => [a.questionId, a]));

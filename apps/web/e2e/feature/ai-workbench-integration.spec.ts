@@ -16,8 +16,6 @@ test.describe("AI Workbench Integration", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectIdle();
 
     // UI: Compact view with step pills
@@ -39,9 +37,6 @@ test.describe("AI Workbench Integration", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 

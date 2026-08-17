@@ -33,8 +33,6 @@ export function DataPartRenderer({
     .with("data-graph-cleared", (k) => renderKind(k, data))
     .with("data-variant-comparison", (k) => renderKind(k, data))
     .with("data-scored-comparison", (k) => renderKind(k, data))
-    .with("data-tool-approval-request", (k) => renderKind(k, data))
-    .with("data-tool-approval-result", (k) => renderKind(k, data))
     .with("data-memory-retrieved", (k) => renderKind(k, data))
     .with("data-gene-set", (k) => renderKind(k, data))
     .with("data-verification-summary", (k) => renderKind(k, data))

@@ -23,8 +23,10 @@ from pathfinder.devtools.bench_corpus import (
     site_id_for,
 )
 from pathfinder.devtools.resolver_bench_proposer import propose_with_model
+from pathfinder.domain.parameters.phyletic import PhyleticBinding
 from pathfinder.domain.parameters.values import ParamValue, to_wire
 from pathfinder.domain.parameters.wdk_vocab import match_exact_option
+from pathfinder.domain.search import SearchContext
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_dag import (
@@ -33,9 +35,19 @@ from pathfinder.services.catalog.param_dag import (
     resolve_params_with_intent,
     wdk_fetch_at,
 )
-from pathfinder.services.catalog.param_formatting import ParameterInfo
+from pathfinder.services.catalog.param_discovery import fetch_search_details
+from pathfinder.services.catalog.param_formatting import (
+    PHYLETIC_LIST_PARAMS,
+    ParameterInfo,
+)
 from pathfinder.services.catalog.param_intent import ParamIntent, Provenance
+from pathfinder.services.catalog.param_phyletic import (
+    derive_phyletic_overrides,
+    is_phyletic_sheet,
+)
 from pathfinder.services.catalog.param_sheet import SheetEntry, build_sheet
+from pathfinder.services.catalog.radio_pairs import check_radio_pairs, radio_pairs
+from pathfinder.services.wdk import WDKSearch
 
 
 class Outcome(StrEnum):
@@ -234,7 +246,7 @@ class InvalidProposal(CamelModel):
 
     param_name: str
     value: str | list[str] | None = None
-    reason: Literal["unknown_parameter", "not_in_vocabulary"]
+    reason: Literal["unknown_parameter", "not_in_vocabulary", "radio_pair"]
 
 
 class Checked(CamelModel):
@@ -333,6 +345,78 @@ def _validate_proposals(
     return Checked(overrides=overrides, invalid=invalid)
 
 
+class _Derived(CamelModel):
+    """What one derivation makes of a proposal: values it binds, values it refuses."""
+
+    overrides: dict[str, str] = Field(default_factory=dict)
+    invalid: list[InvalidProposal] = Field(default_factory=list)
+
+
+async def _definition_of(step: GoldStep) -> WDKSearch:
+    """The published definition of the step's search, read through the catalog."""
+    response, _ = await fetch_search_details(
+        SearchContext(site_id_for(step.database), step.record_type, step.search_name)
+    )
+    return response.search_data
+
+
+def _radio_round(
+    definition: WDKSearch,
+    infos: list[ParameterInfo],
+    values: Mapping[str, str | list[str] | None],
+) -> _Derived:
+    """The off value for each free-text half, and the halves the guard refuses.
+
+    A refused proposal is recorded and dropped, so the run measures the guard
+    rather than stopping at it.
+    """
+    overrides, issue = check_radio_pairs(
+        radio_pairs(definition.properties), infos, values
+    )
+    if issue is None:
+        return _Derived(overrides=overrides)
+    return _Derived(
+        overrides=overrides,
+        invalid=[
+            InvalidProposal(
+                param_name=issue.pair.free_text,
+                value=values.get(issue.pair.free_text),
+                reason="radio_pair",
+            )
+        ],
+    )
+
+
+def _phyletic_round(
+    definition: WDKSearch,
+    infos: list[ParameterInfo],
+    values: Mapping[str, str | list[str] | None],
+) -> _Derived | None:
+    """The three phyletic values the two species lists derive, or their refusal.
+
+    ``None`` leaves the proposals to the ordinary vocabulary check. The clade
+    tree lives on the structural params, which the sheet drops.
+    """
+    if not is_phyletic_sheet(infos):
+        return None
+    derived = derive_phyletic_overrides(definition.parameters or [], values)
+    if derived is None:
+        return None
+    if isinstance(derived, PhyleticBinding):
+        return _Derived(overrides=derived.model_dump())
+    # An unresolved term and an empty selection both state no criterion, which
+    # production answers with a retry.
+    return _Derived(
+        invalid=[
+            InvalidProposal(
+                param_name=name, value=values[name], reason="not_in_vocabulary"
+            )
+            for name in sorted(PHYLETIC_LIST_PARAMS)
+            if name in values
+        ]
+    )
+
+
 async def _propose_round(
     proposer: Proposer,
     step: GoldStep,
@@ -343,12 +427,25 @@ async def _propose_round(
     on_the_sheet: bool,
 ) -> ProposalRound:
     answer = await proposer(step, sheet, bound)
-    checked = _validate_proposals(answer.values, infos, on_the_sheet=on_the_sheet)
+    definition = await _definition_of(step)
+    # A derived list holds a canonical value that names no single entry, so the
+    # vocabulary check never sees the two lists.
+    phyletic = _phyletic_round(definition, infos, answer.values)
+    radio = _radio_round(definition, infos, answer.values)
+    refused = {item.param_name for item in radio.invalid}
+    judged = {
+        name: value
+        for name, value in answer.values.items()
+        if name not in refused
+        and not (phyletic is not None and name in PHYLETIC_LIST_PARAMS)
+    }
+    checked = _validate_proposals(judged, infos, on_the_sheet=on_the_sheet)
+    derived = phyletic or _Derived()
     return ProposalRound(
         values=answer.values,
         reason=answer.reason,
-        overrides=checked.overrides,
-        invalid=checked.invalid,
+        overrides={**checked.overrides, **derived.overrides, **radio.overrides},
+        invalid=[*checked.invalid, *derived.invalid, *radio.invalid],
     )
 
 

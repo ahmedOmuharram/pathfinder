@@ -1,15 +1,17 @@
-"""Conversation orchestrator — single entry point for first-action setup.
+"""Conversation orchestrator: the single entry point for first-action setup.
 
 Every "first action" on a conversation (chat send, slash command, launcher)
 calls ``begin_conversation`` first. The endpoint:
 
 1. Idempotently inserts the conversation row (``ON CONFLICT (id) DO NOTHING``)
    so callers don't race when two first actions fire concurrently.
-2. If the row was newly created and the caller supplied ``seed_text``, kicks
+2. Raises ``NotFoundError`` when the row already exists under another user,
+   so every caller inherits the ownership check.
+3. If the row was newly created and the caller supplied ``seed_text``, kicks
    off async title generation in the background and persists when ready.
-3. Returns the (possibly newly-created) conversation.
+4. Returns the (possibly newly-created) conversation.
 
-Downstream endpoints (e.g. ``/chat``) assume the row exists — they do not
+Downstream endpoints (e.g. ``/chat``) assume the row exists. They do not
 lazy-create.
 """
 
@@ -31,6 +33,7 @@ from pathfinder.persistence.repositories.conversation import (
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.errors import NotFoundError
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.conversations.authz import get_owned_or_404
 
 logger = get_logger(__name__)
 
@@ -80,12 +83,16 @@ async def begin_conversation(
     await session.flush()
 
     repo = ConversationRepository(session)
+    if not is_new:
+        existing = await get_owned_or_404(repo, conversation_id, user_id)
+        return BeginResult(conversation=existing, is_new=False)
+
     conversation = await repo.get_by_id(conversation_id)
     if conversation is None:
         msg = f"Conversation {conversation_id} not found after upsert"
         raise RuntimeError(msg)
 
-    return BeginResult(conversation=conversation, is_new=is_new)
+    return BeginResult(conversation=conversation, is_new=True)
 
 
 def start_title_generation(

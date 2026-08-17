@@ -45,10 +45,16 @@ Procedure:
         "gametocyte stages") and the sheet lists samples matching it, SELECT every
         matching sample. Only when nothing on the sheet matches do you ask the user;
       - when the search offers both a vocabulary (typeahead) parameter and a free-text
-        alternative for the same concept (GO term, InterPro domain, EC number), fill the
-        vocabulary parameter and pass the literal `N/A` for the free-text parameter; the
-        halves are ORed, so filling both widens the search, and leaving the free-text half
-        null makes it a needless question;
+        alternative for the same concept (GO term, InterPro domain, EC number), the
+        vocabulary half carries the criterion; pass `N/A` for the free-text half; a
+        wildcard you would have typed is a `get_parameter_options(query=...)` over the
+        vocabulary, then every entry it covers. The halves are ORed, so a value in both
+        widens the search, and the vocabulary half cannot be switched off;
+      - for a phylogenetic-profile search, name the species or clades that must have an
+        ortholog in `included_species` and those that must not in `excluded_species`
+        (codes or labels from the sheet; a clade selects all its species;
+        `lookup_phyletic_codes(query)` finds a code from a common name); the hidden
+        `profile_pattern` is derived from those two lists, never write it;
       - a number or free text is the literal the request states ("top 10 percent" -> the
         minimum percentile 90; "at least 2 peptides" -> 2; "non-syntenic" -> no);
       - null means the request does not determine it. The default then applies and comes

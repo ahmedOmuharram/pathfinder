@@ -23,9 +23,21 @@ from pathfinder.domain.parameters.values import (
     NumberValue,
     SinglePickValue,
 )
-from pathfinder.domain.parameters.wdk_vocab import VocabOption
+from pathfinder.domain.parameters.wdk_vocab import VocabOption, WDKVocabTerm
+from pathfinder.domain.search import SearchContext
+from pathfinder.domain.strategy.validation import StepValidation
+from pathfinder.integrations.veupathdb.wdk_models import WDKSearch, WDKSearchResponse
+from pathfinder.integrations.veupathdb.wdk_parameters import (
+    WDKEnumParam,
+    WDKParameter,
+    WDKStringParam,
+)
 from pathfinder.services.catalog.param_dag import ParamFetcher
-from pathfinder.services.catalog.param_formatting import FilterFieldInfo, ParameterInfo
+from pathfinder.services.catalog.param_formatting import (
+    FilterFieldInfo,
+    ParameterInfo,
+    format_param_info_typed,
+)
 from pathfinder.services.catalog.param_intent import Provenance
 from pathfinder.services.catalog.param_sheet import SheetEntry, build_sheet
 
@@ -234,6 +246,31 @@ def _vocab_param(
     )
 
 
+def _patch_definition(
+    monkeypatch: pytest.MonkeyPatch,
+    params: list[WDKParameter],
+    properties: dict[str, list[str]] | None = None,
+) -> None:
+    """Answer the catalog's definition read for the step's search."""
+
+    async def _definition(
+        ctx: SearchContext, **_kw: object
+    ) -> tuple[WDKSearchResponse, str]:
+        return (
+            WDKSearchResponse(
+                searchData=WDKSearch(
+                    urlSegment=ctx.search_name,
+                    parameters=params,
+                    properties=properties or {},
+                ),
+                validation=StepValidation(),
+            ),
+            ctx.record_type,
+        )
+
+    monkeypatch.setattr(resolver_bench, "fetch_search_details", _definition)
+
+
 def _patch_fetch(
     monkeypatch: pytest.MonkeyPatch,
     read: Callable[[dict[str, str]], list[ParameterInfo]],
@@ -245,6 +282,7 @@ def _patch_fetch(
         return fetch_at
 
     monkeypatch.setattr(resolver_bench, "wdk_fetch_at", _factory)
+    _patch_definition(monkeypatch, [])
 
 
 def _stage_param(_context: dict[str, str]) -> list[ParameterInfo]:
@@ -595,3 +633,273 @@ class TestTheRenderedSheet:
 
         assert "note: 400 values" in text
         assert "(400 values, 200 shown)" in text
+
+
+def _vocab_term(code: str, display: str) -> WDKVocabTerm:
+    return WDKVocabTerm((code, display, None))
+
+
+_PHYLETIC_DEFINITION: list[WDKParameter] = [
+    WDKStringParam(
+        name="profile_pattern", is_visible=False, initial_display_value="hsap=1T"
+    ),
+    WDKStringParam(name="included_species", allow_empty_value=True),
+    WDKStringParam(name="excluded_species", allow_empty_value=True),
+    WDKEnumParam(
+        name="phyletic_term_map",
+        type="multi-pick-vocabulary",
+        vocabulary=[
+            _vocab_term("ALL", "Root"),
+            _vocab_term("MAMM", "Mammalia"),
+            _vocab_term("hsap", "Homo sapiens REF"),
+            _vocab_term("pfal", "Plasmodium falciparum 3D7"),
+        ],
+    ),
+    WDKEnumParam(
+        name="phyletic_indent_map",
+        type="multi-pick-vocabulary",
+        vocabulary=[
+            _vocab_term("MAMM", "1"),
+            _vocab_term("hsap", "2"),
+            _vocab_term("pfal", "1"),
+        ],
+    ),
+]
+
+
+def _patch_phyletic(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve GenesByOrthologPattern as both a sheet and a definition."""
+    _patch_fetch(monkeypatch, lambda _c: format_param_info_typed(_PHYLETIC_DEFINITION))
+    _patch_definition(monkeypatch, _PHYLETIC_DEFINITION)
+
+
+class TestThePhyleticArm:
+    """The bench derives the pattern the same way production does."""
+
+    async def test_the_two_lists_score_the_gold_pattern(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_phyletic(monkeypatch)
+
+        async def proposer(
+            _gold: GoldStep, _sheet: list[SheetEntry], _bound: dict[str, str]
+        ) -> Proposal:
+            return Proposal(
+                values={
+                    "included_species": "Plasmodium falciparum 3D7",
+                    "excluded_species": "hsap",
+                }
+            )
+
+        report = await run_bench(
+            [
+                _step(
+                    profile_pattern="%hsap:N%pfal:Y%",
+                    included_species="pfal",
+                    excluded_species="hsap",
+                )
+            ],
+            proposer=proposer,
+        )
+
+        assert {s.param_name: s.outcome for s in report.scores} == {
+            "profile_pattern": Outcome.EXACT,
+            "included_species": Outcome.EXACT,
+            "excluded_species": Outcome.EXACT,
+        }
+        assert {s.provenance for s in report.scores} == {Provenance.STATED}
+
+    async def test_an_unknown_species_drops_both_lists_and_is_recorded(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _patch_phyletic(monkeypatch)
+
+        async def proposer(
+            _gold: GoldStep, _sheet: list[SheetEntry], _bound: dict[str, str]
+        ) -> Proposal:
+            return Proposal(
+                values={
+                    "included_species": "Plasmodium falciparum",
+                    "excluded_species": "hsap",
+                }
+            )
+
+        log = tmp_path / "bench.json"
+        report = await run_bench(
+            [_step(profile_pattern="%hsap:N%pfal:Y%")], proposer=proposer, log_path=log
+        )
+
+        # Nothing was derived, so the published default holds and scores wrong.
+        [score] = report.scores
+        assert score.outcome is Outcome.WRONG
+        [entry] = json.loads(log.read_text())
+        assert [i["paramName"] for i in entry["invalid"]] == [
+            "excluded_species",
+            "included_species",
+        ]
+
+    async def test_two_empty_lists_bind_nothing_and_are_recorded(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # The bare wildcard constrains no species, which production refuses.
+        _patch_phyletic(monkeypatch)
+
+        async def proposer(
+            _gold: GoldStep, _sheet: list[SheetEntry], _bound: dict[str, str]
+        ) -> Proposal:
+            return Proposal(
+                values={"included_species": "n/a", "excluded_species": None}
+            )
+
+        log = tmp_path / "bench.json"
+        report = await run_bench(
+            [_step(profile_pattern="%hsap:N%pfal:Y%")], proposer=proposer, log_path=log
+        )
+
+        [score] = report.scores
+        assert score.outcome is Outcome.WRONG
+        [entry] = json.loads(log.read_text())
+        assert [i["paramName"] for i in entry["invalid"]] == [
+            "excluded_species",
+            "included_species",
+        ]
+
+
+_EC_DEFINITION: list[WDKParameter] = [
+    WDKEnumParam(
+        name="ec_number_pattern",
+        type="single-pick-vocabulary",
+        initial_display_value="2.7.11.1",
+        vocabulary=[_vocab_term(v, v) for v in ("2.7.-.-", "2.7.11.1", "3.4.21.-")],
+    ),
+    WDKStringParam(name="ec_wildcard", initial_display_value="N/A"),
+]
+
+
+def _patch_ec(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve GenesByEcNumber, whose two halves one query ORs."""
+    _patch_fetch(monkeypatch, lambda _c: format_param_info_typed(_EC_DEFINITION))
+    _patch_definition(
+        monkeypatch,
+        _EC_DEFINITION,
+        {"radio-params": ["ec_number_pattern", "ec_wildcard"]},
+    )
+
+
+class TestTheRadioPairArm:
+    """The bench switches the free-text half off the same way production does."""
+
+    async def test_a_null_free_text_half_binds_the_off_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_ec(monkeypatch)
+
+        async def proposer(
+            _gold: GoldStep, _sheet: list[SheetEntry], _bound: dict[str, str]
+        ) -> Proposal:
+            return Proposal(values={"ec_number_pattern": "2.7.-.-"})
+
+        report = await run_bench(
+            [_step(ec_number_pattern="2.7.-.-", ec_wildcard="N/A")], proposer=proposer
+        )
+
+        assert {s.param_name: s.outcome for s in report.scores} == {
+            "ec_number_pattern": Outcome.EXACT,
+            "ec_wildcard": Outcome.EXACT,
+        }
+
+    async def test_a_filled_free_text_half_is_dropped_and_recorded(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _patch_ec(monkeypatch)
+
+        async def proposer(
+            _gold: GoldStep, _sheet: list[SheetEntry], _bound: dict[str, str]
+        ) -> Proposal:
+            return Proposal(
+                values={"ec_number_pattern": "2.7.-.-", "ec_wildcard": "2.7.*"}
+            )
+
+        log = tmp_path / "bench.json"
+        report = await run_bench(
+            [_step(ec_number_pattern="2.7.-.-")], proposer=proposer, log_path=log
+        )
+
+        # The run continues, so the guard is measured rather than ending the step.
+        [score] = report.scores
+        assert score.outcome is Outcome.EXACT
+        [entry] = json.loads(log.read_text())
+        assert entry["invalid"] == [
+            {"paramName": "ec_wildcard", "value": "2.7.*", "reason": "radio_pair"}
+        ]
+
+
+_GO_TERM = "GO:0004672 : protein kinase activity"
+
+_TWO_PAIR_DEFINITION: list[WDKParameter] = [
+    WDKEnumParam(
+        name="go_typeahead",
+        type="multi-pick-vocabulary",
+        display_type="typeAhead",
+        initial_display_value="[]",
+        vocabulary=[_vocab_term(_GO_TERM, _GO_TERM)],
+    ),
+    WDKStringParam(name="go_term", initial_display_value="N/A"),
+    *_EC_DEFINITION,
+]
+
+
+def _patch_two_pairs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve a search declaring two ORed pairs."""
+    _patch_fetch(monkeypatch, lambda _c: format_param_info_typed(_TWO_PAIR_DEFINITION))
+    _patch_definition(
+        monkeypatch,
+        _TWO_PAIR_DEFINITION,
+        {
+            "radio-params": [
+                "go_typeahead",
+                "go_term",
+                "ec_number_pattern",
+                "ec_wildcard",
+            ]
+        },
+    )
+
+
+class TestTwoPairsOnOneSearch:
+    async def test_a_refused_half_does_not_stop_the_other_pair_binding_off(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _patch_two_pairs(monkeypatch)
+
+        async def proposer(
+            _gold: GoldStep, _sheet: list[SheetEntry], _bound: dict[str, str]
+        ) -> Proposal:
+            return Proposal(
+                values={
+                    "go_typeahead": _GO_TERM,
+                    "go_term": "*kinase*",
+                    "ec_number_pattern": "2.7.-.-",
+                }
+            )
+
+        log = tmp_path / "bench.json"
+        report = await run_bench(
+            [
+                _step(
+                    go_typeahead=_GO_TERM,
+                    ec_number_pattern="2.7.-.-",
+                    ec_wildcard="N/A",
+                )
+            ],
+            proposer=proposer,
+            log_path=log,
+        )
+
+        assert {s.param_name: s.outcome for s in report.scores} == {
+            "go_typeahead": Outcome.EXACT,
+            "ec_number_pattern": Outcome.EXACT,
+            "ec_wildcard": Outcome.EXACT,
+        }
+        [entry] = json.loads(log.read_text())
+        assert [i["paramName"] for i in entry["invalid"]] == ["go_term"]

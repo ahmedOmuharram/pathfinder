@@ -3,11 +3,14 @@
 import logging
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import pathfinder.ai.orchestration.observability as obs
 from pathfinder.ai.orchestration.observability import (
     _build_resource,
     _configure_exporters,
     _configure_log_export,
+    _instrument_agents,
     setup_observability,
     shutdown_observability,
 )
@@ -252,3 +255,24 @@ def test_configure_exporters_prefers_signoz_http_for_traces_when_configured() ->
     http_exporter_cls.assert_called_once_with(
         endpoint="http://localhost:4318/v1/traces"
     )
+
+
+@pytest.mark.parametrize("include_content", [True, False])
+def test_instrument_agents_follows_include_content_setting(
+    include_content: bool,
+) -> None:
+    """Prompt and completion export follows OTEL_INCLUDE_CONTENT."""
+    mock_settings = MagicMock(otel_include_content=include_content)
+    with (
+        patch(
+            "pathfinder.ai.orchestration.observability.get_settings",
+            return_value=mock_settings,
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability.Agent.instrument_all",
+        ) as instrument_all,
+    ):
+        _instrument_agents()
+
+    (instrumentation,) = instrument_all.call_args.args
+    assert instrumentation.include_content is include_content

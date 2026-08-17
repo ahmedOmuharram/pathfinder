@@ -4,7 +4,7 @@ title: Site-model parameters, and the phyletic profile pattern
 description: What a site-model parameter is, why ApiCommonModel rather than WDK is its authority, the full grammar of profile_pattern as a SQL LIKE pattern, and what the reference client actually reads back from a saved step.
 tags: [wdk-alignment, parameters, site-model, apicommonmodel, phyletic-profile, model]
 generated: { by: claude-code/opus-5, at: 2026-08-14T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-14T00:00:00Z }
+verified: { by: claude-code/opus-5, at: 2026-08-17T00:00:00Z }
 status: stable
 ---
 
@@ -69,6 +69,37 @@ so in its own words, in a comment immediately after the query
 they "are not used by the query. They are for display purposes only." They exist so the
 client can draw the species tree - `phyletic_term_map` maps a code to a species or clade
 name, `phyletic_indent_map` maps the same code to a depth.
+
+# "Display purposes only" does not mean the metadata read may omit them
+
+The contextual read `POST /record-types/transcript/searches/GenesByOrthologPattern`
+answers `500 Internal Error` when the context carries a non-empty `organism` together
+with `profile_pattern` and does **not** carry both maps. Measured on plasmodb.org on
+2026-08-17, one organism (`Plasmodium falciparum 3D7`) throughout:
+
+| `contextParamValues` | status |
+|---|---|
+| `organism` | 200 |
+| `profile_pattern` | 200 |
+| `organism` + `profile_pattern` | **500** |
+| `organism` + `profile_pattern` + `phyletic_indent_map: "[]"` | **500** |
+| `organism` + `profile_pattern` + `phyletic_term_map: "[]"` | **500** |
+| `organism` + `profile_pattern` + both maps | 200, `validation: {level: SEMANTIC, isValid: true}` |
+| `organism` + `included_species` + `excluded_species` | 200 |
+| `organism: "[]"` + `profile_pattern` | 200 |
+
+The default pattern `hsap=1T` fails the same way, so this is not about the pattern's
+content. Both maps are needed; either alone still fails.
+
+A client that omits them loses WDK's verdict on every phyletic binding: the read falls
+back to the static `GET`, whose echoed values are the published defaults
+([WDK-PARAM-008](../rules/parameters-and-vocabularies.md)). PathFinder therefore adds the
+published `initialDisplayValue` of **every** hidden parameter that allows empty to the
+context of a metadata read, by shape rather than by name
+(`apps/api/src/pathfinder/services/catalog/search_context.py:context_for_metadata_read`).
+A hidden parameter that forbids empty is a different case and is decided by
+`fill_hidden_required_defaults`, because its value reaches the step's `searchConfig` and
+chooses the science.
 
 # The grammar: `profile_pattern` is a SQL `LIKE` pattern
 

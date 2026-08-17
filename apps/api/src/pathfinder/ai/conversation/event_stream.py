@@ -156,12 +156,6 @@ async def _fetch_after(
         return [(r.id, r.chunk) for r in rows]
 
 
-async def fetch_chunks_from_zero(
-    conversation_id: UUID,
-) -> tuple[int, list[dict[str, Any]]]:
-    return await fetch_chunks_after(conversation_id, 0)
-
-
 async def fetch_chunks_after(
     conversation_id: UUID,
     after: int,

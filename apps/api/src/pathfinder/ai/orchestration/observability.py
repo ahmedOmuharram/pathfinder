@@ -221,8 +221,9 @@ def _instrument_http_clients() -> None:
 
 def _instrument_agents() -> None:
     """Instrument pydantic-ai agents with per-run/model/tool spans."""
-    Agent.instrument_all(InstrumentationSettings(include_content=True))
-    logger.info("Instrumented: pydantic-ai agents")
+    include_content = get_settings().otel_include_content
+    Agent.instrument_all(InstrumentationSettings(include_content=include_content))
+    logger.info("Instrumented: pydantic-ai agents", include_content=include_content)
 
 
 def setup_observability(

@@ -20,7 +20,7 @@ import {
   type PendingConsult,
   findConsultRecap,
   findPendingConsult,
-} from "./planCarouselData";
+} from "./consultData";
 
 interface AnswerState {
   labels: string[];

@@ -50,5 +50,6 @@ async def read_wdk_step_counts(
         if wdk_id.isdigit()
     }
     return {
-        local_id: sizes.get(wdk_id) for local_id, wdk_id in sync_state.wdk_step_ids.items()
+        local_id: sizes.get(wdk_id)
+        for local_id, wdk_id in sync_state.wdk_step_ids.items()
     }

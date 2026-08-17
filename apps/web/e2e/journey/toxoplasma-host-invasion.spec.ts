@@ -59,13 +59,11 @@ test.describe("Toxoplasma Host Invasion Journey", () => {
     await chatPage.expectAssistantMessage(/\[mock\].*micronemal/i);
     await chatPage.expectIdle();
 
-    // Round 3 — trigger planning artifact (GenesByTaxon for T. gondii ME49)
+    // Round 3 — build (GenesByTaxon for T. gondii ME49)
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
 
     // ── Phase 2: Strategy Creation ───────────────────────────────
 
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 

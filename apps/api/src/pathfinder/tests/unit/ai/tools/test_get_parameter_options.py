@@ -11,8 +11,17 @@ from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.tools.standalone import catalog_discovery
 from pathfinder.ai.tools.standalone.catalog_discovery import AlreadyReadNotice
 from pathfinder.domain.parameters.values import SinglePickValue
+from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
 from pathfinder.domain.strategy.operational_spec import Criterion
-from pathfinder.services.catalog.param_formatting import ParameterNotOnSearch
+from pathfinder.integrations.veupathdb.wdk_parameters import (
+    WDKEnumParam,
+    WDKParameter,
+    WDKStringParam,
+)
+from pathfinder.services.catalog.param_formatting import (
+    ParameterInfo,
+    ParameterNotOnSearch,
+)
 
 
 def _ctx() -> Any:
@@ -424,3 +433,143 @@ class TestADependentReadNeedsItsParent:
         )
 
         assert result is fake_info
+
+
+def _term(code: str, display: str) -> WDKVocabTerm:
+    return WDKVocabTerm((code, display, None))
+
+
+_PHYLETIC_PARAMS: list[WDKParameter] = [
+    WDKStringParam(name="profile_pattern", is_visible=False),
+    WDKStringParam(
+        name="included_species", allow_empty_value=True, initial_display_value=""
+    ),
+    WDKStringParam(
+        name="excluded_species", allow_empty_value=True, initial_display_value=""
+    ),
+    WDKEnumParam(
+        name="phyletic_term_map",
+        type="multi-pick-vocabulary",
+        vocabulary=[
+            _term("ALL", "Root"),
+            _term("EUKA", "Eukaryota"),
+            _term("MAMM", "Mammalia"),
+            _term("hsap", "Homo sapiens REF"),
+            _term("pfal", "Plasmodium falciparum 3D7"),
+        ],
+    ),
+    WDKEnumParam(
+        name="phyletic_indent_map",
+        type="multi-pick-vocabulary",
+        vocabulary=[
+            _term("EUKA", "1"),
+            _term("MAMM", "2"),
+            _term("hsap", "3"),
+            _term("pfal", "2"),
+        ],
+    ),
+]
+
+
+def _patch_phyletic_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve the real ``GenesByOrthologPattern`` parameter shapes."""
+
+    async def _resolve(*_args: Any, **_kw: Any) -> str:
+        return "transcript"
+
+    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    details = MagicMock()
+    details.search_data.parameters = _PHYLETIC_PARAMS
+    client = MagicMock()
+    client.get_search_details = AsyncMock(return_value=details)
+    client.get_search_details_with_params = AsyncMock(return_value=details)
+    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
+
+
+class TestReadingOnePhyleticList:
+    """A single-parameter read must show the same vocabulary the sheet shows.
+
+    The two lists carry no WDK vocabulary of their own, so without the clade
+    tree the model reads an empty option list and writes species names.
+    """
+
+    @staticmethod
+    async def _read(
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        parameter_id: str = "included_species",
+        query: str | None = None,
+    ) -> Any:
+        _patch_phyletic_client(monkeypatch)
+        return await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByOrthologPattern",
+            parameter_id=parameter_id,
+            query=query,
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_query_returns_the_matching_species(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = await self._read(monkeypatch, query="homo")
+
+        assert isinstance(info, ParameterInfo)
+        assert info.allowed_values is not None
+        assert [(o.value, o.display) for o in info.allowed_values] == [
+            ("hsap", "Homo sapiens REF")
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_common_name_matches_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The filter is a substring over codes and scientific names, so 'human'
+        # does not reach 'Homo sapiens REF'.
+        info = await self._read(monkeypatch, query="human")
+
+        assert isinstance(info, ParameterInfo)
+        assert info.allowed_values is None
+
+    @pytest.mark.asyncio
+    async def test_the_read_carries_the_derivation_sentence(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = await self._read(monkeypatch, query="homo")
+
+        assert isinstance(info, ParameterInfo)
+        assert "profile_pattern is derived from these two lists" in info.help
+
+    @pytest.mark.asyncio
+    async def test_a_code_query_matches_too(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = await self._read(monkeypatch, query="PFAL")
+
+        assert isinstance(info, ParameterInfo)
+        assert info.allowed_values is not None
+        assert [o.value for o in info.allowed_values] == ["pfal"]
+
+    @pytest.mark.asyncio
+    async def test_no_query_returns_the_whole_tree(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = await self._read(monkeypatch, parameter_id="excluded_species")
+
+        assert isinstance(info, ParameterInfo)
+        assert info.allowed_values is not None
+        assert [o.value for o in info.allowed_values] == [
+            "EUKA",
+            "MAMM",
+            "hsap",
+            "pfal",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_the_hidden_pattern_gains_no_tree(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = await self._read(monkeypatch, parameter_id="profile_pattern")
+
+        assert isinstance(info, ParameterInfo)
+        assert info.allowed_values is None

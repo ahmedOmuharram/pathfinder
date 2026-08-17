@@ -79,28 +79,99 @@ def _domain_families(count: int) -> list[VocabOption]:
     ]
 
 
-def test_a_named_accession_is_pinned_when_the_label_is_not_written_out() -> None:
-    # Every entry shares the request's generic words, so ranking is a tie and
-    # the wanted entry sits outside the shortlist on order alone.
-    leaves = _domain_families(700)
-    leaves[600] = VocabOption(value="PF00069 : Pkinase", display="PF00069 : Pkinase")
+def _enzyme_classes(count: int) -> list[VocabOption]:
+    """An EC typeahead vocabulary, written the way WDK writes one: accession, label."""
+    return [
+        VocabOption(
+            value=f"EC:1.{i} : enzyme class {i}",
+            display=f"EC:1.{i} : enzyme class {i}",
+        )
+        for i in range(count)
+    ]
 
-    [entry] = build_sheet(
-        [_param("domain_typeahead", leaves)], query="InterPro domain PF00069 (Pkinase)"
+
+def test_a_named_accession_is_pinned_when_the_label_is_not_written_out() -> None:
+    # The label holds none of the request's words, so ranking puts this entry
+    # last of 700. Only the pin carries it onto the sheet.
+    leaves = _enzyme_classes(700)
+    leaves[600] = VocabOption(
+        value="EC:2.7.1 : Protein kinase", display="EC:2.7.1 : Protein kinase"
     )
 
-    assert entry.vocabulary[0].value == "PF00069 : Pkinase"
+    [entry] = build_sheet(
+        [_param("ec_typeahead", leaves)], query="the enzyme class EC:2.7.1"
+    )
+
+    assert entry.vocabulary[0].value == "EC:2.7.1 : Protein kinase"
 
 
 def test_a_short_leading_word_is_not_an_accession_and_is_not_pinned() -> None:
+    # Both entries hold a word the request writes and nothing else does, so
+    # rarity scores them the same; only the pin can order them.
     leaves = _domain_families(700)
-    leaves[600] = VocabOption(value="ABC : Alpha kinase", display="ABC : Alpha kinase")
+    leaves[100] = VocabOption(value="ABC : Alpha kinase", display="ABC : Alpha kinase")
+    leaves[600] = VocabOption(value="PF00069 : Pkinase", display="PF00069 : Pkinase")
 
     [entry] = build_sheet(
-        [_param("domain_typeahead", leaves)], query="InterPro domain ABC"
+        [_param("domain_typeahead", leaves)], query="InterPro domain ABC PF00069"
     )
 
-    assert all(o.value != "ABC : Alpha kinase" for o in entry.vocabulary)
+    order = [o.value for o in entry.vocabulary]
+    # A pinned entry leads whatever its position; the short word earns rank only.
+    assert order[0] == "PF00069 : Pkinase"
+    assert order[1] == "ABC : Alpha kinase"
+
+
+def _phyletic_profile() -> list[VocabOption]:
+    """A phyletic vocabulary: many Plasmodium entries, one Homo sapiens entry."""
+    leaves = [
+        VocabOption(value=f"sp{i}", display=f"sp{i} -- organism {i} REF")
+        for i in range(700)
+    ]
+    for i in range(60):
+        leaves[i] = VocabOption(
+            value=f"pspp{i}", display=f"pspp{i} -- Plasmodium species {i}"
+        )
+    leaves[650] = VocabOption(value="hsap", display="hsap -- Homo sapiens REF")
+    return leaves
+
+
+def test_a_rare_request_word_outranks_a_common_one() -> None:
+    [entry] = build_sheet(
+        [_param("excluded_species", _phyletic_profile())],
+        query="in Plasmodium, not H. sapiens",
+    )
+
+    order = [o.value for o in entry.vocabulary]
+    assert "hsap" in order
+    assert order[0] == "hsap"
+    assert all(order.index("hsap") < order.index(f"pspp{i}") for i in range(60))
+
+
+def test_a_stopword_in_the_request_ranks_nothing() -> None:
+    leaves = _phyletic_profile()
+    leaves[5] = VocabOption(value="nross", display="nross -- Notothenia rossii REF")
+
+    [entry] = build_sheet(
+        [_param("excluded_species", leaves)], query="in Plasmodium, not H. sapiens"
+    )
+
+    order = [o.value for o in entry.vocabulary]
+    assert order[0] == "hsap"
+    assert order.index("hsap") < order.index("nross")
+
+
+def test_a_request_word_matches_a_whole_label_word_not_a_fragment() -> None:
+    leaves = _phyletic_profile()
+    leaves[5] = VocabOption(value="psap", display="psap -- Pseudomonas sapiensis")
+
+    [entry] = build_sheet(
+        [_param("excluded_species", leaves)], query="in Plasmodium, not H. sapiens"
+    )
+
+    order = [o.value for o in entry.vocabulary]
+    assert order[0] == "hsap"
+    assert order.index("hsap") < order.index("psap")
 
 
 def test_shared_words_rank_an_option_above_an_unrelated_one() -> None:
@@ -113,7 +184,7 @@ def test_shared_words_rank_an_option_above_an_unrelated_one() -> None:
 
     order = [o.value for o in entry.vocabulary]
     assert order.index("GO:0016301") < order.index("GO:0005515")
-    # Two shared words beat one, one beats none.
+    # Weights add, so both words beat the one that two labels share, which beats none.
     assert order.index("GO:0016301") < order.index("GO:0016772")
     assert order.index("GO:0016772") < order.index("GO:0005515")
 

@@ -39,8 +39,6 @@ test.describe("Execution phase (build strategy through the UI)", () => {
     apiClient,
   }) => {
     await chatPage.send("create delegation");
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await chatPage.expectIdle();
 
@@ -74,8 +72,6 @@ test.describe("Execution phase (build strategy through the UI)", () => {
     await chatPage.send(
       "Build a strategy for P. falciparum 3D7 kinases using InterPro PF00069 and GO terms.",
     );
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectVerificationFeedback();
 
     const conversationId = chatPage.lastStrategyId as string;
@@ -103,24 +99,5 @@ test.describe("Execution phase (build strategy through the UI)", () => {
       "idle",
       { timeout: 30_000 },
     );
-  });
-
-  test("denying the plan builds nothing (no execution)", async ({
-    chatPage,
-    apiClient,
-  }) => {
-    const conversationId = chatPage.lastStrategyId as string;
-    expect(conversationId).toMatch(UUID_RE);
-    await chatPage.send(
-      "Build a strategy for P. falciparum 3D7 kinases using InterPro PF00069 and GO terms.",
-    );
-    await chatPage.expectPlanningArtifact();
-    await chatPage.denyPlan();
-    await chatPage.expectIdle();
-
-    const conv = await apiClient.get(`/api/v1/conversations/${conversationId}`);
-    expect((await conv.json()).wdkStrategyId).toBeNull();
-    const ast = await apiClient.get(`/api/v1/conversations/${conversationId}/ast`);
-    expect(ast.status()).toBe(404);
   });
 });

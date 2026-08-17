@@ -34,7 +34,12 @@ export default defineConfig({
       // Unit coverage focuses on app "logic layers"; UI is covered by Playwright E2E.
       include: [
         "src/lib/**/*.{ts,tsx}",
-        "src/features/chat/**/*.{ts,tsx}",
+        // Conversation logic modules (unit-tested); its React renderers,
+        // transport and hooks are covered by Playwright E2E.
+        "src/features/conversation/content/parts/{consultData,taskCompletionResume,taskLiveState}.ts",
+        "src/features/conversation/rail/{consultActions,normalizeLedger,railActivity}.ts",
+        "src/features/conversation/runtime/{buildRequestBody,feedbackAdapter,geneIdAttachmentAdapter,replayChunks,traceId}.ts",
+        "src/features/conversation/slash/{parser,registryUtils}.ts",
         // ReactFlow graph interaction logic (unit-tested).
         "src/features/strategy/graph/utils/**/*.{ts,tsx}",
         // Strategy pure helpers (unit-tested).
@@ -61,7 +66,6 @@ export default defineConfig({
         "src/features/results/**",
         "src/features/sites/**",
         // React hooks are primarily tested via E2E; unit coverage focuses on pure logic.
-        "src/features/chat/hooks/**",
         "src/shared/hooks/**",
         "src/shared/types/**",
         "src/core/**",

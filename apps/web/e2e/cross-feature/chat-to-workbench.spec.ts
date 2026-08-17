@@ -27,11 +27,8 @@ test.describe("Chat → Workbench Flow", () => {
     await chatPage.expectAssistantMessage(/\[mock\]/);
     await chatPage.expectIdle();
 
-    // Trigger planning artifact
+    // Build the strategy
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 

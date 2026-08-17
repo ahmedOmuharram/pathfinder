@@ -9,6 +9,8 @@ import {
   leafStates,
   buildSpeciesLists,
   claimsPhyleticParams,
+  resolveTerms,
+  seedTriStates,
 } from "./phyleticProfileLogic";
 import { PhyleticProfileParam } from "./PhyleticProfileParam";
 import type { WDKVocabTerm } from "@pathfinder/shared";
@@ -51,7 +53,10 @@ const PHYLETIC_DEFAULTS: Record<string, string | string[] | unknown> = {
   phyletic_term_map: TERM_MAP_VOCAB,
 };
 
-function makeAllSpecs(): ParamSpec[] {
+function makeSpecsFor(
+  termMap: WDKVocabTerm[],
+  indentMap: WDKVocabTerm[],
+): ParamSpec[] {
   return [
     { ...PARAM_DEFAULTS, name: "profile_pattern", type: "string" },
     { ...PARAM_DEFAULTS, name: "included_species", type: "string" },
@@ -60,16 +65,36 @@ function makeAllSpecs(): ParamSpec[] {
       ...PARAM_DEFAULTS,
       name: "phyletic_indent_map",
       type: "string",
-      vocabulary: INDENT_MAP_VOCAB,
+      vocabulary: indentMap,
     },
     {
       ...PARAM_DEFAULTS,
       name: "phyletic_term_map",
       type: "string",
-      vocabulary: TERM_MAP_VOCAB,
+      vocabulary: termMap,
     },
   ];
 }
+
+function makeAllSpecs(): ParamSpec[] {
+  return makeSpecsFor(TERM_MAP_VOCAB, INDENT_MAP_VOCAB);
+}
+
+// A clade above two leaves, so a stored clade term and its decoded leaves differ.
+const CLADE_TERM_MAP: WDKVocabTerm[] = [
+  ["ALL", "All Organisms", null],
+  ["MAMM", "Mammalia", null],
+  ["hsap", "H. sapiens", null],
+  ["mmus", "M. musculus", null],
+  ["pfal", "P. falciparum", null],
+];
+
+const CLADE_INDENT_MAP: WDKVocabTerm[] = [
+  ["MAMM", "1", null],
+  ["hsap", "2", null],
+  ["mmus", "2", null],
+  ["pfal", "1", null],
+];
 
 function TestForm({
   defaultValues,
@@ -298,6 +323,224 @@ describe("PhyleticProfileParam component", () => {
     expect(screen.getAllByText(/unconstrained/i).length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText(/include/i).length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText(/exclude/i).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("resolveTerms", () => {
+  const roots = buildPhyleticTree(CLADE_TERM_MAP, CLADE_INDENT_MAP);
+
+  it("resolves an exact code", () => {
+    expect(resolveTerms(roots, "pfal")).toEqual({ codes: ["pfal"], unknown: [] });
+  });
+
+  it("splits a comma separated proposal and trims each term", () => {
+    expect(resolveTerms(roots, " MAMM ,  pfal ").codes).toEqual(["MAMM", "pfal"]);
+  });
+
+  it("accepts a list as well as a string", () => {
+    expect(resolveTerms(roots, ["MAMM", "pfal"]).codes).toEqual(["MAMM", "pfal"]);
+  });
+
+  it("drops the empty marker the reference client writes", () => {
+    expect(resolveTerms(roots, "n/a")).toEqual({ codes: [], unknown: [] });
+  });
+
+  it("matches a display label without regard to case", () => {
+    expect(resolveTerms(roots, "mammalia").codes).toEqual(["MAMM"]);
+  });
+
+  it("names a term the tree does not carry", () => {
+    expect(resolveTerms(roots, "Nosema")).toEqual({ codes: [], unknown: ["Nosema"] });
+  });
+
+  it("treats the root as unknown, in both of its spellings", () => {
+    expect(resolveTerms(roots, "ALL").unknown).toEqual(["ALL"]);
+    expect(resolveTerms(roots, "All Organisms").unknown).toEqual(["All Organisms"]);
+  });
+
+  it("keeps one entry per code", () => {
+    expect(resolveTerms(roots, "pfal, pfal").codes).toEqual(["pfal"]);
+  });
+
+  it("keeps one entry per unknown term", () => {
+    expect(resolveTerms(roots, "Nosema, Nosema").unknown).toEqual(["Nosema"]);
+  });
+});
+
+describe("seedTriStates", () => {
+  const roots = buildPhyleticTree(CLADE_TERM_MAP, CLADE_INDENT_MAP);
+
+  it("seeds the clade the lists carry, not the leaves the pattern carries", () => {
+    const { states } = seedTriStates(roots, {
+      included: "n/a",
+      excluded: "MAMM",
+      pattern: "%hsap:N%mmus:N%",
+    });
+
+    expect([...states.entries()]).toEqual([["MAMM", "exclude"]]);
+  });
+
+  it("reads both lists", () => {
+    const { states } = seedTriStates(roots, {
+      included: "pfal",
+      excluded: "MAMM",
+      pattern: "%",
+    });
+
+    expect(states.get("pfal")).toBe("include");
+    expect(states.get("MAMM")).toBe("exclude");
+  });
+
+  it("falls back to the pattern when both lists are the empty marker", () => {
+    const { states } = seedTriStates(roots, {
+      included: "n/a",
+      excluded: "n/a",
+      pattern: "%hsap:Y%",
+    });
+
+    expect(states.get("hsap")).toBe("include");
+  });
+
+  it("falls back to the pattern when both lists are absent", () => {
+    const { states } = seedTriStates(roots, {
+      included: "",
+      excluded: "",
+      pattern: "%hsap:N%",
+    });
+
+    expect(states.get("hsap")).toBe("exclude");
+  });
+
+  it("leaves a code that both lists claim unconstrained and names it", () => {
+    const { states, unread } = seedTriStates(roots, {
+      included: "hsap, pfal",
+      excluded: "hsap",
+      pattern: "%",
+    });
+
+    expect(states.has("hsap")).toBe(false);
+    expect(states.get("pfal")).toBe("include");
+    expect(unread).toEqual(["hsap"]);
+  });
+
+  it("does not read the pattern when a list carries only an unknown term", () => {
+    const { states, unread } = seedTriStates(roots, {
+      included: "Nosema",
+      excluded: "n/a",
+      pattern: "%hsap:Y%",
+    });
+
+    expect(states.size).toBe(0);
+    expect(unread).toEqual(["Nosema"]);
+  });
+
+  it("names the root the reference client stores as unread", () => {
+    const { states, unread } = seedTriStates(roots, {
+      included: "All Organisms",
+      excluded: "n/a",
+      pattern: "%",
+    });
+
+    expect(states.size).toBe(0);
+    expect(unread).toEqual(["All Organisms"]);
+  });
+
+  it("names nothing when every stored term is on the tree", () => {
+    const { unread } = seedTriStates(roots, {
+      included: "pfal",
+      excluded: "MAMM",
+      pattern: "%",
+    });
+
+    expect(unread).toEqual([]);
+  });
+});
+
+describe("reopening a step whose lists name a term the tree does not carry", () => {
+  const specs = makeSpecsFor(CLADE_TERM_MAP, CLADE_INDENT_MAP);
+  const stored = {
+    phyletic_term_map: CLADE_TERM_MAP,
+    phyletic_indent_map: CLADE_INDENT_MAP,
+    profile_pattern: "%",
+    included_species: "All Organisms",
+    excluded_species: "n/a",
+  };
+
+  it("shows the term it cannot seed instead of reopening silently empty", () => {
+    render(
+      <TestForm defaultValues={stored}>
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
+      </TestForm>,
+    );
+
+    expect(screen.getByTestId("phyletic-unread").textContent).toContain("All Organisms");
+  });
+
+  it("shows no notice when every stored term is on the tree", () => {
+    render(
+      <TestForm defaultValues={{ ...stored, included_species: "pfal" }}>
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
+      </TestForm>,
+    );
+
+    expect(screen.queryByTestId("phyletic-unread")).toBeNull();
+  });
+});
+
+describe("reopening a step authored at clade granularity", () => {
+  const specs = makeSpecsFor(CLADE_TERM_MAP, CLADE_INDENT_MAP);
+  const stored = {
+    phyletic_term_map: CLADE_TERM_MAP,
+    phyletic_indent_map: CLADE_INDENT_MAP,
+    profile_pattern: "%hsap:N%mmus:N%",
+    included_species: "n/a",
+    excluded_species: "MAMM",
+  };
+
+  function renderStored() {
+    render(
+      <TestForm defaultValues={stored}>
+        {(form) => (
+          <>
+            <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />
+            <FormValueReader form={form} name="included_species" />
+            <FormValueReader form={form} name="excluded_species" />
+            <FormValueReader form={form} name="profile_pattern" />
+          </>
+        )}
+      </TestForm>,
+    );
+  }
+
+  function toggleOf(label: string): HTMLElement {
+    const row = screen.getByText(label).closest("[data-node]");
+    return row!.querySelector("[data-toggle]") as HTMLElement;
+  }
+
+  it("shows the stored clade excluded rather than its leaves", () => {
+    renderStored();
+
+    expect(toggleOf("Mammalia").textContent).toContain("\u2717");
+    expect(toggleOf("H. sapiens").textContent).toContain("\u25CB");
+  });
+
+  it("keeps the excluded clade after an unrelated click", () => {
+    renderStored();
+
+    fireEvent.click(toggleOf("P. falciparum"));
+
+    expect(screen.getByTestId("form-excluded_species").textContent).toBe("MAMM");
+    expect(screen.getByTestId("form-included_species").textContent).toBe("pfal");
+  });
+
+  it("still writes the pattern at species granularity", () => {
+    renderStored();
+
+    fireEvent.click(toggleOf("P. falciparum"));
+
+    expect(screen.getByTestId("form-profile_pattern").textContent).toBe(
+      "%hsap:N%mmus:N%pfal:Y%",
+    );
   });
 });
 

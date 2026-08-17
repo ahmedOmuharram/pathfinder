@@ -48,8 +48,6 @@ test.describe("Dependent-param strategy (GenesByGoTerm)", () => {
     await chatPage.newChat("plasmodb");
 
     await chatPage.send("build a GO term strategy for protein kinase GO genes");
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await chatPage.expectIdle();
 
@@ -104,8 +102,6 @@ test.describe("Dependent-param strategy (GenesByGoTerm)", () => {
     await chatPage.newChat("plasmodb");
 
     await chatPage.send("build a GO term strategy for protein kinase GO genes");
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await chatPage.expectIdle();
 

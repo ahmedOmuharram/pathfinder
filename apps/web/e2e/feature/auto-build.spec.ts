@@ -1,6 +1,5 @@
 import { test, expect } from "../fixtures/test";
 import {
-  MOCK_DELEGATION_DRAFT_PROMPT,
   MOCK_DELEGATION_PROMPT,
   MOCK_PLAN_PROMPT,
 } from "../fixtures/mock-prompts";
@@ -28,8 +27,6 @@ test.describe("Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -49,8 +46,6 @@ test.describe("Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -76,8 +71,6 @@ test.describe("Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -108,8 +101,6 @@ test.describe("Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -136,8 +127,6 @@ test.describe("Auto-Build Pipeline", () => {
     graphPage,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectIdle();
 
     // Graph must be visible with at least one step pill
@@ -160,8 +149,6 @@ test.describe("Delegation Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await chatPage.expectIdle();
 
@@ -184,8 +171,6 @@ test.describe("Delegation Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await chatPage.expectIdle();
 
@@ -203,8 +188,6 @@ test.describe("Delegation Auto-Build Pipeline", () => {
 
   test("delegation graph appears during streaming", async ({ chatPage, graphPage }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     // Graph should appear during execution streaming (before message_end).
     await graphPage.expectRailPanel();
     const pillCount = await graphPage.railStepRows.count();
@@ -212,7 +195,7 @@ test.describe("Delegation Auto-Build Pipeline", () => {
   });
 });
 
-test.describe("Planning Artifact Pipeline", () => {
+test.describe("Strategy Build Pipeline", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeEach(async ({ chatPage }) => {
@@ -220,35 +203,16 @@ test.describe("Planning Artifact Pipeline", () => {
     await chatPage.newChat();
   });
 
-  test("artifact graph produces planning artifact with real WDK search names", async ({
-    chatPage,
-    apiClient,
-  }) => {
-    await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    // Verify the planning artifact data via API
-    const strategyId = chatPage.lastStrategyId;
-    expect(strategyId).toBeTruthy();
-    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
-    // Strategy should exist (plan is populated when the user clicks Apply,
-    // not when the artifact is first emitted via tool call).
-    expect(resp.ok()).toBeTruthy();
-  });
-
-  test("artifact graph apply creates real WDK strategy", async ({
+  test("building creates a real WDK strategy", async ({
     chatPage,
     graphPage,
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
-    // After apply, strategy should have steps with real search names
+    // The built strategy has steps with real search names
     const strategyId = chatPage.lastStrategyId;
     const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     const strategy = await resp.json();
@@ -279,14 +243,6 @@ test.describe("Mock Engine Response Correctness", () => {
     expect(text).toContain("hello world");
   });
 
-  test("delegation draft produces planning artifact not delegation", async ({
-    chatPage,
-  }) => {
-    await chatPage.send(MOCK_DELEGATION_DRAFT_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.expectIdle();
-  });
-
   test("multiple sequential messages each produce responses", async ({ chatPage }) => {
     await chatPage.send("first message");
     await chatPage.expectAssistantMessage(/\[mock\].*first message/i);
@@ -302,8 +258,6 @@ test.describe("Mock Engine Response Correctness", () => {
     page,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectIdle();
 
     // The thinking panel may or may not render in mock mode; the mock plan
@@ -337,8 +291,6 @@ test.describe("Auto-Build Persistence", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -372,8 +324,6 @@ test.describe("Auto-Build Persistence", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectIdle();
 
     // Check gene set exists before reload

@@ -49,8 +49,6 @@ test.describe("Edit leaf param from UI", () => {
     await chatPage.send(
       "Build a strategy for P. falciparum 3D7 kinases using InterPro PF00069 and GO terms.",
     );
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectVerificationFeedback();
 
     const conversationId = chatPage.lastStrategyId;

@@ -7,8 +7,6 @@ export class ChatPage {
   readonly stopButton: Locator;
   readonly newChatButton: Locator;
   readonly refreshConversationsButton: Locator;
-  readonly planArtifact: Locator;
-  readonly planCarousel: Locator;
   readonly variantComparison: Locator;
   readonly scoredComparison: Locator;
 
@@ -19,8 +17,6 @@ export class ChatPage {
     this.stopButton = page.getByTestId("stop-button");
     this.newChatButton = page.getByRole("button", { name: "New chat" });
     this.refreshConversationsButton = page.getByTestId("conversations-refresh-button");
-    this.planArtifact = page.getByTestId("data-plan-artifact");
-    this.planCarousel = page.getByTestId("plan-carousel");
     this.variantComparison = page.getByTestId("data-variant-comparison");
     this.scoredComparison = page.getByTestId("data-scored-comparison");
   }
@@ -91,48 +87,6 @@ export class ChatPage {
 
   async stopStreaming() {
     await this.stopButton.click();
-  }
-
-  /** Approve the inline plan carousel. A plan with no fillable slots shows an
-   *  "Approve & run" row; one with slots paginates to a Submit button. */
-  async approvePlan() {
-    const carousel = this.planCarousel.last();
-    await expect(carousel).toBeVisible({ timeout: 60_000 });
-    const approveRun = carousel.getByTestId("carousel-approve-run");
-    const submitBtn = carousel.getByTestId("carousel-submit");
-    const nextBtn = carousel.getByTestId("carousel-next");
-    // Wait for the carousel to finish "building" and present a control.
-    await expect(approveRun.or(submitBtn).or(nextBtn).first()).toBeVisible({
-      timeout: 60_000,
-    });
-    if (await approveRun.isVisible().catch(() => false)) {
-      await approveRun.click();
-      return;
-    }
-    // Slot-filling path: advance to the last slide and submit.
-    for (let guard = 0; guard < 10; guard++) {
-      const submit = carousel.getByTestId("carousel-submit");
-      if (await submit.isVisible().catch(() => false)) {
-        await expect(submit).toBeEnabled();
-        await submit.click();
-        return;
-      }
-      await carousel.getByTestId("carousel-next").click();
-    }
-    throw new Error("plan carousel never reached an approve/submit control");
-  }
-
-  async denyPlan(reason = "please broaden the search") {
-    const carousel = this.planCarousel.last();
-    await expect(carousel).toBeVisible({ timeout: 60_000 });
-    await carousel.getByTestId("carousel-request-changes-toggle").click();
-    await carousel.getByTestId("carousel-request-changes-input").fill(reason);
-    await carousel.getByTestId("carousel-request-changes-send").click();
-  }
-
-  /** Last (most recent) plan artifact rendered inline in any assistant message. */
-  get lastPlanArtifact(): Locator {
-    return this.planArtifact.last();
   }
 
   get assistantMessages(): Locator {
@@ -240,11 +194,6 @@ export class ChatPage {
   /** The winner row inside the scored-comparison card. */
   scoredWinnerBadge(): Locator {
     return this.scoredComparison.getByText("winner", { exact: true });
-  }
-
-  async expectPlanningArtifact() {
-    await expect(this.planArtifact.first()).toBeVisible({ timeout: 60_000 });
-    await expect(this.planCarousel.first()).toBeVisible({ timeout: 60_000 });
   }
 
   /** Assert at least one user-blocking question (from a scoping AWAITING_USER outcome). */

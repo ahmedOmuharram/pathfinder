@@ -93,13 +93,24 @@ has exactly one check to apply to it - the length cap - and any string under 400
 characters passes. The value then goes to `LIKE`, which does not fail on a pattern that
 matches nothing.
 
-PathFinder refuses two of these before the value leaves the client: an entry whose code is
-not in the site's vocabulary, and an entry whose state is neither `Y` nor `N`
-(`integrations/veupathdb/strategy_api/base.py:_validate_phyletic_codes`, guarded by
-`apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_phyletic_state_token.py`).
-That narrows the ways in rather than closing them - prose, an empty token list and a
-correctly-spelled pattern that is simply wrong all still reach WDK, and WDK still answers
-them with a count.
+PathFinder refuses three shapes before the value leaves the client, all of them in
+`integrations/veupathdb/strategy_api/base.py`. `_read_census` reads the value as a run of
+`code:Y` / `code:N` tokens and returns no states for any other shape, and
+`_expand_profile_pattern_groups` answers that with a 422 - which is what prose, OrthoMCL
+syntax and the published default get. A code that states two states is a 422 of its own,
+naming the repeated code, because one species has one state in the census; both paths to
+the wire raise it, the expansion above and `_sort_profile_pattern` under
+`_normalize_parameters`. A code the phyletic tree does not carry is
+a second 422, raised by `_validate_phyletic_codes` from inside that same function. Guarded
+by `apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_profile_pattern_shape.py`
+and `test_phyletic_state_token.py`.
+
+That narrows the ways in rather than closing them. A pattern built from real codes in the
+right order and the wrong states is well formed, reaches WDK, and comes back as a count;
+the bare `%` is legal and matches every census. What changed the odds is upstream of the
+wire rather than at it: the pattern is no longer written by hand but derived from the two
+species lists
+([WDK-SITE-006](#wdk-site-006---included_species-and-excluded_species-never-reach-the-query-and-are-the-only-state-the-reference-client-reads-back)).
 
 **But the answer is not therefore empty, and this is the part that makes the rule
 `SILENT` rather than merely annoying.** The query is a `UNION` of two branches, and the
@@ -264,19 +275,21 @@ rule becomes false and no gate can notice. Re-run: the six patterns above agains
 `GenesByOrthologPattern` with `organism` at *P. falciparum* 3D7, expecting non-zero for the
 ascending form of each pair and 0 for the reverse.
 
-PathFinder's `_sort_profile_pattern` does sort, and its docstring gives the wrong reason -
-"OrthoMCL requires pattern entries in alphabetical order". OrthoMCL is a different site
-running a different grammar, and it does not require this
+PathFinder sorts in one place. `domain/parameters/phyletic.py:encode_profile_pattern` emits
+the tokens sorted, so every pattern the authoring path produces is in census order by
+construction, and `_sort_profile_pattern` re-orders only a pattern that reaches the wire
+when the clade tree cannot be read. Both name the stored census as the reason, which is
+worth keeping in the code, because the plausible wrong reason - that OrthoMCL requires
+alphabetical entries - points a reader at a different site running a different grammar that
+requires no such thing
 ([WDK-SITE-003](#wdk-site-003---profile_patterns-published-initialdisplayvalue-is-an-expression-from-another-sites-grammar-and-it-returns-zero)).
-The requirement comes from the stored string this site matches against. The behaviour is
-right; the stated reason would send the next reader to the wrong repository.
 
 ### WDK-SITE-005 - Only lowercase leaf species codes appear in the census; a clade code is case-sensitively absent
 
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/ApiCommonModel/blob/301b2be012af713411e9b0e216ed93c51d04c239/Model/lib/wdk/model/questions/params/geneParams.xml#L8247-L8281
-- anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/base.py:_validate_phyletic_codes
-- status: PARTIAL by apps/web/src/features/strategy/editor/widgets/PhyleticProfileParam.test.tsx::leafStates::replaces a clade with its leaves
+- anchor: apps/api/src/pathfinder/domain/parameters/phyletic.py:leaf_states
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/parameters/test_phyletic.py::TestLeafStates::test_a_clade_becomes_its_leaves
 
 The vocabulary is `phyletic_term_map`, whose backing query walks `apidb.orthomclclade` and
 returns `three_letter_abbrev` as the term. It contains both kinds of node. Counted with
@@ -294,11 +307,21 @@ rather than a lookup.
 The same reason makes it case-sensitive: `%HSAP:Y%` returns 0 where `%hsap:Y%` returns
 2042.
 
-The status above is `PARTIAL` for a reason worth stating. The named test covers the editor
-widget, which now expands a clade to its leaves before writing the pattern. The anchor is
-the backend's `_validate_phyletic_codes`, which accepts any code the vocabulary carries -
-clade codes included - and is untested. It is harmless only because
-`_expand_profile_pattern_groups` runs after it.
+The expansion has one implementation, and both paths call it. `PhyleticTree.leaf_states`
+pushes each selection down to the species the census holds: the authoring path reaches it
+through `derive_binding`, and the wire guard through `_expand_profile_pattern_groups`. The
+code check runs inside that guard, before the expansion, so a code the tree does not carry
+is a 422 rather than a token that matches nothing
+(`tests/unit/integrations/veupathdb/test_profile_pattern_expansion.py`). The editor widget
+keeps its own copy of the same rule, tested at
+`apps/web/src/features/strategy/editor/widgets/PhyleticProfileParam.test.tsx`.
+
+The other half - that the codes written are the ones the vocabulary carries, whatever case
+the proposal used - is asserted rather than left to construction:
+`tests/unit/domain/parameters/test_phyletic.py::TestResolvingTerms::test_labels_are_case_insensitive_and_lists_are_read`
+pins `resolve_terms(["mammalia", "PFAL"]).codes` to `["MAMM", "pfal"]`, so a lowercase clade
+name comes back uppercase and an uppercase species name comes back lowercase, each in the
+case the census requires.
 
 So a term being in `phyletic_term_map` is not evidence that it can be used, and this is the
 one rule here that a naive "validate against the vocabulary" step gets exactly backwards -
@@ -326,8 +349,8 @@ refute it. Re-run: `%MAMM:Y%` against `GenesByOrthologPattern`, expecting 0 wher
 
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/ApiCommonModel/blob/301b2be012af713411e9b0e216ed93c51d04c239/Model/lib/wdk/model/questions/params/geneParams.xml#L4884-L4894
-- anchor: apps/web/src/features/strategy/editor/widgets/phyleticProfileLogic.ts:buildSpeciesLists
-- status: UNENFORCED
+- anchor: apps/api/src/pathfinder/domain/parameters/phyletic.py:species_lists
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/parameters/test_phyletic.py::TestTheLists::test_highest_nodes_comma_joined
 
 Both parameters declare their own irrelevance - "List of included species (for
 documentation only)" - and the SQL bears it out: the query's only parameter substitutions
@@ -357,6 +380,34 @@ the lists and not the pattern, and the step reopens correctly and runs on whatev
 was there before. Both must be written together, and they are at different granularities on
 purpose.
 
+PathFinder writes all three together, and the two lists are the input rather than a
+by-product. The parameter sheet gives `included_species` and `excluded_species` the clade
+tree as their vocabulary, so the model proposes species and clades by code or by label;
+`services/catalog/param_phyletic.py:derive_phyletic_overrides` resolves both proposals
+against the tree and returns the two canonical lists beside the pattern derived from them,
+and `set_criterion` binds all three. `species_lists` keeps the granularity the reference
+client stores - a clade stays one term in the list while its leaves are the tokens in the
+pattern - and writes `n/a` for an empty list. Measured on plasmodb.org on 2026-08-17 with
+`organism` at *P. falciparum* 3D7, the binding `%hsap:N%pfal:Y%` / `pfal` / `hsap` returns
+**3,347** genes, where the published default returns 0. Recorded as
+[the two lists are the proposal](../../decisions/phyletic-lists-are-the-proposal.md).
+
+The editor reads them back the same way. `phyleticProfileLogic.ts:seedTriStates` seeds the
+widget's tri-state map from the two lists, resolved against the same clade tree by
+`resolveTerms`, and reads `profile_pattern` only when neither list states anything. Seeding
+from the pattern instead reopens a step at leaf granularity, so the first click rewrites a
+stored clade as its species and the record of the request degrades while the pattern stays
+correct. A code both lists claim, or a term the tree does not carry (the reference client's
+literal `All Organisms` is one), reopens unconstrained and is named in a notice above the
+tree: the widget holds one state per code and has no way to refuse a step that already
+exists, and reading the pattern in its place would substitute leaf granularity for the
+stated term.
+
+The root is the one selection this path refuses. The reference client decodes `ALL` and the
+literal `All Organisms` as the root term, and a pattern over all 818 species exceeds the
+parameter's 4000-character cap, so `PhyleticTree` drops the root and a proposal naming it
+comes back as an unknown term rather than as a binding.
+
 One further trap sits underneath this, in generic WDK plumbing rather than in the site
 model:
 [`initialParamDataFromStep`](https://github.com/VEuPathDB/web-monorepo/blob/63d1705463d553c0ac19ee577c1b09666597b903/packages/libs/wdk-client/src/StoreModules/QuestionStoreModule.ts#L1094-L1105)
@@ -368,8 +419,8 @@ its stored value, and the pattern is then regenerated from the reduced set.
 
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/ApiCommonModel/blob/53de242dfce4e2be81ad28ad8a608c87af3e0b7c/Model/lib/wdk/model/questions/queries/geneQueries.xml#L1807-L1814
-- anchor: apps/api/src/pathfinder/services/catalog/param_sheet.py:build_sheet
-- status: UNENFORCED
+- anchor: apps/api/src/pathfinder/services/catalog/radio_pairs.py:check_radio_pairs
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/ai/agents/test_frame_toolset.py::TestOneCriterionOfferedTwiceIsStatedOnce::test_a_free_text_wildcard_is_a_retry_naming_the_entries
 
 Some searches offer the same criterion twice: once as a vocabulary the user picks
 from, once as free text with wildcards. ApiCommonModel declares the pair in a
@@ -426,13 +477,21 @@ response says so.
 
 **The vocabulary half is the authoritative one.** It is the half listed first in
 `radio-params`, the half whose values are checked against a vocabulary, and on
-`GenesByEcNumber` the half that cannot be silenced at all. Fill exactly one:
-take the typeahead when the criterion names something the vocabulary holds, and
-otherwise take the free text and leave the typeahead at whatever the site
-declares. Do not restate the criterion in both.
+`GenesByEcNumber` the half that cannot be silenced at all, because its own
+default is a real EC number. So the vocabulary half carries the criterion and
+the free text is switched off, never the other way round.
 
 This is `SILENT` because every combination above returns 200 with a plausible
-count. Nothing in PathFinder enforces it: the sheet lists both halves as
-ordinary visible parameters and does not read `radio-params`, so a proposer that
-answers every parameter of the search is free to fill both, and the step it
-builds is a superset of the criterion it was written from.
+count. `set_criterion` reads `radio-params` off the search definition and binds
+`N/A` into the free-text half of every declared pair, so a half nobody wrote
+into states nothing rather than opening a slot; a proposal that writes the
+criterion into the free text comes back as a retry naming the vocabulary entries
+nearest to it, and a wildcard is answered by a vocabulary read rather than by a
+typed value.
+
+One capability is given up with it, knowingly: `domain_accession` matches an
+InterPro family name or a description as well as an accession, so a wildcard over
+descriptions - every domain whose description mentions a word - has no equivalent
+in the typeahead vocabulary and is no longer expressible in FRAME. That is the
+accepted cost of a criterion that cannot silently gain 63 records from a half
+nobody read.

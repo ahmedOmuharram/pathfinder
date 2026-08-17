@@ -25,6 +25,26 @@ _WORD = re.compile(r"[a-z0-9]+")
 _TOKEN = re.compile(r"[a-z0-9][a-z0-9:._-]*")
 # Shorter words match everything and rank nothing.
 _MIN_WORD_LENGTH = 3
+# Long enough to survive the length filter, but they say nothing about a label.
+_STOPWORDS = frozenset(
+    {
+        "the",
+        "not",
+        "and",
+        "for",
+        "with",
+        "from",
+        "that",
+        "this",
+        "are",
+        "all",
+        "any",
+        "but",
+        "its",
+        "per",
+        "via",
+    }
+)
 
 
 class SheetEntry(CamelModel):
@@ -48,7 +68,11 @@ class SheetEntry(CamelModel):
 
 
 def _query_words(query: str) -> list[str]:
-    return [w for w in _WORD.findall(query.casefold()) if len(w) >= _MIN_WORD_LENGTH]
+    return [
+        w
+        for w in _WORD.findall(query.casefold())
+        if len(w) >= _MIN_WORD_LENGTH and w not in _STOPWORDS
+    ]
 
 
 def _query_tokens(query: str) -> frozenset[str]:
@@ -70,16 +94,39 @@ def _is_named(option: VocabOption, query: str, tokens: frozenset[str]) -> bool:
     return accession is not None and accession.casefold() in tokens
 
 
+def _label_words(option: VocabOption) -> frozenset[str]:
+    """The words of a label. A request word matches a whole word, not a fragment."""
+    return frozenset(_WORD.findall((option.display or option.value).casefold()))
+
+
+def _word_weights(labels: list[frozenset[str]], words: list[str]) -> dict[str, float]:
+    """The weight of each request word: the rarer it is here, the more it is worth.
+
+    A word ``n`` labels hold is worth ``1/n``, so a word one label holds is worth
+    1.0, the most any single word can be worth. It outweighs one common word, not
+    an unbounded number of them: a label that matches three words of weight 0.5
+    scores higher.
+    """
+    frequencies = {word: sum(word in label for label in labels) for word in words}
+    return {word: 1.0 / count for word, count in frequencies.items() if count}
+
+
+def _rarity_score(label: frozenset[str], weights: dict[str, float]) -> float:
+    return sum(weight for word, weight in weights.items() if word in label)
+
+
 def _shortlist(options: list[VocabOption], query: str) -> list[VocabOption]:
-    """The ``TOP_K`` options whose labels share the most words with the request."""
+    """The ``TOP_K`` options whose labels hold the rarest words of the request."""
     low = query.casefold()
     words = _query_words(low)
     tokens = _query_tokens(low)
+    labels = [_label_words(option) for option in options]
+    weights = _word_weights(labels, words)
     ranked = sorted(
         enumerate(options),
         key=lambda pair: (
             not _is_named(pair[1], low, tokens),
-            -sum(w in (pair[1].display or pair[1].value).casefold() for w in words),
+            -_rarity_score(labels[pair[0]], weights),
             pair[0],
         ),
     )

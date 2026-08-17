@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
@@ -21,12 +22,22 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.services.conversations.authz import get_owned_or_404
 from pathfinder.services.experiment.materialization import (
     _materialize_step_tree,
 )
 from pathfinder.services.strategies.wdk_sync import sync_to_chat
 
 logger = get_logger(__name__)
+
+
+class StrategyGeneIdsResult(CamelModel):
+    """Gene IDs behind a strategy's WDK root step, or why there are none."""
+
+    gene_ids: list[str] = Field(default_factory=list)
+    estimated_size: int | None = None
+    error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -174,16 +185,21 @@ async def get_strategy_gene_ids(
     session: AsyncSession,
     strategy_id: UUID,
     site_id: str,
-) -> dict[str, Any]:
+    user_id: UUID,
+) -> StrategyGeneIdsResult:
     """Fetch gene IDs for a PathFinder strategy's linked WDK root step."""
-    conversation = await ConversationRepository(session).get_by_id(strategy_id)
-    if not conversation or not conversation.wdk_strategy_id:
-        return {"geneIds": [], "error": "No WDK strategy linked"}
+    conversation = await get_owned_or_404(
+        ConversationRepository(session),
+        strategy_id,
+        user_id,
+    )
+    if not conversation.wdk_strategy_id:
+        return StrategyGeneIdsResult(error="No WDK strategy linked")
     api = get_strategy_api(site_id)
     gene_ids = await fetch_strategy_gene_ids(api=api, conversation=conversation)
     if not gene_ids:
-        return {"geneIds": [], "error": "No gene IDs found"}
-    return {"geneIds": gene_ids, "estimatedSize": len(gene_ids)}
+        return StrategyGeneIdsResult(error="No gene IDs found")
+    return StrategyGeneIdsResult(gene_ids=gene_ids, estimated_size=len(gene_ids))
 
 
 async def fetch_all_gene_ids(

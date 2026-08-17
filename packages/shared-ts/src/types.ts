@@ -548,18 +548,6 @@ export interface DataLedgerUpdatePayload {
   subAgentCallsTotal: number;
 }
 
-export interface DataToolApprovalRequestPayload {
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-}
-
-export interface DataToolApprovalResultPayload {
-  toolCallId: string;
-  approved: boolean;
-  reason?: string;
-}
-
 export interface DataMemoryRetrievedPayload {
   memories: Array<{
     key: string;
@@ -594,8 +582,6 @@ export type DataPartKind =
   | "data-graph-cleared"
   | "data-variant-comparison"
   | "data-scored-comparison"
-  | "data-tool-approval-request"
-  | "data-tool-approval-result"
   | "data-memory-retrieved"
   | "data-gene-set"
   | "data-verification-summary"
@@ -620,8 +606,6 @@ export interface DataPartPayloadMap {
   "data-graph-cleared": GraphCleared;
   "data-variant-comparison": VariantComparison;
   "data-scored-comparison": ScoredComparison;
-  "data-tool-approval-request": DataToolApprovalRequestPayload;
-  "data-tool-approval-result": DataToolApprovalResultPayload;
   "data-memory-retrieved": DataMemoryRetrievedPayload;
   "data-gene-set": GeneSetStreamPart;
   "data-verification-summary": DataVerificationSummaryPayload;

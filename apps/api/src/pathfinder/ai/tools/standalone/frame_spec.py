@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import difflib
 import json
 from dataclasses import dataclass
 from typing import Annotated, Literal
@@ -20,9 +19,11 @@ from pathfinder.ai.tools.standalone._catalog_models import (
 from pathfinder.ai.tools.standalone._validation_helpers import validation_model_retry
 from pathfinder.domain.parameters.values import to_wire
 from pathfinder.domain.parameters.wdk_vocab import (
+    MAX_NEAREST_ENTRIES,
     VocabOption,
     accession_matches,
     match_exact_option,
+    nearest_entries,
 )
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.operational_spec import (
@@ -40,13 +41,27 @@ from pathfinder.services.catalog.param_dag import (
     resolve_params_with_intent,
     wdk_fetch_at,
 )
+from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.catalog.param_formatting import (
+    PHYLETIC_LIST_PARAMS,
     ParameterInfo,
     format_param_info_typed,
 )
 from pathfinder.services.catalog.param_intent import ParamIntent
+from pathfinder.services.catalog.param_phyletic import (
+    PhyleticNoSelection,
+    PhyleticUnresolvedProposal,
+    derive_phyletic_overrides,
+    is_phyletic_sheet,
+)
 from pathfinder.services.catalog.param_sheet import SheetEntry, build_sheet
 from pathfinder.services.catalog.param_validation import validate_parameters
+from pathfinder.services.catalog.radio_pairs import (
+    RADIO_OFF,
+    RadioPairIssue,
+    check_radio_pairs,
+    radio_pairs,
+)
 from pathfinder.services.catalog.validation_callbacks import make_validation_callbacks
 from pathfinder.services.wdk import WDKSearch
 
@@ -153,10 +168,6 @@ async def _record_type(ctx: RunContext[AgentDeps], search_name: str) -> str:
     )
 
 
-# Enough nearest entries to recognise the one meant, few enough to read.
-_NEAREST_ENTRIES = 5
-
-
 @dataclass(frozen=True)
 class _CriterionCall:
     """The one call's identity, carried through the checks it drives."""
@@ -191,22 +202,6 @@ def _values_of(proposal: str | list[str] | None) -> list[str]:
     return proposal if isinstance(proposal, list) else [proposal]
 
 
-def _nearest(pool: list[str], value: str) -> list[str]:
-    """The entries closest to the value, the ones it starts first.
-
-    A value that starts an entry is the accession or the stem of that entry.
-    Character similarity alone ranks such an entry below unrelated ones.
-    """
-    key = value.casefold()
-    started = [entry for entry in pool if entry.casefold().startswith(key)]
-    room = _NEAREST_ENTRIES - len(started)
-    if room <= 0:
-        return started[:_NEAREST_ENTRIES]
-    taken = set(started)
-    rest = [entry for entry in pool if entry not in taken]
-    return started + difflib.get_close_matches(value, rest, n=room, cutoff=0.0)
-
-
 def _refuse_unknown_names(call: _CriterionCall, infos: list[ParameterInfo]) -> None:
     """A proposal names a visible parameter of the search.
 
@@ -216,9 +211,14 @@ def _refuse_unknown_names(call: _CriterionCall, infos: list[ParameterInfo]) -> N
     visible = sorted(i.name for i in infos if i.is_visible)
     unknown = sorted(set(call.params) - set(visible))
     if unknown:
+        nearest = nearest_entries(
+            [VocabOption(value=name, display="") for name in visible],
+            unknown[0],
+            MAX_NEAREST_ENTRIES,
+        )
         msg = (
             f"No such parameter(s) on {call.search_name}: {unknown}. Nearest: "
-            f"{_nearest(visible, unknown[0])}. The valid names are listed above; "
+            f"{nearest}. The valid names are listed above; "
             f"do not request the sheet again. Valid names: {visible}."
         )
         raise ModelRetry(msg)
@@ -253,32 +253,146 @@ def _refuse_unmatched_value(
         msg = (
             f"{info.name} on {call.search_name}: {len(shared)} entries share the "
             f"accession {unmatched[0]!r}; copy the full value of the one you mean: "
-            f"{shared[:_NEAREST_ENTRIES]}."
+            f"{shared[:MAX_NEAREST_ENTRIES]}."
         )
         raise ModelRetry(msg)
-    pool = [o.value for o in options] + [o.display for o in options if o.display]
     msg = (
         f"{info.name} on {call.search_name} has no entry matching {unmatched}. Copy "
         f"a value or a label from the vocabulary exactly; a substring names a "
         f"different entry. Nearest entries: "
-        f"{_nearest(list(dict.fromkeys(pool)), unmatched[0])}."
+        f"{nearest_entries(options, unmatched[0], MAX_NEAREST_ENTRIES)}."
     )
     raise ModelRetry(msg)
 
 
-def _refuse_unmatched_values(call: _CriterionCall, infos: list[ParameterInfo]) -> None:
+def _refuse_unmatched_values(
+    call: _CriterionCall, infos: list[ParameterInfo], derived: frozenset[str]
+) -> None:
     """Checks every proposal the sheet's own vocabulary can answer.
 
     A dependent parameter is skipped here: the sheet showed its vocabulary under
     the search defaults, and ``_reconcile_dependents`` checks it against the one
     the bound parents produce. A filter parameter takes a facet expression, not
-    a vocabulary entry.
+    a vocabulary entry. A ``derived`` parameter holds a canonical value the
+    derivation already resolved, which names no single entry.
     """
     for info in infos:
         options = info.vocabulary()
-        skip = info.vocab_depends_on or info.param_kind == "filter" or not options
+        skip = (
+            info.name in derived
+            or info.vocab_depends_on
+            or info.param_kind == "filter"
+            or not options
+        )
         if info.name in call.params and not skip:
             _refuse_unmatched_value(call, info, options)
+
+
+async def _search_definition(search: SearchContext) -> WDKSearch:
+    """The published definition of the search, read through the catalog.
+
+    The structural parameters and the search properties are both dropped from the
+    sheet. The catalog's per-process cache holds site metadata and no user data.
+    """
+    response, _ = await fetch_search_details(search)
+    return response.search_data
+
+
+def _phyletic_overrides(
+    definition: WDKSearch, call: _CriterionCall, infos: list[ParameterInfo]
+) -> dict[str, str] | None:
+    """The three phyletic values the two proposed species lists state.
+
+    The clade tree lives on the structural parameters, which the sheet drops. An
+    unresolved term and an empty selection are both retries.
+    """
+    if not is_phyletic_sheet(infos):
+        return None
+    derived = derive_phyletic_overrides(definition.parameters or [], call.params)
+    if derived is None:
+        return None
+    if isinstance(derived, PhyleticUnresolvedProposal):
+        raise ModelRetry(_phyletic_retry(call, derived))
+    if isinstance(derived, PhyleticNoSelection):
+        msg = (
+            f"{call.search_name}: a phylogenetic profile needs at least one "
+            f"species or clade in included_species or excluded_species. An empty "
+            f"selection states no criterion and returns every gene of the chosen "
+            f"organisms. Name what must have an ortholog and what must not, or "
+            f"drop_criterion if the request states neither."
+        )
+        raise ModelRetry(msg)
+    return derived.model_dump()
+
+
+def _phyletic_retry(call: _CriterionCall, derived: PhyleticUnresolvedProposal) -> str:
+    """Names each list's unresolved terms and the entries nearest to them."""
+    unresolved = derived.unresolved
+    reasons: list[str] = []
+    if unresolved.included_unknown:
+        reasons.append(f"included_species names no entry {unresolved.included_unknown}")
+    if unresolved.excluded_unknown:
+        reasons.append(f"excluded_species names no entry {unresolved.excluded_unknown}")
+    if unresolved.conflicts:
+        reasons.append(f"{unresolved.conflicts} is in both lists")
+    nearest = f" Nearest entries: {derived.nearest}." if derived.nearest else ""
+    return (
+        f"{call.search_name}: {'; '.join(reasons)}. Copy a code or a label from the "
+        f"included_species / excluded_species vocabulary on the sheet, and name each "
+        f"species or clade in ONE of the two lists. A genus or common name is not a "
+        f"node - name a species or a clade code from the sheet, or call "
+        f"lookup_phyletic_codes(query).{nearest}"
+    )
+
+
+def _radio_overrides(
+    definition: WDKSearch, call: _CriterionCall, infos: list[ParameterInfo]
+) -> dict[str, str]:
+    """The off value for each free-text half of a pair the search ORs.
+
+    The pairs are declared in the search properties, which the sheet drops. A
+    free-text half that states the criterion is a retry.
+    """
+    overrides, issue = check_radio_pairs(
+        radio_pairs(definition.properties), infos, call.params
+    )
+    if issue is not None:
+        raise ModelRetry(_radio_retry(call, issue, infos))
+    return overrides
+
+
+def _published_default(infos: list[ParameterInfo], name: str) -> str | None:
+    """The default value the search publishes for a param, or ``None`` for none.
+
+    An empty list and a blank string are refused by the search that publishes
+    them, so neither states a value the query would use.
+    """
+    published = next((i.default_value for i in infos if i.name == name), None)
+    if published is None or published.strip() in ("", "[]"):
+        return None
+    return published
+
+
+def _radio_retry(
+    call: _CriterionCall, issue: RadioPairIssue, infos: list[ParameterInfo]
+) -> str:
+    """Names the half that carries the criterion and the entries nearest to it."""
+    pair = issue.pair
+    published = _published_default(infos, pair.vocabulary)
+    holds = (
+        f"{pair.vocabulary} default {published} would still contribute"
+        if published is not None
+        else f"{pair.vocabulary} cannot be left empty"
+    )
+    return (
+        f"{pair.free_text} and {pair.vocabulary} on {call.search_name} are ORed "
+        f"halves of one criterion; the vocabulary half carries it and cannot be "
+        f"switched off ({holds}). Put the criterion in {pair.vocabulary} (nearest "
+        f"entries for {issue.free_value!r}: {issue.nearest}; for a wildcard use "
+        f"get_parameter_options({call.search_name}, '{pair.vocabulary}', "
+        f"query='...') and list every entry it should cover) and pass {RADIO_OFF} "
+        f"for {pair.free_text}."
+    )
 
 
 def _decided_here(info: ParameterInfo, params: ParamProposals) -> bool:
@@ -416,9 +530,18 @@ async def set_criterion(
     )
     _refuse_unknown_names(call, infos)
     _refuse_undecided(call, infos)
-    _refuse_unmatched_values(call, infos)
+    definition = await _search_definition(search)
+    phyletic = _phyletic_overrides(definition, call, infos)
+    radio = _radio_overrides(definition, call, infos)
+    _refuse_unmatched_values(
+        call, infos, PHYLETIC_LIST_PARAMS if phyletic is not None else frozenset()
+    )
     # A null proposal states no value, so it leaves the param to resolution.
     overrides = {name: value for name, value in params.items() if value is not None}
+    # The derived pattern replaces the two lists it was derived from.
+    if phyletic is not None:
+        overrides.update(phyletic)
+    overrides.update(radio)
     try:
         resolved = await resolve_params_with_intent(
             fetch_at=fetch_at,
@@ -446,7 +569,9 @@ async def set_criterion(
     # A complete spec is validated here so a bad value returns a did-you-mean
     # retry. An open slot means a required param is still unresolved, which
     # WDK reports as missing.
-    defaulted = resolved.defaulted()
+    # A half switched off holds a value the request never stated, so it is
+    # disclosed like a default.
+    defaulted = sorted(set(resolved.defaulted()) | radio.keys())
     if not resolved.open_slots:
         try:
             validated = await validate_parameters(

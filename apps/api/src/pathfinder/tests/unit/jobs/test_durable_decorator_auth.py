@@ -54,8 +54,8 @@ class _FakeTask:
 
 
 class _FakeApp:
-    def configure_task(self, *, name: str, queue: str) -> _FakeTask:
-        del name, queue
+    def configure_task(self, *, name: str, queue: str, lock: str) -> _FakeTask:
+        del name, queue, lock
         return _FakeTask()
 
 

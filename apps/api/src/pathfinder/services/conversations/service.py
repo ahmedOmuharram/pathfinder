@@ -394,12 +394,6 @@ class ConversationService:
         site_id: str,
         experiment_id: str | None,
     ) -> BegunConversation:
-        existing = await self._repo.get_by_id(conversation_id)
-        if existing is not None and existing.user_id != user_id:
-            raise NotFoundError(
-                code=ErrorCode.STRATEGY_NOT_FOUND,
-                title="Strategy not found",
-            )
         result = await begin_conversation(
             session=self._session,
             conversation_id=conversation_id,

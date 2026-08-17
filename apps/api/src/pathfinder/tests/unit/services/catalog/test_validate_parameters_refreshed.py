@@ -80,9 +80,9 @@ def stub_validation(monkeypatch: pytest.MonkeyPatch) -> None:
         *,
         resolved_record_type: str,
         parameters: JSONObject,
-    ) -> WDKSearchResponse:
+    ) -> pv.ResolvedSearch:
         del ctx, resolved_record_type, parameters
-        return static_response
+        return pv.ResolvedSearch(response=static_response, values_were_read=True)
 
     refreshed_taxon = _enum_param("taxon", vocab=_REFRESHED_TAXON_VOCAB)
 
@@ -223,9 +223,9 @@ class TestHiddenParentIsFilledBeforeRefresh:
 
         async def _fake_resolve_search(
             ctx: SearchContext, *, resolved_record_type: str, parameters: JSONObject
-        ) -> WDKSearchResponse:
+        ) -> pv.ResolvedSearch:
             del ctx, resolved_record_type, parameters
-            return response
+            return pv.ResolvedSearch(response=response, values_were_read=True)
 
         async def _fake_refresh(
             ctx: SearchContext, *, parameter_name: str, context_values: JSONObject

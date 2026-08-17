@@ -4,6 +4,31 @@ Everything known to be outstanding, ranked by what actually moves the product. E
 
 Items are removed when done, not marked done. The [log](../log.md) records what left.
 
+## UI run investigations (2026-08-17)
+
+Bugs found by driving the real UI on PlasmoDB and VectorBase. Each records the exact steps
+and values; none has a fix yet.
+
+- [Stopping during build persists a half-built strategy; editor shows a raw 422](stop-during-build-leaves-half-persisted-strategy.md) - recordType "" and no WDK ids on disk; every count "..."; step-counts 422 MISSING_RECORD_TYPE
+- [edit_strategy drops a criterion the user asked to keep and says "preserved"](edit-strategy-drops-criteria-and-claims-preserved.md) - "change X, keep the rest" re-framed to 2 of 3 criteria; the reply asserted the rest was kept
+- [get_live_strategy_state quotes stale ancestor counts after an editor edit](live-state-quotes-stale-ancestor-counts-after-editor-edit.md) - UI shows 7, Lead says 15; the "live" read is the last persisted count
+- [A regenerated turn replays the user message under its old id and the conversation can never be opened again](duplicate-user-message-id-crashes-conversation.md) - assistant-ui MessageRepository throws on the duplicate; whole chat view is an error page
+- ["Add a step at the end" rebuilds the whole strategy and silently reverts a hand edit](edit-turn-rebuilds-whole-strategy-and-drops-hand-edits.md) - percentile 90 went back to 80, every WDK step id changed, reply says nothing
+- [Verification launches an unrequested enrichment task and its result is lost on resume](verification-durable-task-result-lost-on-resume.md) - phase card stays "started", ledger shows the previous turn's verdict, reply has no verification
+- [Branching from an earlier message copies the latest strategy, not the one at that message](branch-copies-latest-strategy-not-strategy-at-branch-point.md) - transcript says 3 steps, panel shows 4
+- [A branch replays the parent's message ids, so Revert in a branch 404s silently](branch-keeps-parent-message-ids-so-revert-404s.md) - fork.py mints new Message ids but leaves the chunks' ids alone; the dialog shows no error
+- [Revert succeeds on the server but the client keeps the reverted turns until reload](revert-does-not-truncate-client-thread.md) - two contradictory answers on one screen
+- [The agent cannot find a saved strategy by name or id, and builds the leftover criterion alone](agent-cannot-see-saved-strategy-library.md) - 187K-token frame to ask for an id; given the id, a 1-step decoy strategy is built
+- [Enrichment "N genes analyzed" shows a term's background count](enrichment-genes-analyzed-shows-background-count.md) - 46-gene set reports 217 analyzed; percentInResult on the wire is result over background
+- [Workbench Evaluate/Batch/Benchmark/seed/sweep streams POST without X-Requested-With and get 403](workbench-experiment-streams-fail-csrf-403.md) - "stream failed: 403"; every experiment surface is unusable from the browser
+- [Every scored variant fails at persist time (typed ParamValues into WDKSearchConfig) and the UI prints pydantic dumps](scored-comparison-single-mode-persists-typed-params.md) - materialization single-mode branch skips encode_params; Lead then says "no control set" falsely
+- [A queued or long-running turn streams no heartbeat, so the client shows "Failed to fetch" and a retry queues a duplicate turn](worker-serializes-all-turns-and-client-gives-up.md) - worker concurrency and per-conversation locking are done; the SSE "queued"/keep-alive half remains
+- [One failed tool call leaves an output-error part the request parser refuses, and the conversation can never send again](output-error-tool-part-bricks-conversation-on-resend.md) - differential_sides max 2 fails a 3-way compare; resultProviderMetadata is not accepted by pydantic-ai's ToolOutputErrorPart
+- [The worker heartbeat stalls during a turn and the whole UI shows "Some services failed to start"](worker-heartbeat-starves-during-turn-and-ui-gate-goes-fatal.md) - heartbeat 153 s stale mid-frame; 30 s window; fatal gate on every page load
+- [A clarification turn forgets the original request and asks for the motif the user already gave](clarification-turn-forgets-the-original-request.md) - organism silently became Aedes aegypti; RNA-Seq and GO dropped; 297K-token frame
+- ["Please remember my preference" runs frame/build/verify and leaves a decoy strategy](remember-request-builds-a-strategy.md) - 182K tokens, WDK strategy 330534643, junk strategy memory; the remember tool was not called
+- [Small UI defects from the run, one line each](ui-run-minor-findings.md) - lagging status labels, meaningless dots, nameless buttons, 866px collapse, workbench restore/polling, raw error strings
+
 ## Chat
 
 - [FRAME's tool budget does not scale with the problem](frame-budget-does-not-scale.md) - nine criteria do not fit in 60 calls, and the bound ones are discarded
@@ -14,18 +39,18 @@ Items are removed when done, not marked done. The [log](../log.md) records what 
 
 - [No way for a user to authorise defaults](frame-ignores-use-defaults.md) - the slots now fill, but "pick something sensible" still has no mechanism and an assumed value is only narrated, not recorded
 
+- [An approval-required tool inside a sub-agent never reaches the user](sub-agent-tool-approvals-never-reach-the-user.md) - no tool-approval-request chunk for optimize_search_parameters, delete_step or clear_strategy; verify_strategy ends in TypeError and recover_failed_steps returns an empty delta
+
 ## WDK integration
 
 Ranked by consequence, and each item states its own blast radius rather than leaving it to
 be assumed.
 
-- [Filling a hidden required parameter from `initialDisplayValue` chooses the science](hidden-required-default-chooses-the-science.md) - the fill is the right shape and the value it fills carries no guarantee; on one search it is an expression from another site's grammar, and that search is now the largest single source of wrong parameter values
+- [Whether the other 181 hidden required defaults return rows is unmeasured](hidden-required-default-chooses-the-science.md) - the one default known to return nothing is no longer filled; the rest are filled on trust, and only a per-search live run can clear them
 
-- [34 of the 83 WDK rules have no test; one SILENT rule is open again](wdk-rules-are-unenforced.md) - last in this section because it is mostly the missing safety net under the others, though the one open SILENT rule is a live hazard
+- [The substitution detector compares filter and input-step params as text](substitution-detector-compares-some-params-as-text.md) - a filter WDK re-serialized reads as a value WDK chose, and an input-step reads as one the caller never set
 
-## Testing
-
-- [A unit test whose stub misses its seam reaches the live WDK and still passes](unit-tests-can-reach-the-network.md) - nothing in the unit tier refuses sockets; one inert stub was found and fixed, the class is open
+- [32 of the 83 WDK rules have no test; every one of them is HARD or CONTRACT](wdk-rules-are-unenforced.md) - last in this section because it is the missing safety net under the others rather than a live hazard: the SILENT class, where WDK answers 200 and the science is wrong, is closed
 
 ## Known and accepted
 

@@ -40,10 +40,8 @@ _MAX_APPROVAL_LENGTH = 80
 def _is_pure_approval(text: str) -> bool:
     """Strict whitelist: the text is nothing more than an approval phrase.
 
-    Bypassing PIGuard is only safe when the reply is demonstrably a short
-    affirmation with no room for injected instruction. This is stricter
-    than ``classify_approval_reply``, which accepts change-requests that
-    also read affirmative.
+    One or two approval words joined by a connective, within
+    ``_MAX_APPROVAL_LENGTH`` characters. Everything else is not an approval.
     """
     stripped = text.strip()
     if not stripped or len(stripped) > _MAX_APPROVAL_LENGTH:
@@ -96,17 +94,14 @@ class UserInputScanner:
                 self._invisible = InvisibleTextScanner()
             return self._piguard, self._invisible
 
-    def scan(self, text: str, *, is_approval_reply: bool = False) -> None:
+    def scan(self, text: str) -> None:
         """Scan one user message. Raise ``SecurityRejectionError`` if rejected.
 
-        When ``is_approval_reply`` is True AND ``_is_pure_approval`` matches,
-        the PIGuard scan is bypassed. Short affirmatives like "Approved.
-        Execute the plan." reliably score > 0.99 on PIGuard even though
-        they are benign in our domain. The bypass uses a strict whitelist
-        of one or two concatenated approval words — enough headroom for
-        legitimate researcher phrasing, no headroom for attacker prose.
+        Text that matches the pure-approval whitelist skips PIGuard: short
+        affirmatives score above the injection threshold although they carry
+        no instruction.
         """
-        if is_approval_reply and _is_pure_approval(text):
+        if _is_pure_approval(text):
             return
         piguard, invisible = self._ensure_initialised()
         piguard_name = "PIGuardScanner"
@@ -132,11 +127,11 @@ class UserInputScanner:
 _scanner = UserInputScanner()
 
 
-async def scan_user_input(text: str, *, is_approval_reply: bool = False) -> None:
+async def scan_user_input(text: str) -> None:
     """Offload the CPU-bound scan to a thread so the event loop stays free."""
     if not get_settings().piguard_enabled:
         return
-    await asyncio.to_thread(_scanner.scan, text, is_approval_reply=is_approval_reply)
+    await asyncio.to_thread(_scanner.scan, text)
 
 
 __all__ = [

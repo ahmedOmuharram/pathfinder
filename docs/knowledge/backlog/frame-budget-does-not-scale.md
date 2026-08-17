@@ -18,6 +18,20 @@ This now surfaces honestly rather than as a crash (see
 [suppression-follows-the-call-not-the-chunk-type](../decisions/suppression-follows-the-call-not-the-chunk-type.md)),
 but the turn still ends with nothing built.
 
+# Second measurement (UI run 2026-08-17, VectorBase)
+
+The moderate midgut-protease prompt (text OR GO proteases, midgut RNA-Seq filter, ortholog
+transform to A. gambiae, colocation with `[TG].{5,6}YGCACACAN[TCA]H`): worker log
+"sub-agent hit its usage ceiling; keeping partial progress" at tool_calls=60 against a
+limit of 50, after about six minutes; ledger FRAME `criteria 0, bound 0`, so the partial
+progress kept was nothing. The reply was honest ("the planning pass exhausted its
+search-binding budget") and asked two good questions (conservation definition, motif
+distance), which is the right behaviour once the budget is gone; the budget itself is the
+defect. The Frame card also read "0 open questions" while the reply asked two.
+The turn's usage footer read "16.7K tokens - $0.004" and the Frame card carried no token
+or cost figure: a frame that hits the ceiling reports no usage at all, so the most
+expensive turns are the ones the quota bar does not see.
+
 # Why 60 is the wrong shape, not the wrong number
 
 `PHASE_USAGE_LIMITS.tool_calls_limit = 60` in `ai/lead/sub_agent_tools.py` is a

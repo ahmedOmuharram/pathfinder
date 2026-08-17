@@ -13,6 +13,12 @@ export type PhyleticNode = {
 
 export type TriState = "unconstrained" | "include" | "exclude";
 
+/** The vocabulary codes a proposal named, and the words that named nothing. */
+export type ResolvedTerms = {
+  codes: string[];
+  unknown: string[];
+};
+
 // ---------------------------------------------------------------------------
 // Claimed param names
 // ---------------------------------------------------------------------------
@@ -145,6 +151,95 @@ export function decodeProfilePattern(pattern: string): Map<string, TriState> {
 /** The literal the reference client decodes as the empty set. */
 const NO_SPECIES = "n/a";
 
+function splitProposal(proposal: string | string[]): string[] {
+  const entries = typeof proposal === "string" ? [proposal] : proposal;
+  const terms: string[] = [];
+  for (const entry of entries) {
+    for (const part of entry.split(",")) {
+      const text = part.trim();
+      if (text.length > 0 && text.toLowerCase() !== NO_SPECIES) terms.push(text);
+    }
+  }
+  return terms;
+}
+
+/**
+ * Map a proposal to vocabulary codes and report what matched nothing.
+ *
+ * A proposal is a code or a display name, one per list entry or comma
+ * separated. An exact code wins over a case-insensitive match. The root is not
+ * a node of the tree, so both of its spellings resolve to nothing.
+ */
+export function resolveTerms(
+  roots: PhyleticNode[],
+  proposal: string | string[],
+): ResolvedTerms {
+  const nodes = collectNodes(roots);
+  const exact = new Set(nodes.map((node) => node.code));
+  const folded = new Map<string, string>();
+  for (const node of nodes) {
+    const key = node.code.toLowerCase();
+    if (!folded.has(key)) folded.set(key, node.code);
+  }
+  for (const node of nodes) {
+    const key = node.label.toLowerCase();
+    if (node.label.length > 0 && !folded.has(key)) folded.set(key, node.code);
+  }
+
+  const codes: string[] = [];
+  const unknown: string[] = [];
+  for (const token of splitProposal(proposal)) {
+    const code = exact.has(token) ? token : folded.get(token.toLowerCase());
+    if (code === undefined) {
+      if (!unknown.includes(token)) unknown.push(token);
+    } else if (!codes.includes(code)) {
+      codes.push(code);
+    }
+  }
+  return { codes, unknown };
+}
+
+export type SeededTriStates = {
+  states: Map<string, TriState>;
+  /** Stored terms the tree cannot show: unknown to it, or claimed by both lists. */
+  unread: string[];
+};
+
+/**
+ * The tri-state map a stored step reopens with.
+ *
+ * The two lists are the primary state and carry the node the researcher chose,
+ * so the pattern is read only when neither list states anything.
+ */
+export function seedTriStates(
+  roots: PhyleticNode[],
+  stored: { included: string | string[]; excluded: string | string[]; pattern: string },
+): SeededTriStates {
+  const included = splitProposal(stored.included);
+  const excluded = splitProposal(stored.excluded);
+  if (included.length === 0 && excluded.length === 0) {
+    return { states: decodeProfilePattern(stored.pattern), unread: [] };
+  }
+
+  const includedTerms = resolveTerms(roots, included);
+  const excludedTerms = resolveTerms(roots, excluded);
+  const excludedCodes = new Set(excludedTerms.codes);
+  const states = new Map<string, TriState>();
+  const unread = [...includedTerms.unknown];
+  for (const term of excludedTerms.unknown) {
+    if (!unread.includes(term)) unread.push(term);
+  }
+  // A code both lists claim states two censuses at once, so it states neither.
+  for (const code of excludedCodes) {
+    if (!includedTerms.codes.includes(code)) states.set(code, "exclude");
+    else unread.push(code);
+  }
+  for (const code of includedTerms.codes) {
+    if (!excludedCodes.has(code)) states.set(code, "include");
+  }
+  return { states, unread };
+}
+
 /**
  * The two documentation parameters, in the shape the reference client reads
  * back when it reopens a step: vocabulary terms rather than display labels.
@@ -187,14 +282,19 @@ export function triStateColor(state: TriState): string {
   return "text-muted-foreground";
 }
 
+/** Every selectable node, in tree order. The root is not one of them. */
+function collectNodes(nodes: PhyleticNode[]): PhyleticNode[] {
+  const flat: PhyleticNode[] = [];
+  for (const node of nodes) {
+    flat.push(node);
+    flat.push(...collectNodes(node.children));
+  }
+  return flat;
+}
+
 /** Collect all codes from a tree */
 export function collectCodes(nodes: PhyleticNode[]): string[] {
-  const codes: string[] = [];
-  for (const node of nodes) {
-    codes.push(node.code);
-    codes.push(...collectCodes(node.children));
-  }
-  return codes;
+  return collectNodes(nodes).map((node) => node.code);
 }
 
 /** Check if a node or any descendant matches the search query */

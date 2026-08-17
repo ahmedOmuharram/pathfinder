@@ -251,7 +251,7 @@ the parameter's regex at all.
 
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/QuestionService.java#L176-L213
-- anchor: apps/api/src/pathfinder/domain/parameters/values.py:to_wire
+- anchor: apps/api/src/pathfinder/services/catalog/wdk_substitution.py:substituted_params
 - status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/catalog/test_wdk_substitution.py::TestWhatWDKFilledIn::test_a_value_wdk_replaced_counts_as_substituted
 `getQuestionRevise` validates the posted values at `SEMANTIC` with `NO_FILL`,
 **keeps that validation bundle**, and then - if the spec was invalid - builds a
@@ -274,6 +274,20 @@ The same substitution runs at `refreshed-dependent-params`, where the service's
 own comment says the non-stale parameters' values "may have inadvertently
 changed" and are omitted from the response for that reason
 ([WDK-VOCAB-005](#wdk-vocab-005---refreshed-dependent-params-returns-only-the-stale-dependents-and-200--means-nothing-to-refresh)).
+
+The echo also has to be read against the *request that produced it*. The `GET`
+definition and the fallback a client takes when the contextual `POST` fails echo
+the published defaults, so every value the caller set differs there and none of
+those differences is a substitution. Two more read rules follow from the shapes
+above: a vocabulary echo is a selection, so `["b","a"]` and `["a","b"]` are the
+same answer and a tree parent expanded to its leaves matches the leaves WDK
+returns; and an empty selection (`"[]"`) on a parameter the caller left unset is
+WDK offering nothing, not WDK choosing. Confirmed on plasmodb.org on 2026-08-17
+against `GenesByOrthologPattern`: a full context echoes `profile_pattern`,
+`organism`, and both species lists back unchanged with
+`validation: {level: SEMANTIC, isValid: true}`, while the static `GET` echoes
+`profile_pattern: "hsap=1T"` and `organism: "[]"` at
+`level: DISPLAYABLE, isValid: true` - the level does not distinguish the two.
 
 ### WDK-PARAM-009 - `input-step` and `input-dataset` values are bare ids WDK issued, and a dataset is bound to its owner
 

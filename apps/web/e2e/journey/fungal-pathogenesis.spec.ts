@@ -67,9 +67,6 @@ test.describe("Fungal Pathogenesis Journey", () => {
     // ── Phase 2: Strategy Creation ───────────────────────────────
 
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 

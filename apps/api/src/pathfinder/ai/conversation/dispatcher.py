@@ -8,16 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.capabilities.security import scan_user_input
 from pathfinder.ai.conversation.event_stream import (
-    fetch_chunks_from_zero,
     iter_sse,
     latest_turn_boundary,
 )
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.ai.conversation.ui_message_reducer import (
-    reduce_chunks_to_messages,
-    user_message_chunk,
-)
+from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
 from pathfinder.ai.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
@@ -26,14 +22,8 @@ from pathfinder.persistence.repositories import (
     ChatTurnCancellationRepository,
     MessagesRepository,
 )
-from pathfinder.persistence.repositories.conversation import (
-    ConversationRepository,
-)
 from pathfinder.platform.db import async_session_factory
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.conversations.begin import begin_conversation
-
-logger = get_logger(__name__)
 
 
 async def _cancel_in_flight_prior_turn(conversation_id: UUID) -> None:
@@ -58,36 +48,6 @@ async def _cancel_in_flight_prior_turn(conversation_id: UUID) -> None:
         conversation_id=conversation_id,
         turn_id=row.turn_id,
     )
-
-
-async def _is_approval_reply(
-    session: AsyncSession,
-    conversation_id: UUID,
-) -> bool:
-    """Return True when the previous assistant message halted on an
-    AWAITING_USER phase outcome — the user's current reply is plausibly
-    a pure approval / denial of a submitted plan.
-    """
-    conversation = await ConversationRepository(session).get_by_id(
-        conversation_id,
-    )
-    if conversation is None:
-        return False
-    _, chunks = await fetch_chunks_from_zero(conversation_id)
-    if not chunks:
-        return False
-    messages = reduce_chunks_to_messages(chunks)
-    for message in reversed(messages):
-        if message.get("role") != "assistant":
-            continue
-        for part in message.get("parts") or []:
-            if (
-                part.get("type") == "data-supervisor-decision"
-                and (part.get("data") or {}).get("to") == "end"
-            ):
-                return True
-        return False
-    return False
 
 
 async def dispatch(
@@ -116,8 +76,7 @@ async def dispatch(
 
     if not body.is_approval_resume:
         await _cancel_in_flight_prior_turn(body.conversation_id)
-        is_approval = await _is_approval_reply(session, body.conversation_id)
-        await scan_user_input(body.last_user_text, is_approval_reply=is_approval)
+        await scan_user_input(body.last_user_text)
 
         await MessagesRepository(session).insert_message(
             message_id=body.last_user_message_id,
@@ -145,7 +104,9 @@ async def dispatch(
         user_id=user_id,
         turn_id=turn_id,
     )
-    await run_chat_turn_job.defer_async(
+    # Every turn for one conversation writes the same checkpoint thread, so the
+    # lock keeps concurrent workers from running two of them together.
+    await run_chat_turn_job.configure(lock=str(body.conversation_id)).defer_async(
         payload=payload.model_dump(mode="json", by_alias=True),
     )
 

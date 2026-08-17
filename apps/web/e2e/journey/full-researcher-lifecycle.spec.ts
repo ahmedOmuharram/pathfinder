@@ -56,12 +56,8 @@ test.describe("Full Researcher Lifecycle", () => {
     await chatPage.expectAssistantMessage(/\[mock\].*chloroquine/i);
     await chatPage.expectIdle();
 
-    // Chat round 3 — trigger planning artifact
+    // Chat round 3 — build the strategy
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    // Approve the presented plan so execution builds the strategy.
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
 
     // Verify strategy exists via API — use captured ID for isolation

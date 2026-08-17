@@ -7,15 +7,20 @@ from pathfinder.domain.parameters.wdk_vocab import (
     WDKFilterOntologyTerm,
     WDKTreeBoxVocabNode,
     WDKVocabNodeData,
+    WDKVocabTerm,
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKEnumParam,
     WDKFilterParam,
+    WDKParameter,
+    WDKStringParam,
 )
 from pathfinder.services.catalog.param_formatting import (
     ParameterInfo,
+    format_param_info_typed,
     format_typed_param,
 )
+from pathfinder.services.catalog.vocab_rendering import _MAX_VOCAB_ENTRIES
 
 
 def _pi(param_type: str) -> ParameterInfo:
@@ -193,3 +198,201 @@ class TestRequiredFollowsBothWdkSignals:
         param = self._param(allow_empty=False, min_selected=0)
 
         assert format_typed_param(param, {}, {}).required is True
+
+
+def _vocab_term(code: str, display: str) -> WDKVocabTerm:
+    return WDKVocabTerm((code, display, None))
+
+
+_PHYLETIC_TERMS = [
+    _vocab_term("ALL", "Root"),
+    _vocab_term("EUKA", "Eukaryota"),
+    _vocab_term("MAMM", "Mammalia"),
+    _vocab_term("hsap", "Homo sapiens REF"),
+    _vocab_term("pfal", "Plasmodium falciparum 3D7"),
+]
+_PHYLETIC_INDENTS = [
+    _vocab_term("EUKA", "1"),
+    _vocab_term("MAMM", "2"),
+    _vocab_term("hsap", "3"),
+    _vocab_term("pfal", "2"),
+]
+
+_PHYLETIC_HELP_SENTENCE = (
+    "Species or clade codes from the phyletic tree, comma-separated or a list; "
+    "a clade selects all of its species; profile_pattern is derived from these "
+    "two lists."
+)
+
+
+class TestThePhyleticListsCarryTheTree:
+    """``GenesByOrthologPattern`` states its criterion on two free-text lists.
+
+    The lists are the proposal, so the sheet must show the vocabulary they take.
+    """
+
+    @staticmethod
+    def _params(*, with_term_map: bool = True) -> list[WDKParameter]:
+        params: list[WDKParameter] = [
+            WDKStringParam(
+                name="profile_pattern",
+                display_name="Phyletic Pattern",
+                is_visible=False,
+                initial_display_value="hsap=1T",
+            ),
+            WDKStringParam(
+                name="included_species",
+                display_name="Included Species",
+                help="For documentation only.",
+                allow_empty_value=True,
+                initial_display_value="",
+            ),
+            WDKStringParam(
+                name="excluded_species",
+                display_name="Excluded Species",
+                allow_empty_value=True,
+                initial_display_value="",
+            ),
+            WDKEnumParam(
+                name="phyletic_indent_map",
+                display_name="Indent Map",
+                type="multi-pick-vocabulary",
+                vocabulary=_PHYLETIC_INDENTS,
+            ),
+            WDKEnumParam(
+                name="organism",
+                display_name="Organism",
+                type="multi-pick-vocabulary",
+                vocabulary=WDKTreeBoxVocabNode(
+                    data=WDKVocabNodeData(term="root", display="root"),
+                    children=[
+                        WDKTreeBoxVocabNode(
+                            data=WDKVocabNodeData(
+                                term="P. falciparum 3D7", display="P. falciparum 3D7"
+                            )
+                        )
+                    ],
+                ),
+            ),
+        ]
+        if with_term_map:
+            params.append(
+                WDKEnumParam(
+                    name="phyletic_term_map",
+                    display_name="Term Map",
+                    type="multi-pick-vocabulary",
+                    vocabulary=_PHYLETIC_TERMS,
+                )
+            )
+        return params
+
+    @classmethod
+    def _sheet(cls, *, with_term_map: bool = True) -> dict[str, ParameterInfo]:
+        infos = format_param_info_typed(cls._params(with_term_map=with_term_map))
+        return {info.name: info for info in infos}
+
+    def test_both_lists_take_the_species_and_clade_codes(self) -> None:
+        sheet = self._sheet()
+
+        for name in ("included_species", "excluded_species"):
+            codes = [option.value for option in sheet[name].vocabulary()]
+            assert "pfal" in codes
+            assert "MAMM" in codes
+
+    def test_the_synthetic_root_is_not_a_choice(self) -> None:
+        sheet = self._sheet()
+
+        assert all(o.value != "ALL" for o in sheet["included_species"].vocabulary())
+
+    def test_the_codes_carry_their_species_names(self) -> None:
+        options = {
+            o.value: o.display for o in self._sheet()["excluded_species"].vocabulary()
+        }
+
+        assert options["hsap"] == "Homo sapiens REF"
+
+    def test_the_help_ends_by_naming_the_derivation(self) -> None:
+        sheet = self._sheet()
+
+        assert sheet["included_species"].help.endswith(_PHYLETIC_HELP_SENTENCE)
+        assert sheet["included_species"].help.startswith("For documentation only.")
+        assert sheet["excluded_species"].help == _PHYLETIC_HELP_SENTENCE
+
+    def test_the_codes_reach_the_wire_through_allowed_values(self) -> None:
+        # ``vocab_leaves`` is excluded from serialization, so a tool result that
+        # sends only ``allowed_values`` would show the model an empty vocabulary.
+        allowed = self._sheet()["included_species"].allowed_values
+
+        assert allowed is not None
+        assert [o.value for o in allowed] == ["EUKA", "MAMM", "hsap", "pfal"]
+
+    def test_the_lists_are_optional_the_way_wdk_declares_them(self) -> None:
+        assert self._sheet()["included_species"].required is False
+        assert self._sheet()["included_species"].default_value == ""
+
+    def test_the_pattern_stays_off_the_visible_sheet(self) -> None:
+        assert self._sheet()["profile_pattern"].is_visible is False
+
+    def test_the_two_maps_are_dropped(self) -> None:
+        sheet = self._sheet()
+
+        assert "phyletic_term_map" not in sheet
+        assert "phyletic_indent_map" not in sheet
+
+    def test_another_search_leaves_the_lists_alone(self) -> None:
+        sheet = self._sheet(with_term_map=False)
+
+        assert sheet["included_species"].vocabulary() == []
+        assert sheet["included_species"].help == "For documentation only."
+
+    def test_the_other_params_keep_their_own_vocabulary(self) -> None:
+        codes = [o.value for o in self._sheet()["organism"].vocabulary()]
+
+        assert codes == ["root", "P. falciparum 3D7"]
+
+
+class TestTheFullTreeSurvivesTheWireCap:
+    """The live tree is hundreds of nodes. The wire view is capped; matching is not."""
+
+    _LEAF_COUNT = _MAX_VOCAB_ENTRIES + 11
+
+    @classmethod
+    def _big_sheet(cls) -> ParameterInfo:
+        terms = [_vocab_term("ALL", "Root"), _vocab_term("EUKA", "Eukaryota")]
+        indents = [_vocab_term("EUKA", "1")]
+        for i in range(cls._LEAF_COUNT):
+            terms.append(_vocab_term(f"sp{i:02d}", f"Species {i}"))
+            indents.append(_vocab_term(f"sp{i:02d}", "2"))
+        params: list[WDKParameter] = [
+            WDKStringParam(name="profile_pattern", is_visible=False),
+            WDKStringParam(name="included_species", allow_empty_value=True),
+            WDKStringParam(name="excluded_species", allow_empty_value=True),
+            WDKEnumParam(
+                name="phyletic_term_map",
+                type="multi-pick-vocabulary",
+                vocabulary=terms,
+            ),
+            WDKEnumParam(
+                name="phyletic_indent_map",
+                type="multi-pick-vocabulary",
+                vocabulary=indents,
+            ),
+        ]
+        infos = {info.name: info for info in format_param_info_typed(params)}
+        return infos["included_species"]
+
+    def test_the_wire_view_is_capped(self) -> None:
+        allowed = self._big_sheet().allowed_values
+
+        assert allowed is not None
+        assert len(allowed) == _MAX_VOCAB_ENTRIES
+
+    def test_the_note_says_the_list_was_truncated(self) -> None:
+        note = self._big_sheet().allowed_values_note
+
+        assert note is not None
+        assert str(_MAX_VOCAB_ENTRIES) in note
+
+    def test_matching_still_sees_every_node(self) -> None:
+        # The clade plus every species, uncapped, so a value the cap hid still binds.
+        assert len(self._big_sheet().vocabulary()) == self._LEAF_COUNT + 1

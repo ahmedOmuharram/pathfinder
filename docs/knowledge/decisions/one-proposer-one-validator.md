@@ -130,7 +130,7 @@ Eighteen wrong values, every one inspected.
 | multi-pick under-selection | one of two trophozoite assays; a subset of `text_fields` | sheet wording, and the bound list is disclosed rather than summarized |
 | genus against strain | `Plasmodium` against `Plasmodium falciparum 3D7` | the criterion text carries it, the value binds as stated and is visible; an ambiguity is a question, not a rule |
 | either/or parameter pairs | a free-text half filled beside a typeahead pick | [WDK-SITE-007](../wdk/rules/site-model-params.md), which names the authoritative half and measures what filling both costs |
-| `GenesByOrthologPattern` | 7 of the 18, six of them structural | not caught. `profile_pattern` is hidden, so the sheet cannot show it; `included_species` and `excluded_species` are free text whose help says "for documentation only" while the gold values are phyletic codes. That search needs its own contract; see the `WDK-SITE` rules |
+| `GenesByOrthologPattern` | 7 of the 18, six of them structural | caught by a contract of its own, taken after this measurement: the model proposes the two species lists against the clade tree and `profile_pattern` is derived from them, which moved the same arm to 288 exact and 15 wrong ([the two lists are the proposal](phyletic-lists-are-the-proposal.md)) |
 
 The two that are not on this list and were expected to be: no proposal named a
 parameter the search does not have, and no proposal was refused by a vocabulary,

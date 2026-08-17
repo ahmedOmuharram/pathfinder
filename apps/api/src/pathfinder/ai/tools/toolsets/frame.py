@@ -8,6 +8,7 @@ from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.catalog import (
     get_record_types,
     list_searches,
+    lookup_phyletic_codes,
     search_example_plans,
     search_for_searches,
 )
@@ -62,6 +63,7 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
             search_example_plans,
             get_search_overview,
             get_parameter_options,
+            lookup_phyletic_codes,
             set_criterion,
             set_structure,
             drop_criterion,

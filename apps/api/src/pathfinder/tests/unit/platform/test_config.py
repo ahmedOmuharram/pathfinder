@@ -123,3 +123,28 @@ def test_pathfinder_chat_provider_must_be_explicit() -> None:
         match="PATHFINDER_CHAT_PROVIDER must be set explicitly",
     ):
         make_settings(pathfinder_chat_provider="")
+
+
+def test_worker_concurrency_defaults_to_four() -> None:
+    assert make_settings().worker_concurrency == 4
+
+
+def test_worker_concurrency_rejects_zero() -> None:
+    with pytest.raises(ValueError, match="worker_concurrency"):
+        make_settings(worker_concurrency=0)
+
+
+def test_worker_concurrency_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WORKER_CONCURRENCY", "8")
+
+    assert make_settings().worker_concurrency == 8
+
+
+def test_otel_include_content_defaults_false() -> None:
+    assert make_settings().otel_include_content is False
+
+
+def test_otel_include_content_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTEL_INCLUDE_CONTENT", "true")
+
+    assert make_settings().otel_include_content is True

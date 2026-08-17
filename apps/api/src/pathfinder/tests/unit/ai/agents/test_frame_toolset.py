@@ -7,6 +7,8 @@ import pytest
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai import ModelRetry
+from pydantic_ai.toolsets.function import FunctionToolset
+from pydantic_ai.toolsets.wrapper import WrapperToolset
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.tools.standalone import _catalog_models, frame_spec
@@ -22,8 +24,9 @@ from pathfinder.ai.tools.toolsets.frame import (
     _frame_enum_overrides,
     build_toolset,
 )
-from pathfinder.domain.parameters.values import MultiPickValue
-from pathfinder.domain.parameters.wdk_vocab import VocabOption
+from pathfinder.domain.parameters.values import MultiPickValue, to_wire
+from pathfinder.domain.parameters.wdk_vocab import VocabOption, WDKVocabTerm
+from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
     OpenSlot,
@@ -44,7 +47,10 @@ from pathfinder.services.catalog.param_dag import (
     ResolvedParams,
     UnknownParameterError,
 )
-from pathfinder.services.catalog.param_formatting import ParameterInfo
+from pathfinder.services.catalog.param_formatting import (
+    ParameterInfo,
+    format_param_info_typed,
+)
 from pathfinder.services.catalog.param_validation import ValidatedParams
 
 ParamsAt = Callable[[dict[str, str]], list[ParameterInfo]]
@@ -90,11 +96,32 @@ def _leaf_structure(criterion_id: str) -> SpecStructure:
     return SpecStructure(root=StructureNode(kind="leaf", criterion_id=criterion_id))
 
 
+def _drafted_root(state: AgentToolState) -> StructureNode:
+    """The root of the structure the draft holds, which each caller has just set."""
+    structure = state.operational_spec_draft.structure
+    assert structure is not None
+    return structure.root
+
+
+def _frame_tool_names() -> set[str]:
+    """The tool names FRAME registers, read through the enum-guard wrapper."""
+    toolset = build_toolset()
+    assert isinstance(toolset, WrapperToolset)
+    registered = toolset.wrapped
+    assert isinstance(registered, FunctionToolset)
+    return set(registered.tools)
+
+
 def test_frame_toolset_exposes_get_parameter_options() -> None:
     # FRAME must be able to inspect a param's vocabulary (e.g. a tree-box
     # organism list) to find valid values or learn a target is unavailable.
-    tools = build_toolset().wrapped.tools  # type: ignore[attr-defined]
-    assert "get_parameter_options" in tools
+    assert "get_parameter_options" in _frame_tool_names()
+
+
+def test_frame_toolset_exposes_lookup_phyletic_codes() -> None:
+    # The FRAME instructions and the phyletic retry both send the model to this
+    # tool, so a species name it cannot spell has somewhere to go.
+    assert "lookup_phyletic_codes" in _frame_tool_names()
 
 
 def test_frame_enum_overrides_guards_get_parameter_options_search_name() -> None:
@@ -136,7 +163,7 @@ async def test_set_structure_wires_a_transform_to_its_input() -> None:
             ],
         ),
     )
-    root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
+    root = _drafted_root(st)
     assert root.kind == "combine"
     assert root.operator == CombineOp.INTERSECT
     assert root.inputs[1].criterion_id == "c_pf"
@@ -167,7 +194,7 @@ async def test_set_structure_keeps_each_nodes_own_operator() -> None:
             ],
         ),
     )
-    root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
+    root = _drafted_root(st)
     assert root.operator == CombineOp.UNION
     assert root.inputs[1].criterion_id == "c3"
     assert root.inputs[0].operator == CombineOp.INTERSECT
@@ -610,7 +637,7 @@ class TestNestedBranches:
             ),
         )
 
-        root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
+        root = _drafted_root(st)
         assert root.operator == CombineOp.INTERSECT
         branch = root.inputs[1]
         assert branch.kind == "combine"
@@ -639,7 +666,7 @@ class TestNestedBranches:
             ),
         )
 
-        root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
+        root = _drafted_root(st)
         assert root.kind == "transform"
         assert root.criterion_id == "orthologs"
         assert root.inputs[0].operator == CombineOp.UNION
@@ -652,7 +679,7 @@ class TestNestedBranches:
             _ctx(st), root=StructureNode(kind="leaf", criterion_id="only")
         )
 
-        root = st.operational_spec_draft.structure.root  # type: ignore[union-attr]
+        root = _drafted_root(st)
         assert root.kind == "leaf"
         assert root.criterion_id == "only"
         assert result.criteria_combined == 1
@@ -1008,9 +1035,10 @@ def _numeric_pi(name: str, default: str, *, required: bool = True) -> ParameterI
 
 
 def _serve_bare_definition(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Answer the registry read on the params path with a nameless definition.
+    """Answer both definition reads on the params path with a nameless definition.
 
-    A test that asserts what was registered serves the full definition instead.
+    A test that asserts what was registered, or what the definition declares,
+    serves the full one instead.
     """
 
     async def _details(
@@ -1023,6 +1051,7 @@ def _serve_bare_definition(monkeypatch: pytest.MonkeyPatch) -> None:
     client = MagicMock()
     client.get_search_details = _details
     monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _site: client)
+    _serve_catalog_details(monkeypatch, [])
 
 
 def _serve_and_resolve(monkeypatch: pytest.MonkeyPatch, at: ParamsAt) -> None:
@@ -1641,3 +1670,540 @@ class TestTheSearchIsReadOncePerContext:
         )
 
         assert [c for c in seen if not c] == [{}]
+
+
+_PHYLETIC_TERMS = [
+    WDKVocabTerm(("ALL", "Root", None)),
+    WDKVocabTerm(("EUKA", "Eukaryota", None)),
+    WDKVocabTerm(("MAMM", "Mammalia", None)),
+    WDKVocabTerm(("hsap", "Homo sapiens REF", None)),
+    WDKVocabTerm(("mmus", "Mus musculus", None)),
+    WDKVocabTerm(("pfal", "Plasmodium falciparum 3D7", None)),
+]
+_PHYLETIC_INDENTS = [
+    WDKVocabTerm(("EUKA", "1", None)),
+    WDKVocabTerm(("MAMM", "2", None)),
+    WDKVocabTerm(("hsap", "3", None)),
+    WDKVocabTerm(("mmus", "3", None)),
+    WDKVocabTerm(("pfal", "2", None)),
+]
+
+_PHYLETIC_DEFINITION: list[WDKParameter] = [
+    WDKStringParam(
+        name="profile_pattern", is_visible=False, initial_display_value="hsap=1T"
+    ),
+    WDKStringParam(name="included_species", allow_empty_value=True),
+    WDKStringParam(name="excluded_species", allow_empty_value=True),
+    WDKEnumParam(
+        name="organism",
+        type="multi-pick-vocabulary",
+        vocabulary=[WDKVocabTerm(("Pf3D7", "P. falciparum 3D7", None))],
+    ),
+    WDKEnumParam(
+        name="phyletic_term_map",
+        type="multi-pick-vocabulary",
+        vocabulary=_PHYLETIC_TERMS,
+    ),
+    WDKEnumParam(
+        name="phyletic_indent_map",
+        type="multi-pick-vocabulary",
+        vocabulary=_PHYLETIC_INDENTS,
+    ),
+]
+
+
+def _serve_catalog_details(
+    monkeypatch: pytest.MonkeyPatch,
+    params: list[WDKParameter],
+    properties: dict[str, list[str]] | None = None,
+) -> list[SearchContext]:
+    """Answer the catalog's cached definition read, recording each call."""
+    seen: list[SearchContext] = []
+
+    async def _details(
+        ctx: SearchContext, **_kw: object
+    ) -> tuple[WDKSearchResponse, str]:
+        seen.append(ctx)
+        return (
+            WDKSearchResponse(
+                searchData=WDKSearch(
+                    urlSegment=ctx.search_name,
+                    parameters=params,
+                    properties=properties or {},
+                ),
+                validation=StepValidation(),
+            ),
+            ctx.record_type,
+        )
+
+    monkeypatch.setattr(frame_spec, "fetch_search_details", _details)
+    return seen
+
+
+def _serve_phyletic(monkeypatch: pytest.MonkeyPatch) -> list[SearchContext]:
+    """Serve GenesByOrthologPattern as both a sheet and a definition."""
+    _serve(monkeypatch, lambda _context: format_param_info_typed(_PHYLETIC_DEFINITION))
+    _serve_bare_definition(monkeypatch)
+    monkeypatch.setattr(frame_spec, "validate_parameters", _noop_validate)
+    return _serve_catalog_details(monkeypatch, _PHYLETIC_DEFINITION)
+
+
+async def _phyletic_call(
+    state: AgentToolState, params: dict[str, str | list[str] | None]
+) -> SetCriterionResult:
+    return await set_criterion(
+        _frame_ctx(state),
+        criterion_id="c_ortho",
+        text="present in P. falciparum, absent from mammals",
+        search_name="GenesByOrthologPattern",
+        params=params,
+    )
+
+
+class TestThePhyleticPatternIsDerived:
+    """The two species lists are the proposal; the pattern is never written.
+
+    ``profile_pattern`` is hidden and required, so a call that does not derive it
+    binds the published default, which matches no census and returns no genes.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_lists_bind_the_pattern_and_their_canonical_codes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _serve_phyletic(monkeypatch)
+        st = AgentToolState()
+
+        result = await _phyletic_call(
+            st,
+            {
+                "organism": ["Pf3D7"],
+                "included_species": "pfal",
+                "excluded_species": "Mammalia",
+            },
+        )
+
+        assert result.resolved_params["profile_pattern"] == "%hsap:N%mmus:N%pfal:Y%"
+        assert result.resolved_params["included_species"] == "pfal"
+        assert result.resolved_params["excluded_species"] == "MAMM"
+
+    @pytest.mark.asyncio
+    async def test_the_pattern_is_stated_and_is_no_open_slot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _serve_phyletic(monkeypatch)
+        st = AgentToolState()
+
+        result = await _phyletic_call(
+            st, {"organism": ["Pf3D7"], "included_species": "pfal"}
+        )
+
+        assert result.open_slots == []
+        assert "profile_pattern" not in result.defaulted_params
+        criterion = st.operational_spec_draft.criteria[0]
+        assert to_wire(criterion.resolved_params["profile_pattern"]) == "%pfal:Y%"
+
+    @pytest.mark.asyncio
+    async def test_a_species_name_is_read_as_its_code(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _serve_phyletic(monkeypatch)
+
+        result = await _phyletic_call(
+            AgentToolState(),
+            {
+                "organism": ["Pf3D7"],
+                "included_species": "Plasmodium falciparum 3D7",
+                "excluded_species": ["Homo sapiens REF"],
+            },
+        )
+
+        assert result.resolved_params["profile_pattern"] == "%hsap:N%pfal:Y%"
+        assert result.resolved_params["included_species"] == "pfal"
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_species_is_a_retry_naming_the_nearest_entries(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _serve_phyletic(monkeypatch)
+        st = AgentToolState()
+
+        with pytest.raises(ModelRetry) as info:
+            await _phyletic_call(
+                st,
+                {
+                    "organism": ["Pf3D7"],
+                    "included_species": "Plasmodium falciparum",
+                    "excluded_species": None,
+                },
+            )
+
+        message = str(info.value)
+        assert "Plasmodium falciparum 3D7" in message
+        assert "included_species" in message
+        assert st.operational_spec_draft.criteria == []
+
+    @pytest.mark.asyncio
+    async def test_the_unresolved_retry_names_the_lookup_tool(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A genus reads as a plausible node and is not one, so the retry says
+        # where the real names come from rather than only that this one missed.
+        _serve_phyletic(monkeypatch)
+
+        with pytest.raises(ModelRetry) as info:
+            await _phyletic_call(
+                AgentToolState(),
+                {"organism": ["Pf3D7"], "included_species": "Plasmodium"},
+            )
+
+        message = str(info.value)
+        assert "A genus or common name is not a node" in message
+        assert "lookup_phyletic_codes(query)" in message
+
+    @pytest.mark.asyncio
+    async def test_a_code_in_both_lists_is_a_retry_naming_the_conflict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _serve_phyletic(monkeypatch)
+        st = AgentToolState()
+
+        with pytest.raises(ModelRetry) as info:
+            await _phyletic_call(
+                st,
+                {
+                    "organism": ["Pf3D7"],
+                    "included_species": "pfal, hsap",
+                    "excluded_species": "hsap",
+                },
+            )
+
+        assert "hsap" in str(info.value)
+        assert st.operational_spec_draft.criteria == []
+
+    @pytest.mark.asyncio
+    async def test_two_empty_lists_are_a_retry_and_bind_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The bare wildcard is a valid pattern that constrains nothing, so it
+        # would return every gene of the chosen organisms as a phyletic answer.
+        _serve_phyletic(monkeypatch)
+        st = AgentToolState()
+
+        with pytest.raises(ModelRetry) as info:
+            await _phyletic_call(
+                st,
+                {
+                    "organism": ["Pf3D7"],
+                    "included_species": None,
+                    "excluded_species": None,
+                },
+            )
+
+        message = str(info.value)
+        assert "at least one species or clade" in message
+        assert "included_species" in message
+        assert st.operational_spec_draft.criteria == []
+
+    @pytest.mark.asyncio
+    async def test_naming_neither_list_is_the_same_retry(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Both lists allow empty, so omitting them binds the hidden pattern to
+        # its published default. Silence states no criterion just as two empty
+        # lists do.
+        _serve_phyletic(monkeypatch)
+        st = AgentToolState()
+
+        with pytest.raises(ModelRetry) as info:
+            await _phyletic_call(st, {"organism": ["Pf3D7"]})
+
+        message = str(info.value)
+        assert "at least one species or clade" in message
+        assert st.operational_spec_draft.criteria == []
+
+    @pytest.mark.asyncio
+    async def test_a_comma_list_is_not_refused_as_a_vocabulary_miss(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The canonical lists are comma-joined codes, which name no single
+        # vocabulary entry.
+        _serve_phyletic(monkeypatch)
+
+        result = await _phyletic_call(
+            AgentToolState(),
+            {"organism": ["Pf3D7"], "excluded_species": "hsap, mmus"},
+        )
+
+        assert result.resolved_params["excluded_species"] == "hsap, mmus"
+        assert result.resolved_params["profile_pattern"] == "%hsap:N%mmus:N%"
+
+    @pytest.mark.asyncio
+    async def test_naming_the_pattern_itself_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The pattern is hidden, so it is not a name the sheet offers.
+        _serve_phyletic(monkeypatch)
+
+        with pytest.raises(ModelRetry) as info:
+            await _phyletic_call(
+                AgentToolState(),
+                {"organism": ["Pf3D7"], "profile_pattern": "%pfal:Y%"},
+            )
+
+        assert "profile_pattern" in str(info.value)
+
+    @pytest.mark.asyncio
+    async def test_a_search_with_no_species_list_derives_no_pattern(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # One cached definition read serves every derivation of the call, and a
+        # search with no species list derives nothing from it.
+        _serve(monkeypatch, _genes_by_text)
+        monkeypatch.setattr(frame_spec, "validate_parameters", _noop_validate)
+        _serve_bare_definition(monkeypatch)
+        read = _serve_catalog_details(monkeypatch, _PHYLETIC_DEFINITION)
+        registered = AgentToolState()
+        registered.register_search(
+            "GenesByText",
+            SearchOverview(
+                search_name="GenesByText",
+                display_name="GenesByText",
+                record_type="transcript",
+                description="",
+                parameter_names=[],
+                required_params=[],
+            ),
+        )
+
+        result = await set_criterion(
+            _frame_ctx(registered),
+            criterion_id="c1",
+            text="kinases",
+            search_name="GenesByText",
+            params={
+                "text_expression": "kinase",
+                "text_search_organism": ["Plasmodium"],
+                "document_type": None,
+                "text_fields": None,
+            },
+        )
+
+        assert result.resolved_params["text_expression"] == "kinase"
+        assert "profile_pattern" not in result.resolved_params
+        assert [c.search_name for c in read] == ["GenesByText"]
+
+    @pytest.mark.asyncio
+    async def test_the_derivation_reads_the_search_through_the_catalog(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The catalog memoizes the definition per record type and search, so the
+        # derivation costs one read per process rather than one per call.
+        read = _serve_phyletic(monkeypatch)
+
+        await _phyletic_call(
+            AgentToolState(), {"organism": ["Pf3D7"], "included_species": "pfal"}
+        )
+
+        assert [(c.record_type, c.search_name) for c in read] == [
+            ("transcript", "GenesByOrthologPattern")
+        ]
+
+
+_EC_ENTRIES = ("2.7.-.-", "2.7.11.1", "3.4.21.-")
+
+_EC_DEFINITION: list[WDKParameter] = [
+    WDKEnumParam(
+        name="ec_number_pattern",
+        type="single-pick-vocabulary",
+        initial_display_value="2.7.11.1",
+        vocabulary=[WDKVocabTerm((v, v, None)) for v in _EC_ENTRIES],
+    ),
+    WDKStringParam(name="ec_wildcard", initial_display_value="N/A"),
+]
+
+_EC_PROPERTIES = {"radio-params": ["ec_number_pattern", "ec_wildcard"]}
+
+_GO_TERM = "GO:0004672 : protein kinase activity"
+
+_GO_DEFINITION: list[WDKParameter] = [
+    WDKEnumParam(
+        name="go_typeahead",
+        type="multi-pick-vocabulary",
+        display_type="typeAhead",
+        initial_display_value="[]",
+        vocabulary=[WDKVocabTerm((_GO_TERM, _GO_TERM, None))],
+    ),
+    WDKStringParam(name="go_term", initial_display_value="N/A"),
+]
+
+_GO_PROPERTIES = {"radio-params": ["go_typeahead", "go_term"]}
+
+
+def _serve_ec(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve GenesByEcNumber, whose two halves one query ORs."""
+    _serve(monkeypatch, lambda _context: format_param_info_typed(_EC_DEFINITION))
+    _serve_bare_definition(monkeypatch)
+    monkeypatch.setattr(frame_spec, "validate_parameters", _noop_validate)
+    _serve_catalog_details(monkeypatch, _EC_DEFINITION, _EC_PROPERTIES)
+
+
+async def _ec_call(
+    state: AgentToolState, params: dict[str, str | list[str] | None]
+) -> SetCriterionResult:
+    return await set_criterion(
+        _frame_ctx(state),
+        criterion_id="c_ec",
+        text="protein kinases",
+        search_name="GenesByEcNumber",
+        params=params,
+    )
+
+
+def _serve_go(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve GenesByGoTerm, whose vocabulary half publishes a default it refuses."""
+    _serve(monkeypatch, lambda _context: format_param_info_typed(_GO_DEFINITION))
+    _serve_bare_definition(monkeypatch)
+    monkeypatch.setattr(frame_spec, "validate_parameters", _noop_validate)
+    _serve_catalog_details(monkeypatch, _GO_DEFINITION, _GO_PROPERTIES)
+
+
+async def _go_call(
+    state: AgentToolState, params: dict[str, str | list[str] | None]
+) -> SetCriterionResult:
+    return await set_criterion(
+        _frame_ctx(state),
+        criterion_id="c_go",
+        text="protein kinase activity",
+        search_name="GenesByGoTerm",
+        params=params,
+    )
+
+
+class TestOneCriterionOfferedTwiceIsStatedOnce:
+    """The vocabulary half carries the criterion and the free-text half is off.
+
+    The two halves are ORed by one query, so a value in both widens the search,
+    and neither half can be left empty.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_free_text_wildcard_is_a_retry_naming_the_entries(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _serve_ec(monkeypatch)
+        st = AgentToolState()
+
+        with pytest.raises(ModelRetry) as info:
+            await _ec_call(st, {"ec_number_pattern": None, "ec_wildcard": "2.7.*"})
+
+        message = str(info.value)
+        assert "2.7.-.-" in message
+        assert "ec_number_pattern" in message
+        assert "2.7.11.1" in message
+        assert st.operational_spec_draft.criteria == []
+
+    @pytest.mark.asyncio
+    async def test_the_retry_names_the_vocabulary_read_for_a_wildcard(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A wildcard covers several entries, so the way back is a vocabulary
+        # query rather than a value the model composes.
+        _serve_ec(monkeypatch)
+
+        with pytest.raises(ModelRetry) as info:
+            await _ec_call(
+                AgentToolState(),
+                {"ec_number_pattern": None, "ec_wildcard": "*kinase*"},
+            )
+
+        message = str(info.value)
+        assert "get_parameter_options" in message
+        assert "N/A" in message
+
+    @pytest.mark.asyncio
+    async def test_the_retry_quotes_a_default_that_would_contribute(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The EC vocabulary half publishes a real EC number, which the query ORs
+        # in whatever the free text says.
+        _serve_ec(monkeypatch)
+
+        with pytest.raises(ModelRetry) as info:
+            await _ec_call(
+                AgentToolState(),
+                {"ec_number_pattern": None, "ec_wildcard": "*protease*"},
+            )
+
+        assert "ec_number_pattern default 2.7.11.1 would still contribute" in str(
+            info.value
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_retry_does_not_quote_a_default_the_search_refuses(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The GO vocabulary half publishes an empty list, which the search that
+        # published it refuses, so there is no value to say would contribute.
+        _serve_go(monkeypatch)
+
+        with pytest.raises(ModelRetry) as info:
+            await _go_call(
+                AgentToolState(), {"go_typeahead": None, "go_term": "*kinase*"}
+            )
+
+        message = str(info.value)
+        assert "go_typeahead cannot be left empty" in message
+        assert "default" not in message
+        assert _GO_TERM in message
+
+    @pytest.mark.asyncio
+    async def test_a_null_free_text_half_binds_off_and_opens_no_slot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _serve_ec(monkeypatch)
+        st = AgentToolState()
+
+        result = await _ec_call(
+            st, {"ec_number_pattern": "2.7.-.-", "ec_wildcard": None}
+        )
+
+        assert result.resolved_params["ec_number_pattern"] == "2.7.-.-"
+        assert result.resolved_params["ec_wildcard"] == "N/A"
+        assert result.open_slots == []
+
+    @pytest.mark.asyncio
+    async def test_the_off_value_is_disclosed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The user's request never named it, so it is reported like any value
+        # the call did not state.
+        _serve_ec(monkeypatch)
+
+        result = await _ec_call(
+            AgentToolState(), {"ec_number_pattern": "2.7.-.-", "ec_wildcard": None}
+        )
+
+        assert "ec_wildcard" in result.defaulted_params
+
+    @pytest.mark.asyncio
+    async def test_a_search_declaring_no_pair_is_unaffected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The off value reaches only the free-text half of a declared pair.
+        _serve_and_resolve(monkeypatch, _genes_by_text)
+
+        result = await set_criterion(
+            _frame_ctx(AgentToolState()),
+            criterion_id="c1",
+            text="kinases",
+            search_name="GenesByText",
+            params={
+                "text_expression": "kinase",
+                "text_search_organism": ["Plasmodium"],
+                "document_type": None,
+                "text_fields": None,
+            },
+        )
+
+        assert "N/A" not in result.resolved_params.values()

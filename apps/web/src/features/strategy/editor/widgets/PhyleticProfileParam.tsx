@@ -10,7 +10,7 @@ import {
   buildPhyleticTree,
   encodeProfilePattern,
   leafStates,
-  decodeProfilePattern,
+  seedTriStates,
   buildSpeciesLists,
   nextTriState,
   triStateIcon,
@@ -117,10 +117,14 @@ export function PhyleticProfileParam({ specs, form }: PhyleticProfileParamProps)
 
   const tree = buildPhyleticTree(termMapVocab, indentMapVocab);
 
-  const initialPattern = String(form.getFieldValue("profile_pattern"));
-  const [states, setStates] = useState<Map<string, TriState>>(() =>
-    decodeProfilePattern(initialPattern),
+  const [seeded] = useState(() =>
+    seedTriStates(tree, {
+      included: form.getFieldValue("included_species"),
+      excluded: form.getFieldValue("excluded_species"),
+      pattern: String(form.getFieldValue("profile_pattern")),
+    }),
   );
+  const [states, setStates] = useState<Map<string, TriState>>(seeded.states);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => defaultExpanded(tree, 3));
   const [searchQuery, setSearchQuery] = useState("");
@@ -194,6 +198,12 @@ export function PhyleticProfileParam({ specs, form }: PhyleticProfileParamProps)
           <span className="text-red-500 font-bold">{"\u2717"}</span> exclude
         </span>
       </div>
+      {seeded.unread.length > 0 && (
+        <p data-testid="phyletic-unread" className="text-xs text-amber-500">
+          Stored terms this tree cannot show: {seeded.unread.join(", ")}. They are not
+          selected below; the next change rewrites the lists from the tree.
+        </p>
+      )}
       <div className="max-h-80 overflow-y-auto">
         {tree.map((node) => (
           <TreeNodeRow

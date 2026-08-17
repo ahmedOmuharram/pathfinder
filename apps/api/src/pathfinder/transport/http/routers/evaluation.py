@@ -83,5 +83,10 @@ async def strategy_gene_ids_endpoint(
     user_id: CurrentUser,
 ) -> dict[str, Any]:
     """Fetch all gene IDs from a PathFinder strategy's WDK root step."""
-    del user_id
-    return await get_strategy_gene_ids(session, request.strategy_id, request.site_id)
+    result = await get_strategy_gene_ids(
+        session,
+        request.strategy_id,
+        request.site_id,
+        user_id,
+    )
+    return result.model_dump(by_alias=True, exclude_none=True)

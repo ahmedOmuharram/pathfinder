@@ -25,8 +25,6 @@ async function seedStrategy(
   graphPage: GraphPage,
 ): Promise<{ conversationId: string; firstStepId: string }> {
   await chatPage.send(MOCK_PLAN_PROMPT);
-  await chatPage.expectPlanningArtifact();
-  await chatPage.approvePlan();
   await graphPage.expectRailPanel();
   await chatPage.expectIdle();
 

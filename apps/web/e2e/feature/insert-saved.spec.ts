@@ -27,8 +27,6 @@ interface ChatPageLike {
   goto: () => Promise<void>;
   newChat: (s: string) => Promise<void>;
   send: (s: string) => Promise<void>;
-  expectPlanningArtifact: () => Promise<void>;
-  approvePlan: () => Promise<void>;
   expectVerificationFeedback: () => Promise<void>;
   expectAssistantMessage: (p: RegExp, o?: { timeout?: number }) => Promise<void>;
   expectIdle: (timeout?: number) => Promise<void>;
@@ -47,8 +45,6 @@ async function buildInterpro(
   await chatPage.send(
     "Build a strategy for P. falciparum 3D7 kinases using InterPro PF00069 and GO terms.",
   );
-  await chatPage.expectPlanningArtifact();
-  await chatPage.approvePlan();
   await chatPage.expectVerificationFeedback();
   const id = chatPage.lastStrategyId;
   expect(id).toBeTruthy();
@@ -63,8 +59,6 @@ async function buildPlasmo(
   await sitePicker.selectSite("plasmodb");
   await chatPage.newChat("plasmodb");
   await chatPage.send("create delegation");
-  await chatPage.expectPlanningArtifact();
-  await chatPage.approvePlan();
   await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
   await chatPage.expectIdle();
   const id = chatPage.lastStrategyId;

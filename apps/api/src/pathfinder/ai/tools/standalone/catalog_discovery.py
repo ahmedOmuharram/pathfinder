@@ -33,6 +33,7 @@ from pathfinder.services.catalog.param_formatting import (
     ParentContextRequired,
     format_param_info_typed,
     format_typed_param,
+    phyletic_options_for,
 )
 from pathfinder.services.catalog.search_context import (
     get_search_params_under_context,
@@ -108,7 +109,7 @@ async def get_search_overview(
     if deps.agent_state.get_overview(search_name) is not None:
         return AlreadyReadNotice(
             message=(
-                f"You already inspected '{search_name}' this turn — same as "
+                f"You already inspected '{search_name}' this turn; same as "
                 "your earlier read. Move on (inspect a different search, read a "
                 "parameter, or record a decision)."
             ),
@@ -177,7 +178,7 @@ async def get_parameter_options(
       - ``ParameterInfo`` (``kind="parameter_info"``) on success.
       - ``ParameterNotOnSearch`` (``kind="parameter_not_on_search"``) when
         ``parameter_id`` does not exist on ``search_name``. The payload
-        carries did-you-mean suggestions plus the full valid list — call
+        carries did-you-mean suggestions plus the full valid list; call
         again with one of them.
 
     Args:
@@ -185,10 +186,10 @@ async def get_parameter_options(
         search_name: WDK search name (urlSegment).
         parameter_id: Opaque WDK parameter identifier (e.g. ``min_pct_idents``).
             MUST be one of the names returned by ``get_search_overview`` for
-            this search — copy verbatim, do not paraphrase.
+            this search; copy verbatim, do not paraphrase.
         record_type: Record type. Auto-resolved from search name if omitted (recommended).
         context_values: Current values of the parent parameters this param
-            depends on, for dependent vocab refresh. Pass the RAW value — a
+            depends on, for dependent vocab refresh. Pass the RAW value: a
             string for a single pick, a list for multi-pick; the system types
             it. Example: ``{"profileset_generic": "<term>"}``.
         query: Optional substring filter for large vocabularies. Case-insensitive.
@@ -209,7 +210,7 @@ async def get_parameter_options(
         return AlreadyReadNotice(
             message=(
                 f"You already read options for '{parameter_id}' on "
-                f"'{search_name}' with these exact context/query — same as "
+                f"'{search_name}' with these exact context/query; same as "
                 "before. Use the values you saw; don't re-read."
             ),
             search_name=search_name,
@@ -260,6 +261,7 @@ async def get_parameter_options(
                     for other in all_params
                     if other.initial_display_value
                 },
+                phyletic_options=phyletic_options_for(all_params, parameter_id, query),
             )
             _snapshot_param_vocab(deps, search_name, info)
             deps.agent_state.mark_param_read(read_key)

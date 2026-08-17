@@ -69,9 +69,12 @@ def durable_tool(
                 args=tool_args,
                 estimated_duration_seconds=estimated_duration_seconds,
             )
+            # The worker resumes the graph on the conversation's checkpoint
+            # thread, so this job takes the same lock a chat turn takes.
             task = procrastinate_app.configure_task(
                 name=f"durable:{tool_name}",
                 queue="verification",
+                lock=str(deps.conversation_id),
             )
             dispatched_payload = DurableTaskPayload.from_context(
                 task_id=task_id,

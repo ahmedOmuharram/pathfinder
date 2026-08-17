@@ -26,15 +26,12 @@ test.describe("Experiment chat flows", () => {
     await chatPage.expectIdle();
   });
 
-  test("consult_user gates planning on design answers, then builds a plan", async ({
+  test("consult_user gates the turn on design answers, then resumes", async ({
     chatPage,
   }) => {
     await chatPage.send("Consult me before planning this strategy.");
-    // The blocking design-question carousel appears before any plan.
+    // The blocking design-question carousel appears before any build.
     await chatPage.answerConsultCarousel();
-    // After answers are submitted the turn resumes into a reviewable plan.
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectIdle();
   });
 

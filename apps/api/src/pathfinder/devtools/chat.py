@@ -365,6 +365,16 @@ async def _exec_one(
         )
 
 
+async def _defer_chat_turn(payload: ChatTurnPayload) -> None:
+    """Defer one turn under the conversation's lock, as the API route does."""
+    async with procrastinate_app.open_async():
+        await run_chat_turn_job.configure(
+            lock=str(payload.body.conversation_id),
+        ).defer_async(
+            payload=payload.model_dump(mode="json", by_alias=True),
+        )
+
+
 async def _exec_via_worker(
     args: RunArgs, capture: RunCapture, body: ChatRequestBody, *, wdk_token: str | None
 ) -> None:
@@ -378,10 +388,7 @@ async def _exec_via_worker(
         veupathdb_auth_token=wdk_token,
         capture_dir=str(args.run_dir),
     )
-    async with procrastinate_app.open_async():
-        await run_chat_turn_job.defer_async(
-            payload=payload.model_dump(mode="json", by_alias=True),
-        )
+    await _defer_chat_turn(payload)
     if not args.quiet:
         print("deferred to worker; waiting…")
 

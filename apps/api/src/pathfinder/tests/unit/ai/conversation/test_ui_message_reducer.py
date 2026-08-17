@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathfinder.ai.conversation.ui_message_reducer import (
     reduce_chunks,
-    reduce_chunks_to_messages,
     split_into_turns,
     user_message_chunk,
 )
@@ -190,25 +189,6 @@ def test_split_keeps_in_flight_trailing_slice() -> None:
     assert turns[1][-1]["type"] == "text-delta"
 
 
-def test_reduce_chunks_to_messages_full_log() -> None:
-    chunks = [
-        {"type": "start", "messageId": "m1"},
-        {"type": "text-start", "id": "t1"},
-        {"type": "text-delta", "id": "t1", "delta": "first turn"},
-        {"type": "text-end", "id": "t1"},
-        {"type": "done"},
-        {"type": "start", "messageId": "m2"},
-        {"type": "text-start", "id": "t2"},
-        {"type": "text-delta", "id": "t2", "delta": "second turn"},
-        {"type": "text-end", "id": "t2"},
-        {"type": "done"},
-    ]
-    messages = reduce_chunks_to_messages(chunks)
-    assert [m["id"] for m in messages] == ["m1", "m2"]
-    assert messages[0]["parts"][0]["text"] == "first turn"
-    assert messages[1]["parts"][0]["text"] == "second turn"
-
-
 def test_start_chunk_overwrites_message_id() -> None:
     chunks = [
         {"type": "start", "messageId": "first"},
@@ -264,40 +244,6 @@ def test_tool_approval_request_marks_part() -> None:
     part = next(p for p in msg["parts"] if p.get("toolCallId") == "c1")
     assert part["state"] == "approval-requested"
     assert part["approval"] == {"id": "a1"}
-
-
-def test_user_message_chunk_passes_through_as_user_uimessage() -> None:
-    chunks = [
-        user_message_chunk(
-            message_id="u1",
-            parts=[{"type": "text", "text": "hello"}],
-        ),
-        {"type": "start", "messageId": "a1"},
-        {"type": "text-start", "id": "t1"},
-        {"type": "text-delta", "id": "t1", "delta": "hi back"},
-        {"type": "text-end", "id": "t1"},
-        {"type": "done"},
-    ]
-    messages = reduce_chunks_to_messages(chunks)
-    assert len(messages) == 2
-    assert messages[0]["role"] == "user"
-    assert messages[0]["id"] == "u1"
-    assert messages[0]["parts"][0]["text"] == "hello"
-    assert messages[1]["role"] == "assistant"
-    assert messages[1]["id"] == "a1"
-    assert messages[1]["parts"][0]["text"] == "hi back"
-
-
-def test_user_message_alone_yields_just_user() -> None:
-    chunks = [
-        user_message_chunk(
-            message_id="u1",
-            parts=[{"type": "text", "text": "no reply yet"}],
-        ),
-    ]
-    messages = reduce_chunks_to_messages(chunks)
-    assert len(messages) == 1
-    assert messages[0]["role"] == "user"
 
 
 def test_user_message_chunk_does_not_pollute_assistant_parts() -> None:

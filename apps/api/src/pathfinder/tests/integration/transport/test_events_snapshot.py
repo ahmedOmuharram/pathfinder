@@ -12,12 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.ai.conversation.event_stream import iter_sse
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
-from pathfinder.ai.conversation.ui_message_reducer import (
-    reduce_chunks_to_messages,
-    user_message_chunk,
-)
+from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.platform.security import create_user_token
+from pathfinder.tests._support.chunk_log import reduce_chunks_to_messages
 
 
 @pytest.fixture

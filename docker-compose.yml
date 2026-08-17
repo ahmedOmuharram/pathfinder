@@ -35,6 +35,8 @@ services:
       CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
       # Set PIGUARD_ENABLED=false to skip the prompt-injection model load + per-message scan.
       PIGUARD_ENABLED: ${PIGUARD_ENABLED:-true}
+      # Set OTEL_INCLUDE_CONTENT=true to export prompts and completions in agent traces.
+      OTEL_INCLUDE_CONTENT: ${OTEL_INCLUDE_CONTENT:-false}
       # Dev WDK login for the chat debugger (pathfinder.devtools.chat); set in .env.dev.
       WDK_DEV_EMAIL: ${WDK_DEV_EMAIL:-}
       WDK_DEV_PASSWORD: ${WDK_DEV_PASSWORD:-}
@@ -78,6 +80,8 @@ services:
       VEUPATHDB_OAUTH_CLIENT_ID: ${VEUPATHDB_OAUTH_CLIENT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
       LOG_FORMAT: ${LOG_FORMAT:-}
+      # Jobs the worker runs in parallel, across every queue.
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
     volumes:
       - ./apps/api/.pf-runs:/data/pf-runs
 

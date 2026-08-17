@@ -51,7 +51,6 @@ src/pathfinder/tests/unit/capabilities/test_resilience.py::test_do_not_string_ap
 src/pathfinder/tests/unit/capabilities/test_resilience.py::test_long_arg_value_is_truncated
 src/pathfinder/tests/unit/capabilities/test_resilience.py::test_next_actions_appear_in_output
 src/pathfinder/tests/unit/capabilities/test_resilience.py::test_unexpected_model_behavior_returns_end
-src/pathfinder/tests/unit/capabilities/test_security.py::test_approval_bypass_skips_piguard
 src/pathfinder/tests/unit/capabilities/test_security.py::test_passes_benign_text
 src/pathfinder/tests/unit/domain/strategy/test_decoded_params_field.py::test_none_passes_through
 src/pathfinder/tests/unit/domain/test_plan_ast.py::test_null_display_name
@@ -89,7 +88,7 @@ src/pathfinder/tests/unit/platform/langfuse/test_prompts.py::test_noop_when_lang
 src/pathfinder/tests/unit/platform/langfuse/test_prompts.py::test_skips_existing_prompts
 src/pathfinder/tests/unit/platform/langfuse/test_prompts.py::test_skips_seed_on_non_not_found_error
 src/pathfinder/tests/unit/platform/langfuse/test_scoring.py::test_emit_scores_noop_when_langfuse_disabled
-src/pathfinder/tests/unit/services/strategies/test_saved_strategy_consumers.py::test_list_consumers_excludes_self_and_other_users
+src/pathfinder/tests/integration/services/strategies/test_saved_strategy_consumers.py::test_list_consumers_excludes_self_and_other_users
 src/pathfinder/tests/unit/tools/test_plan_idempotency.py::test_create_plan_allowed_when_no_existing
 src/pathfinder/tests/unit/transport/test_veupathdb_auth_cookie_extraction.py::test_extract_returns_none_when_no_authorization_cookie
 src/pathfinder/tests/unit/transport/test_veupathdb_auth_cookie_extraction.py::test_extract_returns_none_when_only_guest_present

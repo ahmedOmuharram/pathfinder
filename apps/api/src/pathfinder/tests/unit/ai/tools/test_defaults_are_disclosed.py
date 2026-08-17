@@ -9,6 +9,7 @@ import pytest
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.tools.standalone import _catalog_models, frame_spec
 from pathfinder.domain.parameters.values import NumberValue, SinglePickValue
+from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch, WDKSearchResponse
 from pathfinder.services.catalog.param_dag import ParamFetcher, ResolvedParams
@@ -58,9 +59,21 @@ async def _bind(monkeypatch: pytest.MonkeyPatch, state: AgentToolState):
             searchData=WDKSearch(urlSegment=name), validation=StepValidation()
         )
 
+    async def _catalog_details(
+        ctx: SearchContext, **_kw: object
+    ) -> tuple[WDKSearchResponse, str]:
+        return (
+            WDKSearchResponse(
+                searchData=WDKSearch(urlSegment=ctx.search_name),
+                validation=StepValidation(),
+            ),
+            ctx.record_type,
+        )
+
     client = MagicMock()
     client.get_search_details = _details
     monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _site: client)
+    monkeypatch.setattr(frame_spec, "fetch_search_details", _catalog_details)
     monkeypatch.setattr(frame_spec, "resolve_params_with_intent", _resolve)
     monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
     monkeypatch.setattr(frame_spec, "wdk_fetch_at", _fetch_at)

@@ -11,6 +11,7 @@ from typing import Any
 
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.impls.chat_turn_impl import run_chat_turn
+from pathfinder.jobs.maintenance import release_stalled_jobs
 from pathfinder.jobs.runner import run_durable_task
 
 
@@ -87,3 +88,10 @@ async def geneset_enrichment_job(
 @procrastinate_app.task(queue="chat_turn", name="chat_turn:run")
 async def run_chat_turn_job(payload: dict[str, Any]) -> None:
     await run_chat_turn(payload)
+
+
+@procrastinate_app.periodic(cron="* * * * *")
+@procrastinate_app.task(queue="maintenance", name="maintenance:release_stalled_jobs")
+async def release_stalled_jobs_job(timestamp: int) -> None:
+    del timestamp
+    await release_stalled_jobs()

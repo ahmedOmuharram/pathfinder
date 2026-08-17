@@ -43,53 +43,27 @@ test.describe("Chat", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.expectIdle();
-
-    await chatPage.approvePlan();
     await chatPage.expectIdle();
 
     // Wait for strategy update — at least one assistant message rendered.
     await expect(chatPage.assistantMessages).not.toHaveCount(0, { timeout: 15_000 });
 
-    // Fetch full strategy — verify steps were created from the plan
+    // Fetch full strategy — verify steps were created with real WDK search names
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
     const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
     const full = await fullResp.json();
     expect(full.steps.length).toBeGreaterThan(0);
+    expect(full.steps[0].searchName).toBe("GenesByTaxon");
   });
 
-  test("planning flow presents a preview plan and waits for approval before execution", async ({
-    chatPage,
-    apiClient,
-  }) => {
-    await chatPage.send(MOCK_PLAN_PROMPT);
-    // The plan is surfaced as a reviewable artifact with an Approve button —
-    // i.e. presented and waiting for the user before any execution.
-    await chatPage.expectPlanningArtifact();
-    await expect(chatPage.planArtifact.first()).toBeVisible();
-    await chatPage.expectIdle();
-
-    // The strategy must NOT be built yet — no WDK strategy id before approval.
-    const strategyId = chatPage.lastStrategyId;
-    expect(strategyId).toBeTruthy();
-    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
-    expect(resp.ok()).toBeTruthy();
-    const conv = await resp.json();
-    expect(conv.wdkStrategyId).toBeFalsy();
-  });
-
-  test("approving a presented plan executes via structured route without chat pollution", async ({
+  test("building executes via the structured route without chat pollution", async ({
     chatPage,
     apiClient,
     graphPage,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    await chatPage.approvePlan();
     await chatPage.expectIdle();
     await graphPage.expectRailPanel();
 
@@ -111,9 +85,6 @@ test.describe("Chat", () => {
 
   test("delegation draft stores event data", async ({ chatPage, apiClient }) => {
     await chatPage.send(MOCK_DELEGATION_DRAFT_PROMPT);
-    // A draft halts at the reviewable plan artifact (awaiting approval) rather
-    // than emitting a final assistant message.
-    await chatPage.expectPlanningArtifact();
     await chatPage.expectIdle();
 
     // Messages are reconstructed from the persisted event snapshot.

@@ -55,14 +55,12 @@ test.describe("Malaria Drug Resistance Journey", () => {
     await chatPage.expectAssistantMessage(/\[mock\].*Can you help/);
     await chatPage.expectIdle();
 
-    // Round 3 — trigger planning artifact (real GenesByTaxon search)
+    // Round 3 — build (real GenesByTaxon search)
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
 
     // ── Phase 2: Strategy Creation ────────────────────────────────
 
-    // Apply plan — backend stores real strategy with GenesByTaxon search
-    await chatPage.approvePlan();
+    // The backend stores a real strategy with the GenesByTaxon search
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 

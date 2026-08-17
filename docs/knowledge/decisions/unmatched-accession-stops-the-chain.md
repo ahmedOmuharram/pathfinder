@@ -93,7 +93,10 @@ Three things changed together, because each one alone leaves the loop open:
 
 # Anchor
 
-`ai/tools/standalone/frame_spec.py:_refuse_unmatched_value` and `_nearest`.
+`ai/tools/standalone/frame_spec.py:_refuse_unmatched_value`, ranking through
+`domain/parameters/wdk_vocab.py:nearest_entries`, which is the one ranker every
+did-you-mean uses, guarded by
+`tests/unit/domain/parameters/test_nearest_entries.py`.
 Guarded by `TestAProposedValueMustBeOnTheSheet::test_a_substring_of_an_entry_is_not_a_match`
 and `TestAnAccessionNamesItsEntry` in `tests/unit/ai/agents/test_frame_toolset.py`.
 Matching is `domain/parameters/wdk_vocab.py:match_exact_option` over

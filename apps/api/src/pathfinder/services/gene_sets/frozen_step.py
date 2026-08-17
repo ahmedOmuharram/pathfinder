@@ -49,9 +49,11 @@ async def frozen_step_id(
     if cached is not None:
         return cached
 
-    search_name, params, dataset_record_type = (
-        await build_enrichment_params_from_gene_ids(site_id, gene_ids)
-    )
+    (
+        search_name,
+        params,
+        dataset_record_type,
+    ) = await build_enrichment_params_from_gene_ids(site_id, gene_ids)
     api = get_strategy_api(site_id)
     created = await api.create_step(
         NewStepSpec(

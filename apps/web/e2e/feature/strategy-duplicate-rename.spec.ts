@@ -28,8 +28,6 @@ async function buildInterpro(
     goto: () => Promise<void>;
     newChat: (s: string) => Promise<void>;
     send: (s: string) => Promise<void>;
-    expectPlanningArtifact: () => Promise<void>;
-    approvePlan: () => Promise<void>;
     expectVerificationFeedback: () => Promise<void>;
     lastStrategyId: string | null;
   },
@@ -41,8 +39,6 @@ async function buildInterpro(
   await chatPage.send(
     "Build a strategy for P. falciparum 3D7 kinases using InterPro PF00069 and GO terms.",
   );
-  await chatPage.expectPlanningArtifact();
-  await chatPage.approvePlan();
   await chatPage.expectVerificationFeedback();
   const id = chatPage.lastStrategyId;
   expect(id).toBeTruthy();

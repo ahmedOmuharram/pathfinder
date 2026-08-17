@@ -1,10 +1,10 @@
 import type { UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
 
-import { findConsultRecap, findPendingConsult } from "./planCarouselData";
+import { findConsultRecap, findPendingConsult } from "./consultData";
 
-function assistant(parts: unknown[]): UIMessage {
-  return { id: "m1", role: "assistant", parts } as unknown as UIMessage;
+function assistant(parts: UIMessage["parts"]): UIMessage {
+  return { id: "m1", role: "assistant", parts };
 }
 
 describe("findPendingConsult", () => {
@@ -12,6 +12,7 @@ describe("findPendingConsult", () => {
     const message = assistant([
       {
         type: "tool-consult_user",
+        toolCallId: "call-1",
         state: "approval-requested",
         approval: { id: "appr-9" },
         input: {
@@ -45,6 +46,7 @@ describe("findConsultRecap", () => {
     const message = assistant([
       {
         type: "tool-consult_user",
+        toolCallId: "call-1",
         state: "output-available",
         input: {
           questions: [
@@ -70,6 +72,7 @@ describe("findConsultRecap", () => {
     const message = assistant([
       {
         type: "tool-consult_user",
+        toolCallId: "call-1",
         state: "approval-requested",
         approval: { id: "a" },
         input: { questions: [] },

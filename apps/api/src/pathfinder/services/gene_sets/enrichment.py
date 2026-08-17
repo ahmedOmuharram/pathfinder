@@ -13,7 +13,7 @@ from pathfinder.services.gene_sets.types import GeneSet
 
 logger = get_logger(__name__)
 
-_PVALUE_SIGNIFICANCE_THRESHOLD = 0.05
+_FDR_SIGNIFICANCE_THRESHOLD = 0.05
 
 
 async def run_enrichment_for_gene_set(
@@ -40,15 +40,9 @@ async def run_enrichment_for_gene_set(
 
     serialized = [r.model_dump(by_alias=True) for r in results]
     summary: JSONObject = {
-        "analysisTypesRun": [r.get("analysisType", "unknown") for r in serialized],
+        "analysisTypesRun": [r.analysis_type for r in results],
         "totalSignificantTerms": sum(
-            sum(
-                1
-                for t in r.get("terms", [])
-                if isinstance(t, dict)
-                and t.get("pValue", 1) < _PVALUE_SIGNIFICANCE_THRESHOLD
-            )
-            for r in serialized
+            1 for r in results for t in r.terms if t.fdr < _FDR_SIGNIFICANCE_THRESHOLD
         ),
     }
 

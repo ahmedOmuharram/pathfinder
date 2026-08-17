@@ -62,61 +62,11 @@ def system_message_chunk(
     }
 
 
-_ENVELOPE_CHUNK_TYPES = {
-    USER_MESSAGE_CHUNK_TYPE,
-    SYSTEM_MESSAGE_CHUNK_TYPE,
-    ASSISTANT_MESSAGE_CHUNK_TYPE,
-}
-
-
-def reduce_chunks_to_messages(
-    chunks: list[Chunk],
-    fallback_id_prefix: str = "msg",
-) -> list[dict[str, Any]]:
-    messages: list[dict[str, Any]] = []
-    pending: list[Chunk] = []
-    assistant_index = 0
-    for chunk in chunks:
-        if chunk.get("type") in _ENVELOPE_CHUNK_TYPES:
-            if pending:
-                messages.append(
-                    reduce_chunks(
-                        pending,
-                        f"{fallback_id_prefix}-{assistant_index}",
-                    )
-                )
-                assistant_index += 1
-                pending = []
-            raw = chunk.get("message")
-            if isinstance(raw, dict):
-                messages.append(raw)
-            continue
-        pending.append(chunk)
-        if chunk.get("type") == "done":
-            messages.append(
-                reduce_chunks(
-                    pending,
-                    f"{fallback_id_prefix}-{assistant_index}",
-                )
-            )
-            assistant_index += 1
-            pending = []
-    if pending:
-        messages.append(
-            reduce_chunks(
-                pending,
-                f"{fallback_id_prefix}-{assistant_index}",
-            )
-        )
-    return messages
-
-
 __all__ = [
     "ASSISTANT_MESSAGE_CHUNK_TYPE",
     "SYSTEM_MESSAGE_CHUNK_TYPE",
     "USER_MESSAGE_CHUNK_TYPE",
     "reduce_chunks",
-    "reduce_chunks_to_messages",
     "split_into_turns",
     "system_message_chunk",
     "user_message_chunk",

@@ -13,7 +13,6 @@ import {
 } from "@assistant-ui/react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
-import type { DataPartKind } from "@pathfinder/shared";
 import type { ToolUIPart } from "ai";
 import {
   AlertTriangle,
@@ -54,15 +53,13 @@ import { Button } from "@/components/ui/button";
 import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
-import { DataPartRenderer } from "./DataPartRenderer";
 import { ModelBadge } from "./ModelBadge";
 import { SupersededBadge } from "./SupersededBadge";
 import { ConsultCarousel } from "./parts/ConsultCarousel";
 import { StoppedNotice } from "./StoppedNotice";
-import { dataPartComponents } from "./contentComponents";
+import { dataPartRenderers } from "./dataPartRegistry";
+import { ToolApprovalControls } from "./parts/ToolApprovalControls";
 import { ToolThink } from "./parts/ToolThink";
-
-const DATA_PREFIX = "data-" as const;
 
 const markdownRemarkPlugins = [remarkGfm];
 
@@ -80,19 +77,20 @@ const ReasoningPart: ReasoningMessagePartComponent = ({ text, status }) => (
   </Reasoning>
 );
 
-function toolUIState(
+export function toolUIState(
   statusType: "running" | "complete" | "incomplete" | "requires-action",
   result: unknown,
 ): ToolUIPart["state"] {
   if (result !== undefined) return "output-available";
+  if (statusType === "requires-action") return "approval-requested";
   if (statusType === "running") return "input-available";
-  if (statusType === "requires-action") return "input-available";
   if (statusType === "incomplete") return "output-error";
   return "input-streaming";
 }
 
 const ToolCall: ToolCallMessagePartComponent<unknown, unknown> = ({
   toolName,
+  toolCallId,
   args,
   result,
   status,
@@ -109,6 +107,7 @@ const ToolCall: ToolCallMessagePartComponent<unknown, unknown> = ({
         type={`tool-${toolName}`}
         state={state}
       />
+      <ToolApprovalControls toolCallId={toolCallId} />
       <ToolContent>
         <ToolInput input={args as ToolUIPart["input"]} />
         <ToolOutput output={result} errorText={errorText} />
@@ -116,25 +115,6 @@ const ToolCall: ToolCallMessagePartComponent<unknown, unknown> = ({
     </Tool>
   );
 };
-
-const dataByName: Record<string, DataMessagePartComponent<unknown>> = {};
-for (const kind of Object.keys(dataPartComponents)) {
-  const kindTyped = kind as DataPartKind;
-  const shortName = kindTyped.startsWith(DATA_PREFIX)
-    ? kindTyped.slice(DATA_PREFIX.length)
-    : kindTyped;
-  dataByName[shortName] = (({ data }: { data: unknown }) => (
-    <DataPartRenderer kind={kindTyped} data={data} />
-  )) as DataMessagePartComponent<unknown>;
-}
-
-// Parts that carry data for something other than a renderer: the carousel's
-// answers travel back to the backend, and the strategy revision is read off the
-// parts array by SupersededBadge.
-const noRender = (() => null) as DataMessagePartComponent<unknown>;
-dataByName["plan-slot-answers"] = noRender;
-dataByName["decision-answers"] = noRender;
-dataByName["strategy-revision"] = noRender;
 
 const reportedUnknownDataKinds = new Set<string>();
 
@@ -154,10 +134,10 @@ const contentComponents = {
   Text,
   Reasoning: ReasoningPart,
   tools: {
-    by_name: { think: ToolThink, submit_plan_for_approval: () => null },
+    by_name: { think: ToolThink },
     Fallback: ToolCall,
   },
-  data: { by_name: dataByName, Fallback: UnknownDataPartError },
+  data: { by_name: dataPartRenderers, Fallback: UnknownDataPartError },
 } as const;
 
 const MESSAGE_FADE_IN = {

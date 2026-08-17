@@ -1,21 +1,38 @@
-"""Phyletic pattern code lookup and semantic ranking."""
+"""Phyletic code lookup, and the binding the two species lists derive."""
 
+from collections.abc import Mapping, Sequence
 from typing import cast
 
-from pydantic import JsonValue
+import numpy as np
+from pydantic import BaseModel, Field, JsonValue
 
-from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
+from pathfinder.domain.parameters.phyletic import (
+    NO_CONSTRAINT_PATTERN,
+    PhyleticBinding,
+    PhyleticTree,
+    PhyleticUnresolved,
+    derive_binding,
+)
+from pathfinder.domain.parameters.wdk_vocab import (
+    MAX_NEAREST_ENTRIES,
+    nearest_entries,
+)
 from pathfinder.domain.search import SearchContext
+from pathfinder.integrations.embeddings.semantic_index import get_embedding_model
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
+from pathfinder.integrations.veupathdb.phyletic_tree import phyletic_tree_of
+from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
-from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_discovery import fetch_search_details
+from pathfinder.services.catalog.param_formatting import (
+    PHYLETIC_LIST_PARAMS,
+    ParameterInfo,
+)
 from pathfinder.services.wdk.record_types import resolve_record_type
 
 logger = get_logger(__name__)
@@ -23,50 +40,95 @@ logger = get_logger(__name__)
 # The tree holds hundreds of entries, so the response returns only the best matches.
 _MAX_TREE_MATCHES = 20
 
+_PATTERN_PARAM = "profile_pattern"
 
-def _extract_phyletic_vocabs(
-    specs: dict[str, ParamSpecNormalized],
-) -> tuple[list[WDKVocabTerm], list[WDKVocabTerm]]:
-    """Returns the term map and indent map vocabularies from the param specs."""
-    term_map_vocab: list[WDKVocabTerm] = []
-    indent_map_vocab: list[WDKVocabTerm] = []
-    term_spec = specs.get("phyletic_term_map")
-    if term_spec and isinstance(term_spec.vocabulary, list):
-        term_map_vocab = term_spec.vocabulary
-    indent_spec = specs.get("phyletic_indent_map")
-    if indent_spec and isinstance(indent_spec.vocabulary, list):
-        indent_map_vocab = indent_spec.vocabulary
-    return term_map_vocab, indent_map_vocab
+PhyleticProposals = Mapping[str, str | list[str] | None]
+
+LOOKUP_HINT = (
+    "Put a code or its label in included_species (an ortholog must be present) "
+    "or in excluded_species (it must be absent). A code with leaf=false is a "
+    "clade and selects every species under it. profile_pattern is derived from "
+    "the two lists; never write it."
+)
 
 
-def _depth_of(entry: WDKVocabTerm) -> int:
-    """Returns the tree depth. The indent map carries the depth in the display field."""
-    return int(entry.display) if entry.display else 0
+class PhyleticUnresolvedProposal(BaseModel):
+    """Why a pair of species lists binds nothing, and the entries nearest to them."""
+
+    unresolved: PhyleticUnresolved
+    nearest: list[str] = Field(default_factory=list)
 
 
-def _build_group_codes(indent_map_vocab: list[WDKVocabTerm]) -> set[str]:
-    """Returns the codes of the non-leaf nodes in the indent map."""
-    group_codes: set[str] = set()
-    for i, entry in enumerate(indent_map_vocab):
-        depth = _depth_of(entry)
-        if i + 1 < len(indent_map_vocab) and _depth_of(indent_map_vocab[i + 1]) > depth:
-            group_codes.add(entry.term)
-    return group_codes
+class PhyleticNoSelection(BaseModel):
+    """Neither list selects a species, so the criterion constrains nothing.
+
+    The bare wildcard is a valid pattern and returns every gene of the chosen
+    organisms, which reads as a phyletic answer and is not one.
+    """
 
 
-def _match_phyletic_entries(
-    term_map_vocab: list[WDKVocabTerm],
-    group_codes: set[str],
-    query: str,
-) -> list[JSONObject]:
-    """Ranks the term map entries against a query by semantic similarity."""
-    all_entries: list[tuple[str, str, bool]] = []
-    for entry in term_map_vocab:
-        if entry.term == "ALL":
-            continue
-        is_leaf = entry.term not in group_codes
-        all_entries.append((entry.term, entry.display, is_leaf))
+PhyleticDerivation = PhyleticBinding | PhyleticUnresolvedProposal | PhyleticNoSelection
 
+
+def is_phyletic_sheet(infos: list[ParameterInfo]) -> bool:
+    """Whether this sheet belongs to a phyletic search.
+
+    The sheet drops the two structural maps, so the pattern and the two lists are
+    the names that identify the search here. What the call proposes is not part
+    of the signature: naming neither list is itself an empty selection.
+    """
+    names = {info.name for info in infos}
+    return {_PATTERN_PARAM, *PHYLETIC_LIST_PARAMS} <= names
+
+
+def _nearest_entries(tree: PhyleticTree, unknown: Sequence[str]) -> list[str]:
+    """The codes and labels closest to the terms that named nothing."""
+    options = tree.labels()
+    found: list[str] = []
+    for term in unknown:
+        for match in nearest_entries(options, term, MAX_NEAREST_ENTRIES):
+            if match not in found:
+                found.append(match)
+    return found[:MAX_NEAREST_ENTRIES]
+
+
+def derive_phyletic_overrides(
+    definition_params: list[WDKParameter], proposals: PhyleticProposals
+) -> PhyleticDerivation | None:
+    """The three parameter values a proposal of the two species lists states.
+
+    ``None`` means the derivation does not apply, because the search is not
+    phyletic. A list left null, and a list the call never names, both count as
+    the empty selection, and two empty selections state no criterion at all.
+    """
+    tree = phyletic_tree_of(definition_params)
+    if tree is None:
+        return None
+    if not PHYLETIC_LIST_PARAMS & proposals.keys():
+        return PhyleticNoSelection()
+    binding = derive_binding(
+        tree,
+        proposals.get("included_species") or "",
+        proposals.get("excluded_species") or "",
+    )
+    if isinstance(binding, PhyleticUnresolved):
+        return PhyleticUnresolvedProposal(
+            unresolved=binding,
+            nearest=_nearest_entries(
+                tree, [*binding.included_unknown, *binding.excluded_unknown]
+            ),
+        )
+    if binding.profile_pattern == NO_CONSTRAINT_PATTERN:
+        return PhyleticNoSelection()
+    return binding
+
+
+def _match_phyletic_entries(tree: PhyleticTree, query: str) -> list[JSONObject]:
+    """Ranks the clade tree nodes against a query by semantic similarity.
+
+    A node with children is a group, so it expands to its species.
+    """
+    all_entries = [(node.code, node.label, not node.children) for node in tree.nodes()]
     if not all_entries:
         return []
 
@@ -81,21 +143,19 @@ def _rank_by_semantic_similarity(
     query: str,
     candidates: list[tuple[str, str, bool]],
 ) -> list[tuple[str, str, bool]]:
-    """Ranks the candidates by cosine similarity to the query."""
+    """Ranks the candidates by cosine similarity to the query.
+
+    The embedding model loads its weights on first use, so an unreachable cache
+    leaves the candidates in tree order.
+    """
     try:
-        import numpy as np  # noqa: PLC0415
-
-        from pathfinder.integrations.embeddings.semantic_index import (  # noqa: PLC0415
-            get_embedding_model,
-        )
-
         model = get_embedding_model()
         query_emb = np.array(list(model.embed([query])))
         label_embs = np.array(list(model.embed([label for _, label, _ in candidates])))
         sims = (label_embs @ query_emb.T).flatten()
         ranked = sorted(zip(candidates, sims, strict=True), key=lambda x: -x[1])
         return [c for c, _ in ranked]
-    except (ImportError, OSError) as exc:
+    except OSError as exc:
         logger.warning(
             "Biencoder ranking unavailable, returning unranked results",
             error=str(exc),
@@ -110,8 +170,9 @@ async def lookup_phyletic_codes(
     record_type: str,
     query: str,
 ) -> JSONObject | ToolErrorPayload:
-    """Searches the phyletic species codes by name. The model uses the returned codes
-    to build a profile pattern."""
+    """Searches the phyletic species and clade codes by name. The model puts a
+    returned code in ``included_species`` or ``excluded_species``, and
+    ``profile_pattern`` is derived from those two lists."""
     try:
         discovery = get_discovery_service()
         record_types = await discovery.get_record_types(site_id)
@@ -121,23 +182,14 @@ async def lookup_phyletic_codes(
             SearchContext(site_id, resolved, "GenesByOrthologPattern"),
             record_types=record_types,
         )
-        spec_map = adapt_param_specs_from_search(response.search_data)
-        term_map_vocab, indent_map_vocab = _extract_phyletic_vocabs(spec_map)
-        group_codes = _build_group_codes(indent_map_vocab)
-        matches = _match_phyletic_entries(term_map_vocab, group_codes, query)
+        tree = phyletic_tree_of(response.search_data.parameters or [])
+        matches = _match_phyletic_entries(tree, query) if tree is not None else []
 
         return {
             "query": query,
             "matches": cast("JsonValue", matches),
             "total": len(matches),
-            "hint": (
-                "Use codes in profile_pattern: %CODE:Y% (include) or %CODE:N% (exclude). "
-                "Example: '%MAMM:N%pfal:Y%'. "
-                "Group codes (leaf=false) support optional quantifier: "
-                "MAMM:N:all (absent from all, default for :N), "
-                "APIC:Y:any (present in any, default for :Y). "
-                "Leaf codes need no quantifier."
-            ),
+            "hint": LOOKUP_HINT,
         }
     except AppError as exc:
         return tool_error(

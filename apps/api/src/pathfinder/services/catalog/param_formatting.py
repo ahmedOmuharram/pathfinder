@@ -5,6 +5,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, TypeAdapter, ValidationError, model_validator
 
+from pathfinder.domain.parameters.phyletic import PHYLETIC_MAP_PARAMS
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import ParamKind, ParamValue
 from pathfinder.domain.parameters.wdk_vocab import (
@@ -14,6 +15,7 @@ from pathfinder.domain.parameters.wdk_vocab import (
     dedupe_options,
     flatten_vocab,
 )
+from pathfinder.integrations.veupathdb.phyletic_tree import phyletic_tree_of
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.vocab_rendering import (
@@ -22,7 +24,14 @@ from pathfinder.services.catalog.vocab_rendering import (
     render_vocab_tree,
 )
 
-_PHYLETIC_STRUCTURAL_PARAMS = frozenset({"phyletic_indent_map", "phyletic_term_map"})
+PHYLETIC_LIST_PARAMS = frozenset({"included_species", "excluded_species"})
+"""The two visible parameters that state a phyletic criterion."""
+
+_PHYLETIC_LIST_HELP = (
+    "Species or clade codes from the phyletic tree, comma-separated or a list; "
+    "a clade selects all of its species; profile_pattern is derived from these "
+    "two lists."
+)
 
 
 _VALUE_FORMAT_TEMPLATES: dict[str, str] = {
@@ -58,22 +67,9 @@ def _to_param_kind(type_str: str) -> ParamKind:
 
 
 _PROFILE_PATTERN_HELP = (
-    "Phylogenetic profile pattern. Format: %CODE:STATE[:QUANTIFIER]% (percent-delimited).\n"
-    "  CODE  = species or group code from lookup_phyletic_codes()\n"
-    "  STATE = Y (present) or N (absent)\n"
-    "  QUANTIFIER = 'any' or 'all' (optional, only matters for group codes)\n"
-    "\n"
-    "For leaf species codes (e.g. pfal, hsap), quantifier is ignored:\n"
-    "  pfal:Y  → present in P. falciparum\n"
-    "  hsap:N  → absent from H. sapiens\n"
-    "\n"
-    "For group codes (e.g. MAMM, APIC), quantifier controls expansion:\n"
-    "  MAMM:N       → absent from ALL mammals (default for :N)\n"
-    "  MAMM:N:all   → same as above (explicit)\n"
-    "  APIC:Y:any   → present in ANY Apicomplexa (default for :Y, dropped from pattern)\n"
-    "  APIC:Y:all   → present in ALL Apicomplexa (expanded, usually 0 results)\n"
-    "\n"
-    "Example: '%MAMM:N%pfal:Y%' → P.falciparum present, all mammals absent\n"
+    "Phylogenetic profile pattern. It is DERIVED from included_species and "
+    "excluded_species; never write it. State the criterion by naming species or "
+    "clades in those two lists.\n"
     "\n"
     "CRITICAL: The 'organism' parameter controls which organisms' genes appear in "
     "results. Select every relevant organism by listing the leaf values from the "
@@ -199,6 +195,20 @@ class _VocabFields:
     allowed_values_note: str | None = None
 
 
+_VOCAB_TRUNCATION_NOTE = (
+    f"Showing first {_MAX_VOCAB_ENTRIES} of many values (list truncated). "
+    "Use the exact value/ID you need; it does not have to appear in this list."
+)
+
+
+def _capped_vocab_fields(options: list[VocabOption]) -> _VocabFields:
+    """The wire view of an option list, with a note when the cap hid entries."""
+    if not options:
+        return _VocabFields()
+    note = _VOCAB_TRUNCATION_NOTE if len(options) >= _MAX_VOCAB_ENTRIES else None
+    return _VocabFields(allowed_values=options, allowed_values_note=note)
+
+
 def _format_vocabulary(param: WDKParameter) -> _VocabFields:
     return _format_vocabulary_raw(
         param_name=param.name,
@@ -223,23 +233,13 @@ def _format_vocabulary_raw(
             suffix = "\n(Pass a parent node to auto-select all its children)"
             if truncated:
                 suffix += (
-                    f"\nNote: tree truncated — use get_parameter_options("
+                    f"\nNote: tree truncated; use get_parameter_options("
                     f"search_name='<search>', parameter_id='{param_name}', "
                     f"query='<keyword>') to see values for a specific category."
                 )
             return _VocabFields(allowed_values_tree=tree_text + suffix)
     elif vocabulary is not None:
-        allowed_entries = allowed_values(vocabulary)
-        if allowed_entries:
-            note: str | None = None
-            if len(allowed_entries) >= _MAX_VOCAB_ENTRIES:
-                note = (
-                    f"Showing first {_MAX_VOCAB_ENTRIES} of many values (list truncated). "
-                    "Use the exact value/ID you need; it does not have to appear in this list."
-                )
-            return _VocabFields(
-                allowed_values=allowed_entries, allowed_values_note=note
-            )
+        return _capped_vocab_fields(allowed_values(vocabulary))
 
     return _VocabFields()
 
@@ -250,17 +250,27 @@ def format_typed_param(
     controls: dict[str, list[str]],
     applied_context: dict[str, ParamValue] | None = None,
     parent_defaults: dict[str, str] | None = None,
+    phyletic_options: list[VocabOption] | None = None,
 ) -> ParameterInfo:
     """Format one typed WDK parameter for the model.
 
     The note names the parent values the vocabulary was fetched under.
+    ``phyletic_options`` is the clade tree a phyletic species list takes.
     """
     name = param.name
     help_text = param.help or ""
     if name == "profile_pattern":
         help_text = _PROFILE_PATTERN_HELP
+    if phyletic_options is not None:
+        help_text = "\n".join(filter(None, (help_text, _PHYLETIC_LIST_HELP)))
 
-    vocab = _format_vocabulary(param)
+    # The tree is the list's only vocabulary, so it must reach the wire through
+    # ``allowed_values``: ``vocab_leaves`` is excluded from serialization.
+    vocab = (
+        _capped_vocab_fields(dedupe_options(phyletic_options)[:_MAX_VOCAB_ENTRIES])
+        if phyletic_options is not None
+        else _format_vocabulary(param)
+    )
 
     note: str | None = None
     vocab_depends_on: list[str] | None = None
@@ -315,7 +325,11 @@ def format_typed_param(
         note=note,
         filter_fields=filter_fields_for(param),
         # Always flattened, because ``allowed_values`` is capped and can omit a value.
-        vocab_leaves=flatten_vocab(param.vocabulary),
+        vocab_leaves=(
+            phyletic_options
+            if phyletic_options is not None
+            else flatten_vocab(param.vocabulary)
+        ),
     )
 
 
@@ -356,7 +370,7 @@ def format_normalized_param_info(
     return [
         _format_normalized_one(spec, depends_on, controls)
         for name, spec in specs.items()
-        if name not in _PHYLETIC_STRUCTURAL_PARAMS
+        if name not in PHYLETIC_MAP_PARAMS
     ]
 
 
@@ -393,12 +407,47 @@ def _format_normalized_one(
     )
 
 
+def phyletic_options_for(
+    params: list[WDKParameter], parameter_id: str, query: str | None
+) -> list[VocabOption] | None:
+    """The clade tree one phyletic species list takes, narrowed by the query.
+
+    The two lists carry no WDK vocabulary of their own, so a read of either
+    shows the tree instead. ``None`` for any other parameter.
+    """
+    if parameter_id not in PHYLETIC_LIST_PARAMS:
+        return None
+    tree = phyletic_tree_of(params)
+    if tree is None:
+        return None
+    return filter_vocab_options(tree.labels(), query)
+
+
+def filter_vocab_options(
+    options: list[VocabOption], query: str | None
+) -> list[VocabOption]:
+    """Keep the options whose code or label contains the query, ignoring case."""
+    if not query:
+        return options
+    needle = query.lower()
+    return [
+        o for o in options if needle in o.value.lower() or needle in o.display.lower()
+    ]
+
+
 def format_param_info_typed(params: list[WDKParameter]) -> list[ParameterInfo]:
     """Format typed WDK parameters for the model. Phyletic structural params are dropped."""
     depends_on = _build_typed_dependency_map(params)
     controls = _build_typed_controls_map(params)
+    tree = phyletic_tree_of(params)
+    labels = tree.labels() if tree is not None else None
     return [
-        format_typed_param(p, depends_on, controls)
+        format_typed_param(
+            p,
+            depends_on,
+            controls,
+            phyletic_options=labels if p.name in PHYLETIC_LIST_PARAMS else None,
+        )
         for p in params
-        if p.name not in _PHYLETIC_STRUCTURAL_PARAMS
+        if p.name not in PHYLETIC_MAP_PARAMS
     ]

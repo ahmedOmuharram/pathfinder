@@ -29,6 +29,7 @@ from pathfinder.services.catalog.param_formatting import (
     ParameterInfo,
     format_param_info_typed,
 )
+from pathfinder.services.catalog.search_context import context_for_metadata_read
 from pathfinder.services.wdk.record_types import resolve_record_type
 
 from .searches import find_record_type_for_search
@@ -149,7 +150,7 @@ async def expand_search_details_with_params(
             fallback_response = await client.get_search_details_with_params(
                 resolved_record_type,
                 ctx.search_name,
-                encode_wdk_params(filtered_context),
+                _metadata_context(encode_wdk_params(filtered_context), response),
                 expand_params=True,
             )
             specs = adapt_param_specs_from_search(fallback_response.search_data)
@@ -160,7 +161,7 @@ async def expand_search_details_with_params(
     else:
         normalized_context = filtered_context
 
-    wire_context = encode_wdk_params(normalized_context)
+    wire_context = _metadata_context(encode_wdk_params(normalized_context), response)
     if specs:
         input_step_param = find_input_step_param(specs)
         if input_step_param:
@@ -173,6 +174,15 @@ async def expand_search_details_with_params(
         search_name=ctx.search_name,
         context_values=wire_context,
     )
+
+
+def _metadata_context(
+    wire_context: dict[str, str], published: WDKSearchResponse | None
+) -> dict[str, str]:
+    """Completes a context with the published shape, when the shape is known."""
+    if published is None:
+        return wire_context
+    return context_for_metadata_read(wire_context, published.search_data.parameters)
 
 
 def _filter_context_values(

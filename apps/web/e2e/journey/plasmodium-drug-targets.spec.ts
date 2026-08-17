@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures/test";
 
-test.describe("P. falciparum candidate drug-targets journey (7 turns)", () => {
+test.describe("P. falciparum candidate drug-targets journey (6 turns)", () => {
   test("vague prompt → 16-node verified strategy → UI op-change impact", async ({
     chatPage,
     graphPage,
@@ -21,29 +21,21 @@ test.describe("P. falciparum candidate drug-targets journey (7 turns)", () => {
     await chatPage.send(
       "Use P. falciparum 3D7. For 'expressed' use trophozoite-stage mass spec OR DeRisi microarray top 10%. For 'doesn't vary much' use dN/dS ≤ 1.3 on the Broad 3K SNP array. For 'no human equivalent' use the phylogenetic profile pattern %hsap:N%pfal:Y%.",
     );
-    await chatPage.expectPlanningArtifact();
+    await chatPage.expectIdle();
 
-    // ── Turn 3: deny with feedback to add InterPro + EC ─────────
-    await chatPage.denyPlan();
+    // ── Turn 3: broaden with InterPro + EC → execution → verification FAIL ──
     await chatPage.send(
       "Add InterPro PF00069 (Pkinase) and EC 2.7.-.- to broaden kinase identification.",
     );
-    await chatPage.expectPlanningArtifact();
-    await expect(chatPage.lastPlanArtifact).toContainText(/InterPro|PF00069|EC/i, {
-      timeout: 120_000,
-    });
-
-    // ── Turn 4: approve refined plan → execution → verification FAIL ──
-    await chatPage.approvePlan();
     await chatPage.expectVerificationFeedback();
 
-    // ── Turn 5: fix the phylogenetic pattern → verification SUCCESS ──
+    // ── Turn 4: fix the phylogenetic pattern → verification SUCCESS ──
     await chatPage.send(
       "Fix the phylogenetic pattern by loosening to %MAMM:N%pfal:Y%.",
     );
     await chatPage.expectVerificationSuccess();
 
-    // ── Turn 6: UI mutation — flip interpro_or_go operator ──────
+    // ── Turn 5: UI mutation — flip interpro_or_go operator ──────
     const conversationId = chatPage.lastStrategyId;
     expect(conversationId).toBeTruthy();
     await graphPage.goToStrategy("plasmodb", conversationId as string);
@@ -58,7 +50,7 @@ test.describe("P. falciparum candidate drug-targets journey (7 turns)", () => {
     await graphPage.strategyPageBackButton.click();
     await graphPage.expectOnChatRoute(conversationId as string);
 
-    // ── Turn 7: ask for impact analysis ─────────────────────────
+    // ── Turn 6: ask for impact analysis ─────────────────────────
     await chatPage.send(
       "What's the impact of switching the InterPro/GO combine to INTERSECT?",
     );

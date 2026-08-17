@@ -14,6 +14,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pathfinder.platform.errors import NotFoundError
 from pathfinder.services.eval import get_strategy_gene_ids
 from pathfinder.services.gene_lookup.wdk import resolve_gene_ids
 from pathfinder.services.gene_sets.operations import GeneSetService
@@ -94,15 +95,13 @@ async def control_ids_from_strategy(
     session: AsyncSession,
     strategy_id: UUID,
     site_id: str,
+    user_id: UUID,
 ) -> StrategyControls:
     """Import a strategy's result gene IDs (to use as positive or negative
     controls). Returns an error message rather than raising when the strategy
-    has no linked WDK results."""
-    result = await get_strategy_gene_ids(session, strategy_id, site_id)
-    error = result.get("error")
-    gene_ids = result.get("geneIds", [])
-    ids = [str(g) for g in gene_ids] if isinstance(gene_ids, list) else []
-    return StrategyControls(
-        gene_ids=ids,
-        error=str(error) if error else None,
-    )
+    is not the caller's or has no linked WDK results."""
+    try:
+        result = await get_strategy_gene_ids(session, strategy_id, site_id, user_id)
+    except NotFoundError:
+        return StrategyControls(error="Strategy not found")
+    return StrategyControls(gene_ids=list(result.gene_ids), error=result.error)

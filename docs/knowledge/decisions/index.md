@@ -22,6 +22,7 @@ Choices with a real alternative, where the reasoning is not recoverable from the
 - [A contextualized param view is an enrichment, and it has one owner](contextualizing-params-is-an-enrichment.md) - six implementations, four exception types, two with no policy at all
 - [One proposer, one validator](one-proposer-one-validator.md) - the model reads the whole parameter sheet and answers every parameter once; the rules that read English and the per-parameter resolvers are deleted
 - [A small model reads the request; embeddings only shortlist](the-model-reads-the-request-not-a-cosine-score.md) - the 0.45 threshold decided 108 of 237 uncovered params, and picked a phosphofructokinase domain; amended, since the resolver it introduced never bound
+- [The two species lists are the proposal; the profile pattern is derived](phyletic-lists-are-the-proposal.md) - the hidden LIKE pattern is computed from what the model proposes, because that grammar answers a wrong value with a count
 - [A value the request already states is not a question](a-value-in-the-request-is-not-a-question.md) - polarity, vocabulary-less identifiers, and an EC wildcard the regex could not match
 - [An unmatched accession stops the chain](unmatched-accession-stops-the-chain.md) - PF00069 became phosphofructokinase because a miss fell through to similarity
 - [A number's initial value is a default, not an example](numeric-default-is-not-an-example.md) - the free-text guard swallowed five WDK-declared defaults

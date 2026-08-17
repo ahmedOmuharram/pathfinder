@@ -57,11 +57,8 @@ test.describe("Leishmania Virulence Journey", () => {
 
     // ── Phase 2: Strategy Creation ───────────────────────────────
 
-    // Planning artifact with GenesByTaxon for L. major Friedlin
+    // GenesByTaxon build for L. major Friedlin
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 

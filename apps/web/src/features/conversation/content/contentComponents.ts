@@ -12,8 +12,6 @@ import { DataStrategyMeta } from "./parts/DataStrategyMeta";
 import { DataEnrichmentResults } from "./parts/DataEnrichmentResults";
 import { DataTaskCompleted } from "./parts/DataTaskCompleted";
 import { DataTaskProgress } from "./parts/DataTaskProgress";
-import { DataToolApprovalRequest } from "./parts/DataToolApprovalRequest";
-import { DataToolApprovalResult } from "./parts/DataToolApprovalResult";
 import { DataTurnStopped } from "./parts/DataTurnStopped";
 import { DataScoredComparison } from "./parts/DataScoredComparison";
 import { DataVariantComparison } from "./parts/DataVariantComparison";
@@ -39,8 +37,6 @@ export const dataPartComponents: {
   "data-graph-cleared": DataGraphCleared,
   "data-variant-comparison": DataVariantComparison,
   "data-scored-comparison": DataScoredComparison,
-  "data-tool-approval-request": DataToolApprovalRequest,
-  "data-tool-approval-result": DataToolApprovalResult,
   "data-memory-retrieved": DataMemoryRetrieved,
   "data-gene-set": DataGeneSet,
   "data-verification-summary": DataVerificationSummary,

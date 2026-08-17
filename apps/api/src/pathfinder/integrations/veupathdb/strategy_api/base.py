@@ -1,15 +1,18 @@
 import json
+from dataclasses import dataclass
+from typing import NoReturn
 
+from pathfinder.domain.parameters.phyletic import TriState, encode_profile_pattern
 from pathfinder.domain.parameters.value_utils import decode_values
 from pathfinder.domain.parameters.wdk_vocab import (
     FAKE_ALL_SENTINEL,
     WDKTreeBoxVocabNode,
-    WDKVocabTerm,
     collect_leaf_terms,
     find_vocab_node,
 )
 from pathfinder.integrations.veupathdb.client import VEuPathDBClient
 from pathfinder.integrations.veupathdb.param_utils import normalize_param_value
+from pathfinder.integrations.veupathdb.phyletic_tree import phyletic_tree_of
 from pathfinder.integrations.veupathdb.strategy_api.helpers import (
     CURRENT_USER,
     resolve_wdk_user_id,
@@ -22,67 +25,82 @@ from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
-_MIN_ENTRY_PARTS_FOR_CODE_STATE = 2
-_MIN_ENTRY_PARTS_FOR_QUANTIFIER = 3
-_PHYLETIC_STATES = frozenset({"Y", "N"})
+_CENSUS_STATES: dict[str, TriState] = {"Y": "include", "N": "exclude"}
 
 
-def _sort_profile_pattern(pattern: str) -> str:
-    """Sort ``%code:Y%code:N%`` entries into ascending code order.
+@dataclass(frozen=True)
+class _CensusRead:
+    """The states a profile_pattern holds, or why it holds none.
 
-    The pattern is matched against a census that lists codes ascending, and
-    ``%A%B%`` means "A, then later B", so entries out of that order describe a
-    census that cannot exist. Whitespace between entries is dropped.
+    ``states`` is ``None`` when the value is not built from census tokens.
+    ``repeated_code`` names the code that appears twice, which is a different
+    fault and gets a different message.
     """
-    if not pattern.startswith("%") or not pattern.endswith("%"):
-        return pattern
-    parts = [p.strip() for p in pattern.strip("%").split("%") if p.strip()]
-    return f"%{'%'.join(sorted(parts))}%" if parts else pattern
+
+    states: dict[str, TriState] | None
+    repeated_code: str | None = None
 
 
-def is_census_pattern(pattern: str) -> bool:
-    """Whether a profile pattern is built from census tokens.
+def _read_census(pattern: str) -> _CensusRead:
+    """Read the species state each census token states.
 
     The value is a LIKE pattern over ``code:Y``/``code:N`` entries separated by
-    the wildcard. Anything else matches nothing, and WDK reports that as a
-    count rather than as an error.
+    the wildcard. Anything else matches nothing, and WDK reports that as a count
+    rather than as an error. One code states one state, so a code that appears
+    twice describes a census that cannot exist.
     """
     if not pattern.startswith("%") or not pattern.endswith("%"):
-        return False
-    entries = [p for p in pattern.strip("%").split("%") if p]
-    return all(
-        len(parts) >= _MIN_ENTRY_PARTS_FOR_CODE_STATE
-        and parts[1] in _PHYLETIC_STATES
-        for parts in (entry.split(":") for entry in entries)
+        return _CensusRead(states=None)
+    states: dict[str, TriState] = {}
+    for entry in pattern.strip("%").split("%"):
+        token = entry.strip()
+        if not token:
+            continue
+        code, _, raw_state = token.partition(":")
+        state = _CENSUS_STATES.get(raw_state)
+        if not code or state is None:
+            return _CensusRead(states=None)
+        if code in states:
+            return _CensusRead(states=None, repeated_code=code)
+        states[code] = state
+    return _CensusRead(states=states)
+
+
+def _refuse_repeated_code(code: str, pattern: str) -> NoReturn:
+    """Both paths to the wire refuse a repeated code with the same message."""
+    raise AppError(
+        code=ErrorCode.VALIDATION_ERROR,
+        title="profile_pattern states one code twice",
+        status=422,
+        detail=(
+            f"{code!r} appears twice in {pattern!r}. A species is either "
+            f"present or absent, so state it once: '%{code}:Y%' for present "
+            f"or '%{code}:N%' for absent."
+        ),
     )
 
 
-def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> None:
-    invalid_codes: list[str] = []
-    invalid_states: list[str] = []
-    for entry in entries:
-        parts = entry.split(":")
-        if len(parts) >= _MIN_ENTRY_PARTS_FOR_CODE_STATE:
-            code = parts[0]
-            if code not in all_known_codes:
-                invalid_codes.append(code)
-            if parts[1] not in _PHYLETIC_STATES:
-                invalid_states.append(entry)
+def _sort_profile_pattern(pattern: str) -> str:
+    """Rewrite a census pattern with its codes in ascending order.
 
-    # WDK matches the pattern with LIKE, so any other token returns a count
-    # instead of an error.
-    if invalid_states:
-        raise AppError(
-            code=ErrorCode.VALIDATION_ERROR,
-            title="Invalid state in profile_pattern",
-            status=422,
-            detail=(
-                f"Entries {', '.join(invalid_states[:5])} do not state presence "
-                f"or absence. Each entry is 'code:Y' for present or 'code:N' "
-                f"for absent; no other value matches anything."
-            ),
-        )
+    The pattern is matched against a census that lists codes ascending, and
+    ``%A%B%`` means "A, then later B", so entries out of that order describe a
+    census that cannot exist. A repeated code is refused here as well as on the
+    expansion path, because both of them reach the wire.
+    """
+    read = _read_census(pattern)
+    if read.repeated_code is not None:
+        _refuse_repeated_code(read.repeated_code, pattern)
+    return pattern if read.states is None else encode_profile_pattern(read.states)
 
+
+def _validate_phyletic_codes(codes: list[str], all_known_codes: set[str]) -> None:
+    """Refuse a code the phyletic tree does not carry.
+
+    WDK matches the pattern with LIKE, so an unknown code returns a count
+    instead of an error.
+    """
+    invalid_codes = [code for code in codes if code not in all_known_codes]
     if invalid_codes:
         raise AppError(
             code=ErrorCode.VALIDATION_ERROR,
@@ -110,7 +128,7 @@ class StrategyAPIBase:
 
         ``None`` values are dropped (caller never set them). Every other
         value is coerced via :func:`normalize_param_value`. Empty strings
-        are preserved — callers pass them explicitly (e.g. AnswerParams
+        are preserved: callers pass them explicitly (e.g. AnswerParams
         that WDK requires as ``""``) and WDK accepts them via
         ``allowEmptyValue``.
         """
@@ -242,22 +260,22 @@ class StrategyAPIBase:
         record_type: str,
         pattern: str,
     ) -> str:
-        """Expand group codes in a profile_pattern to leaf species codes.
+        """Expand clade codes in a profile_pattern to their leaf species codes.
 
-        The WDK ``profile_pattern`` is matched via SQL LIKE against a stored
-        profile string that only contains **leaf** species codes.  Group codes
-        (e.g. ``MAMM``) never appear in the DB string and silently return 0.
+        The pattern is matched via SQL LIKE against a census that holds only
+        leaf species codes, so a clade code never matches and the search
+        silently returns 0. An explicit species overrides the clade above it.
 
-        The WDK frontend expands group -> leaves automatically via the
-        ``phyletic_indent_map`` tree.  We replicate that logic here so the
-        LLM can use intuitive group codes like ``MAMM:N``.
-
-        Raises ``AppError`` if the pattern contains codes that are not
-        recognized as valid species or group codes.
+        Raises ``AppError`` when the value is not a census pattern, states one
+        code twice, or names a code the phyletic tree does not carry.
         """
         # A non-census string reaches LIKE and matches nothing, which WDK
         # answers with a count. The published default is one of these.
-        if not is_census_pattern(pattern):
+        read = _read_census(pattern)
+        if read.repeated_code is not None:
+            _refuse_repeated_code(read.repeated_code, pattern)
+        states = read.states
+        if states is None:
             raise AppError(
                 code=ErrorCode.VALIDATION_ERROR,
                 title="profile_pattern is not a census pattern",
@@ -269,39 +287,23 @@ class StrategyAPIBase:
                     f"lookup_phyletic_codes() for the codes."
                 ),
             )
-
-        entries = [p for p in pattern.strip("%").split("%") if p]
-        if not entries:
+        if not states:
             return pattern
 
-        try:
-            indent_vocab = await self._fetch_indent_vocab(record_type)
-            if not indent_vocab:
-                return pattern
-
-            children_of, leaf_codes = _build_phyletic_tree(indent_vocab)
-            all_known_codes = leaf_codes | set(children_of.keys())
-
-            _validate_phyletic_codes(entries, all_known_codes)
-
-            expanded = _expand_entries(entries, children_of, leaf_codes)
-            return _sort_profile_pattern(f"%{'%'.join(expanded)}%")
-        except AppError:
-            raise
-        except KeyError, IndexError, ValueError, TypeError:
-            logger.debug("Failed to expand profile_pattern groups (non-fatal)")
-            return pattern
-
-    async def _fetch_indent_vocab(self, record_type: str) -> list[WDKVocabTerm]:
         response = await self.client.get_search_details(
             record_type, "GenesByOrthologPattern", expand_params=True
         )
-        for param in response.search_data.parameters or []:
-            if param.name == "phyletic_indent_map":
-                vocab = param.vocabulary
-                if isinstance(vocab, list):
-                    return vocab
-        return []
+        tree = phyletic_tree_of(response.search_data.parameters or [])
+        if tree is None:
+            logger.debug("The phyletic tree is unreadable; the pattern stands")
+            return encode_profile_pattern(states)
+        _validate_phyletic_codes(list(states), {node.code for node in tree.nodes()})
+        return encode_profile_pattern(
+            tree.leaf_states(
+                [code for code, s in states.items() if s == "include"],
+                [code for code, s in states.items() if s == "exclude"],
+            )
+        )
 
     async def _standard_report(
         self,
@@ -317,66 +319,3 @@ class StrategyAPIBase:
         return validate_response(
             WDKAnswer, result, f"WDK answer response for step {step_id}"
         )
-
-
-def _build_phyletic_tree(
-    indent_vocab: list[WDKVocabTerm],
-) -> tuple[dict[str, list[str]], set[str]]:
-    codes_at_depth = [
-        (item.term, int(item.display) if item.display else 0) for item in indent_vocab
-    ]
-
-    children_of: dict[str, list[str]] = {}
-    leaf_codes: set[str] = set()
-    for i, (code, depth) in enumerate(codes_at_depth):
-        descendants: list[str] = []
-        for j in range(i + 1, len(codes_at_depth)):
-            d_code, d_depth = codes_at_depth[j]
-            if d_depth <= depth:
-                break
-            descendants.append(d_code)
-        if descendants:
-            children_of[code] = descendants
-        else:
-            leaf_codes.add(code)
-    return children_of, leaf_codes
-
-
-def _expand_entries(
-    entries: list[str],
-    children_of: dict[str, list[str]],
-    leaf_codes: set[str],
-) -> list[str]:
-    expanded: list[str] = []
-    for entry in entries:
-        parts = entry.split(":")
-        if len(parts) < _MIN_ENTRY_PARTS_FOR_CODE_STATE:
-            expanded.append(entry)
-            continue
-
-        code = parts[0]
-        state = parts[1]  # Y or N
-        quantifier = parts[2] if len(parts) >= _MIN_ENTRY_PARTS_FOR_QUANTIFIER else None
-
-        if code not in children_of:
-            # Leaf code — pass through (strip quantifier).
-            expanded.append(f"{code}:{state}")
-            continue
-
-        # Group code — apply quantifier defaults.
-        if quantifier is None:
-            quantifier = "all" if state == "N" else "any"
-
-        if quantifier == "all":
-            expanded.extend(
-                f"{desc}:{state}" for desc in children_of[code] if desc in leaf_codes
-            )
-        else:
-            # "any" — cannot express in WDK profile_pattern (OR logic).
-            logger.info(
-                "Dropping group:%s:%s:any from profile_pattern "
-                "(cannot express 'any' in WDK)",
-                code,
-                state,
-            )
-    return expanded

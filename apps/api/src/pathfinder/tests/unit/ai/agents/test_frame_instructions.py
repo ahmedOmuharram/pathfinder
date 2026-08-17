@@ -60,15 +60,28 @@ def test_frame_instructions_keep_the_structure_rules() -> None:
 
 
 def test_frame_instructions_fill_the_vocabulary_half_of_a_radio_pair() -> None:
-    # The two halves are ORed, so a null free-text half is an open slot the
-    # user is asked about and a filled one widens the search. `N/A` is the
-    # value all three searches accept as unused; an empty string is refused.
+    # The two halves are ORed, so a filled free-text half widens the search.
+    # `N/A` is the value those searches accept as unused; an empty string is
+    # refused. A wildcard is a vocabulary read, not a value to type.
     assert (
-        "when the search offers both a vocabulary (typeahead) parameter and a "
-        "free-text alternative for the same concept (GO term, InterPro domain, "
-        "EC number), fill the vocabulary parameter and pass the literal `N/A` for "
-        "the free-text parameter; the halves are ORed, so filling both widens the "
-        "search, and leaving the free-text half null makes it a needless question"
+        "the vocabulary half carries the criterion; pass `N/A` for the free-text "
+        "half; a wildcard you would have typed is a "
+        "`get_parameter_options(query=...)` over the vocabulary, then every entry "
+        "it covers. The halves are ORed, so a value in both widens the search, and "
+        "the vocabulary half cannot be switched off"
+    ) in _normalized(_FRAME_INSTRUCTIONS)
+
+
+def test_frame_instructions_state_the_two_species_lists() -> None:
+    # The pattern is hidden and required, so a criterion stated anywhere else
+    # binds the published default and the search returns no genes.
+    assert (
+        "for a phylogenetic-profile search, name the species or clades that must "
+        "have an ortholog in `included_species` and those that must not in "
+        "`excluded_species` (codes or labels from the sheet; a clade selects all "
+        "its species; `lookup_phyletic_codes(query)` finds a code from a common "
+        "name); the hidden `profile_pattern` is derived from those two lists, "
+        "never write it"
     ) in _normalized(_FRAME_INSTRUCTIONS)
 
 
@@ -84,9 +97,10 @@ def test_frame_instructions_get_the_sheet_from_set_criterion() -> None:
 
 
 def test_get_parameter_options_is_only_the_shortlist_escape_hatch() -> None:
-    # Parameter names come from the sheet alone; this tool answers only "the
-    # entry I need is not shown".
-    assert _FRAME_INSTRUCTIONS.count("get_parameter_options") == 1
+    # Parameter names come from the sheet alone; both mentions answer "the
+    # entries I need are not shown", once for a shortlist and once for the
+    # entries a wildcard would have covered.
+    assert _FRAME_INSTRUCTIONS.count("get_parameter_options") == 2
     assert "never to discover parameter names" in _FRAME_INSTRUCTIONS
 
 

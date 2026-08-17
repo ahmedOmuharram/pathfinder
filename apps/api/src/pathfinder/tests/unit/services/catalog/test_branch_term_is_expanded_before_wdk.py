@@ -47,7 +47,7 @@ def _tree() -> JSONObject:
     )
 
 
-def _samples() -> WDKParameter:
+def _samples(echoed: str) -> WDKParameter:
     raw: JSONObject = {
         "type": "multi-pick-vocabulary",
         "name": "samples",
@@ -56,11 +56,12 @@ def _samples() -> WDKParameter:
         "count_only_leaves": True,
         "vocabulary": cast("JsonValue", _tree()),
         "allow_empty_value": False,
+        "initial_display_value": echoed,
     }
     return cast("WDKParameter", WDKEnumParam.model_validate(raw))
 
 
-def _response(*, rejects_samples: bool) -> WDKSearchResponse:
+def _response(*, rejects_samples: bool, echoed: str) -> WDKSearchResponse:
     errors = (
         {
             "general": [],
@@ -80,7 +81,7 @@ def _response(*, rejects_samples: bool) -> WDKSearchResponse:
             full_name="GenesByProfile",
             display_name="Genes by profile",
             param_names=["samples"],
-            parameters=[_samples()],
+            parameters=[_samples(echoed)],
         ),
         validation=StepValidation.model_validate(
             {"level": "SEMANTIC", "isValid": not rejects_samples, "errors": errors}
@@ -100,13 +101,18 @@ class _WDK:
         *,
         resolved_record_type: str,
         parameters: dict[str, ParamValue],
-    ) -> WDKSearchResponse:
+    ) -> pv.ResolvedSearch:
         del ctx, resolved_record_type
         sent = pv.encode_wdk_params(parameters)
         self.asked.append(sent)
         picked = json.loads(sent.get("samples", "[]"))
         leaf_count = len([v for v in picked if v in _LEAVES])
-        return _response(rejects_samples=leaf_count == 0)
+        # WDK echoes the leaves it read, in its own order.
+        echoed = json.dumps(sorted(picked, reverse=True))
+        return pv.ResolvedSearch(
+            response=_response(rejects_samples=leaf_count == 0, echoed=echoed),
+            values_were_read=True,
+        )
 
 
 def _callbacks() -> pv.ValidationCallbacks:
@@ -170,6 +176,13 @@ class TestABranchTermIsAccepted:
         await _validate(["Trophozoite"])
 
         assert json.loads(wdk.asked[-1]["samples"]) == _LEAVES
+
+    @pytest.mark.asyncio
+    async def test_the_leaves_are_not_reported_as_substituted(self, wdk: _WDK) -> None:
+        # The echo is the same selection in another order, not WDK's own value.
+        result = await _validate(["Trophozoite"])
+
+        assert result.substituted == []
 
 
 class TestALeafSelectionIsUnchanged:

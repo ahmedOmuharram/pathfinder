@@ -129,7 +129,12 @@ async def import_control_ids_from_strategy(
         strategy_id, argument="strategy_id", names="conversation"
     )
     async with runtime.db_session_factory() as session:
-        result = await control_ids_from_strategy(session, parsed, runtime.site_id)
+        result = await control_ids_from_strategy(
+            session,
+            parsed,
+            runtime.site_id,
+            runtime.user_id,
+        )
     if result.error:
         msg = f"Could not import from strategy {strategy_id}: {result.error}"
         raise ModelRetry(msg)

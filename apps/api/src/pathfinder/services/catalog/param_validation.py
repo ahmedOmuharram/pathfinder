@@ -38,6 +38,7 @@ from pathfinder.services.catalog.param_adapters import (
     adapt_param_from_wdk,
     adapt_param_specs_from_search,
 )
+from pathfinder.services.catalog.search_context import context_for_metadata_read
 from pathfinder.services.catalog.wdk_substitution import substituted_params
 
 from .param_formatting import format_normalized_param_info
@@ -190,12 +191,20 @@ async def validate_search_params(
     )
 
 
+@dataclass(frozen=True)
+class ResolvedSearch:
+    """A search definition, and whether WDK built it from the caller's values."""
+
+    response: WDKSearchResponse
+    values_were_read: bool
+
+
 async def _resolve_search_details(
     ctx: SearchContext,
     *,
     resolved_record_type: str,
     parameters: dict[str, ParamValue],
-) -> WDKSearchResponse:
+) -> ResolvedSearch:
     """Fetch search details with contextual params, or fall back to static specs.
 
     The context keeps the original identifiers for error hints. Raises a
@@ -204,13 +213,20 @@ async def _resolve_search_details(
     discovery = get_discovery_service()
     try:
         wdk_client = get_wdk_client(ctx.site_id)
-        context = encode_wdk_params(parameters)
+        resolved_ctx = SearchContext(ctx.site_id, resolved_record_type, ctx.search_name)
+        published = await discovery.get_search_details(resolved_ctx, expand_params=True)
+        context = context_for_metadata_read(
+            encode_wdk_params(parameters), published.search_data.parameters
+        )
         try:
-            return await wdk_client.get_search_details_with_params(
-                resolved_record_type,
-                ctx.search_name,
-                context=context,
-                expand_params=True,
+            return ResolvedSearch(
+                response=await wdk_client.get_search_details_with_params(
+                    resolved_record_type,
+                    ctx.search_name,
+                    context=context,
+                    expand_params=True,
+                ),
+                values_were_read=True,
             )
         except AppError as exc:
             logger.warning(
@@ -219,10 +235,7 @@ async def _resolve_search_details(
                 search_name=ctx.search_name,
                 error=str(exc),
             )
-            resolved_ctx = SearchContext(
-                ctx.site_id, resolved_record_type, ctx.search_name
-            )
-            return await discovery.get_search_details(resolved_ctx, expand_params=True)
+            return ResolvedSearch(response=published, values_were_read=False)
     except AppError as exc:
         hint_record_type = await _find_search_record_type_hint(discovery, ctx)
         available = await _collect_available_search_names(
@@ -307,11 +320,12 @@ async def validate_parameters(
             ],
         )
 
-    response = await _resolve_search_details(
+    resolved = await _resolve_search_details(
         ctx,
         resolved_record_type=resolved_record_type,
         parameters=parameters,
     )
+    response = resolved.response
 
     param_spec_map = adapt_param_specs_from_search(response.search_data)
     canonicalizer = ParameterCanonicalizer(param_spec_map)
@@ -320,16 +334,18 @@ async def validate_parameters(
     # A tree param counts only its leaves, so a branch selection scores zero
     # until it is expanded. WDK must judge what will be sent, not what arrived.
     if encode_wdk_params(canonical) != encode_wdk_params(parameters):
-        response = await _resolve_search_details(
+        resolved = await _resolve_search_details(
             ctx,
             resolved_record_type=resolved_record_type,
             parameters=canonical,
         )
+        response = resolved.response
         param_spec_map = adapt_param_specs_from_search(response.search_data)
 
     # WDK validated these values while answering. Its verdict is authoritative,
     # so it is read before the local checks rather than recomputed after them.
-    if response.validation.rejects():
+    # A definition built without the caller's values judged a different shape.
+    if resolved.values_were_read and response.validation.rejects():
         raise ValidationError(
             title="Invalid parameter value",
             detail="; ".join(response.validation.messages())
@@ -358,8 +374,8 @@ async def validate_parameters(
         canonical_values=canonical,
     )
     canonicalizer = ParameterCanonicalizer(param_spec_map)
-    canonical = canonicalizer.canonicalize(parameters)
-    canonical = fill_hidden_required_defaults(param_spec_map, canonical)
+    caller_canonical = canonicalizer.canonicalize(parameters)
+    canonical = fill_hidden_required_defaults(param_spec_map, caller_canonical)
     param_names = _extract_param_names_from_response(response)
     extra_params = [key for key in canonical if key not in param_names]
     if extra_params:
@@ -411,7 +427,7 @@ async def validate_parameters(
             title=(
                 f"Invalid dependent-parameter values: {details}. "
                 "Use the values from the validOptions list for each invalid "
-                "dependent parameter — these are the post-refresh vocabulary "
+                "dependent parameter: these are the post-refresh vocabulary "
                 "for the parent's current value."
             ),
             errors=[
@@ -456,10 +472,18 @@ async def validate_parameters(
         if spec.initial_display_value is not None
     }
     # A hidden parameter PathFinder filled is a value nobody chose, so it is
-    # reported alongside the ones WDK substituted.
+    # reported alongside the ones WDK substituted. Both are read against the
+    # caller's own canonical values, which is what WDK was asked to judge.
     substituted = sorted(
-        set(substituted_params(sent=parameters, echoed=echoed))
-        | set(filled_hidden_defaults(param_spec_map, parameters))
+        set(
+            substituted_params(
+                sent=caller_canonical,
+                echoed=echoed,
+                specs=param_spec_map,
+                values_were_read=resolved.values_were_read,
+            )
+        )
+        | set(filled_hidden_defaults(param_spec_map, caller_canonical))
     )
     return ValidatedParams(params=canonical, substituted=substituted)
 

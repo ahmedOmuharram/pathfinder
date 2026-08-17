@@ -53,10 +53,10 @@ class _FakeTask:
 
 class _FakeApp:
     def __init__(self) -> None:
-        self._configured: list[tuple[str, str]] = []
+        self.configured: list[dict[str, str]] = []
 
-    def configure_task(self, *, name: str, queue: str) -> _FakeTask:
-        self._configured.append((name, queue))
+    def configure_task(self, *, name: str, queue: str, lock: str) -> _FakeTask:
+        self.configured.append({"name": name, "queue": queue, "lock": lock})
         return _FakeTask()
 
     def open_async(self) -> _FakeAppCtx:
@@ -99,7 +99,8 @@ async def test_durable_tool_submits_job_and_interrupts(
     monkeypatch.setattr(
         durable_mod, "create_background_task", _fake_create_background_task
     )
-    monkeypatch.setattr(durable_mod, "procrastinate_app", _FakeApp())
+    app = _FakeApp()
+    monkeypatch.setattr(durable_mod, "procrastinate_app", app)
 
     @durable_tool(tool_name="stub_tool", estimated_duration_seconds=60)
     async def stub_tool(ctx: _RunCtx, x: int) -> dict[str, Any]:
@@ -133,6 +134,14 @@ async def test_durable_tool_submits_job_and_interrupts(
     assert deferred["task_id"] == "00000000-0000-0000-0000-000000000001"
     assert deferred["thread_id"] == str(conversation_id)
     assert deferred["args"] == {"args": [], "kwargs": {"x": 5}}
+
+    assert app.configured == [
+        {
+            "name": "durable:stub_tool",
+            "queue": "verification",
+            "lock": str(conversation_id),
+        },
+    ]
 
 
 class _SampleTarget(BaseModel):

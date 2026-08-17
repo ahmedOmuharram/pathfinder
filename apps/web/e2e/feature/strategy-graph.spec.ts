@@ -15,9 +15,6 @@ test.describe("Strategy Graph", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
@@ -44,8 +41,6 @@ test.describe("Strategy Graph", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
@@ -67,9 +62,6 @@ test.describe("Strategy Graph", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
 
     // Use the strategy ID captured during newChat()
@@ -98,8 +90,6 @@ test.describe("Strategy Graph", () => {
     graphPage,
   }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     // Graph must appear during execution streaming, before message_end.
     await graphPage.expectRailPanel();
     // Step rows must be visible
@@ -114,8 +104,6 @@ test.describe("Strategy Graph", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 

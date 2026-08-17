@@ -3,27 +3,31 @@
 import math
 
 
+def _log_binomial(a: int, b: int) -> float:
+    """Log of the binomial coefficient C(a, b), for 0 <= b <= a."""
+    return math.lgamma(a + 1) - math.lgamma(b + 1) - math.lgamma(a - b + 1)
+
+
 def hypergeometric_log_sf(x: int, n: int, k: int, m: int) -> float:
-    """Approximate log survival function for hypergeometric distribution.
+    """Log of the exact upper tail P(X >= x) for Hypergeometric(n, k, m).
 
-    Uses a normal approximation of P(X >= x) for speed.  Returns 0.0
-    (i.e. p=1.0) when the observed count is at or below the mean.
-
-    Parameters
-    ----------
-    x:
-        Number of observed successes.
-    n:
-        Population size (background).
-    k:
-        Number of success states in the population (result set size).
-    m:
-        Number of draws (gene set size).
+    ``n`` is the population, ``k`` the successes it holds, ``m`` the draws.
     """
-    mean = k * m / n
-    var = k * m * (n - k) * (n - m) / (n * n * max(n - 1, 1))
-    std = max(math.sqrt(var), 1e-12)
-    z = (x - mean) / std
-    if z <= 0:
-        return 0.0  # no enrichment -> p = 1.0
-    return math.log(max(math.erfc(z / math.sqrt(2)) / 2, 1e-300))
+    if n < 1 or not 0 <= k <= n or not 0 <= m <= n:
+        msg = f"not a hypergeometric distribution: n={n}, k={k}, m={m}"
+        raise ValueError(msg)
+
+    lowest = max(0, m + k - n)
+    highest = min(k, m)
+    if x <= lowest:
+        return 0.0
+    if x > highest:
+        return -math.inf
+
+    log_total = _log_binomial(n, m)
+    log_terms = [
+        _log_binomial(k, i) + _log_binomial(n - k, m - i) - log_total
+        for i in range(x, highest + 1)
+    ]
+    peak = max(log_terms)
+    return peak + math.log(math.fsum(math.exp(t - peak) for t in log_terms))

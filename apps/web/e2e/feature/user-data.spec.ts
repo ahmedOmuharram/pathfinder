@@ -226,8 +226,6 @@ test.describe("User Data Purge", () => {
     await chatPage.goto();
     await chatPage.newChat();
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_ai.ui.vercel_ai._utils import iter_tool_approval_responses
 from pydantic_ai.ui.vercel_ai.request_types import (
     TextUIPart,
@@ -11,6 +11,7 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 )
 
 from pathfinder.ai.agents.roles import PhaseRole
+from pathfinder.ai.models.catalog import get_model_entry
 from pathfinder.platform.pydantic_base import CamelModel
 
 ReasoningEffort = Literal["none", "low", "medium", "high"]
@@ -40,6 +41,18 @@ class ChatRequestBody(CamelModel):
     experiment_id: str | None = None
     phase_models: dict[PhaseRole, str] = Field(default_factory=dict)
     phase_reasoning: dict[PhaseRole, ReasoningEffort] = Field(default_factory=dict)
+
+    @field_validator("phase_models")
+    @classmethod
+    def _models_are_in_the_catalog(
+        cls, value: dict[PhaseRole, str]
+    ) -> dict[PhaseRole, str]:
+        """Reject a model id the catalog does not define."""
+        for role, model_id in value.items():
+            if get_model_entry(model_id) is None:
+                msg = f"phase {role!r} requests unknown model {model_id!r}"
+                raise ValueError(msg)
+        return value
 
     @property
     def last_user_text(self) -> str:

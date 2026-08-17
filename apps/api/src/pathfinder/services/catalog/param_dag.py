@@ -23,6 +23,7 @@ from pathfinder.domain.parameters.values import (
     to_wire,
 )
 from pathfinder.domain.parameters.wdk_vocab import VocabOption, match_exact_option
+from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.operational_spec import OpenSlot
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.pydantic_base import CamelModel
@@ -43,7 +44,7 @@ from pathfinder.services.catalog.param_intent import (
 from pathfinder.services.catalog.search_context import (
     get_search_params_under_context,
 )
-from pathfinder.services.wdk import get_wdk_client
+from pathfinder.services.wdk import get_discovery_service, get_wdk_client
 
 _SCALAR_DEFAULTABLE: frozenset[str] = frozenset(
     {"number", "string", "date", "timestamp", "single-pick-vocabulary"}
@@ -124,9 +125,20 @@ ParamFetcher = Callable[[dict[str, str]], Awaitable[list[ParameterInfo]]]
 
 
 def wdk_fetch_at(site_id: str, record_type: str, search_name: str) -> ParamFetcher:
+    ctx = SearchContext(site_id, record_type, search_name)
+
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
+        # The catalog holds the published view for the process, so every pass of
+        # the walk sends the same parameter shape at the cost of one HTTP read.
+        published = await get_discovery_service().get_search_details(
+            ctx, expand_params=True
+        )
         resp = await get_search_params_under_context(
-            get_wdk_client(site_id), record_type, search_name, context
+            get_wdk_client(site_id),
+            record_type,
+            search_name,
+            context,
+            published=published,
         )
         params = resp.search_data.parameters or []
         return format_param_info_typed(params)

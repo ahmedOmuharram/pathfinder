@@ -15,6 +15,7 @@ from pathfinder.ai.memory.embedding import embed_text
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.impls import register_all_tools
 from pathfinder.jobs.logging_filters import install_procrastinate_redaction
+from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import setup_logging
 
 
@@ -41,6 +42,7 @@ async def amain() -> None:
     async with procrastinate_app.open_async():
         await procrastinate_app.run_worker_async(
             queues=["chat_turn", "default", "maintenance", "verification"],
+            concurrency=get_settings().worker_concurrency,
             install_signal_handlers=True,
         )
 

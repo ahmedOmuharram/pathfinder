@@ -41,13 +41,17 @@ def _leaf(name: str) -> StructureNode:
 
 class TestASpareWrapperIsTransparent:
     def test_it_does_not_raise(self) -> None:
-        pair = StructureNode(kind="combine", operator="INTERSECT", inputs=[_leaf("a"), _leaf("b")])
+        pair = StructureNode(
+            kind="combine", operator="INTERSECT", inputs=[_leaf("a"), _leaf("b")]
+        )
         wrapper = StructureNode(kind="combine", operator="INTERSECT", inputs=[pair])
 
         operational_spec_to_step_tree(_spec(wrapper))
 
     def test_the_tree_is_the_inner_combine(self) -> None:
-        pair = StructureNode(kind="combine", operator="INTERSECT", inputs=[_leaf("a"), _leaf("b")])
+        pair = StructureNode(
+            kind="combine", operator="INTERSECT", inputs=[_leaf("a"), _leaf("b")]
+        )
         wrapper = StructureNode(kind="combine", operator="INTERSECT", inputs=[pair])
 
         tree = operational_spec_to_step_tree(_spec(wrapper))
@@ -57,7 +61,9 @@ class TestASpareWrapperIsTransparent:
         assert tree.secondary_input is not None
 
     def test_a_wrapper_around_a_leaf_is_the_leaf(self) -> None:
-        wrapper = StructureNode(kind="combine", operator="INTERSECT", inputs=[_leaf("a")])
+        wrapper = StructureNode(
+            kind="combine", operator="INTERSECT", inputs=[_leaf("a")]
+        )
 
         tree = operational_spec_to_step_tree(_spec(wrapper))
 

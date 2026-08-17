@@ -28,30 +28,35 @@ def run_custom_enrichment(
 ) -> CustomEnrichmentResult:
     """Test enrichment of a custom gene set against the experiment results.
 
-    Computes overlap, fold enrichment, p-value (hypergeometric), and odds ratio.
+    Overlap, fold enrichment, hypergeometric p-value and odds ratio come from
+    the pasted genes inside the background: a gene outside it is not a draw.
     """
     result_ids = exp.result_gene_ids()
     tp_ids, _, fn_ids, tn_ids = exp.classification_id_sets()
     gene_set = set(gene_ids)
+    universe = result_ids | fn_ids | tn_ids
+    gene_set_in_universe = gene_set & universe
     overlap = result_ids & gene_set
     tp_in_overlap = tp_ids & gene_set
 
     background = len(result_ids) + len(fn_ids) + len(tn_ids)
     background = max(background, 1)
     result_size = max(len(result_ids), 1)
-    gene_set_size = max(len(gene_set), 1)
+    in_universe_size = len(gene_set_in_universe)
 
-    expected = result_size * gene_set_size / background
+    expected = result_size * in_universe_size / background
     fold = len(overlap) / expected if expected > 0 else 0.0
 
-    a = len(overlap)  # in result AND in gene set
-    b = gene_set_size - a  # in gene set but NOT in result
-    c = result_size - a  # in result but NOT in gene set
+    a = len(overlap)  # in result AND in the in-universe gene set
+    b = in_universe_size - a  # in the in-universe gene set but NOT in result
+    c = result_size - a  # in result but NOT in the in-universe gene set
     d = max(background - a - b - c, 0)  # in neither
     odds = (a * max(d, 1)) / (max(b, 1) * max(c, 1))
 
-    log_p = hypergeometric_log_sf(len(overlap), background, result_size, gene_set_size)
-    p_value = min(1.0, math.exp(log_p))
+    log_p = hypergeometric_log_sf(
+        len(overlap), background, result_size, in_universe_size
+    )
+    p_value = math.exp(log_p)
 
     return {
         "geneSetName": gene_set_name,

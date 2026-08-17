@@ -57,8 +57,6 @@ test.describe("Comprehensive multi-param strategy lifecycle", () => {
     await chatPage.send(
       "Build a comprehensive kinase strategy with all parameter types.",
     );
-    await chatPage.expectPlanningArtifact();
-    await chatPage.approvePlan();
     await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 

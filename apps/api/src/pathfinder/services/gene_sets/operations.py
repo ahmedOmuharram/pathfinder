@@ -306,10 +306,7 @@ class GeneSetService:
         if step_id is None:
             step_id = gs.wdk_step_id
         if not step_id:
-            msg = (
-                "No genes and no WDK strategy: this gene set has nothing to "
-                "browse."
-            )
+            msg = "No genes and no WDK strategy: this gene set has nothing to browse."
             raise ValidationError(detail=msg)
         return StepResultsService(
             get_strategy_api(gs.site_id), step_id=step_id, record_type=record_type

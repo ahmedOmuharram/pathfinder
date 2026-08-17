@@ -29,7 +29,8 @@ _CTX = SearchContext(
     record_type="transcript",
     search_name="GenesByOrthologPattern",
 )
-_PARAMS = ("profile_pattern", "organism")
+_MAPS = ("phyletic_indent_map", "phyletic_term_map")
+_PARAMS = ("profile_pattern", "organism", *_MAPS)
 _WDK_500 = "Server error '500 Internal Server Error'"
 
 
@@ -47,14 +48,29 @@ def _param(name: str) -> WDKParameter:
     return cast("WDKParameter", WDKEnumParam.model_validate(raw))
 
 
+def _hidden_map(name: str) -> WDKParameter:
+    raw: JSONObject = {
+        "type": "multi-pick-vocabulary",
+        "name": name,
+        "display_name": name,
+        "display_type": "checkBox",
+        "is_visible": False,
+        "allow_empty_value": True,
+        "initial_display_value": "[]",
+    }
+    return cast("WDKParameter", WDKEnumParam.model_validate(raw))
+
+
 def _response() -> WDKSearchResponse:
+    parameters = [_param(n) for n in ("profile_pattern", "organism")]
+    parameters += [_hidden_map(n) for n in _MAPS]
     return WDKSearchResponse(
         search_data=WDKSearch(
             url_segment=_CTX.search_name,
             full_name=_CTX.search_name,
             display_name="Orthology Phylogenetic Profile",
             param_names=list(_PARAMS),
-            parameters=[_param(n) for n in _PARAMS],
+            parameters=parameters,
         ),
         validation=StepValidation(),
     )
@@ -67,6 +83,7 @@ class _Client:
         self._contextual_fails = contextual_fails
         self.static_calls = 0
         self.contextual_calls = 0
+        self.contexts: list[dict[str, str]] = []
 
     async def get_search_details(
         self, record_type: str, search_name: str, *, expand_params: bool = True
@@ -83,8 +100,9 @@ class _Client:
         *,
         expand_params: bool = True,
     ) -> WDKSearchResponse:
-        del record_type, search_name, context, expand_params
+        del record_type, search_name, expand_params
         self.contextual_calls += 1
+        self.contexts.append(dict(context))
         if self._contextual_fails:
             raise WDKError(_WDK_500, status=500)
         return _response()
@@ -144,3 +162,19 @@ class TestNarrowingIsStillPreferred:
 
         assert willing.contextual_calls == 1
         assert willing.static_calls == 0
+
+    @pytest.mark.asyncio
+    async def test_the_hidden_structural_params_are_sent(
+        self, client: _Client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # WDK answers 500 to a phyletic read whose context omits either map.
+        willing = _Client(contextual_fails=False)
+        monkeypatch.setattr(pr, "get_wdk_client", lambda site_id: willing)
+
+        await pr.expand_search_details_with_params(_CTX, _context())
+
+        assert willing.contexts[0] == {
+            "organism": '["Plasmodium falciparum 3D7"]',
+            "phyletic_indent_map": "[]",
+            "phyletic_term_map": "[]",
+        }

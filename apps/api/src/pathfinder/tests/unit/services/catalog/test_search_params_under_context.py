@@ -25,16 +25,47 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from pathfinder.integrations.veupathdb.wdk_models import (
+    StepValidation,
+    WDKSearch,
+    WDKSearchResponse,
+)
+from pathfinder.integrations.veupathdb.wdk_parameters import (
+    WDKParameter,
+    WDKStringParam,
+)
 from pathfinder.platform.errors import AppError, WDKError
 from pathfinder.services.catalog.search_context import (
+    context_for_metadata_read,
     get_search_params_under_context,
 )
 
 
-def _response(marker: str) -> Any:
-    response = MagicMock()
-    response.search_data.parameters = [marker]
-    return response
+def _param(
+    name: str,
+    *,
+    visible: bool = True,
+    allow_empty: bool = False,
+    default: str | None = None,
+) -> WDKParameter:
+    return WDKStringParam(
+        name=name,
+        display_name=name,
+        is_visible=visible,
+        allow_empty_value=allow_empty,
+        initial_display_value=default,
+    )
+
+
+def _response(*parameters: WDKParameter) -> WDKSearchResponse:
+    return WDKSearchResponse(
+        search_data=WDKSearch(
+            url_segment="S",
+            param_names=[p.name for p in parameters],
+            parameters=list(parameters),
+        ),
+        validation=StepValidation(),
+    )
 
 
 def _client(*, contextual: Any, plain: Any) -> Any:
@@ -55,17 +86,22 @@ def _client(*, contextual: Any, plain: Any) -> Any:
 class TestContextIsUsedWhenItWorks:
     @pytest.mark.asyncio
     async def test_returns_the_contextualized_view(self) -> None:
-        client = _client(contextual=_response("narrowed"), plain=_response("static"))
+        client = _client(
+            contextual=_response(_param("narrowed")), plain=_response(_param("static"))
+        )
 
         result = await get_search_params_under_context(
             client, "transcript", "GenesByOrthologPattern", {"organism": "[]"}
         )
 
-        assert result.search_data.parameters == ["narrowed"]
+        assert result.search_data.param_names == ["narrowed"]
 
     @pytest.mark.asyncio
     async def test_passes_the_context_through(self) -> None:
-        client = _client(contextual=_response("narrowed"), plain=_response("static"))
+        client = _client(
+            contextual=_response(_param("narrowed")),
+            plain=_response(_param("profile_pattern", visible=False)),
+        )
 
         await get_search_params_under_context(
             client, "transcript", "S", {"profile_pattern": "%pfal:Y%"}
@@ -77,11 +113,13 @@ class TestContextIsUsedWhenItWorks:
     @pytest.mark.asyncio
     async def test_an_empty_context_skips_the_contextual_call(self) -> None:
         # Nothing to narrow by; the POST would only cost a round trip.
-        client = _client(contextual=_response("narrowed"), plain=_response("static"))
+        client = _client(
+            contextual=_response(_param("narrowed")), plain=_response(_param("static"))
+        )
 
         result = await get_search_params_under_context(client, "transcript", "S", {})
 
-        assert result.search_data.parameters == ["static"]
+        assert result.search_data.param_names == ["static"]
         client.get_search_details_with_params.assert_not_awaited()
 
 
@@ -90,19 +128,19 @@ class TestContextFailureDegrades:
     async def test_a_5xx_falls_back_to_the_static_view(self) -> None:
         client = _client(
             contextual=WDKError("500 Internal Error", status=500),
-            plain=_response("static"),
+            plain=_response(_param("static")),
         )
 
         result = await get_search_params_under_context(
             client, "transcript", "GenesByOrthologPattern", {"organism": "[]"}
         )
 
-        assert result.search_data.parameters == ["static"]
+        assert result.search_data.param_names == ["static"]
 
     @pytest.mark.asyncio
     async def test_does_not_raise_when_wdk_cannot_contextualize(self) -> None:
         client = _client(
-            contextual=WDKError("boom", status=500), plain=_response("static")
+            contextual=WDKError("boom", status=500), plain=_response(_param("static"))
         )
 
         await get_search_params_under_context(client, "transcript", "S", {"a": "b"})
@@ -117,3 +155,87 @@ class TestContextFailureDegrades:
 
         with pytest.raises(AppError):
             await get_search_params_under_context(client, "transcript", "S", {"a": "b"})
+
+
+class TestHiddenStructuralParamsJoinTheRead:
+    """A hidden allow-empty param carries the shape WDK's own client sends.
+
+    ``GenesByOrthologPattern`` answers 500 to a contextual read that omits
+    ``phyletic_indent_map`` or ``phyletic_term_map``.
+    """
+
+    def test_a_hidden_allow_empty_default_is_added(self) -> None:
+        published = [
+            _param("phyletic_term_map", visible=False, allow_empty=True, default="[]")
+        ]
+
+        assert context_for_metadata_read({"organism": "[]"}, published) == {
+            "organism": "[]",
+            "phyletic_term_map": "[]",
+        }
+
+    def test_a_visible_allow_empty_default_is_not_added(self) -> None:
+        published = [
+            _param("included_species", visible=True, allow_empty=True, default="")
+        ]
+
+        assert context_for_metadata_read({"organism": "[]"}, published) == {
+            "organism": "[]"
+        }
+
+    def test_a_hidden_required_param_is_not_added(self) -> None:
+        # A hidden param that forbids empty carries a real value, which
+        # ``fill_hidden_required_defaults`` decides.
+        published = [
+            _param(
+                "profile_pattern", visible=False, allow_empty=False, default="hsap=1T"
+            )
+        ]
+
+        assert context_for_metadata_read({"organism": "[]"}, published) == {
+            "organism": "[]"
+        }
+
+    def test_a_hidden_param_without_a_published_default_is_not_added(self) -> None:
+        published = [
+            _param("phyletic_term_map", visible=False, allow_empty=True, default=None)
+        ]
+
+        assert context_for_metadata_read({}, published) == {}
+
+    def test_the_caller_keeps_its_own_value(self) -> None:
+        published = [
+            _param("phyletic_term_map", visible=False, allow_empty=True, default="[]")
+        ]
+
+        assert context_for_metadata_read({"phyletic_term_map": '["x"]'}, published) == {
+            "phyletic_term_map": '["x"]'
+        }
+
+    @pytest.mark.asyncio
+    async def test_the_contextual_read_sends_them(self) -> None:
+        published = _response(
+            _param("organism"),
+            _param(
+                "profile_pattern", visible=False, allow_empty=False, default="hsap=1T"
+            ),
+            _param(
+                "phyletic_indent_map", visible=False, allow_empty=True, default="[]"
+            ),
+            _param("phyletic_term_map", visible=False, allow_empty=True, default="[]"),
+        )
+        client = _client(contextual=_response(_param("narrowed")), plain=published)
+
+        await get_search_params_under_context(
+            client,
+            "transcript",
+            "GenesByOrthologPattern",
+            {"organism": '["Plasmodium falciparum 3D7"]'},
+        )
+
+        kwargs = client.get_search_details_with_params.await_args.kwargs
+        assert kwargs["context"] == {
+            "organism": '["Plasmodium falciparum 3D7"]',
+            "phyletic_indent_map": "[]",
+            "phyletic_term_map": "[]",
+        }

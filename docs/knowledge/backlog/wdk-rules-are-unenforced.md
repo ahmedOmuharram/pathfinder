@@ -1,7 +1,7 @@
 ---
 type: Backlog Item
-title: 34 of the 83 WDK rules have no test; one SILENT rule is open again
-description: The SILENT class - where WDK answers 200 and the science is wrong - was closed twice and holds one untested rule again, the radio-params pair added on 2026-08-17. The other 33 untested rules are HARD and CONTRACT.
+title: 32 of the 83 WDK rules have no test; every one of them is HARD or CONTRACT
+description: The SILENT class - where WDK answers 200 and the science is wrong - is closed for the third time. The 32 untested rules are HARD, where WDK refuses loudly, and CONTRACT, where the mapping drifts over refactors.
 tags: [wdk-alignment, testing, knowledge-bundle, silent-failure]
 generated: { by: claude-code/opus-5, at: 2026-08-10T00:00:00Z }
 verified: { by: claude-code/fable-5, at: 2026-08-17T00:00:00Z }
@@ -30,14 +30,14 @@ Recounted from the rule files on 2026-08-17:
 
 | | UNENFORCED | PARTIAL | ENFORCED | total |
 |---|---|---|---|---|
-| **SILENT** | **1** | 1 | 30 | 32 |
+| **SILENT** | **0** | 0 | 32 | 32 |
 | HARD | 17 | 3 | 7 | 27 |
-| CONTRACT | 16 | 4 | 4 | 24 |
-| total | 34 | 8 | 41 | 83 |
+| CONTRACT | 15 | 4 | 5 | 24 |
+| total | 32 | 7 | 44 | 83 |
 
 A `SILENT` rule is one where WDK accepts the request, returns 200, and the answer is
 scientifically wrong - the class of failure a researcher cannot see and PathFinder cannot
-report. **That column has been emptied twice and is 1 again.** It went to 5 on 2026-08-14,
+report. **That column has now been emptied three times.** It went to 5 on 2026-08-14,
 when the `WDK-SITE` family added eight rules, five of them `SILENT` and none of them
 tested: [WDK-SITE-002](../wdk/rules/site-model-params.md), `-003`, `-004` and `-005` on the
 phyletic profile pattern, and
@@ -47,30 +47,29 @@ they described - the phyletic widget's grammar carried `-001`, `-002` and `-004`
 `ENFORCED` and `-005` to `PARTIAL`, and the hidden-fill report carried `-003` - which is
 how it should go: the tests that pin a defect's fix are the tests the rule wanted.
 
-**The column went back to 1 on 2026-08-17.**
+**It went to 1 and back to 0 on 2026-08-17.**
 [WDK-SITE-007](../wdk/rules/site-model-params.md) says a search can offer the same
 criterion twice and the query unions the two halves, so filling both returns a superset
-measured at 192 genes against 105 on one live pair. The parameter sheet lists both halves
-as ordinary visible parameters and does not read `radio-params`, so nothing stops the model
-filling both. Enforcing it means a test over `build_sheet` for a search carrying that
-property.
+measured at 192 genes against 105 on one live pair. `set_criterion` now reads
+`radio-params` off the search definition, binds `N/A` into the free-text half, and answers
+a criterion written there with a retry naming the vocabulary entries nearest to it.
 
 The rest is unchanged in character: HARD, where WDK refuses and the failure is loud, and
 CONTRACT, where the mapping drifts over refactors.
 
 # Order of conversion, and why
 
-## 1. SILENT - closed twice, and open on one rule
+## 1. SILENT - closed three times, and closed now
 
 `WDK-SITE-001` through `-005` and `WDK-PARAM-010` were added by the phyletic
-research and reopened this section; all six are now enforced or partial. The one
-`PARTIAL` is `WDK-SITE-005`, whose named test covers the editor widget while the
-backend's `_validate_phyletic_codes` stays untested. `WDK-SITE-007` is the one
-untested `SILENT` rule and ranks first in this file: the hazard is a step that
-returns more genes than the criterion asked for, with a plausible count and no
-error.
+research and reopened this section; all six are `ENFORCED`. The last of them was
+`WDK-SITE-005`, which was `PARTIAL` while its only test covered the editor widget
+and became `ENFORCED` when the backend grew one clade expansion, in
+`domain/parameters/phyletic.py:leaf_states`, that both the authoring path and the
+wire guard call. `WDK-SITE-007` was the seventh and closed the same day it opened,
+by the guard that binds the free-text half off.
 
-The pattern worth keeping: each of those six was converted **by the change that
+The pattern worth keeping: each of those seven was converted **by the change that
 fixed the defect the rule described**, not by a separate testing pass. A test
 written to pin a fix is a test that fails when the fix regresses; a test written
 to satisfy a status column tends not to be.
@@ -87,7 +86,7 @@ value) and `WDK-PARAM-006` (a badly formatted date-range bound) both come back *
 not 422, so the response is indistinguishable from a WDK bug and carries no diagnosis at
 all.
 
-## 3. CONTRACT, 16 untested and 4 partial
+## 3. CONTRACT, 15 untested and 4 partial
 
 PathFinder invariants that keep the mapping honest. They break slowly, over refactors,
 rather than at runtime, and several are structural properties an `import-linter` contract

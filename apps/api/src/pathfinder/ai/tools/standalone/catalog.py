@@ -95,7 +95,7 @@ async def search_for_searches(
         note: JSONObject = {
             "note": (
                 f"{len(hidden)} already-decided search(es) hidden: {hidden}. "
-                "You've already recorded a decision on these — don't re-evaluate."
+                "You've already recorded a decision on these; don't re-evaluate."
             ),
         }
         results.append(note)
@@ -165,15 +165,17 @@ async def lookup_phyletic_codes(
     query: str,
     record_type: str = "transcript",
 ) -> JSONObject | ToolErrorPayload:
-    """Look up phyletic species/group codes by name for GenesByOrthologPattern.
+    """Look up phyletic species/clade codes by name for GenesByOrthologPattern.
 
-    Returns {code, label, leaf} triples. Use codes in profile_pattern:
-    %CODE:Y% (include) or %CODE:N% (exclude).
+    Returns {code, label, leaf} triples. Put a code or its label in
+    included_species or excluded_species; profile_pattern is derived from those
+    two lists and is never written by hand.
 
     Args:
         ctx: Agent run context.
         query: Species or clade name to search for (e.g., 'falciparum', 'human',
-            'Apicomplexa'). Returns matching codes for use in profile_pattern.
+            'Apicomplexa'). A code with leaf=false is a clade and selects every
+            species under it.
         record_type: Record type. Defaults to 'transcript'.
     """
     return await catalog.lookup_phyletic_codes(ctx.deps.site_id, record_type, query)

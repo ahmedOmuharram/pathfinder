@@ -126,6 +126,20 @@ class Settings(BaseSettings):
     # Prompt-injection screening with the PIGuard ONNX model.
     piguard_enabled: bool = True
 
+    # Background worker
+    worker_concurrency: int = Field(
+        default=4,
+        ge=1,
+        description="Number of jobs the Procrastinate worker runs in parallel.",
+    )
+    worker_stalled_job_timeout_seconds: int = Field(
+        default=3600,
+        ge=300,
+        description=(
+            "Age at which a job still in 'doing' is failed so its lock releases."
+        ),
+    )
+
     # Logging
     log_level: str = "INFO"
     log_format: Literal["json", "console"] = "json"
@@ -142,6 +156,11 @@ class Settings(BaseSettings):
             "(e.g. http://signoz-otel-collector:4318/v1/traces). "
             "When set, traces use HTTP while metrics/logs continue using SIGNOZ_OTEL_ENDPOINT."
         ),
+    )
+
+    otel_include_content: bool = Field(
+        default=False,
+        description="Export prompts, completions, and tool arguments in agent traces.",
     )
 
     # Langfuse observability. All three values are needed together.
