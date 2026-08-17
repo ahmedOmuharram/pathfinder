@@ -13,7 +13,7 @@ from pathfinder.ai.tools.standalone._graph_helpers import build_step_response
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.pydantic_base import CamelModel
 
-__all__ = ["LiveStepState", "LiveStrategyState", "live_step_counts", "read_live_state"]
+__all__ = ["LiveStepState", "LiveStrategyState", "read_live_state"]
 
 
 class LiveStepState(CamelModel):
@@ -31,19 +31,6 @@ class LiveStrategyState(CamelModel):
     step_count: int = 0
     root_count: int | None = None
     steps: list[LiveStepState] = Field(default_factory=list)
-
-
-def live_step_counts(session: StrategySession) -> dict[str, int | None]:
-    """Per-step result counts as the session currently knows them."""
-    graph = session.graph
-    if graph is None:
-        return {}
-    sync_state = session.sync_state
-    counts: dict[str, int | None] = {}
-    for step_id in graph.steps:
-        raw = sync_state.step_counts.get(step_id) if sync_state else None
-        counts[step_id] = raw if isinstance(raw, int) else None
-    return counts
 
 
 def read_live_state(session: StrategySession) -> LiveStrategyState:

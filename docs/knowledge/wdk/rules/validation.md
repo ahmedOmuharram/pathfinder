@@ -482,8 +482,7 @@ answers whether the run finished.
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/analysis/ExecutionStatus.java#L3-L14
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/analyses.py:_RETRIABLE_STATUSES
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_analysis_rerun_statuses.py::TestEveryRerunStatusIsRerun::test_expired_is_rerun
 `ExecutionStatus` declares eleven constants, each with `requiresRerun` and
 `isTerminal`. `requiresRerun` is true for `CREATED`, `STEP_REVISED`,
 `INTERRUPTED`, `ERROR`, `EXPIRED` and `OUT_OF_DATE`. `isTerminal` is true for
@@ -503,31 +502,23 @@ platform decides whether that actually re-executes. Creating a second instance
 is unnecessary and loses the first's `analysisId`.
 
 PathFinder retries three of the six - `ERROR`, `OUT_OF_DATE`, `STEP_REVISED` -
-and raises on `EXPIRED` and `INTERRUPTED`, both of which are `requiresRerun`
-upstream. `EXPIRED` means the plugin ran past its timeout and `INTERRUPTED`
-means the server restarted mid-run; WDK would have re-executed either had it
-been asked, and PathFinder does not ask, so a recoverable failure ends the
-enrichment.
+and re-runs all five of the `requiresRerun` statuses it can observe, which is
+what the platform does. `CREATED` is the sixth and needs no branch: an instance
+in that state has not run yet and the poll simply waits.
 
-`_poll_analysis` raises from two different places and the messages must not be
-attributed to each other:
+The give-up message is chosen by what the status reports. `EXPIRED` means the
+plugin ran past its timeout and `INTERRUPTED` means the server restarted
+mid-run, so neither says anything about the data, and both say the run was cut
+short rather than rejected. `ERROR`, `OUT_OF_DATE` and `STEP_REVISED` keep the
+gene-set explanation.
 
-| Branch | Statuses | Message |
-|---|---|---|
-| the fatal branch | `EXPIRED`, `INTERRUPTED` | `Analysis {id} ended with status: {status}` - accurate |
-| retries exhausted | `ERROR`, `OUT_OF_DATE`, `STEP_REVISED` | `...returned {status} after {n} attempts. This typically happens when the gene set is too small or lacks the required annotations.` |
-
-An earlier revision of this rule attached the second message to the first
-branch. That was wrong, and it is corrected rather than deleted because the
-mistake is instructive: the gene-set sentence is unreachable from `EXPIRED` and
-`INTERRUPTED`, so **the defect on those two statuses is the missed re-run alone,
-not a misleading diagnosis.** The sentence is still a guess where it does fire -
-`OUT_OF_DATE` means the cache was purged and `STEP_REVISED` means the step
-changed, and neither is about a gene set - but that is a separate and rarer
-problem on a branch three failed re-runs deep.
-
-Backlog: [EXPIRED and INTERRUPTED are treated as fatal](../../backlog/expired-and-interrupted-are-not-retried.md),
-which records the same correction and ranks the item on the missed re-run.
+An earlier revision of this rule attached the gene-set sentence to the
+then-fatal `EXPIRED` branch. That was wrong and the correction is kept here
+because the mistake is instructive: two raises in one function are easy to read
+as one, and a rule that overstates a defect is as unusable as one that misses
+it. The sentence remains a guess where it does fire - `OUT_OF_DATE` means the
+cache was purged and `STEP_REVISED` means the step changed - which is a smaller
+and rarer problem on a branch three failed re-runs deep.
 
 This rule is `CONTRACT` because the divergence is ours: nothing in WDK rejects
 the request, we simply give up early and tell the researcher something false
@@ -543,8 +534,7 @@ claim than the rest of this file makes.
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/StepAnalysisFormatter.java#L84-L95
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/_analyses.py:list_step_analyses
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_step_analyses_list_shape.py::TestTheLiveShapeParses::test_an_entry_is_returned
 `instanceSummaryJson` puts `analysisId` and `displayName` and stops. The service
 [builds the instances at `ValidationLevel.NONE`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StepAnalysisInstanceService.java#L172-L181)
 for that call, consistently: nothing in a two-field summary could carry a
@@ -556,22 +546,17 @@ validation. The
 Confirmed on both sites on 2026-08-10:
 `[{"displayName":"Word Enrichment","analysisId":203635253}]`.
 
-**PathFinder parses that list into `WDKStepAnalysisConfig`**, whose `step_id`
-and `analysis_name` have no defaults, so every item fails validation. It does
-not raise: `_validate_list` in `integrations/veupathdb/_helpers.py` wraps each
-item in `contextlib.suppress(ValidationError)`, deliberately, so that one bad
-entry cannot take down a whole list. Here every entry is a bad entry, so
-`list_step_analyses` returns `[]` for a step that has analyses - a wrong answer
-rather than an error. Listing analyses needs a summary model, or a second
-request per instance.
+**The listing needs its own model, and it now has one.**
+`WDKStepAnalysisSummary` carries the two fields WDK emits;
+`WDKStepAnalysisConfig` keeps the full instance shape the create and detail
+endpoints return. Parsing the list against the instance model made every entry
+fail validation, and `_validate_list` suppresses a bad entry by design so that
+one cannot take down a whole list - which turned a total failure into an empty
+list rather than an error.
 
-There is **one reachable call site** - `_log_analysis_failure`, a best-effort
-diagnostic - so nothing a researcher sees is affected today. Say "reachable"
-rather than "one call site": `strategy_api/analyses.py` also exposes a public
-`list_step_analyses` wrapper that nothing in the repository calls, and a claim
-of "one call site" reads as false the moment somebody finds it.
-
-Backlog: [the applied-analyses list is always empty](../../backlog/step-analyses-list-silently-empty.md).
+That shape is the general hazard: per-item suppression is right for one bad
+entry and indistinguishable from a correct empty answer when every entry is
+bad. A model that matches the endpoint is what keeps the two apart.
 
 ### WDK-VALID-011 - An analysis form hands you defaults and analysis creation refuses to apply them
 

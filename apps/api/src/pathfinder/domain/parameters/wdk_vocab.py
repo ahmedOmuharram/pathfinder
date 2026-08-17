@@ -4,11 +4,15 @@ lists, tree-box trees, filter ontologies, and dataset parsers."""
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import Literal
 
 from pydantic import Field, RootModel
 
 from pathfinder.platform.pydantic_base import CamelModel
+
+FAKE_ALL_SENTINEL = "@@fake@@"
+"""The term WDK gives the synthetic tree root. It is not a submittable value."""
 
 
 class WDKVocabNodeData(CamelModel):
@@ -69,9 +73,70 @@ class VocabOption(CamelModel):
     display: str
 
 
+def dedupe_options(options: Iterable[VocabOption]) -> list[VocabOption]:
+    """Keep the first entry for each value, in order. Empty values are dropped."""
+    seen: set[str] = set()
+    kept: list[VocabOption] = []
+    for option in options:
+        if not option.value or option.value in seen:
+            continue
+        seen.add(option.value)
+        kept.append(option)
+    return kept
+
+
 def normalize_vocab_key(value: str) -> str:
     """Lowercase the value and collapse its whitespace for matching."""
     return re.sub(r"\s+", " ", value.strip()).lower()
+
+
+_ACCESSION_MIN_LENGTH = 4
+
+
+def leading_accession_token(value: str) -> str | None:
+    """The accession a vocabulary value starts with, or ``None``.
+
+    A typeahead term reads ``<accession> : <label>``, so the accession is the
+    text before the first whitespace. It identifies an entry only when it holds
+    a digit and is long enough; a plain word is a label, not an accession.
+    """
+    head = value.split(maxsplit=1)
+    if not head:
+        return None
+    token = head[0]
+    if len(token) < _ACCESSION_MIN_LENGTH or not any(c.isdigit() for c in token):
+        return None
+    return token
+
+
+def accession_matches(options: Iterable[VocabOption], value: str) -> list[str]:
+    """The value of every entry whose leading accession is this text."""
+    key = normalize_vocab_key(value)
+    return [
+        option.value
+        for option in options
+        if (token := leading_accession_token(option.value)) is not None
+        and normalize_vocab_key(token) == key
+    ]
+
+
+def match_exact_option(options: Iterable[VocabOption], value: str) -> str | None:
+    """The option whose term or label is this text, ignoring case and spacing.
+
+    A tree parent term is an option and selects its children. A substring is a
+    different entry, so it does not match. A text that is the leading accession
+    of exactly one entry names that entry; two entries make it ambiguous.
+    """
+    entries = list(options)
+    key = normalize_vocab_key(value)
+    for option in entries:
+        if key in (
+            normalize_vocab_key(option.value),
+            normalize_vocab_key(option.display),
+        ):
+            return option.value
+    by_accession = accession_matches(entries, value)
+    return by_accession[0] if len(by_accession) == 1 else None
 
 
 def _walk_tree(node: WDKTreeBoxVocabNode) -> list[VocabOption]:
@@ -86,13 +151,17 @@ def _walk_tree(node: WDKTreeBoxVocabNode) -> list[VocabOption]:
 def flatten_vocab(vocab: WDKVocabulary | None) -> list[VocabOption]:
     """Flatten a vocabulary into options.
 
-    A tree yields every node. WDK accepts leaf terms only, and a parent term
-    expands to its leaves at submission time.
+    A tree yields every node except the synthetic root. WDK accepts leaf terms
+    only, and a parent term expands to its leaves at submission time.
     """
     if vocab is None:
         return []
     if isinstance(vocab, WDKTreeBoxVocabNode):
-        return [opt for opt in _walk_tree(vocab) if opt.value]
+        return [
+            opt
+            for opt in _walk_tree(vocab)
+            if opt.value and opt.value != FAKE_ALL_SENTINEL
+        ]
     return [VocabOption(value=t.term, display=t.display or t.term) for t in vocab]
 
 

@@ -10,6 +10,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKFilterValue,
     WDKStep,
     WDKStepAnalysisConfig,
+    WDKStepAnalysisSummary,
     WDKStepAnalysisType,
     WDKStepAnalysisTypeResponse,
 )
@@ -24,6 +25,9 @@ _ANALYSIS_TYPE_ADAPTER: TypeAdapter[WDKStepAnalysisType] = TypeAdapter(
 )
 _ANALYSIS_CONFIG_ADAPTER: TypeAdapter[WDKStepAnalysisConfig] = TypeAdapter(
     WDKStepAnalysisConfig
+)
+_ANALYSIS_SUMMARY_ADAPTER: TypeAdapter[WDKStepAnalysisSummary] = TypeAdapter(
+    WDKStepAnalysisSummary
 )
 
 
@@ -53,35 +57,35 @@ class AnalysisEndpoints:
 
     # --- Step filters ---
 
-    async def get_step_view_filters(
+    async def get_step_filters(
         self, user_id: str, step_id: int
     ) -> list[WDKFilterValue]:
-        """Get filters from a step's searchConfig.
+        """Get a step's ``searchConfig.filters``.
 
-        WDK stores filters as ``searchConfig.filters`` on the step resource.
-        The ``viewFilters`` field is read-only in the WDK REST API schema.
+        These are step filters. ``viewFilters`` is a separate mechanism that
+        does not live in the search config at all.
         """
         raw = await self.get(f"/users/{user_id}/steps/{step_id}")
         step = WDKStep.model_validate(raw)
         return list(step.search_config.filters)
 
-    async def update_step_view_filters(
+    async def update_step_filters(
         self, user_id: str, step_id: int, filters: list[WDKFilterValue]
     ) -> JsonValue:
-        """Update a step's filters through the search-config endpoint.
+        """Replace a step's ``searchConfig.filters``, keeping the rest of it.
 
-        The ``filters`` array in the search-config PUT body is the only public
-        way to set filter specifications on a step.
+        The whole config is written back because the endpoint replaces it.
+        Naming the keys instead would drop every field not named, and
+        ``columnFilters`` changes the step's counts.
         """
         raw = await self.get(f"/users/{user_id}/steps/{step_id}")
         step = WDKStep.model_validate(raw)
+        config = step.search_config.model_dump(by_alias=True, exclude_none=True)
+        # viewFilters is not part of a search config; WDK's schema rejects it.
+        config.pop("viewFilters", None)
+        config["filters"] = [f.model_dump(by_alias=True) for f in filters]
         return await self.put(
-            f"/users/{user_id}/steps/{step_id}/search-config",
-            json={
-                "parameters": step.search_config.parameters,
-                "filters": [f.model_dump(by_alias=True) for f in filters],
-                "wdkWeight": step.search_config.wdk_weight,
-            },
+            f"/users/{user_id}/steps/{step_id}/search-config", json=config
         )
 
     # --- Analysis types ---
@@ -114,10 +118,10 @@ class AnalysisEndpoints:
 
     async def list_step_analyses(
         self, user_id: str, step_id: int
-    ) -> list[WDKStepAnalysisConfig]:
+    ) -> list[WDKStepAnalysisSummary]:
         """List analyses that have been run on a step."""
         raw = await self.get(f"/users/{user_id}/steps/{step_id}/analyses")
-        return _validate_list(raw, _ANALYSIS_CONFIG_ADAPTER)
+        return _validate_list(raw, _ANALYSIS_SUMMARY_ADAPTER)
 
     async def create_step_analysis(
         self, user_id: str, step_id: int, payload: JSONObject

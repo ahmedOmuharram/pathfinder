@@ -3,9 +3,9 @@
 import type { Strategy } from "@pathfinder/shared";
 
 import { CompactDisconnectedSection } from "@/features/strategy/graph/components/CompactDisconnectedSection";
-import { CompactSpineSegmentRow } from "@/features/strategy/graph/components/CompactSpine";
+import { CompactTreeRow } from "@/features/strategy/graph/components/CompactTree";
 import {
-  buildSpineLayout,
+  buildStrategyTree,
   findOrphanSteps,
 } from "@/features/strategy/graph/utils/compactLayout";
 
@@ -29,16 +29,16 @@ export function CompactStrategyView({
 }: CompactStrategyViewProps) {
   if (strategy == null) return null;
 
-  const spine =
+  const tree =
     strategy.steps.length === 0 ||
     strategy.rootStepId == null ||
     strategy.rootStepId === ""
       ? []
-      : buildSpineLayout(strategy.steps, strategy.rootStepId);
+      : buildStrategyTree(strategy.steps, strategy.rootStepId);
 
   const orphans = findOrphanSteps(strategy.steps, strategy.rootStepId ?? null);
 
-  if (spine.length === 0 && orphans.length === 0) {
+  if (tree.length === 0 && orphans.length === 0) {
     return (
       <div className="px-3 py-3 text-xs text-muted-foreground">
         Building strategy ({strategy.steps.length} steps)...
@@ -48,15 +48,14 @@ export function CompactStrategyView({
 
   return (
     <div className="flex flex-col gap-3 px-3 py-3">
-      {spine.length > 0 && (
+      {tree.length > 0 && (
         <ol data-testid="compact-strategy-view" className="flex flex-col gap-1">
-          {spine.map((seg) => (
-            <CompactSpineSegmentRow
-              key={seg.step.id}
-              segment={seg}
+          {tree.map((node) => (
+            <CompactTreeRow
+              key={node.step.id}
+              node={node}
               allSteps={strategy.steps}
               selectedStepId={selectedStepId}
-              level={0}
               {...(onStepClick !== undefined && { onStepClick })}
               {...(onSaveStep !== undefined && { onSaveStep })}
               {...(onInsertSavedAt !== undefined && { onInsertSavedAt })}

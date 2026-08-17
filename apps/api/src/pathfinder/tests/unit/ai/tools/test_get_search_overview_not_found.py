@@ -12,7 +12,7 @@ import pytest
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.tools.standalone import catalog_discovery
+from pathfinder.ai.tools.standalone import _catalog_models, catalog_discovery
 from pathfinder.platform.errors import WDKError
 
 
@@ -45,7 +45,7 @@ async def test_404_raises_model_retry_with_did_you_mean(
             "Resource 'search: GenesByText_Search' does not exist.", status=404
         )
     )
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
+    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _s: client)
 
     async def _valid(_site: str, _rt: str) -> list[Any]:
         return [_search("GenesByText"), _search("GenesByGoTerm")]
@@ -78,7 +78,7 @@ async def test_non_404_wdk_error_propagates(
     client.get_search_details = AsyncMock(
         side_effect=WDKError("upstream 502", status=502)
     )
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
+    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _s: client)
 
     ctx = _ctx()
     with pytest.raises(WDKError):

@@ -7,12 +7,11 @@ plus list and pull from existing control sets / saved gene sets / strategies.
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.ai.tools.standalone._id_arguments import parse_id_argument
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.control_sets import ControlSetService, NewControlSet
 from pathfinder.services.experiment.control_sourcing import (
@@ -126,10 +125,11 @@ async def import_control_ids_from_strategy(
     """Return the result gene IDs of another strategy (a conversation id), to
     use as positive or negative controls."""
     runtime = ctx.deps.runtime
+    parsed = parse_id_argument(
+        strategy_id, argument="strategy_id", names="conversation"
+    )
     async with runtime.db_session_factory() as session:
-        result = await control_ids_from_strategy(
-            session, UUID(strategy_id), runtime.site_id
-        )
+        result = await control_ids_from_strategy(session, parsed, runtime.site_id)
     if result.error:
         msg = f"Could not import from strategy {strategy_id}: {result.error}"
         raise ModelRetry(msg)

@@ -85,8 +85,7 @@ so the step above reports `isFiltered: false` while carrying the filter.
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/request/answer/AnswerSpecServiceFormat.java#L85-L98
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/filters.py:list_step_filters
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_search_config_write_is_lossless.py::TestTheFiltersAreReplaced::test_view_filters_are_not_sent
 `parseViewFilters` reads `viewFilters` from whatever object it is handed, and it
 is handed the **request body** - by
 [`AnswerService.parseAnswerRequest`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/AnswerService.java#L282-L304)

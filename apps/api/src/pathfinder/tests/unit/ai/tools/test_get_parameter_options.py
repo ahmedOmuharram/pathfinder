@@ -316,3 +316,111 @@ class TestInheritsBoundParentContext:
         assert seen["applied_context"] == {
             "profileset_generic": SinglePickValue(value="DeRisi 3D7 Smoothed")
         }
+
+
+def _dependent_param(name: str, parents: list[str]) -> Any:
+    """A parameter whose vocabulary changes with its parents' values."""
+    p = MagicMock()
+    p.name = name
+    p.dependent_params = []
+    p.depends_on = parents
+    return p
+
+
+def _patch_with_dependency(
+    monkeypatch: pytest.MonkeyPatch, child: str, parent: str
+) -> Any:
+    async def _resolve(*_args: Any, **_kw: Any) -> str:
+        return "transcript"
+
+    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    parent_param = _wdk_param(parent)
+    parent_param.dependent_params = [child]
+    details = MagicMock()
+    details.search_data.parameters = [parent_param, _wdk_param(child)]
+    client = MagicMock()
+    client.get_search_details = AsyncMock(return_value=details)
+    client.get_search_details_with_params = AsyncMock(return_value=details)
+    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
+    return client
+
+
+class TestADependentReadNeedsItsParent:
+    """The vocabulary differs per parent, so an unqualified read is a guess.
+
+    Measured live: the DeRisi 3D7 profileset offers hours 23 and 29 and the HB3
+    profileset does not, so a selection made under the default silently omits
+    them.
+    """
+
+    @pytest.mark.asyncio
+    async def test_an_unbound_parent_does_not_return_a_term_list(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_with_dependency(
+            monkeypatch, "samples_percentile_generic", "profileset_generic"
+        )
+
+        result = await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByProfile",
+            parameter_id="samples_percentile_generic",
+        )
+
+        assert isinstance(result, catalog_discovery.ParentContextRequired)
+
+    @pytest.mark.asyncio
+    async def test_it_names_the_parent_to_bind(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_with_dependency(
+            monkeypatch, "samples_percentile_generic", "profileset_generic"
+        )
+
+        result = await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByProfile",
+            parameter_id="samples_percentile_generic",
+        )
+
+        assert isinstance(result, catalog_discovery.ParentContextRequired)
+        assert result.parent_parameter_ids == ["profileset_generic"]
+
+    @pytest.mark.asyncio
+    async def test_an_explicit_context_is_answered(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_with_dependency(
+            monkeypatch, "samples_percentile_generic", "profileset_generic"
+        )
+        fake_info = MagicMock()
+        monkeypatch.setattr(
+            catalog_discovery, "format_typed_param", lambda *a, **kw: fake_info
+        )
+
+        result = await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByProfile",
+            parameter_id="samples_percentile_generic",
+            context_values={"profileset_generic": "DeRisi 3D7 Smoothed"},
+        )
+
+        assert result is fake_info
+
+    @pytest.mark.asyncio
+    async def test_a_parameter_with_no_parents_is_unaffected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_resolve_and_client(
+            monkeypatch, record_type="transcript", param_names=["organism"]
+        )
+        fake_info = MagicMock()
+        monkeypatch.setattr(
+            catalog_discovery, "format_typed_param", lambda *a, **kw: fake_info
+        )
+
+        result = await catalog_discovery.get_parameter_options(
+            _ctx(), search_name="GenesByTaxon", parameter_id="organism"
+        )
+
+        assert result is fake_info

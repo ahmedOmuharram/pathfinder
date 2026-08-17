@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+from http import HTTPStatus
 
 import httpx
 
@@ -54,6 +55,26 @@ async def password_login(
     ) as client:
         response = await client.post("/login", json=payload)
         return extract_auth_cookie(response.headers.get_list("set-cookie"))
+
+
+async def password_logout(site_id: str, auth_token: str) -> bool:
+    """End the WDK session the token belongs to.
+
+    WDK logs out whoever made the request and returns early for a guest, so the
+    token travels as the request's own credential. The response is a redirect
+    rather than JSON, which is why this does not go through the JSON client.
+    """
+    site = get_site(site_id)
+    try:
+        async with httpx.AsyncClient(
+            base_url=site.service_url, follow_redirects=False
+        ) as client:
+            response = await client.get(
+                "/logout", cookies={"Authorization": auth_token}
+            )
+    except httpx.HTTPError:
+        return False
+    return response.status_code < HTTPStatus.BAD_REQUEST
 
 
 def extract_any_auth_cookie(set_cookie_headers: list[str]) -> str | None:

@@ -6,7 +6,6 @@ from collections.abc import Callable
 from pydantic import ValidationError
 
 from pathfinder.ai.context.models import ToolCallRecord
-from pathfinder.ai.tools.standalone._catalog_models import DependencyDag
 from pathfinder.ai.tools.standalone._result_models import (
     DownloadUrlResult,
     EstimatedSizeResult,
@@ -27,7 +26,6 @@ ToolResultExtractor = Callable[[ToolCallRecord], str]
 _GENERIC_MAX = 80
 _OVERVIEW_NAME_PREVIEW = 3
 _DISCOVERY_NAME_PREVIEW = 5
-_DEPENDENCY_PREVIEW = 3
 
 
 # ---------------------------------------------------------------------------
@@ -105,27 +103,7 @@ def _extract_parameter_options(record: ToolCallRecord) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Group 4: Parameter dependencies
-# ---------------------------------------------------------------------------
-
-
-def _extract_parameter_dependencies(record: ToolCallRecord) -> str:
-    dag = DependencyDag.model_validate_json(record.result)
-    count = len(dag.dependencies)
-    if count == 0:
-        return "no dependencies"
-    pairs = [
-        f"{'|'.join(entry.depends_on)}\u2192{name}"
-        for name, entry in list(dag.dependencies.items())[:_DEPENDENCY_PREVIEW]
-    ]
-    summary = f"{count} dependencies: {', '.join(pairs)}"
-    if count > _DEPENDENCY_PREVIEW:
-        summary += ", ..."
-    return summary
-
-
-# ---------------------------------------------------------------------------
-# Group 5: Search discovery (all return JSON arrays)
+# Group 4: Search discovery (all return JSON arrays)
 # ---------------------------------------------------------------------------
 
 
@@ -149,7 +127,7 @@ def _extract_search_discovery(record: ToolCallRecord) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Group 6: Result data
+# Group 5: Result data
 # ---------------------------------------------------------------------------
 
 
@@ -170,7 +148,7 @@ def _extract_download_url(record: ToolCallRecord) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Group 7: Workbench
+# Group 6: Workbench
 # ---------------------------------------------------------------------------
 
 
@@ -225,7 +203,6 @@ _SEARCH_DISCOVERY_TOOLS = frozenset(
 _EXTRACTOR_REGISTRY: dict[str, ToolResultExtractor] = {
     "get_search_overview": _extract_search_overview,
     "get_parameter_options": _extract_parameter_options,
-    "get_parameter_dependencies": _extract_parameter_dependencies,
     "get_sample_records": _extract_sample_records,
     "get_estimated_size": _extract_estimated_size,
     "get_download_url": _extract_download_url,

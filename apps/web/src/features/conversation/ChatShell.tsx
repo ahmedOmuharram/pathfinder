@@ -20,6 +20,7 @@ export function isStrategyRoute(pathname: string): boolean {
 export interface ChatResolution {
   conversationId: string;
   allowMissing: boolean;
+  resumable: boolean;
 }
 
 export function computeChatResolution({
@@ -32,7 +33,9 @@ export function computeChatResolution({
   const chatIdFromUrl = extractChatId(pathname);
   const conversationId = chatIdFromUrl ?? generatedChatId;
   const allowMissing = conversationId === generatedChatId;
-  return { conversationId, allowMissing };
+  // A conversation named in the URL can have a turn running in it. Whether
+  // this tab generated the id says nothing about that.
+  return { conversationId, allowMissing, resumable: chatIdFromUrl !== null };
 }
 
 export function ChatShell() {
@@ -53,7 +56,7 @@ export function ChatShell() {
   // the route's `page.tsx` render the strategy canvas instead of the chat.
   if (isStrategyRoute(pathname)) return null;
 
-  const { conversationId, allowMissing } = computeChatResolution({
+  const { conversationId, allowMissing, resumable } = computeChatResolution({
     pathname,
     generatedChatId,
   });
@@ -63,6 +66,7 @@ export function ChatShell() {
       key={conversationId}
       conversationId={conversationId}
       allowMissing={allowMissing}
+      resumable={resumable}
     />
   );
 }

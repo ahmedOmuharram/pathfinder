@@ -4,8 +4,13 @@ import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { EmptyState } from "@/lib/components/ui/EmptyState";
-import { Layers } from "lucide-react";
+import { Layers, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { ChatView } from "@/features/conversation/ChatView";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
+import { retakeGeneSet } from "../api/geneSets";
+import { canRetakeGeneSet } from "./canRetakeGeneSet";
 import { SOURCE_CONFIG } from "./geneSetSourceConfig";
 import {
   EnrichmentPanel,
@@ -26,6 +31,37 @@ import {
 // Active set header — rich version
 // ---------------------------------------------------------------------------
 
+function RetakeButton({ geneSetId }: { geneSetId: string }) {
+  const invalidateGeneSets = useInvalidateGeneSets();
+  const [running, setRunning] = useState(false);
+
+  const handleRetake = async (): Promise<void> => {
+    setRunning(true);
+    try {
+      const set = await retakeGeneSet(geneSetId);
+      void invalidateGeneSets();
+      toast.success(`Re-took ${set.geneCount.toLocaleString()} genes`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Re-take failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => void handleRetake()}
+      disabled={running}
+      title="Replace these genes with what the source strategy holds now"
+      className="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+    >
+      <RefreshCw className={`size-3 ${running ? "animate-spin" : ""}`} aria-hidden />
+      {running ? "Re-taking..." : "Re-take from strategy"}
+    </button>
+  );
+}
+
 function ActiveSetHeader() {
   const selectedSite = useSessionStore((s) => s.selectedSite);
   const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
@@ -38,7 +74,7 @@ function ActiveSetHeader() {
 
   return (
     <div className="mb-4 px-4 py-3 animate-fade-in">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 className="text-base font-semibold text-foreground">{activeSet.name}</h1>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
           {activeSet.geneCount.toLocaleString()} genes
@@ -49,6 +85,7 @@ function ActiveSetHeader() {
           {activeSet.source}
         </span>
         <span className="text-xs text-muted-foreground">{activeSet.siteId}</span>
+        {canRetakeGeneSet(activeSet) && <RetakeButton geneSetId={activeSet.id} />}
       </div>
       {activeSet.searchName != null && activeSet.searchName !== "" && (
         <p className="mt-1 text-xs text-muted-foreground">

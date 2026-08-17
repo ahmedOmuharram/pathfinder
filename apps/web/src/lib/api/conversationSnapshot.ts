@@ -97,7 +97,9 @@ export function conversationSnapshotOptions(conversationId: string) {
   return queryOptions({
     queryKey: ["conversations", conversationId, "snapshot"] as const,
     queryFn: () => loadSnapshotMessages(conversationId),
+    // The transcript grows during a turn. A mount reads it once and keeps that
+    // list; the next mount must read it again.
     staleTime: Infinity,
-    gcTime: Infinity,
+    gcTime: 0,
   });
 }

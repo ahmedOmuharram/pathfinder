@@ -1,5 +1,4 @@
-"""Catalog inspection tools: search overview, parameter vocabularies, and the
-parameter dependency DAG.
+"""Catalog inspection tools: search overview and parameter vocabularies.
 
 Tools that take an opaque identifier (search name, parameter id) raise
 ``ModelRetry`` with did-you-mean candidates so the model corrects itself in
@@ -12,29 +11,27 @@ from typing import Any, Literal
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 
-from pathfinder.ai.agents.state import (
-    ParamVocabSnapshot,
-    SearchOverview,
-)
+from pathfinder.ai.agents.state import ParamVocabSnapshot
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import (
-    DependencyDag,
-    _build_dependency_dag,
     _filter_vocab,
     _resolve_record_type,
+    read_search_definition,
+    register_search,
 )
-from pathfinder.domain.parameters.values import coerce_context_values
+from pathfinder.domain.parameters.values import ParamValue, coerce_context_values
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
     format_search_overview,
 )
-from pathfinder.services.catalog.param_dag import resolve_parameter_dag
 from pathfinder.services.catalog.param_formatting import (
     GetParameterOptionsResult,
     ParameterInfo,
     ParameterNotOnSearch,
+    ParentContextRequired,
+    format_param_info_typed,
     format_typed_param,
 )
 from pathfinder.services.catalog.search_context import (
@@ -59,28 +56,6 @@ class AlreadyReadNotice(CamelModel):
     message: str
     search_name: str
     parameter_id: str | None = None
-
-
-class ResolvedParamSummary(CamelModel):
-    """Compact, ready-to-use view of one parameter after resolution."""
-
-    name: str
-    param_type: str
-    required: bool
-    help: str = ""
-    default_value: str | None = None
-    accepted_values: list[str] | None = None
-    resolved_value: str | None = None
-    note: str = ""
-
-
-class ResolvedSearchParams(CamelModel):
-    """Every required parameter of a search, resolved and snapshotted so
-    planning copies validated values."""
-
-    kind: Literal["resolved_search_params"] = "resolved_search_params"
-    search_name: str
-    params: list[ResolvedParamSummary]
 
 
 _SEARCH_NOT_FOUND_STATUS = 404
@@ -140,9 +115,8 @@ async def get_search_overview(
             search_name=search_name,
         )
     rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
-    client = get_wdk_client(deps.site_id)
     try:
-        details = await client.get_search_details(rt, search_name, expand_params=True)
+        search = await read_search_definition(deps.site_id, rt, search_name)
     except WDKError as exc:
         if exc.status != _SEARCH_NOT_FOUND_STATUS:
             raise
@@ -152,7 +126,6 @@ async def get_search_overview(
             if s.url_segment
         ]
         raise ModelRetry(_did_you_mean(search_name, valid, kind="search")) from exc
-    search = details.search_data
     params: list[WDKParameter] = search.parameters or []
 
     overview_result = format_search_overview(
@@ -160,25 +133,31 @@ async def get_search_overview(
         display_name=search.display_name or search.url_segment,
         description=search.description or search.summary,
         record_type=rt,
-        params=params,
+        infos=format_param_info_typed(params),
+        query=deps.agent_state.operational_spec_draft.goal,
     )
 
-    visible_params = [p for p in params if p.is_visible]
-    overview = SearchOverview(
-        search_name=search.url_segment,
-        display_name=search.display_name or search.url_segment,
-        record_type=rt,
-        description=search.description or search.summary,
-        parameter_names=[p.name for p in visible_params],
-        required_params=[
-            p.name
-            for p in visible_params
-            if not p.allow_empty_value or p.min_selected_count >= 1
-        ],
-    )
-    deps.agent_state.register_search(search.url_segment, overview)
+    register_search(deps.agent_state, search, rt)
 
     return overview_result
+
+
+def _unbound_parents(
+    all_params: list[WDKParameter],
+    parameter_id: str,
+    bound: dict[str, ParamValue] | None,
+) -> list[str]:
+    """The parents of `parameter_id` that carry no value yet.
+
+    A dependent vocabulary is generated under its parents, so a read without
+    them answers about the search's default parent rather than the one meant.
+    """
+    have = set(bound or {})
+    return sorted(
+        p.name
+        for p in all_params
+        if parameter_id in (p.dependent_params or []) and p.name not in have
+    )
 
 
 async def get_parameter_options(
@@ -245,6 +224,20 @@ async def get_parameter_options(
     )
     all_params = result.search_data.parameters or []
 
+    unbound = _unbound_parents(all_params, parameter_id, typed_context)
+    if unbound:
+        return ParentContextRequired(
+            search_name=search_name,
+            parameter_id=parameter_id,
+            parent_parameter_ids=unbound,
+            message=(
+                f"'{parameter_id}' has a different vocabulary under each value of "
+                f"{', '.join(unbound)}, so there is no list to show until one is "
+                f"chosen. Read {unbound[0]} first, then call this again passing "
+                f"context_values={{'{unbound[0]}': '<the value you chose>'}}."
+            ),
+        )
+
     depends_on: dict[str, list[str]] = {}
     controls: dict[str, list[str]] = {}
     for p in all_params:
@@ -307,97 +300,3 @@ def _snapshot_param_vocab(
     updated_vocab = {**overview.param_vocab, info.name: snapshot}
     updated = overview.model_copy(update={"param_vocab": updated_vocab})
     deps.agent_state.register_search(search_name, updated)
-
-
-async def resolve_search_parameters(
-    ctx: RunContext[AgentDeps],
-    search_name: str,
-    record_type: str | None = None,
-) -> ResolvedSearchParams:
-    """Resolve EVERY required parameter of an inspected search in one call.
-
-    Walks the parameter dependency DAG, refreshing each dependent param's
-    vocabulary under its resolved parent, and snapshots every required param's
-    vocab so planning copies validated values. Per param the result carries
-    either a ``resolved_value`` (a single forced value, use as-is) or
-    ``accepted_values`` to pick from. Call after ``get_search_overview`` and
-    before selecting — selection is blocked until required params are resolved.
-
-    Args:
-        ctx: Agent run context.
-        search_name: WDK search urlSegment, already inspected this turn.
-        record_type: Record type. Auto-resolved from the search name if omitted.
-    """
-    deps = ctx.deps
-    overview = deps.agent_state.get_overview(search_name)
-    if overview is None:
-        discovered = sorted(deps.agent_state.discovered_searches)
-        if not discovered:
-            msg = (
-                f"Search {search_name!r} has not been inspected yet. Call "
-                "`get_search_overview` first, then resolve its parameters."
-            )
-            raise ModelRetry(msg)
-        raise ModelRetry(_did_you_mean(search_name, discovered, kind="search_name"))
-
-    rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
-    chosen = {k: v for k, v in overview.param_hints.items() if isinstance(v, str)}
-    resolution = await resolve_parameter_dag(
-        site_id=deps.site_id,
-        record_type=rt,
-        search_name=search_name,
-        chosen_values=chosen,
-    )
-    auto_values = {a.name: a.value for a in resolution.auto_resolved}
-    required = set(overview.required_params)
-    summaries: list[ResolvedParamSummary] = []
-    for info in resolution.param_infos:
-        if info.name not in required:
-            continue
-        _snapshot_param_vocab(deps, search_name, info)
-        accepted: list[str] | None = None
-        note = ""
-        if info.allowed_values is not None:
-            accepted = [v.value for v in info.allowed_values]
-        elif info.allowed_values_tree:
-            note = (
-                "large tree vocabulary — use get_parameter_options(query=...) "
-                "to filter to the values you need"
-            )
-        summaries.append(
-            ResolvedParamSummary(
-                name=info.name,
-                param_type=info.type,
-                required=info.required,
-                help=info.help,
-                default_value=info.default_value,
-                accepted_values=accepted,
-                resolved_value=auto_values.get(info.name),
-                note=note,
-            ),
-        )
-    return ResolvedSearchParams(search_name=search_name, params=summaries)
-
-
-async def get_parameter_dependencies(
-    ctx: RunContext[AgentDeps],
-    search_name: str,
-    record_type: str | None = None,
-) -> DependencyDag:
-    """Get the parameter dependency DAG for a search.
-
-    Returns fillOrder (topologically sorted) and per-parameter dependency info.
-    Use this to determine which parameters must be set before others.
-
-    Args:
-        ctx: Agent run context.
-        search_name: WDK search name (urlSegment).
-        record_type: Record type. Auto-resolved from search name if omitted (recommended).
-    """
-    deps = ctx.deps
-    rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
-    client = get_wdk_client(deps.site_id)
-    details = await client.get_search_details(rt, search_name, expand_params=True)
-    params: list[WDKParameter] = details.search_data.parameters or []
-
-    return _build_dependency_dag(params)

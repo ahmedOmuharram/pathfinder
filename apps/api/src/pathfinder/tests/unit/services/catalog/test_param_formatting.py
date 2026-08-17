@@ -163,3 +163,33 @@ class TestDependentParamNote:
 
         assert info.note is not None
         assert "No parent value was supplied" in info.note
+
+
+class TestRequiredFollowsBothWdkSignals:
+    """WDK marks a parameter mandatory with allowEmptyValue or minSelectedCount."""
+
+    @staticmethod
+    def _param(*, allow_empty: bool, min_selected: int) -> WDKEnumParam:
+        return WDKEnumParam.model_validate(
+            {
+                "name": "organism",
+                "type": "multi-pick-vocabulary",
+                "allowEmptyValue": allow_empty,
+                "minSelectedCount": min_selected,
+            }
+        )
+
+    def test_a_minimum_selection_makes_a_param_required(self) -> None:
+        param = self._param(allow_empty=True, min_selected=1)
+
+        assert format_typed_param(param, {}, {}).required is True
+
+    def test_an_empty_value_is_allowed_when_nothing_must_be_selected(self) -> None:
+        param = self._param(allow_empty=True, min_selected=0)
+
+        assert format_typed_param(param, {}, {}).required is False
+
+    def test_forbidding_an_empty_value_is_enough_on_its_own(self) -> None:
+        param = self._param(allow_empty=False, min_selected=0)
+
+        assert format_typed_param(param, {}, {}).required is True

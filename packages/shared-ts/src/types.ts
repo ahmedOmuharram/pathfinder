@@ -304,6 +304,12 @@ export function siteDisplayName(siteId: string): string {
   return site?.displayName ?? site?.name ?? siteId;
 }
 
+/** The site's brand name, for a label with no room for the long form. */
+export function siteShortName(siteId: string): string {
+  const site = VEUPATHDB_SITES.find((s) => s.id === siteId);
+  return site?.name ?? siteId;
+}
+
 export const VEUPATHDB_SITES: VEuPathDBSite[] = [
   { id: "veupathdb", name: "VEuPathDB", displayName: "VEuPathDB Portal (All organisms)", baseUrl: "https://veupathdb.org", projectId: "EuPathDB", isPortal: true },
   { id: "plasmodb", name: "PlasmoDB", displayName: "PlasmoDB (Plasmodium)", baseUrl: "https://plasmodb.org", projectId: "PlasmoDB", isPortal: false },
@@ -420,6 +426,9 @@ export interface LedgerCriterionPayload {
   searchName: string;
   role: string;
   resolvedParams: Record<string, unknown>;
+  /** Params holding the search's own default rather than a value the request
+   * stated. A default is a safe choice and a silent one. */
+  defaultedParams?: string[];
   openParams: { criterionId: string; paramName: string; question: string }[];
   confidence: number;
 }

@@ -99,21 +99,19 @@ forbidden list of the domain contract.
 Every non-test module under `src/pathfinder/` that imports `httpx` was read on
 2026-08-10. Most catch its exception types without making a call; the literature
 clients under `services/research/` call arXiv, Crossref, PubMed and the rest.
-Exactly one builds a client against a VEuPathDB base URL.
-`transport/http/routers/veupathdb_auth.py` constructs its own
-`httpx.AsyncClient(base_url=auth_site.service_url)` and calls `GET /logout` on it.
-Every contract is green on that file, and it is a transport module talking to WDK.
+Exactly one built a client against a VEuPathDB base URL:
+`transport/http/routers/veupathdb_auth.py` constructed its own
+`httpx.AsyncClient(base_url=auth_site.service_url)` for `GET /logout`, with every
+contract green, and it was a transport module talking to WDK.
 
-The consequence is worth stating because it is not obvious.
-[`SessionService.processLogout`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/SessionService.java#L277-L311)
-acts on `getRequestingUser()` - the identity carried by *that* request's cookies -
-and returns immediately when that user is a guest. The client PathFinder builds
-there carries no cookie jar and no `Authorization` header, and a credential-less
-request is served as a fresh guest ([WDK-AUTH-001](../rules/auth-and-transport.md)).
-Read literally, that call cannot log the browser's WDK user out of anything. **This
-reading is from pinned source and was not confirmed against a live site**, which is
-the only reason it is written as a reading. It is filed as
-[logout-call-cannot-invalidate-the-token](../../backlog/logout-call-cannot-invalidate-the-token.md),
+That call has since moved into `integrations/veupathdb/auth_login.py`, where the
+credential it needs already lives. The hole it went through is still open: no
+contract forbids `httpx` outside the domain layer, so the next module to do this
+will also pass.
+
+The reading behind that move was confirmed live and is now
+[WDK-AUTH-004](../rules/auth-and-transport.md), which also records the part a fix
+cannot reach - the bearer token survives the logout either way.
 which sets out the four-step live check that would either confirm it or retire it.
 
 What is not in doubt is the layering fact, which is measured: a transport module

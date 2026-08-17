@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useStore } from "@tanstack/react-form";
 import { toast } from "sonner";
-import { siteDisplayName, type Step } from "@pathfinder/shared";
+import type { Step } from "@pathfinder/shared";
 import { useStrategyGraphCtx } from "@/features/strategy/graph/StrategyGraphContext";
 import {
   useDuplicateStepMutation,
@@ -11,7 +11,6 @@ import {
 } from "@/features/strategy/mutations";
 import { useSaveSubstrategyMutation } from "@/features/strategy/mutations/useSaveSubstrategyMutation";
 import { SaveSubstrategyDialog } from "./SaveSubstrategyDialog";
-import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyData } from "@/lib/api/strategy";
 import { useStepSnapshot } from "@/state/strategy/useStepSnapshot";
@@ -239,7 +238,6 @@ export function EditorContent({
     updateError: updateStep.isError,
   });
 
-  const dbName = siteDisplayName(useSessionStore((s) => s.selectedSite));
   const footerProps = {
     syncState,
     changeCount: changes.changeCount,
@@ -250,7 +248,7 @@ export function EditorContent({
     onDiscard: () => setConfirmDiscardOpen(true),
     count: snapshot.estimatedSize,
     wdkUrl,
-    dbName,
+    siteId,
   };
 
   return (

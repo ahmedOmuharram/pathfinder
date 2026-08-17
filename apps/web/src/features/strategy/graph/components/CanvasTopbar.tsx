@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  ExternalLink,
   ArrowLeft,
   Code2,
   Copy,
@@ -14,6 +15,7 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
+import { siteShortName } from "@pathfinder/shared";
 import type { Strategy } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,7 +146,20 @@ export function CanvasTopbar({
         <span aria-hidden>·</span>
         <SyncStatusPill state={syncState} onRetry={onRetry} />
       </div>
-      <div className="ml-auto flex items-center">
+      <div className="ml-auto flex items-center gap-1">
+        {strategy.wdkUrl != null && strategy.wdkUrl !== "" && (
+          <Button asChild type="button" variant="ghost" size="sm" className="gap-1.5">
+            <a
+              href={strategy.wdkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="canvas-topbar-wdk-link"
+            >
+              <span className="text-xs">{siteShortName(strategy.siteId)}</span>
+              <ExternalLink className="size-3.5" aria-hidden />
+            </a>
+          </Button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

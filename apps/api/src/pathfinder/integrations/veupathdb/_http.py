@@ -8,8 +8,8 @@ from typing import cast
 import httpx
 from pydantic import JsonValue
 from tenacity import (
+    AsyncRetrying,
     RetryError,
-    retry,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
@@ -161,19 +161,6 @@ class HTTPClient:
             self._client = None
         self._initialized_for_token = None
 
-    @retry(
-        retry=retry_if_exception_type(
-            (
-                httpx.TimeoutException,
-                httpx.ConnectError,
-                httpx.HTTPStatusError,
-                WDKDelayedResultError,
-            )
-        ),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        before_sleep=log_wdk_retry,
-    )
     async def _request_attempt(
         self,
         method: str,
@@ -261,12 +248,36 @@ class HTTPClient:
             msg = f"Request failed: {e}"
             raise WDKError(msg, status=502) from e
 
+    @staticmethod
+    def _retrying(*, attempts: int) -> AsyncRetrying:
+        """The retry policy for one request.
+
+        A non-idempotent request gets a single attempt: a proxy 502 can follow a
+        write WDK already committed, and a second attempt is a second object.
+        """
+        return AsyncRetrying(
+            retry=retry_if_exception_type(
+                (
+                    httpx.TimeoutException,
+                    httpx.ConnectError,
+                    httpx.HTTPStatusError,
+                    WDKDelayedResultError,
+                )
+            ),
+            stop=stop_after_attempt(attempts),
+            wait=wait_exponential(multiplier=1, min=1, max=10),
+            before_sleep=log_wdk_retry,
+            reraise=False,
+        )
+
     async def _request(
         self,
         method: str,
         path: str,
         params: JSONObject | None = None,
         json: object = None,
+        *,
+        idempotent: bool = True,
     ) -> JsonValue:
         """Make an HTTP request with retries, and record telemetry."""
         start = time.monotonic()
@@ -282,11 +293,8 @@ class HTTPClient:
             has_auth=bool(auth_token),
         )
         try:
-            result = await self._request_attempt(
-                method,
-                path,
-                params=params,
-                json=json,
+            result: JsonValue = await self._retrying(attempts=3 if idempotent else 1)(
+                self._request_attempt, method, path, params=params, json=json
             )
         except RetryError as e:
             last = e.last_attempt.exception()
@@ -336,9 +344,17 @@ class HTTPClient:
         path: str,
         json: object = None,
         params: JSONObject | None = None,
+        *,
+        idempotent: bool = True,
     ) -> JsonValue:
-        """POST request."""
-        return await self._request("POST", path, params=params, json=json)
+        """POST request.
+
+        Pass ``idempotent=False`` for a create, so a proxy error is not retried
+        into a second object.
+        """
+        return await self._request(
+            "POST", path, params=params, json=json, idempotent=idempotent
+        )
 
     async def patch(self, path: str, json: object = None) -> JsonValue:
         """PATCH request."""

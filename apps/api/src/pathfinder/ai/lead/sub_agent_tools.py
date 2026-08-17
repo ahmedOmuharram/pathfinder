@@ -66,11 +66,27 @@ from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-PHASE_USAGE_LIMITS: UsageLimits = UsageLimits(
-    request_limit=60,
-    tool_calls_limit=60,
-    total_tokens_limit=2_000_000,
-)
+# Binding one criterion costs about seven calls: find a search, read it, read a
+# parameter or two, set the criterion. Reading the ledger and setting the
+# structure are paid once for the pass.
+CALLS_PER_CRITERION = 7
+STRUCTURE_CALLS = 8
+# A pass below the floor cannot recover from a single wrong search. The cap is
+# what stops an overstated count from spending a whole turn.
+MIN_PHASE_TOOL_CALLS = 40
+MAX_PHASE_TOOL_CALLS = 160
+_PHASE_TOKEN_LIMIT = 2_000_000
+
+
+def phase_usage_limits(declared_criteria: int) -> UsageLimits:
+    """The ceiling for one sub-agent pass over ``declared_criteria`` criteria."""
+    wanted = declared_criteria * CALLS_PER_CRITERION + STRUCTURE_CALLS
+    calls = max(MIN_PHASE_TOOL_CALLS, min(MAX_PHASE_TOOL_CALLS, wanted))
+    return UsageLimits(
+        request_limit=calls,
+        tool_calls_limit=calls,
+        total_tokens_limit=_PHASE_TOKEN_LIMIT,
+    )
 
 _SUB_AGENT_BY_ROLE: dict[PhaseRole, Any] = {
     "frame": frame_agent,
@@ -323,15 +339,25 @@ _PHASE_STATUS_LABELS: dict[PhaseRole, str] = {
 }
 
 
+@dataclass(frozen=True)
+class PhaseRun:
+    """What to run: which sub-agent, on what, at what size."""
+
+    role: PhaseRole
+    work_order: str
+    declared_criteria: int = 0
+
+
 async def _stream_sub_agent[OutputT: BaseModel](
     *,
-    role: PhaseRole,
-    work_order: str,
+    run: PhaseRun,
     agent_deps: AgentDeps,
     parent_tool_call_id: str,
     expected_output_type: type[OutputT],
     deps: LeadDeps,
 ) -> OutputT | None:
+    role = run.role
+    work_order = run.work_order
     agent = _SUB_AGENT_BY_ROLE[role]
     """Run a sub-agent, forward its inner events, and return the typed delta."""
     writer = get_stream_writer()
@@ -363,7 +389,7 @@ async def _stream_sub_agent[OutputT: BaseModel](
             async with agent.run_stream_events(
                 work_order,
                 deps=agent_deps,
-                usage_limits=PHASE_USAGE_LIMITS,
+                usage_limits=phase_usage_limits(run.declared_criteria),
                 usage=usage,
             ) as events:
                 async for event in events:

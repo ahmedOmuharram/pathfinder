@@ -54,7 +54,7 @@ async def update_search_decision(
     """Commit discovery's decision about an already-inspected search.
 
     Call this AFTER ``get_search_overview`` (and any parameter inspection)
-    to record what you concluded — biological rationale, whether you're
+    to record what you concluded - biological rationale, whether you're
     keeping it, why, and any parameter values you already settled on.
     Downstream phases (planning, execution, verification) read this
     instead of replaying your tool history.
@@ -65,7 +65,7 @@ async def update_search_decision(
             ``candidate`` (still considering), or ``rejected`` (ruling out
             but worth recording so planning doesn't re-discover it).
         rationale: Why this search is biologically relevant to the user's
-            question. Reuse on every call — this is the "elevator pitch"
+            question. Reuse on every call - this is the "elevator pitch"
             for the search, not the decision justification.
         selection_reason: Short justification for the current
             ``selection_status`` decision (e.g. "primary anchor for kinase
@@ -76,7 +76,7 @@ async def update_search_decision(
         replaces: When this selection SUPERSEDES a search already in the plan
             (a targeted re-discovery swap), pass that search's name here. The
             old search is auto-rejected and the plan leaf using it is rewritten
-            to this search automatically — do NOT hand-edit the plan.
+            to this search automatically - do NOT hand-edit the plan.
     """
     if not 0.0 <= confidence <= 1.0:
         msg = (
@@ -101,7 +101,7 @@ async def update_search_decision(
         )
     if existing.decided and existing.selection_status == selection_status:
         return (
-            f"Already decided '{search_name}' as {selection_status} — no change "
+            f"Already decided '{search_name}' as {selection_status} - no change "
             "recorded. It's hidden from the catalog now; move on to other "
             "searches or finish discovery."
         )
@@ -113,7 +113,7 @@ async def update_search_decision(
             msg = (
                 f"Cannot select {search_name!r}: required parameters "
                 f"{unresolved} have no resolved vocabulary, so planning would "
-                f"have to guess their values. Call resolve_search_parameters("
+                f"have to guess their values. Call get_search_overview("
                 f"search_name={search_name!r}) first, then select."
             )
             raise ModelRetry(msg)

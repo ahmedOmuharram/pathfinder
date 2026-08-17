@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from pydantic import Field
-
+from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.domain.search import SearchContext
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.searches import find_record_type_for_search
-from pathfinder.services.wdk import WDKBaseParameter, WDKParameter
+from pathfinder.services.wdk import WDKParameter, WDKSearch, get_wdk_client
 
 _UNIVERSAL_SEARCHES: list[JSONObject] = [
     {
@@ -20,77 +18,6 @@ _UNIVERSAL_SEARCHES: list[JSONObject] = [
         "relevanceScore": 0.0,
     },
 ]
-
-
-class DependencyEntry(CamelModel):
-    """One entry in the dependency DAG."""
-
-    depends_on: list[str] = Field(default_factory=list)
-    controls: list[str] = Field(default_factory=list)
-    is_required: bool = False
-
-
-class DependencyDag(CamelModel):
-    """Parameter dependency DAG with topological fill order."""
-
-    fill_order: list[str] = Field(default_factory=list)
-    dependencies: dict[str, DependencyEntry] = Field(default_factory=dict)
-
-
-def _collect_param_edges(
-    params: list[WDKParameter],
-) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """Return the depends-on and controls adjacency maps for the
-    parameters."""
-    depends_on: dict[str, list[str]] = {}
-    controls: dict[str, list[str]] = {}
-    for p in params:
-        base: WDKBaseParameter = p
-        if base.dependent_params:
-            controls[base.name] = list(base.dependent_params)
-            for dep in base.dependent_params:
-                depends_on.setdefault(dep, []).append(base.name)
-    return depends_on, controls
-
-
-def _topological_fill_order(
-    all_names: list[str],
-    depends_on: dict[str, list[str]],
-    controls: dict[str, list[str]],
-) -> list[str]:
-    """Return a topological fill order using Kahn's algorithm."""
-    in_degree = {name: len(depends_on.get(name, [])) for name in all_names}
-    queue = [n for n in all_names if in_degree[n] == 0]
-    fill_order: list[str] = []
-    while queue:
-        node = queue.pop(0)
-        fill_order.append(node)
-        for dep in controls.get(node, []):
-            if dep in in_degree:
-                in_degree[dep] -= 1
-                if in_degree[dep] == 0:
-                    queue.append(dep)
-    # A cycle leaves nodes unvisited, and those go at the end.
-    fill_order.extend(n for n in all_names if n not in fill_order)
-    return fill_order
-
-
-def _build_dependency_dag(params: list[WDKParameter]) -> DependencyDag:
-    """Build a dependency DAG from WDK parameters."""
-    depends_on, controls = _collect_param_edges(params)
-    all_names = [p.name for p in params if p.is_visible]
-    fill_order = _topological_fill_order(all_names, depends_on, controls)
-    entries: dict[str, DependencyEntry] = {}
-    for p in params:
-        if not p.is_visible:
-            continue
-        base_p: WDKBaseParameter = p
-        entries[base_p.name] = DependencyEntry(
-            depends_on=depends_on.get(base_p.name, []),
-            controls=controls.get(base_p.name, []),
-            is_required=not base_p.allow_empty_value or base_p.min_selected_count >= 1,
-        )
-    return DependencyDag(fill_order=fill_order, dependencies=entries)
 
 
 def _filter_vocab(param: WDKParameter, query: str) -> WDKParameter:
@@ -111,6 +38,53 @@ def _filter_vocab(param: WDKParameter, query: str) -> WDKParameter:
         return param.model_copy(update={"vocabulary": filtered_dict})
 
     return param
+
+
+def _search_overview_of(search: WDKSearch, record_type: str) -> SearchOverview:
+    """The discovery-gate entry for a search, from its expanded WDK definition."""
+    visible = [p for p in search.parameters or [] if p.is_visible]
+    return SearchOverview(
+        search_name=search.url_segment,
+        display_name=search.display_name or search.url_segment,
+        record_type=record_type,
+        description=search.description or search.summary,
+        parameter_names=[p.name for p in visible],
+        required_params=[
+            p.name
+            for p in visible
+            if not p.allow_empty_value or p.min_selected_count >= 1
+        ],
+    )
+
+
+async def read_search_definition(
+    site_id: str, record_type: str, search_name: str
+) -> WDKSearch:
+    """The expanded WDK definition of one search: its metadata and parameters."""
+    details = await get_wdk_client(site_id).get_search_details(
+        record_type, search_name, expand_params=True
+    )
+    return details.search_data
+
+
+def register_search(state: AgentToolState, search: WDKSearch, record_type: str) -> None:
+    """Register a search in the discovery gate when nothing registered it yet."""
+    if state.get_overview(search.url_segment) is not None:
+        return
+    state.register_search(search.url_segment, _search_overview_of(search, record_type))
+
+
+async def ensure_search_registered(
+    state: AgentToolState, site_id: str, record_type: str, search_name: str
+) -> None:
+    """Register a search the caller holds no definition for.
+
+    The definition is read only when the discovery gate has no entry yet.
+    """
+    if state.get_overview(search_name) is not None:
+        return
+    definition = await read_search_definition(site_id, record_type, search_name)
+    register_search(state, definition, record_type)
 
 
 async def _resolve_record_type(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Protocol
 
 from pydantic import Field, JsonValue, TypeAdapter, model_validator
 
@@ -166,6 +166,45 @@ class FilterTermClause(CamelModel):
     is_range: bool = False
     include_unknown: bool = False
     value: JsonValue = Field(default_factory=list)
+
+
+class ParamSpecLimits(Protocol):
+    """The declared bounds of a range parameter."""
+
+    @property
+    def min(self) -> float | None: ...
+
+    @property
+    def max(self) -> float | None: ...
+
+    @property
+    def min_date(self) -> str | None: ...
+
+    @property
+    def max_date(self) -> str | None: ...
+
+
+def close_open_range(
+    value: NumberRangeValue | DateRangeValue,
+    spec: ParamSpecLimits,
+) -> NumberRangeValue | DateRangeValue:
+    """Fill a range's open end from the parameter's own declared limit.
+
+    WDK reads both ends and refuses an object missing one. A limit the
+    parameter declares is not a guess; without one the value is left as it is
+    so WDK refuses it by name.
+    """
+    if isinstance(value, NumberRangeValue):
+        low = value.min if value.min is not None else spec.min
+        high = value.max if value.max is not None else spec.max
+        if low is None or high is None:
+            return value
+        return NumberRangeValue(min=low, max=high)
+    low_date = value.min if value.min is not None else spec.min_date
+    high_date = value.max if value.max is not None else spec.max_date
+    if low_date is None or high_date is None:
+        return value
+    return DateRangeValue(min=low_date, max=high_date)
 
 
 class FilterValue(CamelModel):

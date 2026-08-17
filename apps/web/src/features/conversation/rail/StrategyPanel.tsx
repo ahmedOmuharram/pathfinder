@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { ExternalLink, Workflow } from "lucide-react";
 
-import type { Strategy } from "@pathfinder/shared";
+import { siteShortName, type Strategy } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
 import { CompactStrategyView } from "@/features/strategy/graph/components/CompactStrategyView";
 import { InsertSavedDialog } from "@/features/saved/InsertSavedDialog";
@@ -26,6 +26,7 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
   const selectedStepId =
     pathname != null ? (pathname.match(STEP_ROUTE_RE)?.[1] ?? null) : null;
   const hasSteps = strategy != null && strategy.steps.length > 0;
+  const wdkUrl = strategy?.wdkUrl ?? null;
 
   const [saveStepId, setSaveStepId] = useState<string | null>(null);
   const [insertTargetId, setInsertTargetId] = useState<string | null>(null);
@@ -56,16 +57,30 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
       title="Strategy"
       headerActions={
         hasSteps ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={openFullEditor}
-            data-testid="rail-strategy-open"
-            className="h-7 gap-1 px-2 text-xs"
-          >
-            Open
-            <ExternalLink className="size-3" aria-hidden />
-          </Button>
+          <div className="flex items-center gap-1">
+            {wdkUrl != null && wdkUrl !== "" && (
+              <Button asChild variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs">
+                <a
+                  href={wdkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="rail-strategy-wdk-link"
+                >
+                  {siteShortName(siteId)}
+                  <ExternalLink className="size-3" aria-hidden />
+                </a>
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={openFullEditor}
+              data-testid="rail-strategy-open"
+              className="h-7 gap-1 px-2 text-xs"
+            >
+              Open
+            </Button>
+          </div>
         ) : null
       }
     >

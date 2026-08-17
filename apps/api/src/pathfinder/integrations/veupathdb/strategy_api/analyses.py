@@ -7,6 +7,7 @@ from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKAnalysisStatus,
     WDKStepAnalysisConfig,
+    WDKStepAnalysisSummary,
     WDKStepAnalysisType,
     WDKStepAnalysisTypeResponse,
 )
@@ -33,7 +34,12 @@ _background_tasks: set[asyncio.Task[None]] = set()
 class AnalysisMixin(StrategyAPIBase):
     """Step analysis lifecycle methods."""
 
-    _RETRIABLE_STATUSES = frozenset({"ERROR", "OUT_OF_DATE", "STEP_REVISED"})
+    # WDK re-executes exactly the statuses carrying `requiresRerun`.
+    _RETRIABLE_STATUSES = frozenset(
+        {"ERROR", "EXPIRED", "INTERRUPTED", "OUT_OF_DATE", "STEP_REVISED"}
+    )
+    # These two describe a timeout or a shutdown, not the data.
+    _RUN_CONDITION_STATUSES = frozenset({"EXPIRED", "INTERRUPTED"})
 
     async def list_analysis_types(
         self, step_id: int, user_id: str | None = None
@@ -51,7 +57,7 @@ class AnalysisMixin(StrategyAPIBase):
 
     async def list_step_analyses(
         self, step_id: int, user_id: str | None = None
-    ) -> list[WDKStepAnalysisConfig]:
+    ) -> list[WDKStepAnalysisSummary]:
         """Lists the analyses that already ran on a step."""
         uid = await self._get_user_id(user_id)
         return await self.client.list_step_analyses(uid, step_id)
@@ -128,11 +134,6 @@ class AnalysisMixin(StrategyAPIBase):
 
             if status == "COMPLETE":
                 return
-            if status in ("EXPIRED", "INTERRUPTED"):
-                raise InternalError(
-                    title="Step analysis failed",
-                    detail=f"Analysis {analysis_id} ended with status: {status}",
-                )
             if status in self._RETRIABLE_STATUSES:
                 retries += 1
                 logger.warning(
@@ -145,12 +146,7 @@ class AnalysisMixin(StrategyAPIBase):
                     self._log_analysis_failure(uid, step_id, analysis_id)
                     raise InternalError(
                         title="Analysis unavailable",
-                        detail=(
-                            f"VEuPathDB could not complete this analysis "
-                            f"(returned {status} after {retries} attempts). "
-                            f"This typically happens when the gene set is too "
-                            f"small or lacks the required annotations."
-                        ),
+                        detail=self._give_up_detail(status, retries),
                     )
                 # A new run of the same instance resets it to PENDING.
                 logger.warning(
@@ -164,6 +160,23 @@ class AnalysisMixin(StrategyAPIBase):
         raise InternalError(
             title="Step analysis timed out",
             detail=f"Analysis {analysis_id} did not complete within {max_wait}s",
+        )
+
+    @classmethod
+    def _give_up_detail(cls, status: str, retries: int) -> str:
+        """Explain the give-up in terms of what the status actually reports."""
+        attempts = (
+            f"VEuPathDB could not complete this analysis "
+            f"(returned {status} after {retries} attempts)."
+        )
+        if status in cls._RUN_CONDITION_STATUSES:
+            return (
+                f"{attempts} The run was cut short rather than rejected, so the "
+                f"same analysis may succeed later."
+            )
+        return (
+            f"{attempts} This typically happens when the gene set is too small "
+            f"or lacks the required annotations."
         )
 
     def _log_analysis_failure(self, uid: str, step_id: int, analysis_id: int) -> None:

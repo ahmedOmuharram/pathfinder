@@ -11,7 +11,13 @@ function getOpBadgeLabel(op: string): string {
   return (CombineOperatorBadgeLabels as Record<string, string>)[op] ?? op;
 }
 
-export function VennIcon({ operator }: { operator: string }) {
+export function VennIcon({
+  operator,
+  width = 24,
+}: {
+  operator: string;
+  width?: number;
+}) {
   const stroke = "hsl(var(--muted-foreground))";
   const highlight = "hsl(var(--success))";
   const bg = "hsl(var(--card))";
@@ -23,11 +29,10 @@ export function VennIcon({ operator }: { operator: string }) {
 
   return (
     <svg
-      width="24"
-      height="16"
+      width={width}
+      height={Math.round((width * 2) / 3)}
       viewBox="0 0 36 24"
       aria-hidden="true"
-      className="mr-1.5"
     >
       {/* Highlight selected region(s) */}
       {operator === CombineOperator.UNION && (
@@ -107,7 +112,9 @@ export function OpBadge({ operator, size = "md" }: OpBadgeProps) {
     <span
       className={`inline-flex items-center rounded-md border border-border bg-muted font-mono font-semibold text-foreground ${sizeClasses}`}
     >
-      <VennIcon operator={operator} />
+      <span className="mr-1.5">
+        <VennIcon operator={operator} />
+      </span>
       {label}
     </span>
   );

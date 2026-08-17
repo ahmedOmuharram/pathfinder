@@ -2,6 +2,7 @@ import json
 
 from pathfinder.domain.parameters.value_utils import decode_values
 from pathfinder.domain.parameters.wdk_vocab import (
+    FAKE_ALL_SENTINEL,
     WDKTreeBoxVocabNode,
     WDKVocabTerm,
     collect_leaf_terms,
@@ -23,16 +24,15 @@ logger = get_logger(__name__)
 
 _MIN_ENTRY_PARTS_FOR_CODE_STATE = 2
 _MIN_ENTRY_PARTS_FOR_QUANTIFIER = 3
+_PHYLETIC_STATES = frozenset({"Y", "N"})
 
 
 def _sort_profile_pattern(pattern: str) -> str:
-    """Sort ``%code:Y%code:N%`` entries alphabetically.
+    """Sort ``%code:Y%code:N%`` entries into ascending code order.
 
-    OrthoMCL requires pattern entries in alphabetical order.  The WDK
-    frontend always ``.sort()``s before joining — we must too.
-
-    Also strips whitespace from entries — LLMs sometimes produce
-    ``%CODE:N% %CODE:N%`` with spaces between entries.
+    The pattern is matched against a census that lists codes ascending, and
+    ``%A%B%`` means "A, then later B", so entries out of that order describe a
+    census that cannot exist. Whitespace between entries is dropped.
     """
     if not pattern.startswith("%") or not pattern.endswith("%"):
         return pattern
@@ -40,14 +40,48 @@ def _sort_profile_pattern(pattern: str) -> str:
     return f"%{'%'.join(sorted(parts))}%" if parts else pattern
 
 
+def is_census_pattern(pattern: str) -> bool:
+    """Whether a profile pattern is built from census tokens.
+
+    The value is a LIKE pattern over ``code:Y``/``code:N`` entries separated by
+    the wildcard. Anything else matches nothing, and WDK reports that as a
+    count rather than as an error.
+    """
+    if not pattern.startswith("%") or not pattern.endswith("%"):
+        return False
+    entries = [p for p in pattern.strip("%").split("%") if p]
+    return all(
+        len(parts) >= _MIN_ENTRY_PARTS_FOR_CODE_STATE
+        and parts[1] in _PHYLETIC_STATES
+        for parts in (entry.split(":") for entry in entries)
+    )
+
+
 def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> None:
     invalid_codes: list[str] = []
+    invalid_states: list[str] = []
     for entry in entries:
         parts = entry.split(":")
         if len(parts) >= _MIN_ENTRY_PARTS_FOR_CODE_STATE:
             code = parts[0]
             if code not in all_known_codes:
                 invalid_codes.append(code)
+            if parts[1] not in _PHYLETIC_STATES:
+                invalid_states.append(entry)
+
+    # WDK matches the pattern with LIKE, so any other token returns a count
+    # instead of an error.
+    if invalid_states:
+        raise AppError(
+            code=ErrorCode.VALIDATION_ERROR,
+            title="Invalid state in profile_pattern",
+            status=422,
+            detail=(
+                f"Entries {', '.join(invalid_states[:5])} do not state presence "
+                f"or absence. Each entry is 'code:Y' for present or 'code:N' "
+                f"for absent; no other value matches anything."
+            ),
+        )
 
     if invalid_codes:
         raise AppError(
@@ -179,7 +213,13 @@ class StrategyAPIBase:
         seen: set[str] = set()
         for val in values:
             val_str = str(val)
-            node = find_vocab_node(vocab, val_str)
+            # The synthetic root names no real term. Expanding it would select
+            # the whole vocabulary instead of failing.
+            node = (
+                None
+                if val_str == FAKE_ALL_SENTINEL
+                else find_vocab_node(vocab, val_str)
+            )
             if node is None:
                 if val_str not in seen:
                     expanded.append(val_str)
@@ -215,8 +255,20 @@ class StrategyAPIBase:
         Raises ``AppError`` if the pattern contains codes that are not
         recognized as valid species or group codes.
         """
-        if not pattern.startswith("%") or not pattern.endswith("%"):
-            return pattern
+        # A non-census string reaches LIKE and matches nothing, which WDK
+        # answers with a count. The published default is one of these.
+        if not is_census_pattern(pattern):
+            raise AppError(
+                code=ErrorCode.VALIDATION_ERROR,
+                title="profile_pattern is not a census pattern",
+                status=422,
+                detail=(
+                    f"{pattern!r} is not built from census tokens. Use "
+                    f"'%code:Y%' for present and '%code:N%' for absent, in "
+                    f"ascending code order, or '%' for no constraint. Call "
+                    f"lookup_phyletic_codes() for the codes."
+                ),
+            )
 
         entries = [p for p in pattern.strip("%").split("%") if p]
         if not entries:

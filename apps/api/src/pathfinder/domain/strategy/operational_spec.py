@@ -116,6 +116,11 @@ def _node_to_step(node: StructureNode, by_id: dict[str, Criterion]) -> StrategyS
             display_name=crit.text[:60],
             primary_input=_node_to_step(node.inputs[0], by_id),
         )
+    # Combining n criteria takes n-1 nodes. A spec that emits one per criterion
+    # carries a spare with nothing to combine against, and one operand is that
+    # operand.
+    if len(node.inputs) == 1:
+        return _node_to_step(node.inputs[0], by_id)
     if node.operator is None or len(node.inputs) < _MIN_COMBINE_INPUTS:
         msg = "combine node needs an operator and at least two inputs"
         raise ValueError(msg)

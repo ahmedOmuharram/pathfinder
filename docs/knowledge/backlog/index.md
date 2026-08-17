@@ -10,40 +10,22 @@ Items are removed when done, not marked done. The [log](../log.md) records what 
 
 ## Agents
 
-- [A dependent vocabulary read before its parent is bound returns the default set](unqualified-dependent-read-shapes-the-answer.md) - the exploratory read has no parent to inherit, and its selection survives
+- [A numeric bound stated in the request is ignored, then reported as honoured](numeric-intent-ignored-then-reported-as-honoured.md) - the resolution half is closed; a reply can still restate a bound value with an interpretation the value does not support
 
-- [The DeRisi expression branch binds to zero genes](derisi-branch-binds-empty.md) - the strategy builds, but an empty branch where a looser binding gave a large result is not obviously right
-
-- [Parameter value resolution is hand-written NLU with no measurement](parameter-resolution-cannot-converge.md) - 4 rules cover 30% of real params; this is the generator behind most of the rest
-
-- [A numeric bound stated in the request is ignored, then reported as honoured](numeric-intent-ignored-then-reported-as-honoured.md) - "top 10 percent" built the top 20 percent and said otherwise
-
-- [FRAME leaves open slots even when told to use defaults](frame-ignores-use-defaults.md) - 9 questions for one request
+- [No way for a user to authorise defaults](frame-ignores-use-defaults.md) - the slots now fill, but "pick something sensible" still has no mechanism and an assumed value is only narrated, not recorded
 
 ## WDK integration
-
-- [Orphaned steps are deleted before the push that orphans them](orphan-delete-runs-before-the-orphaning.md) - every delete is refused and the orphans accumulate on the user's account
 
 Ranked by consequence, and each item states its own blast radius rather than leaving it to
 be assumed.
 
-- [Logging out deletes PathFinder's cookies and leaves the VEuPathDB token live](logout-call-cannot-invalidate-the-token.md) - ranked first because the outcome is a credential rather than a number; a reading from pinned source, with the live check that settles it
+- [Filling a hidden required parameter from `initialDisplayValue` chooses the science](hidden-required-default-chooses-the-science.md) - the fill is the right shape and the value it fills carries no guarantee; on one search it is an expression from another site's grammar, and that search is now the largest single source of wrong parameter values
 
-- [FilterMixin is named for view filters and writes step filters, dropping columnFilters on the way](filter-mixin-names-the-wrong-mechanism.md) - the only one here that silently widens a result
+- [34 of the 83 WDK rules have no test; one SILENT rule is open again](wdk-rules-are-unenforced.md) - last in this section because it is mostly the missing safety net under the others, though the one open SILENT rule is a live hazard
 
-- [Non-idempotent POSTs are retried on 5xx and on timeout](post-retried-on-5xx.md) - a proxy 502 after WDK commits leaves orphaned steps and duplicate strategies
+## Testing
 
-- [EXPIRED and INTERRUPTED are treated as fatal although WDK asks for a re-run](expired-and-interrupted-are-not-retried.md) - loud and accurately reported; the cost is a recoverable enrichment abandoned, not a wrong answer
-
-- [A one-sided range serializes to a value WDK rejects](one-sided-range-is-unpushable.md) - loud, but the message never names the missing endpoint
-
-- [The applied-analyses list is always empty, and the emptiness is swallowed](step-analyses-list-silently-empty.md) - no researcher sees it; it blinds the diagnostic written to explain a failed enrichment
-
-- [37 of the 73 WDK rules have no test; the silent ones are now covered](wdk-rules-are-unenforced.md) - last in this section because it is not a defect but the missing safety net under all of them; what remains fails loudly or drifts slowly, so the blast radius is a confusing refusal rather than a plausible number
-
-## Frontend
-
-- [The app fires a doomed WDK auth refresh on every page](doomed-auth-refresh.md) - a guaranteed 401 on every navigation, drowning real console errors
+- [A unit test whose stub misses its seam reaches the live WDK and still passes](unit-tests-can-reach-the-network.md) - nothing in the unit tier refuses sockets; one inert stub was found and fixed, the class is open
 
 ## Known and accepted
 

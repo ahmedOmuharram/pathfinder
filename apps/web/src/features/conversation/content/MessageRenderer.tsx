@@ -128,11 +128,13 @@ for (const kind of Object.keys(dataPartComponents)) {
   )) as DataMessagePartComponent<unknown>;
 }
 
-// Control parts the carousel attaches to the message to transmit the user's
-// answers to the backend — they carry no UI of their own.
+// Parts that carry data for something other than a renderer: the carousel's
+// answers travel back to the backend, and the strategy revision is read off the
+// parts array by SupersededBadge.
 const noRender = (() => null) as DataMessagePartComponent<unknown>;
 dataByName["plan-slot-answers"] = noRender;
 dataByName["decision-answers"] = noRender;
+dataByName["strategy-revision"] = noRender;
 
 const reportedUnknownDataKinds = new Set<string>();
 

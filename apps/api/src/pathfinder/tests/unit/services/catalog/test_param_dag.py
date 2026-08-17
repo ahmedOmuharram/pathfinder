@@ -3,9 +3,6 @@ dependent-vocabulary walk."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
 
 from pathfinder.domain.parameters.values import (
@@ -15,17 +12,11 @@ from pathfinder.domain.parameters.values import (
     SinglePickValue,
 )
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
-from pathfinder.integrations.embeddings.prefixes import SEARCH_QUERY_PREFIX
-from pathfinder.services.catalog import param_dag
 from pathfinder.services.catalog.param_dag import (
-    AutoResolved,
-    Choice,
     ResolvedParams,
     _apply_override,
-    classify_param,
+    _single_valid_value,
     param_value_for,
-    resolve_dag,
-    resolve_parameter_dag,
     resolve_params_with_intent,
 )
 from pathfinder.services.catalog.param_formatting import (
@@ -88,32 +79,10 @@ def _p(
     )
 
 
-async def _embed_orthogonal(texts: Sequence[str]) -> list[list[float]]:
-    return [[1.0, 0.0]] + [[0.0, 1.0]] * (len(texts) - 1)
-
-
-async def _embed_prefers_female(texts: Sequence[str]) -> list[list[float]]:
-    # The query aligns with "female" and stays orthogonal to "male".
-    return [
-        [1.0, 0.0] if t.startswith(SEARCH_QUERY_PREFIX) or "female" in t else [0.0, 1.0]
-        for t in texts
-    ]
-
-
-async def _embed_prefers_group1(texts: Sequence[str]) -> list[list[float]]:
-    # The query aligns with "Group 1" and stays orthogonal to "Group 2".
-    return [
-        [1.0, 0.0]
-        if t.startswith(SEARCH_QUERY_PREFIX) or "Group 1" in t
-        else [0.0, 1.0]
-        for t in texts
-    ]
-
-
-def test_apply_override_snaps_to_tree_box_leaf() -> None:
+def _tree_box_organism() -> ParameterInfo:
     # A tree-box param carries its values as flattened leaves, not as allowed
-    # values, and an override snaps to a leaf string.
-    info = ParameterInfo(
+    # values.
+    return ParameterInfo(
         name="organism",
         display_name="organism",
         type="multi-pick-vocabulary",
@@ -123,13 +92,27 @@ def test_apply_override_snaps_to_tree_box_leaf() -> None:
         value_format="",
         allowed_values=None,
         vocab_leaves=[
-            VocabOption(value="Plasmodium vivax P01", display="Plasmodium vivax P01"),
+            VocabOption(value="Plasmodium vivax P01", display="P. vivax P01"),
             VocabOption(
                 value="Plasmodium falciparum 3D7", display="Plasmodium falciparum 3D7"
             ),
         ],
     )
-    assert _apply_override(info, "Plasmodium vivax") == "Plasmodium vivax P01"
+
+
+def test_apply_override_matches_a_tree_box_leaf_by_term_or_label() -> None:
+    info = _tree_box_organism()
+
+    assert _apply_override(info, "plasmodium vivax p01") == "Plasmodium vivax P01"
+    assert _apply_override(info, "P. vivax P01") == "Plasmodium vivax P01"
+
+
+def test_apply_override_does_not_snap_a_substring_to_a_leaf() -> None:
+    # "Plasmodium vivax" is a genus, not the strain leaf. Snapping it binds a
+    # strain the request never named.
+    assert (
+        _apply_override(_tree_box_organism(), "Plasmodium vivax") == "Plasmodium vivax"
+    )
 
 
 def _filter(name: str, fields: list[FilterFieldInfo]) -> ParameterInfo:
@@ -166,8 +149,7 @@ async def test_filter_param_defaults_to_include_all() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="all samples"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
     )
     value = rp.params["ngsSnp_strain_meta"]
     assert isinstance(value, FilterValue)
@@ -197,8 +179,7 @@ async def _resolve_loffler(overrides: dict[str, str] | None) -> ResolvedParams:
 
     return await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="immunogenic in infection"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides=overrides,
     )
 
@@ -245,8 +226,7 @@ async def test_filter_param_override_builds_typed_clause() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="cultured and blood samples"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"ngsSnp_strain_meta": "Sample type=culture,blood"},
     )
     value = rp.params["ngsSnp_strain_meta"]
@@ -266,8 +246,7 @@ async def test_filter_param_override_matches_field_case_insensitively() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="x"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"ngsSnp_strain_meta": "sample type=culture"},
     )
     value = rp.params["ngsSnp_strain_meta"]
@@ -284,8 +263,7 @@ async def _resolve_filter_override(override: str) -> FilterValue:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="x"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"ngsSnp_strain_meta": override},
     )
     value = rp.params["ngsSnp_strain_meta"]
@@ -367,9 +345,10 @@ async def test_resolve_params_with_intent_tiers_and_dependent_chain() -> None:
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
         return schema_for(context)
 
-    intent = ParamIntent(organism_scope="P. falciparum", text="gametocyte expression")
     rp = await resolve_params_with_intent(
-        fetch_at=fetch_at, intent=intent, embed=_embed_orthogonal
+        fetch_at=fetch_at,
+        intent=ParamIntent(),
+        overrides={"organism": "Plasmodium falciparum 3D7"},
     )
     assert isinstance(rp, ResolvedParams)
     assert isinstance(rp.params["organism"], MultiPickValue)
@@ -410,10 +389,7 @@ async def test_same_vocab_default_not_duplicated_into_degenerate_pair() -> None:
             ),
         ]
 
-    intent = ParamIntent(organism_scope=None, text="no matching comparison terms")
-    rp = await resolve_params_with_intent(
-        fetch_at=fetch_at, intent=intent, embed=_embed_orthogonal
-    )
+    rp = await resolve_params_with_intent(fetch_at=fetch_at, intent=ParamIntent())
     # WDK measures the comparator against the reference, so the comparator
     # takes the default and the reference becomes the open question.
     assert isinstance(rp.params["samples_de_comp"], SinglePickValue)
@@ -423,9 +399,9 @@ async def test_same_vocab_default_not_duplicated_into_degenerate_pair() -> None:
 
 
 @pytest.mark.asyncio
-async def test_same_vocab_intent_match_not_duplicated_into_degenerate_pair() -> None:
-    # The guard against a same-value pair also covers values that come from the
-    # intent, not defaults alone.
+async def test_same_vocab_override_not_duplicated_into_degenerate_pair() -> None:
+    # The guard against a same-value pair also covers a value the caller states,
+    # not defaults alone.
     groups = [
         VocabOption(value="g1", display="Group 1"),
         VocabOption(value="g2", display="Group 2"),
@@ -444,12 +420,13 @@ async def test_same_vocab_intent_match_not_duplicated_into_degenerate_pair() -> 
             ),
         ]
 
-    intent = ParamIntent(organism_scope=None, text="group 1 gametocytes")
     rp = await resolve_params_with_intent(
-        fetch_at=fetch_at, intent=intent, embed=_embed_prefers_group1
+        fetch_at=fetch_at,
+        intent=ParamIntent(),
+        overrides={"samples_de_comp_generic_deseq": "g1"},
     )
-    # The intent names the enriched group, so it binds the comparator and the
-    # remaining group becomes the reference.
+    # The stated group binds the comparator, and the remaining group becomes the
+    # reference.
     comp = rp.params["samples_de_comp_generic_deseq"]
     ref = rp.params["samples_de_ref_generic_deseq"]
     assert isinstance(comp, SinglePickValue)
@@ -472,16 +449,12 @@ async def test_user_override_fills_an_open_slot() -> None:
         del context
         return [_p("samples_de_comp", "single-pick-vocabulary", allowed=groups)]
 
-    intent = ParamIntent(organism_scope=None, text="no matching comparison")
-    without = await resolve_params_with_intent(
-        fetch_at=fetch_at, intent=intent, embed=_embed_orthogonal
-    )
+    without = await resolve_params_with_intent(fetch_at=fetch_at, intent=ParamIntent())
     assert any(s.param_name == "samples_de_comp" for s in without.open_slots)
 
     filled = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=intent,
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"samples_de_comp": "Gametocyte"},
     )
     assert filled.open_slots == []
@@ -497,11 +470,9 @@ async def test_filter_override_without_field_eq_means_include_all() -> None:
         del context
         return [_filter("ngsSnp_strain_meta", _SAMPLE_FACETS)]
 
-    intent = ParamIntent(organism_scope=None, text="x")
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=intent,
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"ngsSnp_strain_meta": "All field isolates"},
     )
     value = rp.params["ngsSnp_strain_meta"]
@@ -536,10 +507,7 @@ async def test_distinct_vocab_defaults_both_apply() -> None:
             ),
         ]
 
-    intent = ParamIntent(organism_scope=None, text="no matching terms")
-    rp = await resolve_params_with_intent(
-        fetch_at=fetch_at, intent=intent, embed=_embed_orthogonal
-    )
+    rp = await resolve_params_with_intent(fetch_at=fetch_at, intent=ParamIntent())
     go_slim = rp.params["go_slim"]
     regulated_dir = rp.params["regulated_dir"]
     assert isinstance(go_slim, SinglePickValue)
@@ -572,10 +540,7 @@ async def test_single_value_vocab_pair_both_bind_instead_of_opening_a_slot() -> 
             ),
         ]
 
-    intent = ParamIntent(organism_scope=None, text="female versus male")
-    rp = await resolve_params_with_intent(
-        fetch_at=fetch_at, intent=intent, embed=_embed_orthogonal
-    )
+    rp = await resolve_params_with_intent(fetch_at=fetch_at, intent=ParamIntent())
     ref = rp.params["min_max_avg_ref"]
     comp = rp.params["min_max_avg_comp"]
     assert isinstance(ref, SinglePickValue)
@@ -608,11 +573,9 @@ async def test_user_override_outranks_the_degenerate_pair_guard() -> None:
             ),
         ]
 
-    intent = ParamIntent(organism_scope=None, text="no matching comparison terms")
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=intent,
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"samples_de_comp": "g1"},
     )
     comp = rp.params["samples_de_comp"]
@@ -637,11 +600,9 @@ async def test_override_claims_its_value_before_siblings_auto_resolve() -> None:
             _p("samples_fc_comp_generic", "multi-pick-vocabulary", allowed=groups),
         ]
 
-    intent = ParamIntent(organism_scope=None, text="upregulated in female adults")
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=intent,
-        embed=_embed_prefers_female,
+        intent=ParamIntent(),
         overrides={"samples_fc_comp_generic": "female"},
     )
     ref = rp.params["samples_fc_ref_generic"]
@@ -656,9 +617,11 @@ async def test_override_claims_its_value_before_siblings_auto_resolve() -> None:
 
 
 @pytest.mark.asyncio
-async def test_override_evicts_a_guess_even_when_deferred_by_a_dependency() -> None:
-    # A dependent selector waits for its parent, so a sibling can bind the
-    # overridden value first. The override then evicts that guess.
+async def test_a_deferred_comparator_still_leaves_the_reference_the_other_group() -> (
+    None
+):
+    # The comparator waits for its parent, and the reference waits for the
+    # comparator, so the pair settles on distinct groups a pass later.
     groups = [
         VocabOption(value="male", display="male"),
         VocabOption(value="female", display="female"),
@@ -681,11 +644,9 @@ async def test_override_evicts_a_guess_even_when_deferred_by_a_dependency() -> N
             ),
         ]
 
-    intent = ParamIntent(organism_scope=None, text="upregulated in female adults")
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=intent,
-        embed=_embed_prefers_female,
+        intent=ParamIntent(),
         overrides={"samples_fc_comp_generic": "female"},
     )
     ref = rp.params["samples_fc_ref_generic"]
@@ -694,7 +655,7 @@ async def test_override_evicts_a_guess_even_when_deferred_by_a_dependency() -> N
     assert isinstance(comp, MultiPickValue)
     assert comp.values == ["female"]
     assert ref.values == ["male"], (
-        f"the guess should have been evicted and re-deduced, got {ref.values}"
+        f"the reference must take the group the comparator did not, got {ref.values}"
     )
     assert rp.open_slots == []
 
@@ -704,126 +665,38 @@ def _info(
     allowed: list[VocabOption] | None,
     *,
     default: str | None = None,
-    required: bool = True,
-    depends_on: list[str] | None = None,
 ) -> ParameterInfo:
     return ParameterInfo(
         name=name,
         display_name=name,
         type="single-pick-vocabulary",
-        required=required,
+        required=True,
         is_visible=True,
         help="",
         value_format="",
         default_value=default,
         allowed_values=allowed,
-        vocab_depends_on=depends_on,
     )
 
 
-def test_single_valid_value_is_auto_resolved() -> None:
-    tier = classify_param(
-        _info("strand", [VocabOption(value="sense", display="Sense")])
-    )
-    assert isinstance(tier, AutoResolved)
-    assert tier.name == "strand"
-    assert tier.value == "sense"
+def test_a_one_option_vocabulary_has_a_single_valid_value() -> None:
+    info = _info("strand", [VocabOption(value="sense", display="Sense")])
+
+    assert _single_valid_value(info) == "sense"
 
 
-def test_multiple_valid_values_become_a_choice() -> None:
-    tier = classify_param(
-        _info(
-            "strand",
-            [
-                VocabOption(value="sense", display="Sense"),
-                VocabOption(value="antisense", display="Antisense"),
-            ],
-            default="sense",
-        )
-    )
-    assert isinstance(tier, Choice)
-    assert [o.value for o in tier.options] == ["sense", "antisense"]
-    assert tier.default == "sense"
-
-
-@pytest.mark.asyncio
-async def test_flat_search_classifies_each_required_param() -> None:
-    async def fetch_at(_ctx: dict[str, str]) -> list[ParameterInfo]:
-        return [
-            _info("strand", [VocabOption(value="sense", display="Sense")]),
-            _info(
-                "organism",
-                [
-                    VocabOption(value="pf", display="P. falciparum"),
-                    VocabOption(value="pv", display="P. vivax"),
-                ],
-            ),
-        ]
-
-    res = await resolve_dag(fetch_at=fetch_at)
-    assert [a.name for a in res.auto_resolved] == ["strand"]
-    assert [a.value for a in res.auto_resolved] == ["sense"]
-    assert [c.name for c in res.choices] == ["organism"]
-
-
-@pytest.mark.asyncio
-async def test_child_vocab_fetched_under_resolved_parent() -> None:
-    seen: list[dict[str, str]] = []
-
-    async def fetch_at(ctx: dict[str, str]) -> list[ParameterInfo]:
-        seen.append(dict(ctx))
-        profileset = _info(
-            "profileset", [VocabOption(value="exp1", display="Experiment 1")]
-        )
-        if ctx.get("profileset") == "exp1":
-            samples = _info(
-                "samples",
-                [
-                    VocabOption(value="ref", display="Reference"),
-                    VocabOption(value="comp", display="Comparison"),
-                ],
-                depends_on=["profileset"],
-            )
-        else:
-            samples = _info("samples", None, depends_on=["profileset"])
-        return [profileset, samples]
-
-    res = await resolve_dag(fetch_at=fetch_at)
-
-    assert [a.name for a in res.auto_resolved] == ["profileset"]
-    samples_choice = next(c for c in res.choices if c.name == "samples")
-    assert [o.value for o in samples_choice.options] == ["ref", "comp"]
-    assert {"profileset": "exp1"} in seen
-    # The result carries the context-refreshed parameter infos.
-    samples_info = next(i for i in res.param_infos if i.name == "samples")
-    assert samples_info.allowed_values is not None
-    assert [v.value for v in samples_info.allowed_values] == ["ref", "comp"]
-
-
-@pytest.mark.asyncio
-async def test_resolve_parameter_dag_wires_client_to_resolution(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    raw = MagicMock()
-    raw.name = "strand"
-    raw.dependent_params = []
-    details = MagicMock()
-    details.search_data.parameters = [raw]
-    client = MagicMock()
-    client.get_search_details = AsyncMock(return_value=details)
-    monkeypatch.setattr(param_dag, "get_wdk_client", lambda _site: client)
-    monkeypatch.setattr(
-        param_dag,
-        "format_param_info_typed",
-        lambda _params: [
-            _info("strand", [VocabOption(value="sense", display="Sense")])
+def test_several_options_leave_the_value_to_the_caller() -> None:
+    info = _info(
+        "strand",
+        [
+            VocabOption(value="sense", display="Sense"),
+            VocabOption(value="antisense", display="Antisense"),
         ],
+        default="sense",
     )
 
-    res = await resolve_parameter_dag(
-        site_id="plasmodb", record_type="transcript", search_name="GenesByRNASeq"
-    )
+    assert _single_valid_value(info) is None
 
-    assert [a.name for a in res.auto_resolved] == ["strand"]
-    assert [a.value for a in res.auto_resolved] == ["sense"]
-    client.get_search_details.assert_awaited()
+
+def test_no_vocabulary_has_no_single_valid_value() -> None:
+    assert _single_valid_value(_info("text_expression", None)) is None

@@ -49,9 +49,10 @@ def _frame_enum_overrides(ctx: RunContext[AgentDeps]) -> EnumOverrides:
 
 
 def build_toolset() -> AbstractToolset[AgentDeps]:
-    """FRAME toolset: retrieve candidate searches, inspect, bind criteria with
-    auto-resolved params, assemble the structure. ``set_criterion`` is enum-guarded
-    to real candidate searches so the model cannot invent names."""
+    """FRAME toolset: retrieve candidate searches, read a search's parameter sheet,
+    bind criteria with the params proposed from that sheet, assemble the structure.
+    ``set_criterion`` is enum-guarded to real candidate searches so the model cannot
+    invent names."""
     base: FunctionToolset[AgentDeps] = FunctionToolset(
         max_retries=3,
         tools=[

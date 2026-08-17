@@ -19,16 +19,19 @@ pinned to a 40-character sha, in rule blocks and in prose alike.
 |---|---|---|
 | [VEuPathDB/WDK](https://github.com/VEuPathDB/WDK/tree/e534d2e6a5119165e1742c7a9e07a371217ddda5/) | `e534d2e6a5119165e1742c7a9e07a371217ddda5` | The platform itself. Domain model (`Model/src/main/java`), the REST surface and its status codes (`Service/src/main/java`), validation, the parameter system. Highest authority: when PathFinder and this repository disagree, PathFinder is wrong. |
 | [VEuPathDB/web-monorepo](https://github.com/VEuPathDB/web-monorepo/tree/63d1705463d553c0ac19ee577c1b09666597b903/) | `63d1705463d553c0ac19ee577c1b09666597b903` | The reference client. `packages/libs/wdk-client` carries the TypeScript types PathFinder's own types must match, and the request shapes a working client actually sends. Useful as evidence of intended usage, not of platform behavior: the client can be wrong about WDK in a way WDK's own source cannot. |
-| [VEuPathDB/ApiCommonModel](https://github.com/VEuPathDB/ApiCommonModel/tree/301b2be012af713411e9b0e216ed93c51d04c239/) | `301b2be012af713411e9b0e216ed93c51d04c239` | The site model. `Model/lib/wdk/model/questions` and `Model/lib/wdk/model/records` hold the XML that defines which searches exist, their parameters, and their record classes. This is where a search name comes from; WDK only executes what this declares. **Nothing in the bundle cites it yet** - see the note below. |
+| [VEuPathDB/ApiCommonModel](https://github.com/VEuPathDB/ApiCommonModel/tree/301b2be012af713411e9b0e216ed93c51d04c239/) | `301b2be012af713411e9b0e216ed93c51d04c239` | The site model. `Model/lib/wdk/model/questions` and `Model/lib/wdk/model/records` hold the XML that defines which searches exist, their parameters, and their record classes. This is where a search name comes from; WDK only executes what this declares. Cited by [WDK-SITE-001..006](rules/site-model-params.md). |
 | [VEuPathDB/ApiCommonWebsite](https://github.com/VEuPathDB/ApiCommonWebsite/tree/830bb57fe07fc2e4dd37b6ea2e3baae0eaee5bee/) | `830bb57fe07fc2e4dd37b6ea2e3baae0eaee5bee` | The site-specific step-analysis plugins, in `Model/src/main/java/org/apidb/apicommon/model/stepanalysis`. This is where enrichment result shapes are actually defined: WDK runs a plugin and [passes its JSON through untouched](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StepAnalysisInstanceService.java#L272-L284), so no column name in an enrichment result is knowable from the WDK repository. Cited by [WDK-ANS-007](rules/searches-and-answers.md). |
 
-**ApiCommonModel is pinned but not yet cited.** No document in the bundle links a file in
-it today; the enumeration command below returns citations from the other three only. The
-pin is here because the search and parameter material that will cite it is the obvious next
-thing to write, and because pinning it now means the whole bundle was checked against one
-upstream state rather than four dates. Treat this as a declared intention rather than
-evidence, and if the search material is never written, delete the row instead of leaving a
-sha nothing uses.
+**ApiCommonModel was pinned before anything cited it, and that gap is now closed.** The
+row used to carry a note saying no document linked a file in it, kept there as a declared
+intention rather than as evidence. The `WDK-SITE` family cites four distinct paths in it -
+`geneQuestions.xml`, `geneParams.xml`, `geneQueries.xml` and `Model/bin/phyleticPatternWebService.pl` -
+and the enumeration command below now returns them. The note is removed rather than
+softened, because a row that says "not yet cited" is wrong the moment it stops being true
+and nothing checks it.
+
+The lesson the gap taught is kept: pin a repository when a rule needs it, and delete the
+row if the material is never written. A sha nothing uses looks like evidence and is not.
 
 ApiCommonWebsite was added later than the other three, when a reviewer pointed out that
 [WDK-ANS-007](rules/searches-and-answers.md) had been written from a live response while
@@ -123,6 +126,29 @@ invalidated leaf on both sites on 2026-08-10 and got a **204**, which confirms t
 whole claim - the endpoint accepts a strategy whose parameters are invalid. This ledger is
 only useful if it also records what has since been settled.
 
+## And the mirror image: rules no pinned source can refute
+
+The list above was the only ledger for a long time, and it is half a ledger. A rule with no
+live check is a risk. **A rule with no upstream is a different and larger one**, because the
+charter admits a claim only when something can prove it wrong, and for these the only thing
+that can is a re-run. Nothing in the gate re-runs anything, so a rule here goes stale in
+total silence - worse than a source-only rule, whose citation at least still has to resolve.
+
+These rules are **live-only**. Their `upstream` field is real and pinned, but it establishes
+the setting rather than the claim, and the claim itself is a measurement:
+
+| Rule | What only a re-run can confirm | Re-run |
+|---|---|---|
+| [WDK-SITE-001](rules/site-model-params.md) | the separator between census tokens, and that the census is colon-joined. The pinned SQL proves it is a `LIKE` pattern; it does not describe the string being matched. | the probe table in the rule, against `GenesByOrthologPattern` with `organism` at *P. falciparum* 3D7 |
+| [WDK-SITE-002](rules/site-model-params.md) | that the ortholog-less branch is empty for a given organism. The pinned SQL proves the branch exists and fires on a `:Y`-free pattern; only measurement says what it returns, and it may be non-zero on a site not measured. | `hsap=1T` per organism, which isolates that branch |
+| [WDK-SITE-004](rules/site-model-params.md) | that the census lists codes in ascending order. The pinned citation is the client's `.sort()`, which is intent rather than data. | the six ordered pairs in the rule |
+| [WDK-SITE-005](rules/site-model-params.md) | that a clade code appears nowhere in the census. The pinned citation is the vocabulary query, which says what terms exist and not which are stored. | `%MAMM:Y%` against a non-zero `%hsap:Y%` |
+
+All four are about `apidb.PhylogeneticProfile.profile_string`, which is built by loader code
+outside the four repositories. There is no fifth repository to pin here that would help:
+adding one is the fix when the missing evidence exists somewhere, as it did for
+ApiCommonWebsite, and it is not the fix when the artifact is a database table.
+
 # The live sites
 
 Source says what WDK can do. A deployment says what it does, and per the section above the
@@ -134,6 +160,7 @@ unlikely to be an artifact of one site.
 |---|---|---|
 | plasmodb.org | `https://plasmodb.org/plasmo/service` | 325 searches on `record-types/transcript/searches`, verified 2026-08-10. Primary site for PathFinder's own work. |
 | toxodb.org | `https://toxodb.org/toxo/service` | 234 searches on the same path, same date. Confirms that per-site search availability is real, and that platform behavior is not. |
+| orthomcl.org | `https://orthomcl.org/orthomcl/service` | Used once, by [WDK-SITE-003](rules/site-model-params.md), and only as a contrast. It runs the same WDK platform over a different site model, and it is the site whose `GroupsByPhyleticPattern.phyletic_expression` grammar the `profile_pattern` default was written in. It is not a general verification site: nothing else in the bundle should be confirmed there, because a claim that holds on plasmodb.org and toxodb.org and orthomcl.org is not thereby a claim about the two sites PathFinder actually uses. |
 
 The full list of configured sites and their base paths is in
 `apps/api/src/pathfinder/integrations/veupathdb/sites.yaml`. Each is `<host>/<project
@@ -182,6 +209,12 @@ To re-verify:
    authority, the number is a courtesy.** It has already gone stale twice, once per
    document added, because every new rule cites files and nobody updates a count that
    nothing checks. If the figure you get back differs, the figure here is what is wrong.
+
+   It went stale again on 2026-08-14, and the only part of that worth recording is
+   qualitative: **ApiCommonModel now appears in the output** for the first time, because
+   the `WDK-SITE` family cites it. A re-verification pass must therefore diff four
+   repositories, not three. No new figure is written here, because the last two proved a
+   figure is the wrong thing to keep.
 
    Three details of that command are load-bearing rather than stylistic.
 

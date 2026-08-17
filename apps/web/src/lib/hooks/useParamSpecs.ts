@@ -25,6 +25,12 @@ type UseParamSpecsResult = {
   paramSpecs: ParamSpec[];
   isLoading: boolean;
   error: Error | null;
+  /**
+   * Whether a fetch ran to completion. A disabled query returns no data, no
+   * error and no loading flag, which is an absent answer rather than an empty
+   * one.
+   */
+  settled: boolean;
 };
 
 /**
@@ -83,8 +89,17 @@ function useParamSpecsSimple(
   recordType: string,
   searchName: string,
 ): UseParamSpecsResult {
-  const { data, isLoading, error } = useParamSpecsQuery(siteId, recordType, searchName);
-  return { paramSpecs: data ?? [], isLoading, error: error ?? null };
+  const { data, isLoading, error, isSuccess } = useParamSpecsQuery(
+    siteId,
+    recordType,
+    searchName,
+  );
+  return {
+    paramSpecs: data ?? [],
+    isLoading,
+    error: error ?? null,
+    settled: isSuccess,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +133,7 @@ function useParamSpecsAdvanced({
     resolvedRecordType != null &&
     resolvedRecordType !== "";
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, isSuccess } = useQuery({
     queryKey: [
       "param-specs-advanced",
       siteId,
@@ -139,5 +154,10 @@ function useParamSpecsAdvanced({
     meta: { silent: true },
   });
 
-  return { paramSpecs: data ?? [], isLoading, error: error ?? null };
+  return {
+    paramSpecs: data ?? [],
+    isLoading,
+    error: error ?? null,
+    settled: isSuccess,
+  };
 }

@@ -25,19 +25,21 @@ from pathfinder.domain.parameters._value_helpers import (
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import (
+    DateRangeValue,
+    NumberRangeValue,
     ParamValue,
     as_param_kind,
+    close_open_range,
     from_decoded,
     to_decoded,
 )
 from pathfinder.domain.parameters.wdk_vocab import (
+    FAKE_ALL_SENTINEL,
     WDKVocabulary,
     collect_leaf_terms,
     find_vocab_node,
 )
 from pathfinder.platform.errors import ValidationError
-
-FAKE_ALL_SENTINEL = "@@fake@@"
 
 
 @dataclass(frozen=True)
@@ -63,8 +65,13 @@ class ParameterCanonicalizer:
             if spec.param_type == "input-step":
                 continue
             decoded_value = self._canonicalize_value(spec, to_decoded(value))
-            canonical[name] = from_decoded(
-                as_param_kind(spec.param_type), decoded_value
+            built = from_decoded(as_param_kind(spec.param_type), decoded_value)
+            # WDK reads both ends of a range, so an open end takes the
+            # parameter's own declared limit.
+            canonical[name] = (
+                close_open_range(built, spec)
+                if isinstance(built, (NumberRangeValue, DateRangeValue))
+                else built
             )
         return canonical
 

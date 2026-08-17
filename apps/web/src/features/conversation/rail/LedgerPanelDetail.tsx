@@ -26,6 +26,7 @@ function Markdown({ children }: { children: string }) {
 
 function CriterionCard({ crit }: { crit: LedgerCriterionPayload }) {
   const params = Object.entries(crit.resolvedParams);
+  const defaulted = new Set(crit.defaultedParams ?? []);
   return (
     <div className="min-w-0 rounded-md border border-border bg-muted/20 p-2">
       <div className="flex items-start justify-between gap-2">
@@ -44,6 +45,14 @@ function CriterionCard({ crit }: { crit: LedgerCriterionPayload }) {
               <span className="text-muted-foreground">{key}</span>
               <span className="text-muted-foreground/60">: </span>
               <span className="text-foreground">{JSON.stringify(value)}</span>
+              {defaulted.has(key) && (
+                <span
+                  title="Assumed: the search's own default, not a value you stated"
+                  className="ml-1 rounded-sm bg-warning/15 px-1 text-warning"
+                >
+                  assumed
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -103,8 +112,10 @@ function NodeResultRow({ node }: { node: LedgerNodeResultPayload }) {
         </span>
         <div className="flex shrink-0 items-center gap-1.5">
           {node.count != null && (
+            // A later edit moves the live count and not this one, so the
+            // number says when it was true.
             <span className="font-mono text-[10px] text-muted-foreground">
-              {node.count.toLocaleString()} genes
+              {node.count.toLocaleString()} genes at build
             </span>
           )}
           <StatusPill text={node.status} tone={NODE_STATUS_TONE[node.status]} />

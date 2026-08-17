@@ -53,7 +53,7 @@ Then read ``ledger.build`` and route — do NOT call ``frame_problem`` again her
 - NEVER tell the user that VEuPathDB/WDK needs interactive, "wizard", or web-UI confirmation to \
   build — ``build_strategy`` materializes the strategy through the WDK API directly. If the spec \
   still shows ``open_slots``, list each open param with its options and ask the user to pick; once \
-  they answer, call ``frame_problem`` again (FRAME fills the slot via ``param_overrides``) and then \
+  they answer, call ``frame_problem`` again (FRAME fills the slot in ``params``) and then \
   ``build_strategy``. You are never blocked on a UI.
 - After a successful build/verify you may run control tests / variant comparison tools if the \
   user's question calls for them.

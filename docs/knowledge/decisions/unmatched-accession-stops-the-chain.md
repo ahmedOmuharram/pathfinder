@@ -4,7 +4,7 @@ title: An unmatched accession stops the chain
 description: A named identifier absent from the vocabulary is a contradiction, not an ambiguity, so it must not fall through to semantic matching.
 tags: [agents, parameters, wdk-alignment, data-integrity]
 generated: { by: claude-code/opus-5, at: 2026-08-10T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-10T00:00:00Z }
+verified: { by: claude-code/fable-5, at: 2026-08-17T00:00:00Z }
 status: stable
 ---
 
@@ -33,9 +33,9 @@ So the chain ran:
 
 Step 3 is the defect. FRAME's own instruction already says that when a value is not in the vocabulary the search *cannot* realize the criterion -- choose another search or drop it, "never guess a value and never invent one". The resolver did the opposite.
 
-# The rule
+# The rule, as first implemented
 
-`names_absent_accession` returns True when the text names an accession and none of them appear in the vocabulary. `map_intent_to_value` then returns `None`, opening a Tier-3 slot, instead of consulting the fuzzy tier.
+`names_absent_accession` returned True when the text named an accession and none of them appeared in the vocabulary. `map_intent_to_value` then returned `None`, opening a Tier-3 slot, instead of consulting the fuzzy tier. Both symbols were deleted on 2026-08-17 and the guarantee moved; see the amendment below.
 
 The distinction that matters: an accession is an **exact** reference. Absent from the vocabulary it is a contradiction to surface, not an ambiguity to resolve by similarity. Text carrying no accession is unaffected and still uses the rule and semantic tiers.
 
@@ -51,6 +51,53 @@ Re-running the same request after the fix, the model reconciled its own inconsis
 
 Blocking the guess did not just avoid a wrong answer; it pushed the model to fix the database to match the accession.
 
+# Amended 2026-08-17
+
+The decision holds; the mechanism that carried it is gone. There is no fuzzy tier
+left to fall through to, because there is no tier that reads the text at all
+([one proposer, one validator](one-proposer-one-validator.md)). The same
+guarantee is now structural and covers every value rather than accessions alone:
+a value proposed for a parameter with a vocabulary must match an entry exactly,
+by term, by label, or by an accession exactly one entry carries, or the call is
+refused with the nearest entries named. A
+similar-looking entry can no longer be substituted for the one the request
+asked for, because nothing computes similarity on the binding path.
+
+The one case the old rule handled that the new one must state out loud: an
+accession that is real but absent from the shortlist the sheet shows. The sheet
+states the vocabulary's true size and names
+`get_parameter_options(search_name, param, query=)`, so a shortlist miss is a
+lookup, not a guess. An accession that is absent from the vocabulary itself
+still stops the chain, which is what this file is about.
+
+# Amended again: an accession alone is the entry
+
+WDK writes a typeahead term as `<accession> : <label>`, so `PF00069` and
+`PF00069 : Pkinase` name one entry. Exact matching refused the first form, and
+the retry beside it listed `PF00569 : ZZ` and `PF00169 : PH` ahead of the entry
+the accession identifies, so the model changed the database rather than the
+value and bound `IPR000023 : Phosphofructokinase_dom` - the wrong bind this file
+opens with, reached from the opposite direction.
+
+Three things changed together, because each one alone leaves the loop open:
+
+- A proposal that is the leading accession of **exactly one** entry names that
+  entry. Two entries sharing it is an ambiguity: the refusal names the entries
+  that share it and asks for the full value of the one meant. An accession
+  holds a digit and is at least four characters, so a leading word such as
+  `Plasmodium` is a label and never a match.
+- The nearest entries lead with the ones the proposal starts, so `PF0006`
+  answers with `PF00069 : Pkinase` rather than with the closest characters.
+- The sheet pins an entry whose accession the request writes as a word, not only
+  one whose whole term the request writes out.
+
 # Anchor
 
-`names_absent_accession` in `services/catalog/param_intent.py`. Guarded by `TestAnExplicitAccessionBlocksGuessing` in `tests/unit/services/catalog/test_param_intent.py`.
+`ai/tools/standalone/frame_spec.py:_refuse_unmatched_value` and `_nearest`.
+Guarded by `TestAProposedValueMustBeOnTheSheet::test_a_substring_of_an_entry_is_not_a_match`
+and `TestAnAccessionNamesItsEntry` in `tests/unit/ai/agents/test_frame_toolset.py`.
+Matching is `domain/parameters/wdk_vocab.py:match_exact_option` over
+`leading_accession_token`, guarded by
+`tests/unit/domain/parameters/test_match_exact_option.py`; the pin is
+`services/catalog/param_sheet.py:_is_named`, guarded in
+`tests/unit/services/catalog/test_param_sheet.py`.

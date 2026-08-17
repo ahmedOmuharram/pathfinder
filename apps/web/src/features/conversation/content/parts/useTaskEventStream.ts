@@ -4,6 +4,7 @@ import { experimental_streamedQuery, useQuery } from "@tanstack/react-query";
 
 import { streamTypedEvents } from "@/lib/sse/typedEventStream";
 
+import { announceTaskCompletion } from "./taskCompletionResume";
 import {
   deriveTaskLiveState,
   type TaskEventChunk,
@@ -21,18 +22,25 @@ import {
  * via the abort signal on unmount, and self-terminates on `[DONE]`. On
  * reconnect (refresh mid-task) the endpoint replays past progress and emits
  * the terminal chunk on connect, so the card catches up.
+ *
+ * `onComplete` runs on the terminal chunk. The suspended turn streams the rest
+ * of its answer only after the task ends, so the caller uses this to re-attach.
  */
 export function useTaskEventStream(
   conversationId: string | null,
   taskId: string,
+  onComplete: () => void,
 ): TaskLiveState {
   const { data } = useQuery({
     queryKey: ["conversations", conversationId, "tasks", taskId, "events"] as const,
     queryFn: experimental_streamedQuery({
       streamFn: ({ signal }) =>
-        streamTypedEvents<TaskEventChunk>(
-          `/api/v1/conversations/${conversationId}/tasks/${taskId}/events`,
-          { signal, headers: { "X-Requested-With": "XMLHttpRequest" } },
+        announceTaskCompletion(
+          streamTypedEvents<TaskEventChunk>(
+            `/api/v1/conversations/${conversationId}/tasks/${taskId}/events`,
+            { signal, headers: { "X-Requested-With": "XMLHttpRequest" } },
+          ),
+          onComplete,
         ),
     }),
     enabled: conversationId !== null && taskId.length > 0,

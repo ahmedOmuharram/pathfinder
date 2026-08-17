@@ -4,6 +4,7 @@ import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import { redirect, useParams } from "next/navigation";
+import { useState } from "react";
 
 import type { Strategy } from "@pathfinder/shared";
 import { strategyQueryOptions } from "@/lib/api/strategy";
@@ -19,9 +20,11 @@ import { useChatRuntime } from "./runtime/useChatRuntime";
 export function ChatView({
   conversationId,
   allowMissing = false,
+  resumable = false,
 }: {
   conversationId: string;
   allowMissing?: boolean;
+  resumable?: boolean;
 }) {
   const params = useParams<{ siteId?: string }>();
   const siteSegment = params.siteId ?? "";
@@ -53,7 +56,7 @@ export function ChatView({
       key={`${conversationId}:${chatResetCounter}`}
       conversationId={conversationId}
       initialMessages={messagesQuery.data ?? []}
-      allowMissing={allowMissing}
+      resumable={resumable}
       strategy={strategy}
       siteId={siteId}
     />
@@ -63,19 +66,22 @@ export function ChatView({
 function ChatViewBody({
   conversationId,
   initialMessages,
-  allowMissing,
+  resumable,
   strategy,
   siteId,
 }: {
   conversationId: string;
   initialMessages: UIMessage[];
-  allowMissing: boolean;
+  resumable: boolean;
   strategy: Strategy | null;
   siteId: string;
 }) {
+  // A turn this mount starts is already streaming into it. Only a turn that
+  // was running before this mount is re-attached.
+  const [resumeOnMount] = useState(resumable);
   const { runtime, chat } = useChatRuntime({
     conversationId,
-    allowMissing,
+    resume: resumeOnMount,
     initialMessages,
   });
   return (

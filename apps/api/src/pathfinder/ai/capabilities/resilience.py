@@ -37,7 +37,6 @@ _SEARCH_LOOKUP_TOOLS = frozenset(
     {
         "get_search_overview",
         "get_parameter_options",
-        "get_parameter_dependencies",
     }
 )
 

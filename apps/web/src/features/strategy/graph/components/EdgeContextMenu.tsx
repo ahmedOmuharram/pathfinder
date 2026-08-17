@@ -122,7 +122,9 @@ export function EdgeContextMenu({
                         : "border-border text-muted-foreground hover:border-input hover:bg-accent hover:text-foreground",
                     )}
                   >
-                    <VennIcon operator={op} />
+                    <span className="mr-1.5">
+                      <VennIcon operator={op} />
+                    </span>
                     <span>{OPERATOR_LABEL[op] ?? op}</span>
                   </button>
                 );

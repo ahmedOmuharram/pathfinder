@@ -1,10 +1,8 @@
 /**
- * compactLayout — produces a flat "spine" layout for the compact
- * VEuPathDB-style strategy strip.
+ * compactLayout — turns a strategy into a tree for the compact step list.
  *
- * Walks the primary-input chain from root to leftmost leaf, producing
- * a flat list of segments. Each combine segment includes its secondary
- * input step shown above the main row.
+ * A step's inputs are its children, so the root sits on top and indentation
+ * means containment.
  */
 
 import type { Step, StepKind } from "@pathfinder/shared";
@@ -24,66 +22,112 @@ export interface CompactStep {
   expandedStrategyId?: number | null;
   /** Display label for the collapsed saved-strategy reference. */
   expandedName?: string | null;
+  /** Names of a combine's two inputs, primary first. */
+  operandNames?: [string, string];
+  /**
+   * The wire step this row was built from. The count, the draft status and the
+   * push error are read off it, so it travels whole rather than field by field.
+   */
+  source: Step;
 }
 
-/**
- * One segment of the main horizontal spine.
- *
- * - Regular steps (search / transform): just `step`.
- * - Combines: `step` is the combine result on the main row,
- *   `secondaryInput` is the step shown above the Venn connector.
- */
-interface SpineSegment {
+/** One step and the steps that feed it. */
+export interface TreeNode {
   step: CompactStep;
-  /** Present only for combines: the secondary input shown above. */
-  secondaryInput?: CompactStep;
+  children: TreeNode[];
 }
 
 // Helpers
 
 export { findOrphanSteps } from "@/lib/strategyGraph/orphans";
 
-function toCompact(step: Step, stepNumber: number): CompactStep {
+const OPERATOR_SYMBOL: Record<string, string> = {
+  INTERSECT: "∩",
+  UNION: "∪",
+  MINUS: "-",
+  RMINUS: "-",
+  COLOCATE: "near",
+};
+
+function inputIds(step: Step): string[] {
+  return [step.primaryInputStepId, step.secondaryInputStepId].filter(
+    (id): id is string => id != null && id !== "",
+  );
+}
+
+/**
+ * Names one side of a combine. A combine has no name of its own, so it is
+ * described by its operator and collapses to an ellipsis past `depth`.
+ */
+function describeOperand(
+  step: Step | undefined,
+  byId: Map<string, Step>,
+  depth: number,
+): string {
+  if (step == null) return "";
+  if (inferStepKind(step) !== "combine") return step.displayName ?? "";
+  if (depth <= 0) return "...";
+  const symbol = OPERATOR_SYMBOL[step.operator ?? ""] ?? step.operator ?? "";
+  const left = describeOperand(byId.get(step.primaryInputStepId ?? ""), byId, depth - 1);
+  const right = describeOperand(
+    byId.get(step.secondaryInputStepId ?? ""),
+    byId,
+    depth - 1,
+  );
+  return `(${left} ${symbol} ${right})`;
+}
+
+function operandNames(
+  step: Step,
+  byId: Map<string, Step>,
+): [string, string] | undefined {
+  const primary = byId.get(step.primaryInputStepId ?? "");
+  const secondary = byId.get(step.secondaryInputStepId ?? "");
+  if (primary == null || secondary == null) return undefined;
+  return [describeOperand(primary, byId, 1), describeOperand(secondary, byId, 1)];
+}
+
+function toCompact(
+  step: Step,
+  stepNumber: number,
+  byId: Map<string, Step>,
+): CompactStep {
   const compact: CompactStep = {
     id: step.id,
     displayName: step.displayName ?? "",
     kind: inferStepKind(step),
     stepNumber,
+    source: step,
   };
-  if (step.recordType != null) {
-    compact.recordType = step.recordType;
-  }
-  if (step.operator != null) {
-    compact.operator = step.operator;
-  }
-  if (step.expandedStrategyId != null) {
+  if (step.recordType != null) compact.recordType = step.recordType;
+  if (step.operator != null) compact.operator = step.operator;
+  if (step.expandedStrategyId != null)
     compact.expandedStrategyId = step.expandedStrategyId;
-  }
-  if (step.expandedName != null) {
-    compact.expandedName = step.expandedName;
+  if (step.expandedName != null) compact.expandedName = step.expandedName;
+  if (compact.kind === "combine") {
+    const names = operandNames(step, byId);
+    if (names != null) compact.operandNames = names;
   }
   return compact;
 }
 
-// Layout builder
+// Tree builder
 
 /**
- * Build a flat spine layout from a step array + rootStepId.
+ * Build the step tree from a step array + rootStepId.
  *
- * 1. Topologically sort all steps to assign step numbers.
- * 2. Walk from root backwards via `primaryInputStepId` to collect
- *    the main spine (reversed to left-to-right).
- * 3. For each combine on the spine, attach the secondary input.
+ * 1. Topologically sort to assign execution step numbers, leaves first.
+ * 2. Expand from the root downwards, each step's inputs becoming its children.
  */
-export function buildSpineLayout(
+export function buildStrategyTree(
   steps: Step[],
   rootStepId: string | null,
-): SpineSegment[] {
+): TreeNode[] {
   if (steps.length === 0 || rootStepId == null || rootStepId === "") return [];
 
   const byId = new Map(steps.map((s) => [s.id, s]));
+  if (!byId.has(rootStepId)) return [];
 
-  // Topological sort for step numbers (leaf-first)
   const visited = new Set<string>();
   const ordered: Step[] = [];
 
@@ -92,10 +136,7 @@ export function buildSpineLayout(
     visited.add(id);
     const step = byId.get(id);
     if (!step) return;
-    if (step.primaryInputStepId != null && step.primaryInputStepId !== "")
-      topo(step.primaryInputStepId);
-    if (step.secondaryInputStepId != null && step.secondaryInputStepId !== "")
-      topo(step.secondaryInputStepId);
+    for (const input of inputIds(step)) topo(input);
     ordered.push(step);
   }
 
@@ -104,36 +145,20 @@ export function buildSpineLayout(
   const stepNumbers = new Map<string, number>();
   ordered.forEach((s, i) => stepNumbers.set(s.id, i + 1));
 
-  // Walk the primary chain from root to leaf
-  const spine: Step[] = [];
-  let cur = byId.get(rootStepId);
-  while (cur) {
-    spine.push(cur);
-    cur =
-      cur.primaryInputStepId != null && cur.primaryInputStepId !== ""
-        ? byId.get(cur.primaryInputStepId)
-        : undefined;
+  // A cycle would make the expansion below run forever; `seen` keeps a
+  // malformed graph rendering as a truncated tree instead of hanging the tab.
+  function expand(id: string, seen: Set<string>): TreeNode | undefined {
+    const step = byId.get(id);
+    if (step == null || seen.has(id)) return undefined;
+    seen.add(id);
+    return {
+      step: toCompact(step, stepNumbers.get(id) ?? 0, byId),
+      children: inputIds(step)
+        .map((input) => expand(input, seen))
+        .filter((node): node is TreeNode => node !== undefined),
+    };
   }
-  spine.reverse(); // now left-to-right
 
-  // Build segments
-  return spine.map((step): SpineSegment => {
-    const compact = toCompact(step, stepNumbers.get(step.id) ?? 0);
-    const kind = inferStepKind(step);
-
-    if (
-      kind === "combine" &&
-      step.secondaryInputStepId != null &&
-      step.secondaryInputStepId !== ""
-    ) {
-      const sec = byId.get(step.secondaryInputStepId);
-      const segment: SpineSegment = { step: compact };
-      if (sec != null) {
-        segment.secondaryInput = toCompact(sec, stepNumbers.get(sec.id) ?? 0);
-      }
-      return segment;
-    }
-
-    return { step: compact };
-  });
+  const root = expand(rootStepId, new Set<string>());
+  return root == null ? [] : [root];
 }

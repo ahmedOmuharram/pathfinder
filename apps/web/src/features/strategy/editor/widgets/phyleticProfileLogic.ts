@@ -90,32 +90,50 @@ export function buildPhyleticTree(
 // ---------------------------------------------------------------------------
 
 export function encodeProfilePattern(states: Map<string, TriState>): string {
-  const entries: string[] = [];
+  const tokens: string[] = [];
   for (const [code, state] of states) {
-    if (state === "include") entries.push(`${code}>=1T`);
-    else if (state === "exclude") entries.push(`${code}=0T`);
+    if (state === "include") tokens.push(`${code}:Y`);
+    else if (state === "exclude") tokens.push(`${code}:N`);
   }
-  return entries.join(",");
+  // The census lists codes ascending and `%A%B%` means "A, then later B", so
+  // tokens out of that order describe a census that cannot exist.
+  tokens.sort();
+  return `%${tokens.join("%")}${tokens.length > 0 ? "%" : ""}`;
+}
+
+/**
+ * Resolve a selection to the species codes the census actually holds.
+ *
+ * A clade code never appears in the census, so a clade takes its state down to
+ * its leaves. An explicit leaf wins over the clade above it.
+ */
+export function leafStates(
+  states: Map<string, TriState>,
+  roots: PhyleticNode[],
+): Map<string, TriState> {
+  const leaves = new Map<string, TriState>();
+
+  function walk(node: PhyleticNode, inherited: TriState): void {
+    const own = states.get(node.code) ?? inherited;
+    if (node.children.length === 0) {
+      if (own !== "unconstrained") leaves.set(node.code, own);
+      return;
+    }
+    for (const child of node.children) walk(child, own);
+  }
+
+  for (const root of roots) walk(root, "unconstrained");
+  return leaves;
 }
 
 export function decodeProfilePattern(pattern: string): Map<string, TriState> {
   const states = new Map<string, TriState>();
-  if (!pattern) return states;
-  for (const entry of pattern.split(",")) {
-    const trimmed = entry.trim();
-    if (!trimmed) continue;
-    const includeMatch = trimmed.match(/^([^>=]+)>=1T$/);
-    if (includeMatch != null) {
-      const code = includeMatch[1];
-      if (code != null) states.set(code, "include");
-      continue;
-    }
-    const excludeMatch = trimmed.match(/^([^>=]+)=0T$/);
-    if (excludeMatch != null) {
-      const code = excludeMatch[1];
-      if (code != null) states.set(code, "exclude");
-      continue;
-    }
+  for (const token of pattern.split("%")) {
+    const match = token.trim().match(/^([a-z]+):([YN])$/);
+    if (match == null) continue;
+    const [, code, state] = match;
+    if (code == null) continue;
+    states.set(code, state === "Y" ? "include" : "exclude");
   }
   return states;
 }
@@ -124,18 +142,27 @@ export function decodeProfilePattern(pattern: string): Map<string, TriState> {
 // Species lists
 // ---------------------------------------------------------------------------
 
-export function buildSpeciesLists(
-  states: Map<string, TriState>,
-  codeToLabel: Map<string, string>,
-): { included: string; excluded: string } {
+/** The literal the reference client decodes as the empty set. */
+const NO_SPECIES = "n/a";
+
+/**
+ * The two documentation parameters, in the shape the reference client reads
+ * back when it reopens a step: vocabulary terms rather than display labels.
+ */
+export function buildSpeciesLists(states: Map<string, TriState>): {
+  included: string;
+  excluded: string;
+} {
   const included: string[] = [];
   const excluded: string[] = [];
   for (const [code, state] of states) {
-    const label = codeToLabel.get(code) ?? code;
-    if (state === "include") included.push(label);
-    else if (state === "exclude") excluded.push(label);
+    if (state === "include") included.push(code);
+    else if (state === "exclude") excluded.push(code);
   }
-  return { included: included.join(","), excluded: excluded.join(",") };
+  return {
+    included: included.length > 0 ? included.join(", ") : NO_SPECIES,
+    excluded: excluded.length > 0 ? excluded.join(", ") : NO_SPECIES,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -168,18 +195,6 @@ export function collectCodes(nodes: PhyleticNode[]): string[] {
     codes.push(...collectCodes(node.children));
   }
   return codes;
-}
-
-/** Build code->label map from tree */
-export function buildCodeToLabel(nodes: PhyleticNode[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const node of nodes) {
-    map.set(node.code, node.label);
-    for (const [k, v] of buildCodeToLabel(node.children)) {
-      map.set(k, v);
-    }
-  }
-  return map;
 }
 
 /** Check if a node or any descendant matches the search query */

@@ -20,6 +20,8 @@ def adapt_param_from_wdk(param: WDKParameter) -> ParamSpecNormalized:
         max_selected_count=param.max_selected_count,
         vocabulary=param.vocabulary,
         count_only_leaves=param.count_only_leaves,
+        min_date=param.min_date,
+        max_date=param.max_date,
         is_number=param.is_number,
         min=float(param.min) if param.min is not None else None,
         max=float(param.max) if param.max is not None else None,

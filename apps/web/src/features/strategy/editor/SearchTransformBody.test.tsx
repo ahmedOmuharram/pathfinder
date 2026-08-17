@@ -57,7 +57,7 @@ describe("SearchTransformBody — paramSpecsError surfacing", () => {
   });
 
   it("does NOT render the failure banner when paramSpecsError is null", () => {
-    const state = makeState({ paramSpecsError: null });
+    const state = makeState({ paramSpecsError: null, paramSpecsSettled: true });
 
     render(
       <SearchTransformBody
@@ -73,5 +73,54 @@ describe("SearchTransformBody — paramSpecsError surfacing", () => {
     expect(
       screen.getByText("No parameter options available for this search."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("an empty parameter list only means empty once it is known", () => {
+  const EMPTY = "No parameter options available for this search.";
+
+  function renderBody(overrides: Partial<StepEditorState>) {
+    return render(
+      <SearchTransformBody
+        state={makeState(overrides)}
+        step={STEP}
+        onSearchChange={noop}
+        onFieldChanged={noop}
+        onFieldBlurred={noop}
+      />,
+    );
+  }
+
+  it("shows a placeholder while the specs are loading", () => {
+    renderBody({ isLoading: true });
+
+    expect(screen.getByTestId("param-specs-loading")).toBeInTheDocument();
+  });
+
+  it("does not claim the search has no parameters while loading", () => {
+    renderBody({ isLoading: true });
+
+    expect(screen.queryByText(EMPTY)).toBeNull();
+  });
+
+  it("does not claim the search has no parameters before a fetch runs", () => {
+    // A disabled query returns no data, no error and no loading flag. That is
+    // an absence of an answer, not an answer.
+    renderBody({ isLoading: false, paramSpecsSettled: false });
+
+    expect(screen.queryByText(EMPTY)).toBeNull();
+  });
+
+  it("says so when a completed fetch returned nothing", () => {
+    renderBody({ isLoading: false, paramSpecsSettled: true, paramSpecs: [] });
+
+    expect(screen.getByText(EMPTY)).toBeInTheDocument();
+  });
+
+  it("prefers the error over the loading placeholder", () => {
+    renderBody({ isLoading: true, paramSpecsError: new Error("boom") });
+
+    expect(screen.getByTestId("param-specs-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("param-specs-loading")).toBeNull();
   });
 });

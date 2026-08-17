@@ -9,13 +9,13 @@ import {
   type TriState,
   buildPhyleticTree,
   encodeProfilePattern,
+  leafStates,
   decodeProfilePattern,
   buildSpeciesLists,
   nextTriState,
   triStateIcon,
   triStateColor,
   collectCodes,
-  buildCodeToLabel,
   nodeMatchesSearch,
   defaultExpanded,
 } from "./phyleticProfileLogic";
@@ -116,7 +116,6 @@ export function PhyleticProfileParam({ specs, form }: PhyleticProfileParamProps)
     findSpecVocab(specs, "phyletic_indent_map");
 
   const tree = buildPhyleticTree(termMapVocab, indentMapVocab);
-  const codeToLabel = buildCodeToLabel(tree);
 
   const initialPattern = String(form.getFieldValue("profile_pattern"));
   const [states, setStates] = useState<Map<string, TriState>>(() =>
@@ -151,8 +150,10 @@ export function PhyleticProfileParam({ specs, form }: PhyleticProfileParamProps)
         next.set(code, newState);
       }
 
-      const pattern = encodeProfilePattern(next);
-      const { included, excluded } = buildSpeciesLists(next, codeToLabel);
+      // The pattern matches a census of species, so a clade becomes its leaves.
+      // The two lists keep the node the user actually clicked.
+      const pattern = encodeProfilePattern(leafStates(next, tree));
+      const { included, excluded } = buildSpeciesLists(next);
       form.setFieldValue("profile_pattern", pattern);
       form.setFieldValue("included_species", included);
       form.setFieldValue("excluded_species", excluded);

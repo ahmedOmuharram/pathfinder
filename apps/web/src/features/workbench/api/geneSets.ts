@@ -64,6 +64,13 @@ export function deleteGeneSet(id: string): Promise<void> {
   });
 }
 
+/** Replace a gene set's genes with what its source strategy holds now. */
+export function retakeGeneSet(id: string): Promise<GeneSet> {
+  return requestJson(geneSetResponseSchema, `/api/v1/gene-sets/${id}/retake`, {
+    method: "POST",
+  });
+}
+
 /** Perform a set operation (intersect, union, minus) across gene sets. */
 export function performSetOperation(req: SetOperationRequest): Promise<GeneSet> {
   return requestJson(geneSetResponseSchema, "/api/v1/gene-sets/operations", {

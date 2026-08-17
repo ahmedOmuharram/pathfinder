@@ -379,6 +379,17 @@ WDKAnalysisStatus = Literal[
 ]
 
 
+class WDKStepAnalysisSummary(WDKModel):
+    """One entry of the step-analyses list.
+
+    The listing endpoint emits an id and a display name, which is a smaller
+    shape than the instance the create and detail endpoints return.
+    """
+
+    analysis_id: int
+    display_name: str = ""
+
+
 class WDKStepAnalysisConfig(WDKModel):
     """Step analysis instance configuration."""
 

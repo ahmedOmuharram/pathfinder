@@ -45,6 +45,35 @@ describe("ChatShell.computeChatResolution", () => {
   });
 });
 
+describe("ChatShell.computeChatResolution resumability", () => {
+  it("has nothing to resume before the URL carries an id", () => {
+    const r = computeChatResolution({
+      pathname: "/conversation",
+      generatedChatId: "gen-1",
+    });
+    expect(r.resumable).toBe(false);
+  });
+
+  it("resumes an existing conversation", () => {
+    const r = computeChatResolution({
+      pathname: "/conversation/existing-id",
+      generatedChatId: "gen-1",
+    });
+    expect(r.resumable).toBe(true);
+  });
+
+  it("resumes a conversation this tab named, once the URL carries its id", () => {
+    // The id is generated locally, so it stays equal to the generated id for
+    // the life of the tab. A running turn must still be re-attachable.
+    const r = computeChatResolution({
+      pathname: "/conversation/gen-1",
+      generatedChatId: "gen-1",
+    });
+    expect(r.resumable).toBe(true);
+    expect(r.allowMissing).toBe(true);
+  });
+});
+
 describe("ChatShell.isStrategyRoute", () => {
   it("returns false for the bare conversation route", () => {
     expect(isStrategyRoute("/plasmodb/conversation/conv-1")).toBe(false);

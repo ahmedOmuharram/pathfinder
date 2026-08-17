@@ -182,6 +182,19 @@ async def get_gene_set(
     return _to_response(gs)
 
 
+@router.post("/{gene_set_id}/retake")
+async def retake_gene_set(
+    gene_set_id: str,
+    user_id: CurrentUser,
+) -> GeneSetResponse:
+    """Replace a gene set's genes with what its source strategy holds now."""
+    try:
+        gs = await _svc().retake_from_source(user_id, gene_set_id)
+    except KeyError as exc:
+        raise _not_found(exc) from exc
+    return _to_response(gs)
+
+
 @router.delete("/{gene_set_id}")
 async def delete_gene_set(
     gene_set_id: str,

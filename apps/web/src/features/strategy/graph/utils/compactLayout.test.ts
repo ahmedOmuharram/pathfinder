@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSpineLayout } from "./compactLayout";
+import { buildStrategyTree, type TreeNode } from "./compactLayout";
 import type { Step } from "@pathfinder/shared";
 
 function makeStep(
@@ -8,152 +8,219 @@ function makeStep(
   return { estimatedSize: null, ...overrides };
 }
 
-describe("buildSpineLayout", () => {
-  it("returns empty array for no steps", () => {
-    expect(buildSpineLayout([], null)).toEqual([]);
-    expect(buildSpineLayout([], "abc")).toEqual([]);
+const search = (id: string, displayName: string) => makeStep({ id, displayName });
+
+const combine = (
+  id: string,
+  operator: string,
+  primaryInputStepId: string,
+  secondaryInputStepId: string,
+) =>
+  makeStep({
+    id,
+    displayName: "__combine__",
+    searchName: "__combine__",
+    operator,
+    primaryInputStepId,
+    secondaryInputStepId,
   });
 
-  it("handles a single search step", () => {
-    const steps = [makeStep({ id: "s1", displayName: "Search 1" })];
-    const result = buildSpineLayout(steps, "s1");
-    expect(result).toHaveLength(1);
-    expect(result[0]!.step.displayName).toBe("Search 1");
-    expect(result[0]!.step.kind).toBe("search");
-    expect(result[0]!.step.stepNumber).toBe(1);
-    expect(result[0]!.secondaryInput).toBeUndefined();
+/** Depth-first ids, parents before children. */
+function ids(nodes: TreeNode[]): string[] {
+  return nodes.flatMap((n) => [n.step.id, ...ids(n.children)]);
+}
+
+function depthOf(nodes: TreeNode[], depth = 0): number {
+  if (nodes.length === 0) return depth - 1;
+  return Math.max(...nodes.map((n) => depthOf(n.children, depth + 1)));
+}
+
+function find(nodes: TreeNode[], id: string): TreeNode | undefined {
+  for (const n of nodes) {
+    if (n.step.id === id) return n;
+    const hit = find(n.children, id);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+describe("buildStrategyTree", () => {
+  it("returns nothing without a root", () => {
+    expect(buildStrategyTree([], null)).toEqual([]);
+    expect(buildStrategyTree([], "abc")).toEqual([]);
+    expect(buildStrategyTree([search("s1", "A")], null)).toEqual([]);
   });
 
-  it("handles a linear chain: search -> transform", () => {
+  it("returns a lone search as a single childless node", () => {
+    const tree = buildStrategyTree([search("s1", "Search 1")], "s1");
+
+    expect(tree).toHaveLength(1);
+    expect(tree[0]!.step.displayName).toBe("Search 1");
+    expect(tree[0]!.step.kind).toBe("search");
+    expect(tree[0]!.children).toEqual([]);
+  });
+
+  it("puts a transform above the step it consumes", () => {
     const steps = [
-      makeStep({ id: "s1", displayName: "Search 1" }),
-      makeStep({
-        id: "t1",
-        displayName: "Transform 1",
-        primaryInputStepId: "s1",
-      }),
+      search("s1", "Search 1"),
+      makeStep({ id: "t1", displayName: "Transform", primaryInputStepId: "s1" }),
     ];
-    const result = buildSpineLayout(steps, "t1");
-    expect(result).toHaveLength(2);
-    expect(result[0]!.step.displayName).toBe("Search 1");
-    expect(result[0]!.step.stepNumber).toBe(1);
-    expect(result[1]!.step.displayName).toBe("Transform 1");
-    expect(result[1]!.step.stepNumber).toBe(2);
-    expect(result[0]!.secondaryInput).toBeUndefined();
-    expect(result[1]!.secondaryInput).toBeUndefined();
+
+    expect(ids(buildStrategyTree(steps, "t1"))).toEqual(["t1", "s1"]);
+  });
+});
+
+describe("a combine is a parent of both its inputs", () => {
+  const steps = [
+    search("a", "A"),
+    search("b", "B"),
+    combine("c", "INTERSECT", "a", "b"),
+  ];
+
+  it("puts the combine on top", () => {
+    expect(ids(buildStrategyTree(steps, "c"))).toEqual(["c", "a", "b"]);
   });
 
-  it("handles a combine: two searches -> combine", () => {
-    const steps = [
-      makeStep({ id: "s1", displayName: "Search A" }),
-      makeStep({ id: "s2", displayName: "Search B" }),
-      makeStep({
-        id: "c1",
-        displayName: "Combined",
-        primaryInputStepId: "s1",
-        secondaryInputStepId: "s2",
-        operator: "INTERSECT",
-      }),
-    ];
-    const result = buildSpineLayout(steps, "c1");
-    // Spine: s1 -> c1 (with s2 as secondary)
-    expect(result).toHaveLength(2);
-    expect(result[0]!.step.displayName).toBe("Search A");
-    expect(result[0]!.secondaryInput).toBeUndefined();
-    expect(result[1]!.step.displayName).toBe("Combined");
-    expect(result[1]!.step.operator).toBe("INTERSECT");
-    expect(result[1]!.secondaryInput?.displayName).toBe("Search B");
+  it("indents both inputs equally", () => {
+    const root = buildStrategyTree(steps, "c")[0];
+
+    expect(root?.children.map((n) => n.step.id)).toEqual(["a", "b"]);
   });
 
-  it("handles combine followed by transform", () => {
-    const steps = [
-      makeStep({ id: "s1", displayName: "A" }),
-      makeStep({ id: "s2", displayName: "B" }),
-      makeStep({
-        id: "c1",
-        displayName: "C",
-        primaryInputStepId: "s1",
-        secondaryInputStepId: "s2",
-        operator: "UNION",
-      }),
-      makeStep({
-        id: "t1",
-        displayName: "Transform",
-        primaryInputStepId: "c1",
-      }),
-    ];
-    const result = buildSpineLayout(steps, "t1");
-    // Spine: s1 -> c1 (sec: s2) -> t1
-    expect(result).toHaveLength(3);
-    expect(result[0]!.step.displayName).toBe("A");
-    expect(result[1]!.step.displayName).toBe("C");
-    expect(result[1]!.secondaryInput?.displayName).toBe("B");
-    expect(result[2]!.step.displayName).toBe("Transform");
+  it("orders the primary input before the secondary", () => {
+    const root = buildStrategyTree(steps, "c")[0];
+
+    expect(root?.children[0]?.step.id).toBe("a");
   });
 
-  it("assigns step numbers in execution (topological) order", () => {
-    const steps = [
-      makeStep({ id: "s1", displayName: "First" }),
-      makeStep({ id: "s2", displayName: "Second" }),
-      makeStep({
-        id: "c1",
-        displayName: "Combine",
-        primaryInputStepId: "s1",
-        secondaryInputStepId: "s2",
-        operator: "INTERSECT",
-      }),
-      makeStep({
-        id: "t1",
-        displayName: "Last",
-        primaryInputStepId: "c1",
-      }),
-    ];
-    const result = buildSpineLayout(steps, "t1");
-    // topo order: s1=1, s2=2, c1=3, t1=4
-    expect(result[0]!.step.stepNumber).toBe(1); // s1
-    expect(result[1]!.step.stepNumber).toBe(3); // c1
-    expect(result[1]!.secondaryInput?.stepNumber).toBe(2); // s2
-    expect(result[2]!.step.stepNumber).toBe(4); // t1
+  it("names both operands", () => {
+    const root = buildStrategyTree(steps, "c")[0];
+
+    expect(root?.step.operandNames).toEqual(["A", "B"]);
+  });
+});
+
+describe("a balanced strategy", () => {
+  // (A u B) n (C u D)
+  const steps = [
+    search("a", "A"),
+    search("b", "B"),
+    search("c", "C"),
+    search("d", "D"),
+    combine("ab", "UNION", "a", "b"),
+    combine("cd", "UNION", "c", "d"),
+    combine("root", "INTERSECT", "ab", "cd"),
+  ];
+
+  it("reaches every step exactly once", () => {
+    const all = ids(buildStrategyTree(steps, "root"));
+
+    expect(all).toHaveLength(7);
+    expect(new Set(all).size).toBe(7);
   });
 
-  it("handles chained combines (VEuPathDB-style pipeline)", () => {
-    // s1 + s2 -> c3, c3 + s4 -> c5, c5 -> t6
+  it("nests each branch under the combine that consumes it", () => {
+    const tree = buildStrategyTree(steps, "root");
+
+    expect(find(tree, "cd")?.children.map((n) => n.step.id)).toEqual(["c", "d"]);
+  });
+
+  it("keeps both branches at the same depth", () => {
+    expect(depthOf(buildStrategyTree(steps, "root"))).toBe(2);
+  });
+
+  it("describes a combine operand by its own operator", () => {
+    const root = buildStrategyTree(steps, "root")[0];
+
+    expect(root?.step.operandNames).toEqual(["(A ∪ B)", "(C ∪ D)"]);
+  });
+
+  it("never emits the combine sentinel as an operand name", () => {
+    const tree = buildStrategyTree(steps, "root");
+    const names = ids(tree).flatMap((id) => find(tree, id)?.step.operandNames ?? []);
+
+    expect(names).not.toContain("__combine__");
+  });
+});
+
+describe("a long linear chain", () => {
+  // The depth grows with the chain, so the renderer caps the visual indent.
+  const steps = [
+    search("s0", "S0"),
+    ...Array.from({ length: 5 }, (_, i) =>
+      combine(`c${i}`, "INTERSECT", i === 0 ? "s0" : `c${i - 1}`, `x${i}`),
+    ),
+    ...Array.from({ length: 5 }, (_, i) => search(`x${i}`, `X${i}`)),
+  ];
+
+  it("still reaches every step", () => {
+    expect(new Set(ids(buildStrategyTree(steps, "c4"))).size).toBe(11);
+  });
+
+  it("nests one level per combine", () => {
+    expect(depthOf(buildStrategyTree(steps, "c4"))).toBe(5);
+  });
+});
+
+describe("malformed input", () => {
+  it("does not hang on a cycle", () => {
     const steps = [
-      makeStep({ id: "s1", displayName: "Step 1" }),
-      makeStep({ id: "s2", displayName: "Step 2" }),
-      makeStep({
-        id: "c3",
-        displayName: "Step 3",
-        primaryInputStepId: "s1",
-        secondaryInputStepId: "s2",
-        operator: "INTERSECT",
-      }),
-      makeStep({ id: "s4", displayName: "Step 4" }),
-      makeStep({
-        id: "c5",
-        displayName: "Step 5",
-        primaryInputStepId: "c3",
-        secondaryInputStepId: "s4",
-        operator: "UNION",
-      }),
-      makeStep({
-        id: "t6",
-        displayName: "Step 6",
-        primaryInputStepId: "c5",
-      }),
+      combine("a", "INTERSECT", "b", "b"),
+      combine("b", "INTERSECT", "a", "a"),
     ];
-    const result = buildSpineLayout(steps, "t6");
-    // Spine: s1 -> c3 (sec: s2) -> c5 (sec: s4) -> t6
-    expect(result).toHaveLength(4);
-    expect(result.map((s) => s.step.displayName)).toEqual([
-      "Step 1",
-      "Step 3",
-      "Step 5",
-      "Step 6",
-    ]);
-    expect(result[1]!.secondaryInput?.displayName).toBe("Step 2");
-    expect(result[2]!.secondaryInput?.displayName).toBe("Step 4");
-    expect(result[0]!.secondaryInput).toBeUndefined();
-    expect(result[3]!.secondaryInput).toBeUndefined();
+
+    expect(ids(buildStrategyTree(steps, "a")).length).toBeLessThan(10);
+  });
+
+  it("skips an input that does not exist", () => {
+    const steps = [combine("c", "INTERSECT", "missing", "b"), search("b", "B")];
+
+    expect(ids(buildStrategyTree(steps, "c"))).toEqual(["c", "b"]);
+  });
+});
+
+describe("step numbers", () => {
+  it("numbers steps in execution order, leaves first", () => {
+    const steps = [
+      search("a", "A"),
+      search("b", "B"),
+      combine("c", "INTERSECT", "a", "b"),
+    ];
+    const tree = buildStrategyTree(steps, "c");
+
+    expect(find(tree, "a")?.step.stepNumber).toBe(1);
+    expect(find(tree, "b")?.step.stepNumber).toBe(2);
+    expect(find(tree, "c")?.step.stepNumber).toBe(3);
+  });
+});
+
+describe("the wire step travels with each row", () => {
+  // useStepSnapshot reads the count, draft status and push error off the wire
+  // step. Copying fields one by one loses whichever field is forgotten, and
+  // Step's optional fields mean the compiler cannot see the loss.
+  const steps = [
+    makeStep({ id: "a", displayName: "A", estimatedSize: 373 }),
+    makeStep({ id: "b", displayName: "B", estimatedSize: 356, status: "draft" }),
+    { ...combine("c", "UNION", "a", "b"), estimatedSize: 503 },
+  ];
+
+  it("carries the count of a leaf", () => {
+    expect(find(buildStrategyTree(steps, "c"), "a")?.step.source.estimatedSize).toBe(
+      373,
+    );
+  });
+
+  it("carries the count of a combine", () => {
+    expect(find(buildStrategyTree(steps, "c"), "c")?.step.source.estimatedSize).toBe(
+      503,
+    );
+  });
+
+  it("carries fields the view model does not model, like status", () => {
+    expect(find(buildStrategyTree(steps, "c"), "b")?.step.source.status).toBe("draft");
+  });
+
+  it("carries the same object the caller passed in", () => {
+    expect(find(buildStrategyTree(steps, "c"), "a")?.step.source).toBe(steps[0]);
   });
 });

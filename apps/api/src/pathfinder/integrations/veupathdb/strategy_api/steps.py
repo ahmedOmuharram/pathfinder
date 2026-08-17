@@ -169,6 +169,7 @@ class StepsMixin(StrategyAPIBase):
         raw = await self.client.post(
             f"/users/{uid}/steps",
             json=payload,
+            idempotent=False,
         )
         return WDKIdentifier.model_validate(raw)
 
@@ -212,6 +213,7 @@ class StepsMixin(StrategyAPIBase):
         raw = await self.client.post(
             f"/users/{uid}/steps",
             json=payload,
+            idempotent=False,
         )
         return WDKIdentifier.model_validate(raw)
 
@@ -263,6 +265,7 @@ class StepsMixin(StrategyAPIBase):
         raw = await self.client.post(
             f"/users/{uid}/steps",
             json=payload,
+            idempotent=False,
         )
         return WDKIdentifier.model_validate(raw)
 
@@ -283,7 +286,7 @@ class StepsMixin(StrategyAPIBase):
         WDK re-apply the filters it applies by itself.
         """
         uid = await self._get_user_id(user_id)
-        current = await self.client.get_step_view_filters(uid, step_id)
+        current = await self.client.get_step_filters(uid, step_id)
 
         _, config_payload = await self._prepare_search_config(
             raw_params=dict(search_config.parameters),

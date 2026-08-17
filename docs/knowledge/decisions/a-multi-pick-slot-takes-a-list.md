@@ -25,7 +25,7 @@ WDK accepts that payload outright (a non-empty result). Nothing upstream had rej
 
 # The change
 
-`param_overrides` is `dict[str, str | list[str]]`.
+The proposal map accepts a list per parameter. It is now `params: ParamProposals`, a `dict[str, str | list[str] | None]` whose `BeforeValidator` also reads a number or a JSON-encoded list.
 
 The first version of this change also encoded the list to WDK wire form right there, via `_wire_overrides`. That half was wrong and has been reverted: encoding at the tool boundary made the whole serialized array one candidate option further down, so the model was told its own correct answer was invalid. The list now stays a list to the typed value. See [an-override-list-stays-a-list](an-override-list-stays-a-list.md).
 
@@ -41,4 +41,4 @@ The DeRisi criterion still did not bind. With the list accepted, the failure mov
 
 # Anchor
 
-`param_overrides` on `set_criterion` in `ai/tools/standalone/frame_spec.py`. Guarded by `TestMultiValueOverrides` in `tests/unit/ai/agents/test_frame_toolset.py`.
+`params` on `set_criterion` in `ai/tools/standalone/frame_spec.py`. Guarded by `TestMultiValueProposals` in `tests/unit/ai/agents/test_frame_toolset.py`.

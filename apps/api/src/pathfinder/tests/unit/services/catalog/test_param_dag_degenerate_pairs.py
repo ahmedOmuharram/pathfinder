@@ -7,7 +7,7 @@ return zero rows.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 
 import pytest
 
@@ -17,7 +17,6 @@ from pathfinder.domain.parameters.values import (
     SinglePickValue,
 )
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
-from pathfinder.integrations.embeddings.prefixes import SEARCH_QUERY_PREFIX
 from pathfinder.services.catalog.param_dag import (
     ParameterInfo,
     ParamFetcher,
@@ -52,20 +51,6 @@ def _p(
         allowed_values=allowed,
         vocab_depends_on=depends_on,
     )
-
-
-async def _embed_prefers_female(texts: Sequence[str]) -> list[list[float]]:
-    """Make the matcher pick ``female`` for both sex selectors."""
-    return [
-        [1.0, 0.0] if t.startswith(SEARCH_QUERY_PREFIX) or "female" in t else [0.0, 1.0]
-        for t in texts
-    ]
-
-
-async def _embed_orthogonal(texts: Sequence[str]) -> list[list[float]]:
-    return [
-        [1.0, 0.0] if t.startswith(SEARCH_QUERY_PREFIX) else [0.0, 1.0] for t in texts
-    ]
 
 
 def _values(param: ParamValue) -> list[str]:
@@ -136,8 +121,7 @@ async def test_single_option_operation_pair_binds_even_when_deferred() -> None:
     and never becomes an open slot."""
     rp = await resolve_params_with_intent(
         fetch_at=_vectorbase_microarray_fetch(),
-        intent=ParamIntent(organism_scope=None, text="female versus male"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
     )
     assert _values(rp.params["min_max_avg_ref"]) == ["average1"]
     assert _values(rp.params["min_max_avg_comp"]) == ["average1"]
@@ -145,13 +129,12 @@ async def test_single_option_operation_pair_binds_even_when_deferred() -> None:
 
 
 @pytest.mark.asyncio
-async def test_override_evicts_guess_across_a_deferred_dependency() -> None:
-    """An override on a deferred param evicts the sibling guess that already
-    holds the same value, and the sibling is deduced again."""
+async def test_a_deferred_override_leaves_the_reference_the_other_group() -> None:
+    """A stated comparator settles a pass later, and the reference takes the
+    group it did not."""
     rp = await resolve_params_with_intent(
         fetch_at=_vectorbase_microarray_fetch(),
-        intent=ParamIntent(organism_scope=None, text="upregulated in female adults"),
-        embed=_embed_prefers_female,
+        intent=ParamIntent(),
         overrides={"samples_fc_comp_generic": "female"},
     )
     assert _values(rp.params["samples_fc_comp_generic"]) == ["female"]
@@ -166,8 +149,7 @@ async def test_override_evicts_guess_across_a_deferred_dependency() -> None:
 async def test_both_selectors_pinned_is_honored_verbatim() -> None:
     rp = await resolve_params_with_intent(
         fetch_at=_vectorbase_microarray_fetch(),
-        intent=ParamIntent(organism_scope=None, text="upregulated in female adults"),
-        embed=_embed_prefers_female,
+        intent=ParamIntent(),
         overrides={
             "samples_fc_ref_generic": "male",
             "samples_fc_comp_generic": "female",
@@ -178,23 +160,40 @@ async def test_both_selectors_pinned_is_honored_verbatim() -> None:
     assert rp.open_slots == []
 
 
-@pytest.mark.asyncio
-async def test_unpinned_contrast_resolves_in_the_direction_the_user_asked() -> None:
-    """WDK computes fold change as comparison against reference, so the named
-    group binds to the comparison selector."""
-    rp = await resolve_params_with_intent(
-        fetch_at=_vectorbase_microarray_fetch(),
-        intent=ParamIntent(organism_scope=None, text="upregulated in female adults"),
-        embed=_embed_prefers_female,
-    )
-    assert _values(rp.params["samples_fc_comp_generic"]) == ["female"]
-    assert _values(rp.params["samples_fc_ref_generic"]) == ["male"]
-    _assert_no_degenerate_pair(
-        rp.params, "samples_fc_ref_generic", "samples_fc_comp_generic"
-    )
-
-
 # --- eviction rules ------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_an_override_evicts_a_default_across_a_deferred_dependency() -> None:
+    """A deferred override reclaims the value a sibling default already took,
+    and that sibling resolves again against what is left."""
+
+    async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
+        return [
+            _p(
+                "profileset",
+                "single-pick-vocabulary",
+                allowed=[VocabOption(value="ps1", display="Profile Set 1")],
+            ),
+            _p("stage_a", "single-pick-vocabulary", allowed=SEXES, default="female"),
+            _p(
+                "stage_b",
+                "single-pick-vocabulary",
+                allowed=SEXES if "profileset" in context else [FEMALE],
+                depends_on=["profileset"],
+            ),
+        ]
+
+    rp = await resolve_params_with_intent(
+        fetch_at=fetch_at,
+        intent=ParamIntent(),
+        overrides={"stage_b": "female"},
+    )
+    assert _values(rp.params["stage_b"]) == ["female"]
+    assert _values(rp.params["stage_a"]) == ["male"], (
+        "the default kept the value the override claimed, so the pair is degenerate"
+    )
+    assert rp.open_slots == []
 
 
 @pytest.mark.asyncio
@@ -210,8 +209,7 @@ async def test_an_override_never_evicts_another_override() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="anything"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"ref": "female", "comp": "female"},
     )
     assert _values(rp.params["ref"]) == ["female"]
@@ -221,7 +219,7 @@ async def test_an_override_never_evicts_another_override() -> None:
 @pytest.mark.asyncio
 async def test_eviction_asks_when_more_than_one_option_remains() -> None:
     """An evicted param with more than one remaining option becomes an open
-    slot instead of a guess."""
+    slot instead of a default."""
     three = [
         VocabOption(value="a", display="a"),
         VocabOption(value="b", display="b"),
@@ -237,8 +235,7 @@ async def test_eviction_asks_when_more_than_one_option_remains() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="no match"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"comp": "a"},
     )
     assert _values(rp.params["comp"]) == ["a"]
@@ -265,8 +262,7 @@ async def test_override_on_an_unrelated_vocabulary_evicts_nothing() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="no match"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"direction": "down"},
     )
     assert _values(rp.params["sex"]) == ["female"], "unrelated param must survive"
@@ -293,8 +289,7 @@ async def test_three_same_vocab_siblings_never_collide() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="no match"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"s3": "a"},
     )
     bound = {n: _values(v) for n, v in rp.params.items() if n in {"s1", "s2", "s3"}}
@@ -308,8 +303,8 @@ async def test_three_same_vocab_siblings_never_collide() -> None:
 
 @pytest.mark.asyncio
 async def test_swapped_overrides_terminate_and_are_honored() -> None:
-    """Overrides that each want the other guessed value settle without a
-    repeated eviction loop."""
+    """Overrides that each want the other's default settle without a repeated
+    eviction loop."""
 
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
         del context
@@ -320,8 +315,7 @@ async def test_swapped_overrides_terminate_and_are_honored() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="no match"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
         overrides={"ref": "female", "comp": "male"},
     )
     assert _values(rp.params["ref"]) == ["female"]
@@ -334,8 +328,7 @@ async def test_every_required_param_is_either_bound_or_asked_about() -> None:
     slot."""
     rp = await resolve_params_with_intent(
         fetch_at=_vectorbase_microarray_fetch(),
-        intent=ParamIntent(organism_scope=None, text="upregulated in female adults"),
-        embed=_embed_prefers_female,
+        intent=ParamIntent(),
         overrides={"samples_fc_comp_generic": "female"},
     )
     accounted = set(rp.params) | {s.param_name for s in rp.open_slots}
@@ -389,8 +382,7 @@ async def test_aggregation_selectors_may_share_a_value() -> None:
 
     rp = await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="female versus male"),
-        embed=_embed_orthogonal,
+        intent=ParamIntent(),
     )
     assert _values(rp.params["min_max_avg_ref"]) == ["average1"]
     assert _values(rp.params["min_max_avg_comp"]) == ["average1"]

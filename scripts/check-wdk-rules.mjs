@@ -21,7 +21,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, resolve, relative, basename } from "node:path";
 
 const CLASSES = new Set(["HARD", "SILENT", "CONTRACT"]);
-const NAMESPACES = "STRAT|STEP|SEARCH|PARAM|VOCAB|FILTER|ANS|VALID|AUTH|HTTP|MAP";
+const NAMESPACES = "STRAT|STEP|SEARCH|PARAM|VOCAB|FILTER|ANS|VALID|AUTH|HTTP|MAP|SITE";
 const ID_RE = new RegExp(`^WDK-(?:${NAMESPACES})-\\d{3}$`);
 const CITE_RE = new RegExp(`WDK-(?:${NAMESPACES})-\\d{3}`, "g");
 const GITHUB_HOST_RE = /^https:\/\/(?:github\.com|raw\.githubusercontent\.com)\//;

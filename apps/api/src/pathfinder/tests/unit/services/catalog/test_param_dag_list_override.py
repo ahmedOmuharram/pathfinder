@@ -49,10 +49,6 @@ def _samples_param() -> ParameterInfo:
     )
 
 
-async def _embed(texts: list[str]) -> list[list[float]]:
-    return [[1.0, 0.0] for _ in texts]
-
-
 async def _resolve(overrides: dict[str, str | list[str]]) -> ResolvedParams:
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
         del context
@@ -60,8 +56,7 @@ async def _resolve(overrides: dict[str, str | list[str]]) -> ResolvedParams:
 
     return await resolve_params_with_intent(
         fetch_at=fetch_at,
-        intent=ParamIntent(organism_scope=None, text="trophozoite stage"),
-        embed=_embed,
+        intent=ParamIntent(),
         overrides=overrides,
     )
 

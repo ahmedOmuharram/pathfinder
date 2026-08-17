@@ -17,8 +17,6 @@ function pluralizedRecord(step: Step, count: number): string {
 }
 
 export function ResultLabel({ step, snapshot }: ResultLabelProps) {
-  if (snapshot.isInvalid || snapshot.isFailed) return null;
-
   // A draft has not been sent to WDK, so there is no count to be waiting for.
   // Saying "Draft" is the difference between "you still have to finish this"
   // and "the number has not come back yet", which both read as "?" before.

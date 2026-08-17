@@ -234,7 +234,11 @@ async def _get_search_details_with_portal_fallback(
     search_name: str,
     context_values: dict[str, str],
 ) -> WDKSearchResponse:
-    """Call WDK contextual search details, falling back to portal when appropriate."""
+    """Call WDK contextual search details, then the portal, then the static view.
+
+    Narrowing is an enrichment, so a refusal costs vocabulary precision rather
+    than the parameters themselves. Raises only when the static view fails too.
+    """
     try:
         return await client.get_search_details_with_params(
             record_type,
@@ -242,17 +246,35 @@ async def _get_search_details_with_portal_fallback(
             context_values,
         )
     except WDKError as site_error:
-        if site_id == "veupathdb":
-            raise
-        portal_client = get_wdk_client("veupathdb")
+        portal_error: WDKError | None = None
+        if site_id != "veupathdb":
+            portal_client = get_wdk_client("veupathdb")
+            try:
+                return await portal_client.get_search_details_with_params(
+                    record_type,
+                    search_name,
+                    context_values,
+                )
+            except WDKError as exc:
+                portal_error = exc
+        logger.warning(
+            "WDK could not contextualize search params; using the static view",
+            site_id=site_id,
+            search=search_name,
+            record_type=record_type,
+            context_params=sorted(context_values),
+            error=str(site_error),
+        )
         try:
-            return await portal_client.get_search_details_with_params(
-                record_type,
-                search_name,
-                context_values,
+            return await client.get_search_details(
+                record_type, search_name, expand_params=True
             )
-        except WDKError as portal_error:
-            raise prefer_original_wdk_error(site_error, portal_error) from site_error
+        except WDKError as static_error:
+            if portal_error is not None:
+                raise prefer_original_wdk_error(
+                    site_error, portal_error
+                ) from site_error
+            raise static_error from site_error
 
 
 async def get_refreshed_dependent_params(

@@ -7,9 +7,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.tools.standalone import frame_spec
+from pathfinder.ai.tools.standalone import _catalog_models, frame_spec
 from pathfinder.domain.parameters.values import NumberValue, SinglePickValue
-from pathfinder.services.catalog.param_dag import ResolvedParams
+from pathfinder.domain.strategy.validation import StepValidation
+from pathfinder.integrations.veupathdb.wdk_models import WDKSearch, WDKSearchResponse
+from pathfinder.services.catalog.param_dag import ParamFetcher, ResolvedParams
+from pathfinder.services.catalog.param_formatting import ParameterInfo
 from pathfinder.services.catalog.param_intent import Provenance
 from pathfinder.services.catalog.param_validation import ValidatedParams
 
@@ -36,19 +39,37 @@ def _resolved() -> ResolvedParams:
 
 
 async def _bind(monkeypatch: pytest.MonkeyPatch, state: AgentToolState):
-    async def _resolve(_ctx: object, **_kw: object) -> ResolvedParams:
+    async def _resolve(**_kw: object) -> ResolvedParams:
         return _resolved()
 
     async def _validate(_ctx: object, **_kw: object) -> ValidatedParams:
         return ValidatedParams()
 
-    monkeypatch.setattr(frame_spec, "resolve_search_params", _resolve)
+    def _fetch_at(*_args: object) -> ParamFetcher:
+        async def fetch_at(_context: dict[str, str]) -> list[ParameterInfo]:
+            return []
+
+        return fetch_at
+
+    async def _details(
+        record_type: str, name: str, *, expand_params: bool = True
+    ) -> WDKSearchResponse:
+        return WDKSearchResponse(
+            searchData=WDKSearch(urlSegment=name), validation=StepValidation()
+        )
+
+    client = MagicMock()
+    client.get_search_details = _details
+    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _site: client)
+    monkeypatch.setattr(frame_spec, "resolve_params_with_intent", _resolve)
     monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
+    monkeypatch.setattr(frame_spec, "wdk_fetch_at", _fetch_at)
     return await frame_spec.set_criterion(
         _ctx(state),
         criterion_id="expression",
         text="top 10 percent of expression",
         search_name="GenesByMicroarray",
+        params={},
     )
 
 

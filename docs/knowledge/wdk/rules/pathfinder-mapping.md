@@ -203,20 +203,18 @@ always resolved from the site router rather than written down.
 
 **`httpx` appears in only one of the six contracts' forbidden lists, the domain
 one**, so a transport module may import it and call a VEuPathDB URL with every
-contract green. One does.
-`transport/http/routers/veupathdb_auth.py` builds
-`httpx.AsyncClient(base_url=auth_site.service_url)` and calls `GET /logout` on it.
+contract green. One did.
+`transport/http/routers/veupathdb_auth.py` built
+`httpx.AsyncClient(base_url=auth_site.service_url)` and called `GET /logout` on
+it, carrying no cookie jar and no `Authorization` header - so by
+[WDK-AUTH-001](auth-and-transport.md) the request was served as a fresh guest
+and `processLogout` took its early return.
 
-That endpoint is `SessionService.processLogout`, which acts on
-`getRequestingUser()` and returns immediately when that user is a guest. The
-client PathFinder builds there carries no cookie jar and no `Authorization`
-header, so by [WDK-AUTH-001](auth-and-transport.md) the request is served as a
-fresh guest and the early return is taken. Read that way the call cannot log the
-browser's WDK user out of anything - **a reading from pinned source that was not
-confirmed against a live site**, and recorded as a reading for that reason. It is
-filed as
-[logout-call-cannot-invalidate-the-token](../../backlog/logout-call-cannot-invalidate-the-token.md),
-which sets out the four-step live check that would either confirm it or retire it.
+That reading was confirmed live and then fixed: the call moved to
+`integrations/veupathdb/auth_login.py:password_logout`, which carries the
+credential. What the fix does **not** buy is the property the name suggests -
+the bearer token stays valid afterwards
+([WDK-AUTH-004](auth-and-transport.md)).
 
 The layering fact is not a reading: it is measured. A transport module opens a
 socket to a WDK host, and nothing objects.

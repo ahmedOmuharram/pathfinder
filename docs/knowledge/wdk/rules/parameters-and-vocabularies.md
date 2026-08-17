@@ -162,8 +162,7 @@ rejection, and it told the user WDK had refused a payload WDK accepts.
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/NumberRangeParam.java#L96-L146
 - anchor: apps/api/src/pathfinder/domain/parameters/values.py:NumberRangeValue
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/parameters/test_range_has_both_ends.py::TestBothEndsReachTheWire::test_an_open_top_takes_the_declared_maximum
 `NumberRangeParam.validateValue` calls `getDouble("min")` and `getDouble("max")`
 on the parsed object. A missing key throws, and the catch turns it into
 `'<value>' must be is the format {"min":<min value>,"max":<max value>}` -
@@ -304,6 +303,128 @@ step id - and it says nothing about `input-dataset` and nothing about
 owner-binding. It is recorded here rather than quietly deleted because a
 conformance column is worth exactly as much as its worst entry.
 
+### WDK-PARAM-010 - `initialDisplayValue` is whatever the spec happens to hold; the model default behind it is never validated and never promised to return rows
+
+- class: SILENT
+- upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/param/ParamFormatter.java#L42-L61
+- anchor: apps/api/src/pathfinder/services/catalog/param_dag.py:_scalar_default
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/parameters/test_hidden_fill_is_reported.py::TestItAgreesWithTheFill::test_the_report_matches_what_the_fill_added
+`ParamFormatter.getBaseJson` writes the key from
+`_param.getExternalStableValue(spec.get().get(_param.getName()))` - **the value this
+particular spec holds**, converted to external form. It is not `getXmlDefault()`.
+[`JsonKeys`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/core/api/JsonKeys.java#L142)
+labels the constant `// aka "default"`, and that comment is the source of the
+misreading.
+
+The two coincide on exactly one endpoint. `GET /record-types/{rc}/searches/{name}` builds
+its spec
+[with no parameter values and `FillStrategy.FILL_PARAM_IF_MISSING`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/QuestionService.java#L135-L147),
+so every slot is missing and every slot is filled from
+[`getDefault`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/Param.java#L622-L628),
+which for a plain `Param` returns `_xmlDefaultValue` verbatim. On the revise endpoint the
+same key carries the caller's own values instead, which is
+[WDK-PARAM-008](#wdk-param-008---the-revise-endpoint-echoes-the-values-wdk-would-substitute-not-the-ones-you-sent).
+Reading the key as "the default" is right on one endpoint and wrong on the others.
+
+**The declared default is not checked.** The setter promises otherwise, in a javadoc
+directly above a body that does nothing but assign
+([`Param.setDefault`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/Param.java#L305-L312)):
+
+```java
+  /**
+   * Sets and validates a default value assigned in the model XML
+   *
+   * @param xmlDefaultValue incoming default value
+   * @throws WdkModelException if incoming value is invalid
+   */
+  public void setDefault(String xmlDefaultValue) throws WdkModelException {
+    _xmlDefaultValue = xmlDefaultValue;
+```
+
+The RelaxNG schema types the attribute as free text -
+[`<attribute name="default" />`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/lib/rng/wdkModel.rng#L288-L296)
+with no `<data type>` and no pattern, beside a `visible` that does carry
+`<data type="boolean"/>`. And `Param.validate` has exactly two call sites in the
+repository, both inside runtime spec construction, so there is no parse-time or load-time
+pass over declared defaults at all.
+
+The one partial exception is worth stating precisely, because it makes the general rule
+look narrower than it is.
+[`AbstractEnumParam.getDefault`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AbstractEnumParam.java#L543-L576)
+does check a declared default against the vocabulary, but lazily, when the value is first
+generated, and it only throws for a **non-dependent** enum parameter; a dependent one gets
+`LOG.warn` and carries on. No non-enum type has an analogue.
+
+**And valid has never meant "returns rows".**
+[`StringParam.validateValue`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/StringParam.java#L171-L202)
+is the whole contract for a `string`: number-parseability if `isNumber`, the declared
+regex if there is one, and the length cap. A string that matches nothing in the database
+passes all three.
+
+I read `Param.java`, `StringParam.java`, `AbstractEnumParam.java`, `DateParam.java`,
+`DateRangeParam.java`, `ParamReference.java`, `ParameterContainer.java`, `Query.java`,
+`ParameterContainerInstanceSpecBuilder.java`, `AnswerSpecBuilder.java`, the four
+formatters and `QuestionService.java`, and found no code on any request path that
+executes a default and asserts the result is non-empty. The only row-count assertion in
+the repository is the offline
+[`QuestionTest`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/test/sanity/tests/QuestionTest.java#L49-L62)
+CLI sanity tester, which runs the *sanity* value set - `sanityDefault` where one is
+declared - and so need never exercise the value a client is shown.
+
+So `initialDisplayValue` is a model author's example, published through a fill strategy,
+with no guarantee attached at any layer. A client may use it as a starting point for a
+form. A client that treats it as a value known to work is reading a promise the platform
+does not make, and
+[WDK-SITE-003](site-model-params.md) is what that costs on a real search.
+
+### WDK-PARAM-011 - `isVisible: false` is presentation only; a hidden parameter is still required, still validated, and still default-filled
+
+- class: CONTRACT
+- upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/ParameterContainer.java#L18-L26
+- anchor: apps/api/src/pathfinder/domain/parameters/specs.py:fill_hidden_required_defaults
+- status: UNENFORCED
+
+`getRequiredParams()` returns `getParamMap()` - every parameter is a required parameter -
+and the
+[only override](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/Query.java#L195-L215)
+widens that set rather than narrowing it. The validation loop
+[iterates it unfiltered](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/spec/ParameterContainerInstanceSpecBuilder.java#L124-L131),
+and `Param.validate` reads `allowEmpty` and the validation level, never visibility.
+
+A grep for `isVisible()` across the whole repository at this sha returns five hits, and
+after `TimestampParam`'s own override and `Group.isVisible` only **two** of them read a
+parameter's flag: `ParamReference` assigns
+[the `Hidden` group when no `groupRef` is given](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/ParamReference.java#L243-L248),
+and `ParamFormatter`
+[publishes the boolean](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/param/ParamFormatter.java#L42-L61).
+Nothing else consults it. `Param`'s own javadoc says the flag decides
+["whether param should be visible in the UI"](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/Param.java#L368-L381)
+and that is the entire contract.
+
+Hidden parameters are published rather than filtered out. The only inclusion filter on the
+parameter list is
+[`isForInternalUseOnly`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/param/ParamContainerFormatter.java#L50-L58),
+a different flag, true only for `TimestampParam`.
+
+Live on plasmodb.org on 2026-08-14, `GenesByOrthologPattern.profile_pattern` is reported
+with `isVisible: false` and `allowEmptyValue: false`, and sending it as `""` is a **422**
+carrying `byKey: {"profile_pattern": ["Cannot be empty."]}`. A parameter no form draws is
+refused for being absent, by name, which is the whole rule in one response.
+
+**So a client must supply hidden required parameters, and this is why PathFinder fills
+them.** `fill_hidden_required_defaults` supplies any parameter that is not visible, not
+`allowEmptyValue`, absent from the caller's values, and has an `initialDisplayValue`. That
+is the correct shape of the fix and it inherits the hazard of
+[WDK-PARAM-010](#wdk-param-010---initialdisplayvalue-is-whatever-the-spec-happens-to-hold-the-model-default-behind-it-is-never-validated-and-never-promised-to-return-rows)
+whole: what gets filled is an unvalidated example.
+
+One more consequence, further downstream than it looks.
+[`StepFactory`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/StepFactory.java#L75)
+loads steps out of the database with `FILL_PARAM_IF_MISSING`, while
+[`AnswerSpecBuilder.build`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/answer/spec/AnswerSpecBuilder.java#L72-L94)
+defaults to `NO_FILL`. A parameter omitted at creation time is refused then, and silently
+defaulted on every later read of the same step.
+
 # WDK-VOCAB - vocabularies, trees, and the parents they were read under
 
 ### WDK-VOCAB-001 - A tree vocabulary's root may be a synthetic `@@fake@@` node that is not a selectable term
@@ -343,7 +464,7 @@ nothing. Skip the root or drop `@@fake@@` by name; there is no flag to test.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AbstractEnumParam.java#L457-L467
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/base.py:_expand_tree_params_to_leaves
-- status: PARTIAL by apps/api/src/pathfinder/tests/unit/test_push_canonicalization.py::test_canonicalize_expands_parent_to_leaves
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_tree_param_expansion.py::TestABranchBecomesItsLeaves::test_a_top_branch_expands_to_every_leaf_under_it
 
 `getNumSelected` builds the parameter tree, marks the selected terms on it, and
 returns `tree.getSelectedLeaves().size()` when the parameter is a `treeBox` with
@@ -385,16 +506,26 @@ the WDK boundary for this reason, and its tree widget had to be taught the same
 rule after a correctly-scoped step rendered as an empty required field
 ([parent-term-is-a-selection](../../decisions/parent-term-is-a-selection.md)).
 
-**PathFinder expands in two independent places, and the named test covers one of
-them.** The test drives `canonicalize_strategy_ast_parameters`, which delegates
-leaf enforcement to `ParameterCanonicalizer` in `domain/parameters/`; it asserts a
-parent term becomes `["Pf3D7", "PvP01"]`, so that path fails loudly if the
-expansion is lost. **The uncovered half is the anchor itself.**
-`_expand_tree_params_to_leaves` is a second, separate implementation in
-`integrations/`, reached from `_prepare_search_config` on every `create_step`, and
-no test names it or `_expand_specs`. Delete the expansion there and the named test
-stays green while every step created through the strategy API sends a branch term
-to WDK, which is exactly the silent zero this rule is about.
+**PathFinder expands in two independent places, and both are now named by a
+test.** `ParameterCanonicalizer` in `domain/parameters/` serves the validation
+path; `_expand_tree_params_to_leaves` is a separate implementation in
+`integrations/`, reached from `_prepare_search_config` on every `create_step`.
+Delete either and a branch term reaches WDK on that path.
+
+**Having both is not sufficient, because order decides which one runs first.**
+Parameter validation resolves the search *with the values as they arrived* so it
+can read WDK's verdict, and that verdict is authoritative. A branch term sent to
+that resolve scores zero selected leaves, so WDK refuses values PathFinder was
+about to expand, and the refusal is reported to the model as if the branch term
+were invalid input - while every hint the model was given says a branch term is
+accepted. Canonicalize first, and re-ask only when canonicalizing changed the
+wire payload.
+
+**The synthetic root is a third case and it fails in the opposite direction.**
+`@@fake@@` matches the vocabulary root, so expanding it yields *every* leaf: a
+criterion that removes nothing rather than one that selects nothing. The
+validation path already refuses the sentinel ([WDK-VOCAB-001](#wdk-vocab-001---a-tree-vocabularys-root-may-be-a-synthetic-fake-node-that-is-not-a-selectable-term));
+the expansion at the WDK boundary leaves it alone for WDK to reject.
 
 ### WDK-VOCAB-003 - `dependentParams` lists the parameters that depend on this one, and its order is meaningless
 
@@ -432,7 +563,7 @@ readable from that document, and five of the 325 return 500.
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AbstractEnumParam.java#L401-L455
 - anchor: apps/api/src/pathfinder/domain/parameters/values.py:coerce_context_values
-- status: PARTIAL by apps/api/src/pathfinder/tests/unit/domain/parameters/test_dependent_violations.py::test_stale_dependent_value_after_refresh_is_flagged
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/ai/tools/test_get_parameter_options.py::TestADependentReadNeedsItsParent::test_an_unbound_parent_does_not_return_a_term_list
 
 Validation of an enum value is set membership against the vocabulary generated
 under the *current* parent values, and nothing more. There is no record of which

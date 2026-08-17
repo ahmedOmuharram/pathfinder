@@ -72,7 +72,12 @@ export function NodeShell({
   handles,
 }: NodeShellProps) {
   const reduced = usePrefersReducedMotion();
-  const hasError = snapshot.isInvalid || snapshot.isFailed;
+  const hasError =
+    snapshot.isInvalid || snapshot.isFailed || snapshot.wdkPushError != null;
+  // A step whose search metadata never loaded has no name to show.
+  const title = step.displayName != null && step.displayName !== ""
+    ? step.displayName
+    : "Error";
   const isSyncing = snapshot.isBusy;
   const variantSlug = KIND_VAR[kind];
   const surfaceStyle: React.CSSProperties = {
@@ -142,8 +147,15 @@ export function NodeShell({
         style={surfaceStyle}
         {...(surfaceClipDataAttr != null ? { "data-clip": surfaceClipDataAttr } : {})}
       >
-        {hasError && <CornerDot variant="error" />}
-        {!hasError && isUnsaved && <CornerDot variant="unsaved" />}
+        {hasError ? (
+          <ValidationBanner
+            step={step}
+            snapshot={snapshot}
+            onOpenDetails={onOpenDetails}
+          />
+        ) : (
+          isUnsaved && <CornerDot variant="unsaved" />
+        )}
         <span className="sr-only">{KIND_DOT_LABEL[kind]}</span>
         <HoverActions
           step={step}
@@ -171,19 +183,15 @@ export function NodeShell({
                 hasError ? "text-destructive" : "text-foreground",
               )}
               title={step.displayName ?? ""}
+              data-testid="node-title"
             >
-              {step.displayName}
+              {title}
             </div>
           )}
           {children}
           <div className="mt-auto flex items-center justify-between gap-2">
             <ResultLabel step={step} snapshot={snapshot} />
           </div>
-          <ValidationBanner
-            step={step}
-            snapshot={snapshot}
-            onOpenDetails={onOpenDetails}
-          />
         </div>
       </div>
     </motion.div>

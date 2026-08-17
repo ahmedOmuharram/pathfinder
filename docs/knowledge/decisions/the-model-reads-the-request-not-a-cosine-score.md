@@ -4,11 +4,16 @@ title: A small model reads the request; embeddings only shortlist
 description: The 0.45 cosine matcher that decided 108 of 237 uncovered gold params is replaced by a luna resolver. Embeddings keep the recall job, where a miss costs a question; the decision job moves to something that understands the sentence.
 tags: [agents, parameters, architecture]
 generated: { by: claude-code/opus-5, at: 2026-08-10T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-10T00:00:00Z }
+verified: { by: claude-code/fable-5, at: 2026-08-17T00:00:00Z }
 status: stable
 ---
 
 # What was decided
+
+**Read the amendment at the end first: both resolvers described here were
+deleted on 2026-08-17, and one of them never bound a value in production.** The
+section is kept as written because the reasoning about embeddings is what the
+file is for.
 
 `_semantic_value` is deleted. Two injected resolvers replace it, both on
 `gpt-5.6-luna`:
@@ -63,11 +68,17 @@ during collection.
 
 Observed on a multi-criterion request. Before: a list of eight
 parameter values to re-type, all stated in the request, and the DeRisi criterion
-bound to the wrong profileset. After: the profileset binds correctly, FRAME
-reports 0 open questions, and the only questions asked are two genuine
-scientific ones -- whether "combine all" over four criteria means union or
-intersection, and whether the two evidence arms are OR or AND. Both change the
-result; neither is answerable from the request.
+bound to the wrong profileset. After: FRAME reports 0 open questions, and the
+only questions asked are two genuine scientific ones -- whether "combine all"
+over four criteria means union or intersection, and whether the two evidence
+arms are OR or AND. Both change the result; neither is answerable from the
+request.
+
+**One claim in this section was false when it was written and is struck.** The
+sentence said the profileset "binds correctly". It did not: the resolver's
+answer was discarded before it could bind, and the criterion took WDK's HB3
+default. The rest of the observation holds, because the open-question count and
+the two scientific questions do not depend on the resolver.
 
 # Since extended to multi-pick
 
@@ -88,5 +99,38 @@ a question. A single pick is unaffected, because its one right answer either
 survives the shortlist or the miss becomes a question.
 
 With that in place a multi-criterion request builds end to end: the built strategy, 16
-steps, the intended genes, against a reference strategy of 16 steps and the intended genes. What remains
-is [an empty DeRisi branch](../backlog/derisi-branch-binds-empty.md).
+steps, the intended genes, against a reference strategy of 16 steps and the intended genes. The empty
+DeRisi branch noted at the time did not reproduce: the same criterion measures
+871 genes live, and the zero belonged to the phyletic-profile step
+([WDK-SITE-002](../wdk/rules/site-model-params.md)).
+
+# Amended 2026-08-17
+
+**The two resolvers this decision introduced are deleted.** What survives is the
+asymmetry above, which is why the file is amended rather than removed:
+embeddings are still not allowed to decide a value, and a recall miss is still
+preferred to a decision miss. Three things about the mechanism did not survive.
+
+**It never bound anything in production.** `set_criterion` called the walk
+without `bind_inferred`, which defaults to false, so every resolver answer was
+dropped and the WDK default bound instead. Two model calls per unresolved
+parameter, and the arm is byte-identical to the arm with the resolvers switched
+off.
+
+**It was shown 50 entries of thousands.** The sizing table above is the
+vocabulary the resolver was designed for; the vocabulary it received was capped
+at 50 by `allowed_values`, so the shortlist it was given was not the shortlist
+this decision describes, and the guard that turns an oversized multi-pick into a
+question could not fire.
+
+**Embedding is no longer the shortlist mechanism, on cost.** Measured in the api
+container, embedding a 5,461-entry vocabulary takes 238 seconds, so it cannot
+happen inside a tool call. The parameter sheet ranks by word overlap with the
+goal and pins any entry the request names, either in full or by the accession
+the entry starts with. The 219K-token portal figure
+above is still the reason a shortlist exists at all; only the ranking function
+changed.
+
+**The model that decides is FRAME**, once per criterion, with the sheet in front
+of it, rather than a small model once per parameter. See
+[one proposer, one validator](one-proposer-one-validator.md).

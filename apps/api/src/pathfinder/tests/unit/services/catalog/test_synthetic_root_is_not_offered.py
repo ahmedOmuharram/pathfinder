@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from pathfinder.domain.parameters.canonicalize import (
-    FAKE_ALL_SENTINEL,
-    ParameterCanonicalizer,
-)
+from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import MultiPickValue, SinglePickValue
 from pathfinder.domain.parameters.wdk_vocab import (
+    FAKE_ALL_SENTINEL,
     WDKTreeBoxVocabNode,
     WDKVocabNodeData,
 )

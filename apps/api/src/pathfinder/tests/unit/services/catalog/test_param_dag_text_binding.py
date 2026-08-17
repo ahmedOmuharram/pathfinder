@@ -7,14 +7,12 @@ binder must leave it open. A hidden param keeps its default.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
 
 import pytest
 from pydantic import BaseModel, Field
 
 from pathfinder.domain.parameters.values import MultiPickValue, StringValue
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
-from pathfinder.integrations.embeddings.prefixes import SEARCH_QUERY_PREFIX
 from pathfinder.services.catalog.param_dag import (
     ParameterInfo,
     ParamFetcher,
@@ -64,16 +62,6 @@ def _p(name: str, param_type: str, spec: _Spec | None = None) -> ParameterInfo:
     )
 
 
-async def _embed_matches_epitopes(texts: Sequence[str]) -> list[list[float]]:
-    """An embedder that makes the matcher select one field option only."""
-    return [
-        [1.0, 0.0]
-        if t.startswith(SEARCH_QUERY_PREFIX) or "Epitopes" in t
-        else [0.0, 1.0]
-        for t in texts
-    ]
-
-
 def _genes_by_text_fetch() -> ParamFetcher:
     async def fetch_at(context: dict[str, str]) -> list[ParameterInfo]:
         del context
@@ -101,11 +89,7 @@ def _genes_by_text_fetch() -> ParamFetcher:
 async def _resolve(overrides: dict[str, str] | None = None):
     return await resolve_params_with_intent(
         fetch_at=_genes_by_text_fetch(),
-        intent=ParamIntent(
-            organism_scope="Aedes aegypti",
-            text="Aedes aegypti genes annotated as odorant binding protein (OBP)",
-        ),
-        embed=_embed_matches_epitopes,
+        intent=ParamIntent(),
         overrides=overrides,
     )
 
@@ -140,13 +124,13 @@ async def test_free_text_param_accepts_an_explicit_override() -> None:
 
 
 @pytest.mark.asyncio
-async def test_full_list_default_survives_a_single_weak_semantic_match() -> None:
-    """The WDK default searches every field, so a weak match must not narrow it."""
+async def test_the_full_list_default_is_kept_whole() -> None:
+    """The WDK default searches every field, and nothing narrows it unasked."""
     rp = await _resolve()
     fields = rp.params["text_fields"]
     assert isinstance(fields, MultiPickValue)
     assert fields.values == TEXT_FIELDS, (
-        f"curated 25-field default narrowed to {fields.values}"
+        f"curated field default narrowed to {fields.values}"
     )
 
 

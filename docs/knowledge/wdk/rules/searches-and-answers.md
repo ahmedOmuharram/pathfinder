@@ -136,8 +136,7 @@ optional or defaulted; the parameter still has to be supplied.
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/AnswerService.java#L282-L304
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/strategy_api/base.py:_standard_report
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_report_config_contract.py::TestTheStepReportEndpointTakesOnlyAReportConfig::test_the_report_config_is_the_whole_body
 There are two ways to run a reporter and they take different bodies.
 
 `POST /record-types/{rc}/searches/{name}/reports/{reporter}` runs a search that no step

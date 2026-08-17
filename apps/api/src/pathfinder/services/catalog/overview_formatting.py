@@ -1,35 +1,30 @@
-"""Formats WDK search parameters into a required/optional overview. Pure, no I/O."""
+"""Formats WDK search parameters into a required/optional overview."""
 
-from pydantic import Field, JsonValue
+from pydantic import Field
 
-from pathfinder.integrations.veupathdb.wdk_parameters import (
-    WDKBaseParameter,
-    WDKParameter,
-)
+from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_formatting import (
     FilterFieldInfo,
-    _value_format,
-    filter_fields_for,
+    ParameterInfo,
 )
-from pathfinder.services.catalog.vocab_rendering import allowed_values
-
-_PHYLETIC_STRUCTURAL_PARAMS = frozenset({"phyletic_indent_map", "phyletic_term_map"})
+from pathfinder.services.catalog.param_sheet import build_sheet
 
 
 class ParamOverviewEntry(CamelModel):
-    """One parameter in a search overview."""
+    """One parameter in a search overview, with the values it accepts."""
 
     name: str
     display_name: str
     type: str
     description: str
-    has_vocabulary: bool
     value_format: str
-    default: JsonValue | None = None
+    default: str | None = None
     min: float | None = None
     max: float | None = None
-    vocab_summary: str | None = None
+    vocabulary: list[VocabOption] = Field(default_factory=list)
+    vocabulary_total: int = 0
+    vocabulary_note: str | None = None
     controls_vocab_of: list[str] | None = None
     filter_facets: list[FilterFieldInfo] = Field(default_factory=list)
 
@@ -53,81 +48,25 @@ class SearchOverviewResult(CamelModel):
     dependencies: dict[str, DependencyEntry] = Field(default_factory=dict)
 
 
-def _is_required(param: WDKBaseParameter) -> bool:
-    """A parameter is required when it forbids an empty value or needs one selection."""
-    if param.min_selected_count >= 1:
-        return True
-    return not param.allow_empty_value
-
-
-def _build_dependency_maps(
-    params: list[WDKParameter],
-) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """Map each parent to the children it controls, and each child to its parents."""
-    controls: dict[str, list[str]] = {}
-    depends_on: dict[str, list[str]] = {}
-    for param in params:
-        base: WDKBaseParameter = param
-        if base.dependent_params:
-            controls[base.name] = list(base.dependent_params)
-            for dep in base.dependent_params:
-                depends_on.setdefault(dep, []).append(base.name)
-    return controls, depends_on
-
-
-def _vocab_summary(param: WDKBaseParameter) -> str | None:
-    """Summarize a vocabulary as a size and its first entry. None if there is no vocabulary."""
-    entries = allowed_values(param.vocabulary)
-    if not entries:
-        return None
-    count = len(entries)
-    first_display = entries[0].display or entries[0].value
-    return f"{count} values. Top: {first_display}"
-
-
-def _has_vocabulary(param: WDKBaseParameter) -> bool:
-    """Check if a parameter has a non-empty vocabulary."""
-    return bool(allowed_values(param.vocabulary))
-
-
-def _format_param_overview(
-    param: WDKParameter,
-    controls: dict[str, list[str]],
-) -> ParamOverviewEntry:
-    """Format one WDK parameter into a typed overview entry."""
-    return ParamOverviewEntry(
-        name=param.name,
-        display_name=param.display_name or param.name,
-        type=param.type,
-        description=param.help or "",
-        has_vocabulary=_has_vocabulary(param),
-        value_format=_value_format(param.type),
-        default=param.initial_display_value,
-        min=param.min,
-        max=param.max,
-        vocab_summary=_vocab_summary(param),
-        controls_vocab_of=controls.get(param.name),
-        filter_facets=filter_fields_for(param),
-    )
-
-
 def _build_dependency_section(
-    params: list[WDKParameter],
-    depends_on: dict[str, list[str]],
+    infos: list[ParameterInfo],
 ) -> dict[str, DependencyEntry]:
-    """Build the top-level dependencies section of the overview."""
-    dependencies: dict[str, DependencyEntry] = {}
-    param_names = {p.name for p in params}
-    for child_name, parents in depends_on.items():
-        if child_name not in param_names:
-            continue
-        dependencies[child_name] = DependencyEntry(
-            depends_on=parents,
+    """Name the parents each visible dependent parameter is read under.
+
+    A hidden parameter is absent from the overview, so naming it here sends the
+    model after a parameter it cannot see.
+    """
+    return {
+        info.name: DependencyEntry(
+            depends_on=info.vocab_depends_on,
             instruction=(
-                f"Set {', '.join(parents)} first, then call get_parameter_options(...)"
+                f"Set {', '.join(info.vocab_depends_on)} first, then call "
+                "get_parameter_options(...)"
             ),
         )
-    return dependencies
+        for info in infos
+        if info.vocab_depends_on and info.is_visible
+    }
 
 
 def format_search_overview(
@@ -136,27 +75,36 @@ def format_search_overview(
     display_name: str,
     description: str,
     record_type: str,
-    params: list[WDKParameter],
+    infos: list[ParameterInfo],
+    query: str,
 ) -> SearchOverviewResult:
-    """Split WDK parameters into required and optional entries with their dependencies.
+    """Split the parameters into required and optional entries with their values.
 
-    Hidden parameters and phyletic structural parameters are excluded.
+    Hidden parameters are excluded. ``query`` ranks a vocabulary too large to
+    travel whole.
     """
-    controls, depends_on = _build_dependency_maps(params)
-
+    by_name = {info.name: info for info in infos}
     required: list[ParamOverviewEntry] = []
     optional: list[ParamOverviewEntry] = []
 
-    for param in params:
-        base: WDKBaseParameter = param
-        if not base.is_visible:
-            continue
-        if base.name in _PHYLETIC_STRUCTURAL_PARAMS:
-            continue
-
-        entry = _format_param_overview(param, controls)
-
-        if _is_required(base):
+    for sheet in build_sheet(infos, query=query):
+        info = by_name[sheet.name]
+        entry = ParamOverviewEntry(
+            name=sheet.name,
+            display_name=sheet.display_name or sheet.name,
+            type=sheet.type,
+            description=sheet.help,
+            value_format=info.value_format,
+            default=sheet.default,
+            min=sheet.min,
+            max=sheet.max,
+            vocabulary=sheet.vocabulary,
+            vocabulary_total=sheet.vocabulary_total,
+            vocabulary_note=sheet.vocabulary_note,
+            controls_vocab_of=info.controls_vocab_of,
+            filter_facets=sheet.filter_facets,
+        )
+        if sheet.required:
             required.append(entry)
         else:
             optional.append(entry)
@@ -168,5 +116,5 @@ def format_search_overview(
         record_type=record_type,
         required=required,
         optional=optional,
-        dependencies=_build_dependency_section(params, depends_on),
+        dependencies=_build_dependency_section(infos),
     )

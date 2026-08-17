@@ -183,3 +183,43 @@ Note what the anchor is and is not: it pins PathFinder's conformance. The separa
 that a *missing* `JSESSIONID` makes a process query return zero remains unverified and is
 deliberately not a rule here - see
 [transport-quirks](../rest/transport-quirks.md).
+### WDK-AUTH-004 - Logging out swaps your cookie for a guest one; the bearer token stays valid
+
+- class: SILENT
+- upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/SessionService.java#L277-L311
+- anchor: apps/api/src/pathfinder/integrations/veupathdb/auth_login.py:password_logout
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/transport/test_logout_carries_the_token.py::TestTheRequestCarriesTheCredential::test_the_token_is_sent_as_the_authorization_cookie
+
+`processLogout` resolves the requesting user and returns early when that user is a guest.
+A request carrying no credential is a guest ([WDK-AUTH-001](#wdk-auth-001---a-request-with-no-credential-is-not-rejected-wdk-mints-a-new-guest-user-for-it)),
+so a logout sent without the token ends nobody's session and answers as though it did.
+
+**Sending the credential is necessary and it is not sufficient.** Measured on
+plasmodb.org on 2026-08-14 with a registered account, against
+`GET /service/logout` carrying the user's `Authorization` cookie:
+
+| | Result |
+|---|---|
+| Response | **307** to the site root |
+| `Set-Cookie: Authorization` | a **different** token, `Max-Age=94608000` |
+| That returned token | `isGuest: true`, a new user id |
+| **The original token, afterwards** | **`isGuest: false`, the same user id** |
+
+So the endpoint replaces the caller's cookie with a fresh guest one. It does not revoke
+anything. The bearer token is a JWT whose
+[max age is three years](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/SessionService.java#L241-L252),
+and nothing observed here shortens it.
+
+Two consequences, and the second is the one to carry:
+
+- A logout that forwards no credential is a no-op that reports success. That part is
+  PathFinder's to get right, and `password_logout` now sends the token and reports what
+  WDK answered.
+- **A logout that does everything right still leaves the token working.** "Log out" means
+  the browser forgot the credential, on every VEuPathDB site, and a copy of that cookie
+  taken beforehand keeps working. No client can fix this; the platform exposes no
+  revocation. Treat a leaked WDK token as valid until it expires.
+
+The same token was checked on toxodb.org and the portal after logout and answered
+`isGuest: false` with the same user id on both, so this is not per-site.
+

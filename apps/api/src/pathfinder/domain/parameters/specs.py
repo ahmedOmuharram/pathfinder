@@ -28,6 +28,8 @@ class ParamSpecNormalized:
     is_number: bool = False
     min: float | None = None
     max: float | None = None
+    min_date: str | None = None
+    max_date: str | None = None
     increment: float | None = None
     max_length: int | None = None
     display_type: str = ""
@@ -113,6 +115,31 @@ def _value_as_list(value: object) -> list[object]:
     return [value]
 
 
+def _is_hidden_required_fill(spec: ParamSpecNormalized) -> bool:
+    """Whether this parameter is one PathFinder supplies on the caller's behalf."""
+    return (
+        not spec.is_visible
+        and not spec.allow_empty_value
+        and spec.initial_display_value is not None
+    )
+
+
+def filled_hidden_defaults(
+    param_specs: dict[str, ParamSpecNormalized],
+    parameters: Mapping[str, ParamValue],
+) -> list[str]:
+    """The hidden parameters a fill would supply, so the caller can report them.
+
+    A filled default is otherwise indistinguishable from a value someone chose,
+    and a default carries no promise of returning rows.
+    """
+    return sorted(
+        name
+        for name, spec in param_specs.items()
+        if name not in parameters and _is_hidden_required_fill(spec)
+    )
+
+
 def fill_hidden_required_defaults(
     param_specs: dict[str, ParamSpecNormalized],
     parameters: Mapping[str, ParamValue],
@@ -124,12 +151,7 @@ def fill_hidden_required_defaults(
     """
     filled: dict[str, ParamValue] = dict(parameters)
     for name, spec in param_specs.items():
-        if (
-            not spec.is_visible
-            and not spec.allow_empty_value
-            and name not in filled
-            and spec.initial_display_value is not None
-        ):
+        if name not in filled and _is_hidden_required_fill(spec):
             filled[name] = from_decoded(
                 as_param_kind(spec.param_type), spec.initial_display_value
             )

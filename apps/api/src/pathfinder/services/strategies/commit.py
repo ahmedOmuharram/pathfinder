@@ -207,21 +207,16 @@ async def _commit_to_wdk(
         # number be read back as current fact.
         invalidate_counts_for(sync_state, succeeded)
 
-    wdk_ids_to_delete: list[int] = []
+    # The id mapping is kept until WDK confirms the delete. The strategy push
+    # below is what orphans these steps, so deleting them first is refused.
+    orphaned: dict[str, int] = {}
     for sid in dropped_step_ids:
-        wdk_id = sync_state.wdk_step_ids.pop(sid, None)
         sync_state.step_counts.pop(sid, None)
         sync_state.step_validations.pop(sid, None)
         sync_state.wdk_push_errors.pop(sid, None)
+        wdk_id = sync_state.wdk_step_ids.get(sid)
         if wdk_id is not None:
-            wdk_ids_to_delete.append(wdk_id)
-    if wdk_ids_to_delete:
-        leftover = await delete_orphaned_wdk_steps(api, wdk_ids_to_delete)
-        if leftover:
-            logger.warning(
-                "Some orphaned WDK steps could not be deleted",
-                step_ids=leftover,
-            )
+            orphaned[sid] = wdk_id
 
     sync_result: SyncResult | None = None
     if (
@@ -241,6 +236,17 @@ async def _commit_to_wdk(
             logger.warning(
                 "sync_strategy_for_site failed; persisting partial state",
                 error=str(exc),
+            )
+
+    if orphaned:
+        leftover = set(await delete_orphaned_wdk_steps(api, list(orphaned.values())))
+        for sid, wdk_id in orphaned.items():
+            if wdk_id not in leftover:
+                sync_state.wdk_step_ids.pop(sid, None)
+        if leftover:
+            logger.warning(
+                "Some orphaned WDK steps could not be deleted",
+                step_ids=sorted(leftover),
             )
 
     return _WDKCommitOutcome(

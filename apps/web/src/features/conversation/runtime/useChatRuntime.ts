@@ -35,13 +35,13 @@ import { GeneIdAttachmentAdapter } from "./geneIdAttachmentAdapter";
 interface UseChatRuntimeArgs {
   conversationId: string;
   initialMessages?: UIMessage[];
-  allowMissing?: boolean;
+  resume?: boolean;
 }
 
 export function useChatRuntime({
   conversationId,
   initialMessages,
-  allowMissing = false,
+  resume = false,
 }: UseChatRuntimeArgs): {
   runtime: ReturnType<typeof useAISDKRuntime<UIMessage>>;
   chat: ChatHelpers;
@@ -83,7 +83,7 @@ export function useChatRuntime({
 
   const chat = useChat<UIMessage>({
     id: conversationId,
-    resume: !allowMissing,
+    resume,
     generateId: () => crypto.randomUUID(),
     ...(initialMessages !== undefined && { messages: initialMessages }),
     transport,

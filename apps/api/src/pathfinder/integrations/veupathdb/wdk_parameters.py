@@ -39,6 +39,8 @@ class WDKBaseParameter(WDKModel):
     max_selected_count: int | None = None
     min: float | None = None
     max: float | None = None
+    min_date: str | None = None
+    max_date: str | None = None
     increment: float | None = None
     length: int = 0
     is_number: bool = False

@@ -6,6 +6,8 @@ import {
   buildPhyleticTree,
   encodeProfilePattern,
   decodeProfilePattern,
+  leafStates,
+  buildSpeciesLists,
   claimsPhyleticParams,
 } from "./phyleticProfileLogic";
 import { PhyleticProfileParam } from "./PhyleticProfileParam";
@@ -113,32 +115,70 @@ describe("buildPhyleticTree", () => {
 });
 
 describe("encodeProfilePattern", () => {
-  it("encodes include/exclude and skips unconstrained", () => {
+  // profile_pattern is a SQL LIKE pattern over a colon-joined species census.
+  // The % characters are the wildcard, and the tokens between them are
+  // code:Y for present and code:N for absent.
+  it("wraps and separates the tokens with the LIKE wildcard", () => {
     const states = new Map([
-      ["pfal", "include" as const],
       ["hsap", "exclude" as const],
-      ["ecol", "unconstrained" as const],
+      ["pfal", "include" as const],
     ]);
-    const result = encodeProfilePattern(states);
-    expect(result).toContain("pfal>=1T");
-    expect(result).toContain("hsap=0T");
-    expect(result).not.toContain("ecol");
+
+    expect(encodeProfilePattern(states)).toBe("%hsap:N%pfal:Y%");
   });
 
-  it("returns empty string for empty map", () => {
-    expect(encodeProfilePattern(new Map())).toBe("");
+  it("leaves an unconstrained species out of the pattern", () => {
+    const states = new Map([
+      ["pfal", "include" as const],
+      ["ecol", "unconstrained" as const],
+    ]);
+
+    expect(encodeProfilePattern(states)).toBe("%pfal:Y%");
+  });
+
+  it("sorts the tokens into ascending code order", () => {
+    // The census lists codes ascending, so %B%A% describes a census that
+    // cannot exist however correct each token is.
+    const clicked = new Map([
+      ["yepe", "include" as const],
+      ["wsuc", "include" as const],
+    ]);
+
+    expect(encodeProfilePattern(clicked)).toBe("%wsuc:Y%yepe:Y%");
+  });
+
+  it("writes a bare wildcard for an empty selection", () => {
+    // The empty string is the one value WDK refuses: allowEmptyValue is false.
+    expect(encodeProfilePattern(new Map())).toBe("%");
   });
 });
 
 describe("decodeProfilePattern", () => {
-  it("decodes include and exclude patterns", () => {
-    const states = decodeProfilePattern("pfal>=1T,hsap=0T");
+  it("reads back the form the encoder writes", () => {
+    const states = decodeProfilePattern("%hsap:N%pfal:Y%");
+
     expect(states.get("pfal")).toBe("include");
     expect(states.get("hsap")).toBe("exclude");
   });
 
-  it("returns empty map for empty string", () => {
+  it("reads a pattern the backend built", () => {
+    const states = decodeProfilePattern("%ggor:N%hsap:N%mmus:N%pfal:Y%");
+
+    expect([...states.keys()].sort()).toEqual(["ggor", "hsap", "mmus", "pfal"]);
+    expect(states.get("mmus")).toBe("exclude");
+  });
+
+  it("returns nothing for a bare wildcard", () => {
+    expect(decodeProfilePattern("%").size).toBe(0);
+  });
+
+  it("returns nothing for an empty string", () => {
     expect(decodeProfilePattern("").size).toBe(0);
+  });
+
+  it("ignores a token in another site's grammar", () => {
+    // hsap=1T is a valid OrthoMCL phyletic_expression, not a profile_pattern.
+    expect(decodeProfilePattern("hsap=1T").size).toBe(0);
   });
 
   it("roundtrips with encodeProfilePattern", () => {
@@ -200,11 +240,13 @@ describe("PhyleticProfileParam component", () => {
 
     fireEvent.click(toggleBtn);
     expect(screen.getByTestId("form-profile_pattern").textContent).toContain(
-      "pfal>=1T",
+      "%pfal:Y%",
     );
 
     fireEvent.click(toggleBtn);
-    expect(screen.getByTestId("form-profile_pattern").textContent).toContain("pfal=0T");
+    expect(screen.getByTestId("form-profile_pattern").textContent).toContain(
+      "%pfal:N%",
+    );
 
     fireEvent.click(toggleBtn);
     expect(screen.getByTestId("form-profile_pattern").textContent).not.toContain(
@@ -214,7 +256,7 @@ describe("PhyleticProfileParam component", () => {
 
   it("shows correct summary footer counts", () => {
     render(
-      <TestForm defaultValues={{ profile_pattern: "pfal>=1T,hsap=0T" }}>
+      <TestForm defaultValues={{ profile_pattern: "%hsap:N%pfal:Y%" }}>
         {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
       </TestForm>,
     );
@@ -238,7 +280,7 @@ describe("PhyleticProfileParam component", () => {
 
   it("initializes state from existing profile_pattern in form", () => {
     render(
-      <TestForm defaultValues={{ profile_pattern: "pfal>=1T" }}>
+      <TestForm defaultValues={{ profile_pattern: "%pfal:Y%" }}>
         {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
       </TestForm>,
     );
@@ -256,5 +298,129 @@ describe("PhyleticProfileParam component", () => {
     expect(screen.getAllByText(/unconstrained/i).length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText(/include/i).length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText(/exclude/i).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("leafStates", () => {
+  // Clade codes never appear in the census: %MAMM:Y% matches nothing while
+  // %hsap:Y% matches. A clade selection has to become its leaves.
+  const tree = [
+    {
+      code: "MAMM",
+      label: "Mammals",
+      depth: 1,
+      children: [
+        { code: "hsap", label: "H. sapiens", depth: 2, children: [] },
+        { code: "mmus", label: "M. musculus", depth: 2, children: [] },
+      ],
+    },
+    { code: "pfal", label: "P. falciparum", depth: 1, children: [] },
+  ];
+
+  it("replaces a clade with its leaves", () => {
+    const expanded = leafStates(new Map([["MAMM", "exclude" as const]]), tree);
+
+    expect([...expanded.keys()].sort()).toEqual(["hsap", "mmus"]);
+  });
+
+  it("gives every leaf the clade's state", () => {
+    const expanded = leafStates(new Map([["MAMM", "exclude" as const]]), tree);
+
+    expect(expanded.get("hsap")).toBe("exclude");
+    expect(expanded.get("mmus")).toBe("exclude");
+  });
+
+  it("leaves a species alone", () => {
+    const expanded = leafStates(new Map([["pfal", "include" as const]]), tree);
+
+    expect([...expanded.entries()]).toEqual([["pfal", "include"]]);
+  });
+
+  it("lets an explicit leaf override the clade it sits in", () => {
+    const expanded = leafStates(
+      new Map([
+        ["MAMM", "exclude" as const],
+        ["hsap", "include" as const],
+      ]),
+      tree,
+    );
+
+    expect(expanded.get("hsap")).toBe("include");
+    expect(expanded.get("mmus")).toBe("exclude");
+  });
+
+  it("produces a pattern of leaf tokens only", () => {
+    const pattern = encodeProfilePattern(
+      leafStates(new Map([["MAMM", "exclude" as const]]), tree),
+    );
+
+    expect(pattern).toBe("%hsap:N%mmus:N%");
+  });
+});
+
+describe("buildSpeciesLists", () => {
+  // The reference client reads these two back when reopening a step, and it
+  // reads them as vocabulary terms rather than display labels.
+  it("writes terms, not labels", () => {
+    const lists = buildSpeciesLists(new Map([["pfal", "include" as const]]));
+
+    expect(lists.included).toBe("pfal");
+  });
+
+  it("separates several terms the way the reference client does", () => {
+    const lists = buildSpeciesLists(new Map([
+        ["pfal", "include" as const],
+        ["hsap", "include" as const],
+      ]));
+
+    expect(lists.included).toBe("pfal, hsap");
+  });
+
+  it("writes the empty set as the literal the client decodes", () => {
+    const lists = buildSpeciesLists(new Map([["pfal", "include" as const]]));
+
+    expect(lists.excluded).toBe("n/a");
+  });
+});
+
+describe("an included species always reaches the matching branch", () => {
+  // The query is a UNION whose first branch fires when the pattern contains no
+  // `:Y`, returning the ortholog-less gene set instead of a phyletic match.
+  // Every pattern carrying an inclusion must therefore carry a `:Y` token.
+  it("writes a :Y token for an inclusion", () => {
+    const pattern = encodeProfilePattern(new Map([["pfal", "include" as const]]));
+
+    expect(pattern).toContain(":Y");
+  });
+
+  it("writes a :Y even when exclusions outnumber inclusions", () => {
+    const pattern = encodeProfilePattern(
+      new Map([
+        ["hsap", "exclude" as const],
+        ["mmus", "exclude" as const],
+        ["pfal", "include" as const],
+      ]),
+    );
+
+    expect(pattern).toContain("pfal:Y");
+  });
+
+  it("writes no :Y for an all-exclusion selection, which is its own question", () => {
+    // Pure exclusion legitimately means "absent from these, or in no ortholog
+    // group", which is the branch the query provides for it.
+    const pattern = encodeProfilePattern(new Map([["hsap", "exclude" as const]]));
+
+    expect(pattern).not.toContain(":Y");
+  });
+
+  it("never emits the other site's operator grammar", () => {
+    const pattern = encodeProfilePattern(
+      new Map([
+        ["pfal", "include" as const],
+        ["hsap", "exclude" as const],
+      ]),
+    );
+
+    expect(pattern).not.toMatch(/[<>=]/);
   });
 });

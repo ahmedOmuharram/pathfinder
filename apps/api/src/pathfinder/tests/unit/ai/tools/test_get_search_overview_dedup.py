@@ -14,8 +14,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.tools.standalone import catalog_discovery
+from pathfinder.ai.tools.standalone import _catalog_models, catalog_discovery
 from pathfinder.ai.tools.standalone.catalog_discovery import AlreadyReadNotice
+from pathfinder.integrations.veupathdb.wdk_parameters import WDKStringParam
 
 
 def _ctx() -> Any:
@@ -26,13 +27,8 @@ def _ctx() -> Any:
     return ctx
 
 
-def _wdk_param(name: str) -> Any:
-    p = MagicMock()
-    p.name = name
-    p.is_visible = True
-    p.allow_empty_value = False
-    p.min_selected_count = 1
-    return p
+def _wdk_param(name: str) -> WDKStringParam:
+    return WDKStringParam(name=name, is_visible=True, allow_empty_value=False)
 
 
 def _patch(monkeypatch: pytest.MonkeyPatch) -> Any:
@@ -53,13 +49,12 @@ def _patch(monkeypatch: pytest.MonkeyPatch) -> Any:
 
     client = MagicMock()
     client.get_search_details = AsyncMock(return_value=details)
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _site: client)
+    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _site: client)
 
-    monkeypatch.setattr(
-        catalog_discovery,
-        "format_search_overview",
-        lambda **_kw: MagicMock(),
-    )
+    def _overview(**_kw: Any) -> Any:
+        return MagicMock()
+
+    monkeypatch.setattr(catalog_discovery, "format_search_overview", _overview)
     return client
 
 

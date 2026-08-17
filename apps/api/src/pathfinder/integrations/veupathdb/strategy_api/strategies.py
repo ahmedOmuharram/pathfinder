@@ -75,6 +75,7 @@ class StrategiesMixin(StrategyAPIBase):
         raw = await self.client.post(
             f"/users/{uid}/strategies",
             json=payload,
+            idempotent=False,
         )
         return WDKIdentifier.model_validate(raw)
 
@@ -93,6 +94,7 @@ class StrategiesMixin(StrategyAPIBase):
         raw = await self.client.post(
             f"/users/{uid}/strategies",
             json={"sourceStrategySignature": source_signature},
+            idempotent=False,
         )
         return WDKIdentifier.model_validate(raw)
 

@@ -20,6 +20,7 @@ from pathfinder.services.enrichment.types import (
     EnrichmentAnalysisType,
     EnrichmentResult,
 )
+from pathfinder.services.gene_sets.frozen_step import frozen_step_id
 from pathfinder.services.gene_sets.store import GeneSetStore
 from pathfinder.services.gene_sets.types import GeneSet, GeneSetSource
 from pathfinder.services.gene_sets.wdk_helpers import (
@@ -152,6 +153,26 @@ class GeneSetService:
         )
         return gs
 
+    async def retake_from_source(self, user_id: UUID, gene_set_id: str) -> GeneSet:
+        """Replace a set's membership with what its source strategy holds now.
+
+        :raises ValidationError: If the set was not derived from a strategy.
+        """
+        gs = await self.get_for_user(user_id, gene_set_id)
+        if gs.wdk_strategy_id is None:
+            msg = (
+                "This gene set was not taken from a strategy, so there is no "
+                "source to re-take it from."
+            )
+            raise ValidationError(detail=msg)
+        refreshed = await self.resync_strategy(
+            gene_set_id, wdk_strategy_id=gs.wdk_strategy_id, site_id=gs.site_id
+        )
+        if refreshed is None:
+            msg = f"Gene set not found: {gene_set_id}"
+            raise NotFoundError(detail=msg)
+        return refreshed
+
     async def list_for_user(
         self,
         user_id: UUID,
@@ -278,15 +299,20 @@ class GeneSetService:
         :raises ValidationError: If the gene set has no WDK step.
         """
         gs = await self.get_for_user(user_id, gene_set_id)
-        if not gs.wdk_step_id:
+        record_type = gs.record_type or "transcript"
+        # The set's membership is what it stores. The step it came from can
+        # have moved since, and browsing that would show a different set.
+        step_id = await frozen_step_id(gs.site_id, list(gs.gene_ids), record_type)
+        if step_id is None:
+            step_id = gs.wdk_step_id
+        if not step_id:
             msg = (
-                "No WDK strategy: this gene set has no associated WDK strategy "
-                "for result browsing."
+                "No genes and no WDK strategy: this gene set has nothing to "
+                "browse."
             )
             raise ValidationError(detail=msg)
-        api = get_strategy_api(gs.site_id)
         return StepResultsService(
-            api, step_id=gs.wdk_step_id, record_type=gs.record_type or "transcript"
+            get_strategy_api(gs.site_id), step_id=step_id, record_type=record_type
         )
 
     async def get_strategy_tree(

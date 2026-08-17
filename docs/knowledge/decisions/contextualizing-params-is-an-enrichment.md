@@ -26,7 +26,7 @@ proved it. One operation, six implementations:
 | `param_validation._refresh_dependent_vocabularies` | `AppError` | static vocab |
 | `wdk_conversion` | `AppError` | plain endpoint, else `None` |
 | `plan_normalize` | `WDKError` | plain endpoint |
-| `param_resolution` | `WDKError` | portal client |
+| `param_resolution` | `WDKError` | portal client, then static view |
 
 The two with no policy are exactly where the day's bugs landed: parents not
 filled before a refresh, a vocabulary read under WDK's defaults instead of the
@@ -55,14 +55,32 @@ narrowing costs vocabulary precision. It must never cost the search.
 - `param_validation` falls back through the **cached discovery service**, and
   integrations cannot depend on services. Same policy, different layer; it was
   already correct.
-- `param_resolution`'s portal fallback answers a different question (this site
-  versus the portal), not "can WDK contextualize this".
+- `param_validation` above is the only one left alone.
 
-Claiming those two were unified would be the same overclaiming this decision
-exists to correct.
+`param_resolution` was originally in this list, on the reasoning that its portal
+fallback answers a different question (this site versus the portal) rather than
+"can WDK contextualize this". Both are true and neither replaces the other: the
+portal retry asks another host the same question, and the host being asked is
+not why WDK refused. Serving the step editor's parameter panel, that route
+turned a refusal into a 500 and the panel reported the search as having no
+parameters. It now tries the site, then the portal, then the static view, and
+raises only when the static view fails too.
 
 # Evidence it works
 
 Against the live 500, through the real client: one warning line
 (`WDK could not contextualize search params; using the static view`) and all six
 parameters returned, where the criterion previously died.
+
+
+# The refusal is a combination, not a value
+
+Measured on plasmodb.org against `GenesByOrthologPattern`: `organism` alone is
+200, `profile_pattern` alone is 200, and `organism` together with any non-empty
+`profile_pattern` is **500** - whether the pattern is well formed or not. The
+static view of the same search is 200 throughout.
+
+So a client cannot avoid this by validating values before it asks. Any policy
+that treats a narrowing failure as fatal will fail on some combination of
+otherwise valid values, which is why the fallback belongs in the operation
+rather than at each call site.

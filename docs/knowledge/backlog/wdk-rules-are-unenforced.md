@@ -1,16 +1,16 @@
 ---
 type: Backlog Item
-title: 37 of the 73 WDK rules have no test; the silent ones are now covered
-description: The rule bundle states 73 falsifiable WDK assertions. Every SILENT rule - where WDK answers 200 and the science is wrong - now has a test. The 37 that remain are HARD and CONTRACT, where the failure is loud or slow rather than silent.
+title: 34 of the 83 WDK rules have no test; one SILENT rule is open again
+description: The SILENT class - where WDK answers 200 and the science is wrong - was closed twice and holds one untested rule again, the radio-params pair added on 2026-08-17. The other 33 untested rules are HARD and CONTRACT.
 tags: [wdk-alignment, testing, knowledge-bundle, silent-failure]
 generated: { by: claude-code/opus-5, at: 2026-08-10T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-10T00:00:00Z }
+verified: { by: claude-code/fable-5, at: 2026-08-17T00:00:00Z }
 status: stable
 ---
 
 # The gap
 
-`docs/knowledge/wdk/rules/` holds 73 assertions about WDK, each with pinned upstream
+`docs/knowledge/wdk/rules/` holds 83 assertions about WDK, each with pinned upstream
 evidence and a PathFinder anchor. `scripts/check-wdk-rules.mjs` proves the evidence still
 resolves and the anchor still exists. It cannot prove PathFinder still obeys the rule -
 only a test does that.
@@ -26,52 +26,56 @@ by `flatten_tree`, so single-rootedness and reachability held *by construction* 
 constrained `root_ids` and `subtree_ids` against `flatten_tree` rather than against
 anything WDK requires. The counts below are what survived.
 
+Recounted from the rule files on 2026-08-17:
+
 | | UNENFORCED | PARTIAL | ENFORCED | total |
 |---|---|---|---|---|
-| **SILENT** | **0** | 2 | 23 | 25 |
-| HARD | 22 | 3 | 2 | 27 |
-| CONTRACT | 15 | 4 | 2 | 21 |
-| total | 37 | 9 | 27 | 73 |
+| **SILENT** | **1** | 1 | 30 | 32 |
+| HARD | 17 | 3 | 7 | 27 |
+| CONTRACT | 16 | 4 | 4 | 24 |
+| total | 34 | 8 | 41 | 83 |
 
 A `SILENT` rule is one where WDK accepts the request, returns 200, and the answer is
 scientifically wrong - the class of failure a researcher cannot see and PathFinder cannot
-report. Those are covered. What remains is HARD, where WDK refuses and the failure is
-loud, and CONTRACT, where the mapping drifts over refactors.
+report. **That column has been emptied twice and is 1 again.** It went to 5 on 2026-08-14,
+when the `WDK-SITE` family added eight rules, five of them `SILENT` and none of them
+tested: [WDK-SITE-002](../wdk/rules/site-model-params.md), `-003`, `-004` and `-005` on the
+phyletic profile pattern, and
+[WDK-PARAM-010](../wdk/rules/parameters-and-vocabularies.md) on what `initialDisplayValue`
+does and does not promise. All five were converted by the changes that fixed the defects
+they described - the phyletic widget's grammar carried `-001`, `-002` and `-004` to
+`ENFORCED` and `-005` to `PARTIAL`, and the hidden-fill report carried `-003` - which is
+how it should go: the tests that pin a defect's fix are the tests the rule wanted.
+
+**The column went back to 1 on 2026-08-17.**
+[WDK-SITE-007](../wdk/rules/site-model-params.md) says a search can offer the same
+criterion twice and the query unions the two halves, so filling both returns a superset
+measured at 192 genes against 105 on one live pair. The parameter sheet lists both halves
+as ordinary visible parameters and does not read `radio-params`, so nothing stops the model
+filling both. Enforcing it means a test over `build_sheet` for a search carrying that
+property.
+
+The rest is unchanged in character: HARD, where WDK refuses and the failure is loud, and
+CONTRACT, where the mapping drifts over refactors.
 
 # Order of conversion, and why
 
-## 1. SILENT - done
+## 1. SILENT - closed twice, and open on one rule
 
-All 25 are enforced or partial. The 23 enforced ones each name a test that fails when the
-rule is broken; `WDK-VOCAB-002` and `WDK-VOCAB-004` stay `PARTIAL` because their named
-test covers one of two code paths.
+`WDK-SITE-001` through `-005` and `WDK-PARAM-010` were added by the phyletic
+research and reopened this section; all six are now enforced or partial. The one
+`PARTIAL` is `WDK-SITE-005`, whose named test covers the editor widget while the
+backend's `_validate_phyletic_codes` stays untested. `WDK-SITE-007` is the one
+untested `SILENT` rule and ranks first in this file: the hazard is a step that
+returns more genes than the criterion asked for, with a plausible count and no
+error.
 
-Three defects were found by writing those tests rather than by reading the rules:
+The pattern worth keeping: each of those six was converted **by the change that
+fixed the defect the rule described**, not by a separate testing pass. A test
+written to pin a fix is a test that fails when the fix regresses; a test written
+to satisfy a status column tends not to be.
 
-- `get_analysis_result` turned a 204 into `{}`, which parsed into an enrichment result
-  carrying no terms and no error. It now raises `WDKAnalysisNotReadyError`.
-- `update_step_search_config` sent no `filters` array, so every parameter edit let WDK
-  re-apply an always-applied filter a user had disabled. It carries the step's filters now.
-- Two record-filter routes compared a raw attribute value against user text, which never
-  matches for a link attribute. `WDKRecordInstance.attribute_text` reduces the three wire
-  shapes to one comparable string.
-
-**A conformance claim and a behavior claim take different tests, and the split held.** A
-rule that constrains *what PathFinder sends or which field it reads* is falsifiable by a
-unit test over a fixture: the assertion is about PathFinder's code and only the fixture's
-shape comes from WDK. A rule that asserts *what WDK does* is not - a unit test over a mock
-asserts that the mock behaves like the mock, and stays green while the deployment moves.
-
-Seven rules read as behavior claims - `WDK-AUTH-001`, `WDK-FILTER-002`, `WDK-VOCAB-005`,
-`WDK-ANS-005`, `WDK-STRAT-005`, `WDK-VALID-003`, `WDK-VALID-011`. Each is enforced by a
-unit test over PathFinder's *response* to the documented behavior, not over the behavior
-itself: that one guest token is minted and reused, that a config write carries the step's
-filters, that only the returned params are merged, that records go through the reporter
-that honors a page, that a tree push is followed by a validating read, and that a missing
-analysis form stops the run. The WDK half of each is already live-confirmed on both
-verification sites, and re-measuring it is `sources.md`'s job, not the suite's.
-
-## 2. HARD, 22 rules
+## 2. HARD, 17 untested and 3 partial
 
 WDK rejects the request, so the failure is loud and nobody publishes on it. The cost is a
 build that fails with a message that does not name the cause, and an agent that reads the
@@ -83,7 +87,7 @@ value) and `WDK-PARAM-006` (a badly formatted date-range bound) both come back *
 not 422, so the response is indistinguishable from a WDK bug and carries no diagnosis at
 all.
 
-## 3. CONTRACT, 15 rules
+## 3. CONTRACT, 16 untested and 4 partial
 
 PathFinder invariants that keep the mapping honest. They break slowly, over refactors,
 rather than at runtime, and several are structural properties an `import-linter` contract
@@ -134,9 +138,9 @@ the existing live harness: `pytestmark = [pytest.mark.live_wdk, pytest.mark.asyn
 `live_wdk` marker registered in `apps/api/pyproject.toml`, and that package's `conftest.py`
 skipping when `WDK_TEST_EMAIL` / `WDK_TEST_PASSWORD` are unset.
 
-Two things to get right there. First, **most of these eight need no credential** - the
-bundle's own live verification never authenticates, and `sources.md` records every
-outstanding live check as guest-reachable. A guest-reachable probe gated behind
+Two things to get right there. First, **most of the live checks this bundle still owes need
+no credential** - the bundle's own live verification never authenticates, and `sources.md`
+records every outstanding live check as guest-reachable. A guest-reachable probe gated behind
 `WDK_TEST_EMAIL` skips for no reason, so either add a credential-free fixture beside the
 existing one or assert against an anonymous client directly. Second, **a live test does not
 run in CI**, so naming one in a `status` field says the check exists and can be run, not
@@ -190,9 +194,8 @@ should be settled before the rule that rests on it is treated as settled.
   `requiresRerun`). The table and the reasoning are in
   [sources.md](../wdk/sources.md). Every one is reachable with a guest session.
   `WDK-STRAT-005` was a sixth and has since been settled - the `WDK-VALID-004` experiment
-  pushed a step tree over a deliberately invalidated leaf on both sites and got a 204 -
-  which is why it appears above in the live-gated group as a rule to *pin*, not to
-  establish.
+  pushed a step tree over a deliberately invalidated leaf on both sites and got a 204 - so
+  what it needs is a test that *pins* the behaviour, not a probe that establishes it.
 - **`ValidationLevel` could not be read.** It lives in `org.gusdb.fgputil`, which is not
   one of the four repositories the bundle pins, so `WDK-VALID-007`'s conclusion - that the
   service schema's five-member enum and the platform enum overlap without either

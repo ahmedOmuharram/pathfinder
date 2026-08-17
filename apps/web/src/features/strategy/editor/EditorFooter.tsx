@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
+import { siteShortName } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -17,8 +18,8 @@ interface EditorFooterProps {
   /** Result count from useStepCounts. null = loading. -1 = unknown. */
   count: number | null;
   wdkUrl: string | null;
-  /** Display name of the host site (e.g. "PlasmoDB") for the View link. */
-  dbName: string;
+  /** Site the strategy belongs to. The link names it. */
+  siteId: string;
 }
 
 function SyncDot({ state }: { state: SyncState }) {
@@ -40,7 +41,7 @@ export function EditorFooter({
   onDiscard,
   count,
   wdkUrl,
-  dbName,
+  siteId,
 }: EditorFooterProps) {
   const hasChanges = changeCount > 0;
   return (
@@ -97,7 +98,7 @@ export function EditorFooter({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-foreground hover:underline"
             >
-              View in {dbName !== "" ? dbName : "WDK"}
+              View in {siteId !== "" ? siteShortName(siteId) : "WDK"}
               <ExternalLink className="size-3" />
             </a>
           )}

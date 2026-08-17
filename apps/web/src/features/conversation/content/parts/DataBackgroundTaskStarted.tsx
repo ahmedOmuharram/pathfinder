@@ -5,15 +5,18 @@ import type { BackgroundTaskStarted } from "@pathfinder/shared";
 import { useConversationId } from "@/lib/hooks/useConversationId";
 import { humanizeToolName } from "@/lib/utils/toolNames";
 
+import { useChatHelpersOptional } from "../../runtime/chatHelpersContext";
 import { DataTaskCompleted } from "./DataTaskCompleted";
 import { DataTaskProgress } from "./DataTaskProgress";
 import { useTaskEventStream } from "./useTaskEventStream";
 
 export function DataBackgroundTaskStarted({ data }: { data: BackgroundTaskStarted }) {
   const conversationId = useConversationId();
+  const chat = useChatHelpersOptional();
   const { latest, variants, completed } = useTaskEventStream(
     conversationId,
     data.taskId,
+    () => void chat?.resumeStream(),
   );
   const minutes = Math.ceil(data.estimatedDurationSeconds / 60);
   return (

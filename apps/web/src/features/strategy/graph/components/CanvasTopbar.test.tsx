@@ -133,3 +133,77 @@ describe("CanvasTopbar", () => {
     expect(screen.getByText(/^Saved$/i)).toBeTruthy();
   });
 });
+
+describe("the link to the host site", () => {
+  afterEach(cleanup);
+
+  const withWdk = {
+    ...STRATEGY,
+    wdkStrategyId: 330528343,
+    wdkUrl: "https://plasmodb.org/plasmo/app/workspace/strategies/330528343",
+  } as Strategy;
+
+  function renderTopbar(strategy: Strategy) {
+    const { Wrapper } = createTestWrapper();
+    return render(
+      <Wrapper>
+        <CanvasTopbar
+          strategy={strategy}
+          conversationId="conv-1"
+          syncState="idle"
+          onRetry={vi.fn()}
+        />
+      </Wrapper>,
+    );
+  }
+
+  // The canvas is the full editor. Reaching the strategy on the host site
+  // should not mean going back to the chat rail.
+  it("sits in the top bar", () => {
+    renderTopbar(withWdk);
+
+    expect(
+      screen.getByTestId("canvas-topbar").querySelector(
+        '[data-testid="canvas-topbar-wdk-link"]',
+      ),
+    ).toBeTruthy();
+  });
+
+  it("points at the strategy on the host site", () => {
+    renderTopbar(withWdk);
+
+    expect(
+      screen.getByTestId("canvas-topbar-wdk-link").getAttribute("href"),
+    ).toBe(withWdk.wdkUrl);
+  });
+
+  it("names the site the strategy belongs to", () => {
+    renderTopbar(withWdk);
+
+    expect(screen.getByTestId("canvas-topbar-wdk-link").textContent).toContain(
+      "PlasmoDB",
+    );
+  });
+
+  it("opens in a new tab without leaking the referrer", () => {
+    renderTopbar(withWdk);
+    const link = screen.getByTestId("canvas-topbar-wdk-link");
+
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noreferrer");
+  });
+
+  it("sits next to the actions menu", () => {
+    renderTopbar(withWdk);
+    const link = screen.getByTestId("canvas-topbar-wdk-link");
+    const menu = screen.getByLabelText("More strategy actions");
+
+    expect(link.parentElement).toBe(menu.parentElement);
+  });
+
+  it("offers no link before the strategy reaches WDK", () => {
+    renderTopbar(STRATEGY);
+
+    expect(screen.queryByTestId("canvas-topbar-wdk-link")).toBeNull();
+  });
+});

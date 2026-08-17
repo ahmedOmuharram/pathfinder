@@ -63,16 +63,17 @@ from pathfinder.ai.graph.stream_events import (
 )
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.lead_agent import LeadResponse, lead_agent
-from pathfinder.ai.lead.live_state import live_step_counts
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.ai.models.mock import get_mock_model
 from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.ai.models.tiers import resolve_phase_tier_config
 from pathfinder.domain.strategy.staleness import detect_build_staleness
+from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import ReasoningEffort
+from pathfinder.services.strategies.live_counts import read_wdk_step_counts
 
 logger = get_logger(__name__)
 
@@ -362,11 +363,16 @@ async def lead_node(
         emit_turn_usage(writer, total_tokens, cost_usd)
 
     working_state = state.model_copy(deep=True)
-    # The user can edit the strategy between turns; the Ledger's counts come
-    # from the last build and would be quoted as current fact otherwise.
+    # The user can edit the strategy between turns, in the graph editor or on
+    # the site. WDK owns it, so only WDK can say what it holds now.
+    sync_state = runtime.context.strategy_session.sync_state
     working_state.stale_build = detect_build_staleness(
         working_state.last_build_outcome,
-        live_step_counts(runtime.context.strategy_session),
+        await read_wdk_step_counts(
+            sync_state, get_strategy_api(runtime.context.site_id)
+        )
+        if sync_state is not None
+        else {},
     )
     deps = LeadDeps(
         state=working_state,

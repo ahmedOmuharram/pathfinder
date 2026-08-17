@@ -100,11 +100,52 @@ describe("CompactStrategyView (vertical layout)", () => {
     expect(screen.getByText("Genes by taxon")).toBeTruthy();
   });
 
-  it("renders the combine as one operator-labelled result row", () => {
+  it("names the operation on the combine row", () => {
     render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
     const row = screen.getByTestId("compact-step-row-step_c");
-    expect(within(row).getByText(/Combine \(A ∩ B\)/i)).toBeTruthy();
+    expect(within(row).getByText("Intersect")).toBeTruthy();
     expect(within(row).getByText("42")).toBeTruthy();
+  });
+
+  it("keeps the full expression on the combine row for hover", () => {
+    render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
+    const row = screen.getByTestId("compact-step-row-step_c");
+    expect(within(row).getByTitle("Search A ∩ Search B")).toBeTruthy();
+  });
+
+  it("gives a combine and a leaf the same glyph column width", () => {
+    // The label must start at the same x on every row, or the indentation
+    // stops reading as hierarchy.
+    render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
+    const glyphWidth = (id: string) =>
+      screen
+        .getByTestId(`compact-step-row-${id}`)
+        .querySelector("[aria-hidden]")
+        ?.className;
+
+    expect(glyphWidth("step_c")).toBe(glyphWidth("step_a"));
+    expect(glyphWidth("step_c")).toContain("w-4");
+  });
+
+  it("left-aligns the glyph in its column", () => {
+    render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
+    const glyph = screen
+      .getByTestId("compact-step-row-step_c")
+      .querySelector("[aria-hidden]");
+
+    expect(glyph?.className).toContain("justify-start");
+  });
+
+  it("lists both inputs beneath the combine", () => {
+    render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
+    const children = screen.getByTestId("compact-children-step_c");
+    expect(within(children).getByText("Search A")).toBeTruthy();
+    expect(within(children).getByText("Search B")).toBeTruthy();
+  });
+
+  it("does not label a combine with placeholder operands", () => {
+    render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
+    expect(screen.queryByText(/Combine \(A ∩ B\)/i)).toBeNull();
   });
 
   it("never surfaces the internal __combine__ sentinel", () => {
@@ -126,3 +167,134 @@ describe("CompactStrategyView (vertical layout)", () => {
     expect(onClick).toHaveBeenCalledWith("step_a");
   });
 });
+
+describe("a strategy whose branches are themselves combines", () => {
+  // (A u B) n (C u D): the root's second input is a combine, so a layout that
+  // draws it as one row hides C and D entirely.
+  const search = (id: string, displayName: string) => ({
+    id,
+    kind: "search" as const,
+    displayName,
+    searchName: "GenesByTaxon",
+    recordType: "gene",
+    parameters: {},
+    isFiltered: false,
+  });
+  const combine = (
+    id: string,
+    operator: string,
+    primaryInputStepId: string,
+    secondaryInputStepId: string,
+  ) => ({
+    id,
+    kind: "combine" as const,
+    displayName: "__combine__",
+    searchName: "__combine__",
+    recordType: "gene",
+    parameters: {},
+    operator,
+    primaryInputStepId,
+    secondaryInputStepId,
+    isFiltered: false,
+  });
+
+  const NESTED: Strategy = {
+    id: "s3",
+    name: "Nested",
+    siteId: "plasmodb",
+    recordType: "gene",
+    steps: [
+      search("step_a", "A"),
+      search("step_b", "B"),
+      search("step_c", "C"),
+      search("step_d", "D"),
+      combine("step_ab", "UNION", "step_a", "step_b"),
+      combine("step_cd", "UNION", "step_c", "step_d"),
+      combine("step_root", "INTERSECT", "step_ab", "step_cd"),
+    ],
+    rootStepId: "step_root",
+    isSaved: false,
+  } as Strategy;
+
+  // An li inside an li with no list between is invalid HTML and makes React
+  // fail hydration. jsdom accepts it, so only an explicit query catches it.
+  // A child ol is the legitimate way to nest, so the selector is a direct one.
+  it("puts no list item directly inside another list item", () => {
+    const { container } = render(<CompactStrategyView strategy={NESTED} />);
+
+    expect(container.querySelectorAll("li > li")).toHaveLength(0);
+  });
+
+  it("separates a nested list from its parent item with an ol", () => {
+    const { container } = render(<CompactStrategyView strategy={NESTED} />);
+
+    for (const item of container.querySelectorAll("li li")) {
+      expect(item.parentElement?.tagName).toBe("OL");
+    }
+  });
+
+  it("makes every child of a list an li", () => {
+    const { container } = render(<CompactStrategyView strategy={NESTED} />);
+
+    for (const list of container.querySelectorAll("ol")) {
+      for (const child of list.children) {
+        expect(child.tagName).toBe("LI");
+      }
+    }
+  });
+
+  it("gives each step exactly one list item", () => {
+    const { container } = render(<CompactStrategyView strategy={NESTED} />);
+
+    expect(container.querySelectorAll("li")).toHaveLength(7);
+  });
+
+  it("shows every step, including both sides of the nested branch", () => {
+    render(<CompactStrategyView strategy={NESTED} />);
+    for (const id of [
+      "step_a",
+      "step_b",
+      "step_ab",
+      "step_c",
+      "step_d",
+      "step_cd",
+      "step_root",
+    ]) {
+      expect(screen.getByTestId(`compact-step-row-${id}`)).toBeTruthy();
+    }
+  });
+
+  it("indents both inputs of a combine beneath it", () => {
+    render(<CompactStrategyView strategy={NESTED} />);
+    const children = screen.getByTestId("compact-children-step_root");
+    expect(within(children).getByTestId("compact-step-row-step_ab")).toBeTruthy();
+    expect(within(children).getByTestId("compact-step-row-step_cd")).toBeTruthy();
+  });
+
+  it("nests a branch's own inputs one level deeper", () => {
+    render(<CompactStrategyView strategy={NESTED} />);
+    const children = screen.getByTestId("compact-children-step_cd");
+    expect(within(children).getByTestId("compact-step-row-step_c")).toBeTruthy();
+    expect(within(children).getByTestId("compact-step-row-step_d")).toBeTruthy();
+  });
+
+  it("puts the root first, before anything it contains", () => {
+    render(<CompactStrategyView strategy={NESTED} />);
+    const rows = screen.getAllByTestId(/^compact-step-row-/);
+    expect(rows[0]?.getAttribute("data-testid")).toBe("compact-step-row-step_root");
+  });
+
+  it("keeps each combine's expression available on hover", () => {
+    render(<CompactStrategyView strategy={NESTED} />);
+    expect(screen.getByTitle("A ∪ B")).toBeTruthy();
+    expect(screen.getByTitle("C ∪ D")).toBeTruthy();
+    expect(screen.getByTitle("(A ∪ B) ∩ (C ∪ D)")).toBeTruthy();
+  });
+
+  it("renders no step twice", () => {
+    render(<CompactStrategyView strategy={NESTED} />);
+    expect(screen.getAllByTestId(/^compact-step-row-/)).toHaveLength(7);
+  });
+});
+
+

@@ -1,5 +1,7 @@
 "use client";
 
+import { siteShortName } from "@pathfinder/shared";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -199,7 +201,7 @@ function SavedRow({
             href={conv.wdkUrl}
             target="_blank"
             rel="noreferrer"
-            aria-label="Open in VEuPathDB"
+            aria-label={`Open in ${siteShortName(siteId)}`}
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
           </a>

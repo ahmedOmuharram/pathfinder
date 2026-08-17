@@ -6,7 +6,7 @@ that callers instantiate.
 
 from pathfinder.integrations.veupathdb.strategy_api.analyses import AnalysisMixin
 from pathfinder.integrations.veupathdb.strategy_api.datasets import DatasetsMixin
-from pathfinder.integrations.veupathdb.strategy_api.filters import FilterMixin
+from pathfinder.integrations.veupathdb.strategy_api.filters import StepFilterMixin
 from pathfinder.integrations.veupathdb.strategy_api.records import RecordsMixin
 from pathfinder.integrations.veupathdb.strategy_api.reports import ReportsMixin
 from pathfinder.integrations.veupathdb.strategy_api.steps import StepsMixin
@@ -21,7 +21,7 @@ class StrategyAPI(
     DatasetsMixin,
     ReportsMixin,
     AnalysisMixin,
-    FilterMixin,
+    StepFilterMixin,
     RecordsMixin,
 ):
     """API for creating and managing WDK strategies.
@@ -33,6 +33,6 @@ class StrategyAPI(
 
     Inherits from :class:`StepsMixin`, :class:`StrategiesMixin`,
     :class:`DatasetsMixin`, :class:`ReportsMixin`, :class:`AnalysisMixin`,
-    :class:`FilterMixin`, :class:`RecordsMixin`, and
+    :class:`StepFilterMixin`, :class:`RecordsMixin`, and
     :class:`StrategyAPIBase` (via MRO).
     """

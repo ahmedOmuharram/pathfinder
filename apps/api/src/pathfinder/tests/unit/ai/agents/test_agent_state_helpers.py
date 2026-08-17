@@ -6,7 +6,11 @@ hallucination-prevention story."""
 
 from __future__ import annotations
 
-from pathfinder.ai.agents.state import AgentToolState, SearchOverview
+from pathfinder.ai.agents.state import (
+    AgentToolState,
+    SearchOverview,
+    SearchSelectionStatus,
+)
 from pathfinder.domain.parameters.values import ParamValue, SinglePickValue
 
 
@@ -14,7 +18,7 @@ def _ov(
     name: str,
     *,
     parameter_names: list[str] | None = None,
-    selection_status: str = "candidate",
+    selection_status: SearchSelectionStatus = "candidate",
 ) -> SearchOverview:
     return SearchOverview(
         search_name=name,
@@ -23,7 +27,7 @@ def _ov(
         description="",
         parameter_names=parameter_names or ["taxon"],
         required_params=["taxon"],
-        selection_status=selection_status,  # type: ignore[arg-type]
+        selection_status=selection_status,
     )
 
 
@@ -57,41 +61,6 @@ def test_selected_search_names_only_returns_selected_status() -> None:
         _ov("GenesByMicroarray", selection_status="rejected"),
     )
     assert s.selected_search_names() == {"GenesByGoTerm"}
-
-
-def test_all_param_keys_unions_across_searches() -> None:
-    """Flat union: when GenesByText has params {a,b} and GenesByGoTerm
-    has {b,c}, the universe is {a,b,c}. Cross-search collisions (the
-    shared `b`) are not resolved here — the tool body still verifies
-    the param belongs to its specific search."""
-    s = AgentToolState()
-    s.register_search(
-        "GenesByText",
-        _ov("GenesByText", parameter_names=["query", "max_pvalue"]),
-    )
-    s.register_search(
-        "GenesByGoTerm",
-        _ov("GenesByGoTerm", parameter_names=["go_term", "max_pvalue"]),
-    )
-    assert s.all_param_keys() == {"query", "max_pvalue", "go_term"}
-
-
-def test_param_keys_for_returns_only_that_search() -> None:
-    """Per-search lookup is the precise variant — no cross-search
-    leakage. Empty set for unknown searches (the dynamic toolset uses
-    that signal to fall back to an unconstrained schema)."""
-    s = AgentToolState()
-    s.register_search(
-        "GenesByText",
-        _ov("GenesByText", parameter_names=["query", "max_pvalue"]),
-    )
-    s.register_search(
-        "GenesByGoTerm",
-        _ov("GenesByGoTerm", parameter_names=["go_term"]),
-    )
-    assert s.param_keys_for("GenesByText") == {"query", "max_pvalue"}
-    assert s.param_keys_for("GenesByGoTerm") == {"go_term"}
-    assert s.param_keys_for("NotInspected") == set()
 
 
 def test_decided_defaults_false_and_decided_search_names() -> None:

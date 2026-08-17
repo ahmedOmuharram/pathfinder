@@ -204,3 +204,41 @@ class TestOnlyTheJsonReporterHonoursThePage:
         await service.get_records(sort="product", direction=direction)
 
         assert sent.config["sorting"][0]["direction"] == "DESC"
+
+
+class TestTheStepReportEndpointTakesOnlyAReportConfig:
+    """The unpersisted report endpoint needs a searchConfig; this one does not.
+
+    A step already carries its own search config, so sending one here is at
+    best redundant and at worst a second, conflicting spec.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_search_config_is_sent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        api, sent = _api(monkeypatch)
+
+        await api.get_step_records(9, attributes=["gene_id"], user_id="1")
+
+        assert "searchConfig" not in sent.bodies[-1]
+
+    @pytest.mark.asyncio
+    async def test_the_report_config_is_the_whole_body(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        api, sent = _api(monkeypatch)
+
+        await api.get_step_records(9, attributes=["gene_id"], user_id="1")
+
+        assert list(sent.bodies[-1]) == ["reportConfig"]
+
+    @pytest.mark.asyncio
+    async def test_a_count_sends_the_same_shape(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        api, sent = _api(monkeypatch, _EMPTY_PAGE)
+
+        await api.get_step_count(9, user_id="1")
+
+        assert list(sent.bodies[-1]) == ["reportConfig"]

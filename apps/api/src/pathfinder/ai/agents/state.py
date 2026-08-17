@@ -57,6 +57,36 @@ class AgentToolState:
     catalog_search_names: set[str] = field(default_factory=set)
     read_param_options: set[str] = field(default_factory=set)
     operational_spec_draft: OperationalSpec = field(default_factory=OperationalSpec)
+    # Params already handed back for a fresh decision, by criterion and search.
+    # Searches share parameter names, so the search is part of the key.
+    redecided_params: set[tuple[str, str, str]] = field(default_factory=set)
+    # Criterion and search pairs already sent a full parameter sheet.
+    sheeted_criteria: set[tuple[str, str]] = field(default_factory=set)
+
+    def mark_sheet_shown(self, criterion_id: str, search_name: str) -> None:
+        self.sheeted_criteria.add((criterion_id, search_name))
+
+    def was_sheet_shown(self, criterion_id: str, search_name: str) -> bool:
+        """Whether the vocabularies for this pair were already sent this turn.
+
+        A second sheet repeats them at full size, so it is sent without them.
+        """
+        return (criterion_id, search_name) in self.sheeted_criteria
+
+    def mark_redecided(
+        self, criterion_id: str, search_name: str, param_name: str
+    ) -> None:
+        self.redecided_params.add((criterion_id, search_name, param_name))
+
+    def was_redecided(
+        self, criterion_id: str, search_name: str, param_name: str
+    ) -> bool:
+        """Whether this param's fresh vocabulary was already shown here.
+
+        The proposal that follows is a decision under that vocabulary, so it binds
+        rather than asking again.
+        """
+        return (criterion_id, search_name, param_name) in self.redecided_params
 
     def frame_set_criterion(self, criterion: Criterion) -> None:
         spec = self.operational_spec_draft
@@ -123,9 +153,6 @@ class AgentToolState:
     def register_search(self, name: str, overview: SearchOverview) -> None:
         self.discovered_searches[name] = overview
 
-    def is_search_discovered(self, name: str) -> bool:
-        return name in self.discovered_searches
-
     def get_overview(self, name: str) -> SearchOverview | None:
         return self.discovered_searches.get(name)
 
@@ -149,19 +176,3 @@ class AgentToolState:
             for name, ov in self.discovered_searches.items()
             if ov.selection_status == "selected"
         }
-
-    def all_param_keys(self) -> set[str]:
-        keys: set[str] = set()
-        for ov in self.discovered_searches.values():
-            keys.update(ov.parameter_names)
-        return keys
-
-    def param_keys_for(self, search_name: str) -> set[str]:
-        ov = self.discovered_searches.get(search_name)
-        if ov is None:
-            return set()
-        return set(ov.parameter_names)
-
-    def clear(self) -> None:
-        self.discovered_searches.clear()
-        self.catalog_search_names.clear()

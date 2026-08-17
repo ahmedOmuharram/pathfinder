@@ -1,6 +1,7 @@
 "use client";
 
 import type { Step, ParamSpec } from "@pathfinder/shared";
+import { Skeleton } from "@/components/ui/skeleton";
 import { isHiddenParam, isAdvancedParam } from "./widgets/registry";
 import { SearchPicker } from "./components/SearchPicker";
 import { ParamFieldRenderer } from "./components/ParamFieldRenderer";
@@ -67,10 +68,19 @@ export function SearchTransformBody({
           <p className="font-medium">Failed to load parameters for this search.</p>
           <p className="mt-1 text-xs">{paramSpecsError.message}</p>
         </div>
+      ) : state.isLoading ? (
+        <div data-testid="param-specs-loading" className="space-y-3">
+          <Skeleton className="h-9 w-full rounded-md" />
+          <Skeleton className="h-9 w-2/3 rounded-md" />
+        </div>
       ) : visibleCount === 0 && !hasComposite ? (
-        <p className="text-xs text-muted-foreground">
-          No parameter options available for this search.
-        </p>
+        // Only a completed fetch can say a search has no parameters. A query
+        // that never ran has no answer to report.
+        state.paramSpecsSettled ? (
+          <p className="text-xs text-muted-foreground">
+            No parameter options available for this search.
+          </p>
+        ) : null
       ) : (
         <div className="space-y-4">
           {hasComposite && (

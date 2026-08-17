@@ -10,6 +10,7 @@ import { type ParseResult } from "@ai-sdk/provider-utils";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 
 import { readCursor, writeCursor } from "./eventCursor";
+import { isTransportChunk } from "./replayChunks";
 
 interface DurableChatTransportOptions<
   UI_MESSAGE extends UIMessage,
@@ -71,6 +72,7 @@ export class DurableChatTransport<
             const parsed = Number.parseInt(event.id, 10);
             if (Number.isFinite(parsed)) writeCursor(conversationId, parsed);
           }
+          if (!isTransportChunk(event.data)) return;
           controller.enqueue(event.data);
         },
       }),

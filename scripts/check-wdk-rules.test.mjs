@@ -183,3 +183,13 @@ test("an unpinned github link outside a rule block is rejected", () => {
 test("pinned links in prose, in a reserved index, and non-github urls all pass", () => {
   assert.deepEqual(errorsFor("pinned-prose"), []);
 });
+
+// SITE is a namespace of its own because the parameters it governs are declared
+// in ApiCommonModel rather than in WDK. The fixture carries both directions in
+// one file: WDK-SITE-001 must be admitted, and the near-miss WDK-SITES-001 must
+// not be, so widening the list to a prefix match would fail this.
+test("the SITE namespace is admitted and a near-miss is still rejected", () => {
+  const errors = errorsFor("site-namespace");
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /malformed rule id "WDK-SITES-001"$/);
+});

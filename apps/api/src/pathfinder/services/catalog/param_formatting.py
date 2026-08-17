@@ -11,6 +11,7 @@ from pathfinder.domain.parameters.wdk_vocab import (
     VocabOption,
     WDKTreeBoxVocabNode,
     WDKVocabulary,
+    dedupe_options,
     flatten_vocab,
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
@@ -105,6 +106,8 @@ class ParameterInfo(CamelModel):
     help: str
     value_format: str
     default_value: str | None = None
+    min: float | None = None
+    max: float | None = None
     allowed_values: list[VocabOption] | None = None
     allowed_values_tree: str | None = None
     allowed_values_note: str | None = None
@@ -122,6 +125,10 @@ class ParameterInfo(CamelModel):
         self.param_kind = _to_param_kind(self.type)
         return self
 
+    def vocabulary(self) -> list[VocabOption]:
+        """The whole option list when it was flattened, else the capped view."""
+        return dedupe_options(self.vocab_leaves or self.allowed_values or [])
+
 
 class ParameterNotOnSearch(CamelModel):
     """Returned when ``parameter_id`` is not a parameter of ``search_name``.
@@ -137,8 +144,22 @@ class ParameterNotOnSearch(CamelModel):
     valid_parameter_ids: list[str]
 
 
+class ParentContextRequired(CamelModel):
+    """Returned when a dependent parameter is read with no parent value bound.
+
+    The vocabulary is generated under the parents, so without them there is no
+    single answer to give. This is a normal tool return.
+    """
+
+    kind: Literal["parent_context_required"] = "parent_context_required"
+    search_name: str
+    parameter_id: str
+    parent_parameter_ids: list[str]
+    message: str
+
+
 GetParameterOptionsResult = Annotated[
-    ParameterInfo | ParameterNotOnSearch,
+    ParameterInfo | ParameterNotOnSearch | ParentContextRequired,
     Field(discriminator="kind"),
 ]
 
@@ -278,12 +299,14 @@ def format_typed_param(
         name=name,
         display_name=param.display_name or name,
         type=param.type,
-        required=not param.allow_empty_value,
+        required=not param.allow_empty_value or param.min_selected_count >= 1,
         is_visible=param.is_visible,
         help=help_text,
         value_format=_value_format(param.type),
         default_value=param.initial_display_value,
         is_number=param.is_number,
+        min=param.min,
+        max=param.max,
         allowed_values=vocab.allowed_values,
         allowed_values_tree=vocab.allowed_values_tree,
         allowed_values_note=vocab.allowed_values_note,
@@ -360,6 +383,8 @@ def _format_normalized_one(
         value_format=_value_format(spec.param_type),
         default_value=spec.initial_display_value,
         is_number=spec.is_number,
+        min=spec.min,
+        max=spec.max,
         allowed_values=vocab.allowed_values,
         allowed_values_tree=vocab.allowed_values_tree,
         allowed_values_note=vocab.allowed_values_note,

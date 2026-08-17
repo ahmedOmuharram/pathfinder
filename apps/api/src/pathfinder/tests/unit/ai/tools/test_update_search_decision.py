@@ -127,7 +127,7 @@ async def test_invalid_confidence_raises_modelretry_with_bounds() -> None:
 @pytest.mark.asyncio
 async def test_select_blocked_when_required_param_unresolved() -> None:
     """Selection is refused when a required param has no vocabulary snapshot. The
-    retry message names the param and the resolver tool."""
+    retry message names the param and the tool that reads the search."""
     ctx = _ctx_with({"GenesByGoTerm": _unresolved_overview("GenesByGoTerm")})
     with pytest.raises(ModelRetry) as excinfo:
         await update_search_decision(
@@ -139,7 +139,7 @@ async def test_select_blocked_when_required_param_unresolved() -> None:
         )
     msg = str(excinfo.value)
     assert "taxon" in msg
-    assert "resolve_search_parameters" in msg
+    assert "get_search_overview" in msg
 
 
 @pytest.mark.asyncio

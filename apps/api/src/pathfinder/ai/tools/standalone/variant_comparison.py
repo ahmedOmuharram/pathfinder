@@ -10,6 +10,7 @@ from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.ai.tools.standalone._variant_targets import reject_combine_variants
 from pathfinder.services.experiment.variant_comparison import (
     VariantComparison,
     VariantSpec,
@@ -76,6 +77,7 @@ async def compare_search_variants(
             "Give each variant a label and its search + parameter values."
         )
         raise ModelRetry(msg)
+    reject_combine_variants(variants)
 
     comparison = await run_variant_comparison(ctx.deps.runtime.site_id, variants)
     if all(v.error is not None for v in comparison.variants):

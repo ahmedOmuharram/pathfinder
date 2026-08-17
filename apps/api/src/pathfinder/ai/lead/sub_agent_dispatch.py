@@ -22,6 +22,7 @@ from pathfinder.ai.lead.deltas import (
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_tools import (
     LeadDeps,
+    PhaseRun,
     _apply_agent_state,
     _stream_sub_agent,
 )
@@ -74,12 +75,44 @@ def _parent_tool_call_id(ctx: RunContext[LeadDeps]) -> str:
     return ctx.tool_call_id or ""
 
 
-async def frame_problem(ctx: RunContext[LeadDeps], reason: str) -> FrameResult:
+def frame_result_from_draft(spec: OperationalSpec | None) -> FrameResult:
+    """Report a run that ran out of budget by what it managed to bind.
+
+    Every criterion is written into the shared draft as it is bound, so the
+    work is there to report. Saying "no result" discards a usable turn.
+    """
+    bound = [c for c in (spec.criteria if spec else []) if c.bound]
+    if not bound:
+        return FrameResult(
+            disposition="needs_user",
+            summary=(
+                "FRAME ran out of its tool budget with no criteria bound. "
+                "Narrow the goal or state fewer criteria, then try again."
+            ),
+        )
+    names = ", ".join(c.id for c in bound)
+    return FrameResult(
+        disposition="needs_user",
+        summary=(
+            f"FRAME ran out of its tool budget after binding {len(bound)} "
+            f"criteria ({names}). They are kept. Ask it to continue with the "
+            f"rest rather than starting again."
+        ),
+    )
+
+
+async def frame_problem(
+    ctx: RunContext[LeadDeps], reason: str, expected_criteria: int = 3
+) -> FrameResult:
     """Run the FRAME sub-agent: operationalize the goal into a realizable
     OperationalSpec — criteria bound to real WDK searches with auto-resolved
     params + a combine structure. Call this FIRST, then ``build_strategy``.
     Returns a ``FrameResult`` (disposition ``needs_user`` when criteria have
-    open param slots the user must fill)."""
+    open param slots the user must fill).
+
+    ``expected_criteria`` is how many distinct filters the goal states — count
+    the "and"s in the request. It sizes FRAME's tool budget, so undercounting a
+    large request makes it run out before it binds them all."""
     deps = ctx.deps
     work_order = (
         f"FRAME work order: {reason}\n"
@@ -91,8 +124,7 @@ async def frame_problem(ctx: RunContext[LeadDeps], reason: str) -> FrameResult:
     if not agent_deps.agent_state.operational_spec_draft.goal:
         agent_deps.agent_state.operational_spec_draft.goal = deps.state.user_prompt
     delta = await _stream_sub_agent(
-        role="frame",
-        work_order=work_order,
+        run=PhaseRun("frame", work_order, expected_criteria),
         agent_deps=agent_deps,
         parent_tool_call_id=_parent_tool_call_id(ctx),
         expected_output_type=FrameResult,
@@ -100,9 +132,7 @@ async def frame_problem(ctx: RunContext[LeadDeps], reason: str) -> FrameResult:
     )
     _apply_agent_state(deps, agent_deps)
     if delta is None:
-        return FrameResult(
-            disposition="needs_user", summary="FRAME returned no result."
-        )
+        return frame_result_from_draft(deps.state.operational_spec)
     return delta
 
 
@@ -156,7 +186,17 @@ async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     spec = deps.state.operational_spec
     if spec is None or not spec.ready_to_build:
         raise ModelRetry(build_not_ready_message(spec))
-    root = operational_spec_to_step_tree(spec)
+    # Readiness says every criterion is bound and a structure exists. Only the
+    # conversion knows whether that structure is a tree WDK can hold.
+    try:
+        root = operational_spec_to_step_tree(spec)
+    except ValueError as exc:
+        msg = (
+            f"The spec is bound but its structure does not convert: {exc}. "
+            "Call set_structure with a tree whose every combine names an "
+            "operator and joins two inputs."
+        )
+        raise ModelRetry(msg) from exc
     agent_deps = _agent_deps(deps)
     outcome: BuildOutcome = await build_strategy_from_spec(
         deps=agent_deps.to_strategy_context(),
@@ -213,8 +253,7 @@ async def recover_failed_steps(
     work_order = "\n".join(work_order_parts)
     agent_deps = _agent_deps(deps)
     streamed = await _stream_sub_agent(
-        role="execution",
-        work_order=work_order,
+        run=PhaseRun("execution", work_order),
         agent_deps=agent_deps,
         parent_tool_call_id=_parent_tool_call_id(ctx),
         expected_output_type=RecoveryDelta,
@@ -258,7 +297,13 @@ async def verify_strategy(
     ctx: RunContext[LeadDeps],
     reason: str,
 ) -> VerificationDelta:
-    """Run the verification sub-agent on the built strategy."""
+    """Run the verification sub-agent on the built strategy.
+
+    This sub-agent owns every post-build check, so route a user's request for
+    one here through ``reason``: GO, pathway and word enrichment on a gene
+    set; control tests on a step or a search; parameter optimization; sample
+    records from a result; result export. None of these are Lead tools.
+    """
     deps = ctx.deps
     work_order = (
         f"Verification work order: {reason}\n"
@@ -266,8 +311,7 @@ async def verify_strategy(
     )
     agent_deps = _agent_deps(deps)
     delta = await _stream_sub_agent(
-        role="verification",
-        work_order=work_order,
+        run=PhaseRun("verification", work_order),
         agent_deps=agent_deps,
         parent_tool_call_id=_parent_tool_call_id(ctx),
         expected_output_type=VerificationDelta,

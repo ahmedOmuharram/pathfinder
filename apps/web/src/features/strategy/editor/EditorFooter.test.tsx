@@ -1,0 +1,57 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+
+import { EditorFooter } from "./EditorFooter";
+
+const props = {
+  syncState: "idle" as const,
+  changeCount: 0,
+  isSaving: false,
+  onSave: vi.fn(),
+  onDiscard: vi.fn(),
+  count: 132,
+  wdkUrl: "https://plasmodb.org/plasmo/app/workspace/strategies/1",
+};
+
+describe("the link to the host site", () => {
+  afterEach(cleanup);
+
+  // The footer takes the site the strategy belongs to, not a pre-formatted
+  // name, so a caller cannot label a PlasmoDB strategy with another site.
+  it("names the site the strategy belongs to", () => {
+    render(<EditorFooter {...props} siteId="plasmodb" />);
+
+    expect(screen.getByRole("link").textContent).toContain("PlasmoDB");
+  });
+
+  it("names a different site when the strategy is on one", () => {
+    render(<EditorFooter {...props} siteId="toxodb" />);
+
+    expect(screen.getByRole("link").textContent).toContain("ToxoDB");
+  });
+
+  it("leaves the organism parenthetical off the label", () => {
+    render(<EditorFooter {...props} siteId="plasmodb" />);
+
+    expect(screen.getByRole("link").textContent).not.toContain("(");
+  });
+
+  it("points at the url it was given", () => {
+    render(<EditorFooter {...props} siteId="plasmodb" />);
+
+    expect(screen.getByRole("link").getAttribute("href")).toBe(props.wdkUrl);
+  });
+
+  it("says WDK when the site is unknown", () => {
+    render(<EditorFooter {...props} siteId="" />);
+
+    expect(screen.getByRole("link").textContent).toContain("WDK");
+  });
+
+  it("renders no link without a url", () => {
+    render(<EditorFooter {...props} wdkUrl={null} siteId="plasmodb" />);
+
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});

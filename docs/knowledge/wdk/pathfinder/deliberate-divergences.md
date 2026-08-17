@@ -24,13 +24,10 @@ it is linked and not restated. Where none exists, the entry says so in bold, and
 that is a flag rather than a footnote.
 
 Everything else is a bug and lives in [backlog](../../backlog/index.md), whose
-WDK-integration section holds several today, among them
-[a one-sided range that serializes to a value WDK rejects](../../backlog/one-sided-range-is-unpushable.md)
-and
-[a filter mixin named for the wrong mechanism](../../backlog/filter-mixin-names-the-wrong-mechanism.md).
-Those are disagreements with WDK where PathFinder is simply wrong. Moving one of
-them onto this page would end the investigation, which is exactly the harm the
-test above exists to prevent.
+WDK-integration section holds them. Those are disagreements with WDK where
+PathFinder is simply wrong; naming individual ones here only dates this page as
+they get fixed. Moving one of them onto this page would end the investigation,
+which is exactly the harm the test above exists to prevent.
 
 # 1. The nested tree lives only at the wire boundary
 

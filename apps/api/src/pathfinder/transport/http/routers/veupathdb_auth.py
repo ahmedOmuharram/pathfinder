@@ -20,7 +20,12 @@ from pathfinder.platform.security import (
     limiter,
 )
 from pathfinder.services.users import get_or_create_user_id
-from pathfinder.services.wdk import get_site, get_wdk_client, password_login
+from pathfinder.services.wdk import (
+    get_site,
+    get_wdk_client,
+    password_login,
+    password_logout,
+)
 from pathfinder.transport.http.deps import DBSession
 from pathfinder.transport.http.schemas import (
     AuthStatusResponse,
@@ -196,20 +201,35 @@ async def login_with_password(
     return _build_success_response(token, auth_token)
 
 
+async def logout_of_veupathdb(veupathdb_token: str | None, site_id: str) -> bool:
+    """Ask WDK to end the session the token belongs to.
+
+    WDK logs out whoever made the request, and answers an uncredentialed one as
+    a guest, so a logout without the token ends nobody's session.
+    """
+    if not veupathdb_token:
+        return False
+    ended: bool = await password_logout(site_id, veupathdb_token)
+    if not ended:
+        logger.warning("VEuPathDB did not end the session", site_id=site_id)
+    return ended
+
+
 @router.post("/logout", response_model=AuthSuccessResponse)
 async def logout(
+    request: Request,
     site_id: str = Query("veupathdb", alias="siteId"),
 ) -> JSONResponse:
-    """Clear the local auth cookies and log out of VEuPathDB."""
-    auth_site = get_site(site_id)
-    async with httpx.AsyncClient(
-        base_url=auth_site.service_url, follow_redirects=True
-    ) as client:
-        try:
-            await client.get("/logout")
-        except httpx.HTTPError:
-            logger.warning("Failed to log out of VEuPathDB")
-    response = JSONResponse({"success": True})
+    """Clear the local auth cookies and end the VEuPathDB session.
+
+    The cookies are cleared either way: the local session is over even when WDK
+    could not be reached. ``success`` reports what WDK did.
+    """
+    veupathdb_token = request.headers.get("X-VEUPATHDB-AUTH") or request.cookies.get(
+        "Authorization"
+    )
+    ended = await logout_of_veupathdb(veupathdb_token, site_id)
+    response = JSONResponse({"success": ended})
     response.delete_cookie(key="Authorization", path="/")
     response.delete_cookie(key="pathfinder-auth", path="/")
     return response

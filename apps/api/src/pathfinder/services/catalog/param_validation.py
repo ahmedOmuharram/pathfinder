@@ -10,6 +10,7 @@ from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import (
     ParamSpecNormalized,
     fill_hidden_required_defaults,
+    filled_hidden_defaults,
     find_dependent_value_violations,
     find_missing_required_params,
     topological_fill_order,
@@ -312,6 +313,20 @@ async def validate_parameters(
         parameters=parameters,
     )
 
+    param_spec_map = adapt_param_specs_from_search(response.search_data)
+    canonicalizer = ParameterCanonicalizer(param_spec_map)
+    canonical: dict[str, ParamValue] = canonicalizer.canonicalize(parameters)
+
+    # A tree param counts only its leaves, so a branch selection scores zero
+    # until it is expanded. WDK must judge what will be sent, not what arrived.
+    if encode_wdk_params(canonical) != encode_wdk_params(parameters):
+        response = await _resolve_search_details(
+            ctx,
+            resolved_record_type=resolved_record_type,
+            parameters=canonical,
+        )
+        param_spec_map = adapt_param_specs_from_search(response.search_data)
+
     # WDK validated these values while answering. Its verdict is authoritative,
     # so it is read before the local checks rather than recomputed after them.
     if response.validation.rejects():
@@ -329,9 +344,6 @@ async def validate_parameters(
             ],
         )
 
-    param_spec_map = adapt_param_specs_from_search(response.search_data)
-    canonicalizer = ParameterCanonicalizer(param_spec_map)
-    canonical: dict[str, ParamValue] = canonicalizer.canonicalize(parameters)
     refreshed_ctx = SearchContext(
         site_id=ctx.site_id,
         record_type=resolved_record_type,
@@ -443,10 +455,13 @@ async def validate_parameters(
         for spec in response.search_data.parameters or []
         if spec.initial_display_value is not None
     }
-    return ValidatedParams(
-        params=canonical,
-        substituted=substituted_params(sent=parameters, echoed=echoed),
+    # A hidden parameter PathFinder filled is a value nobody chose, so it is
+    # reported alongside the ones WDK substituted.
+    substituted = sorted(
+        set(substituted_params(sent=parameters, echoed=echoed))
+        | set(filled_hidden_defaults(param_spec_map, parameters))
     )
+    return ValidatedParams(params=canonical, substituted=substituted)
 
 
 async def _refresh_dependent_vocabularies(

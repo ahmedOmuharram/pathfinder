@@ -4,14 +4,14 @@ card. The controls-based counterpart to compare_search_variants."""
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.ai.tools.standalone._id_arguments import parse_id_argument
+from pathfinder.ai.tools.standalone._variant_targets import reject_combine_variants
 from pathfinder.services.control_sets import ControlSetService
 from pathfinder.services.experiment.scored_comparison import (
     ScoredComparison,
@@ -58,11 +58,13 @@ async def compare_variants_scored(
     if len(variants) < _MIN_VARIANTS:
         msg = "compare_variants_scored needs at least 2 variants."
         raise ModelRetry(msg)
+    reject_combine_variants(variants)
 
+    parsed = parse_id_argument(
+        control_set_id, argument="control_set_id", names="control set"
+    )
     async with runtime.db_session_factory() as session:
-        control_set = await ControlSetService(session).get(
-            UUID(control_set_id), runtime.user_id
-        )
+        control_set = await ControlSetService(session).get(parsed, runtime.user_id)
 
     result = await run_scored_comparison(
         runtime.site_id,

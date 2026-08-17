@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { Step } from "@pathfinder/shared";
-import { ValidationBanner } from "./ValidationBanner";
+import { stepErrorMessage, ValidationBanner } from "./ValidationBanner";
 import type { StepSnapshot } from "@/state/strategy/useStepSnapshot";
 
 /**
@@ -56,9 +56,9 @@ describe("ValidationBanner surfaces a WDK rejection", () => {
       />,
     );
 
-    expect(screen.getByTestId("validation-message").textContent).toBe(
-      "WDK rejected this step",
-    );
+    expect(
+      screen.getByTestId("node-error-trigger").getAttribute("aria-label"),
+    ).toBe("WDK rejected this step");
   });
 
   it("prefers the WDK reason over a generic validation message", () => {
@@ -73,14 +73,55 @@ describe("ValidationBanner surfaces a WDK rejection", () => {
       />,
     );
 
-    expect(screen.getByTestId("validation-message").textContent).toBe(
-      "organism is not a valid value",
-    );
+    expect(
+      screen.getByTestId("node-error-trigger").getAttribute("aria-label"),
+    ).toBe("organism is not a valid value");
   });
 
   it("stays silent for a healthy step", () => {
     render(<ValidationBanner step={step()} snapshot={snapshot()} />);
 
     expect(screen.queryByTestId("validation-message")).toBeNull();
+  });
+});
+
+describe("stepErrorMessage", () => {
+  it("is null for a healthy step", () => {
+    expect(stepErrorMessage(snapshot())).toBeNull();
+  });
+
+  it("prefers the WDK rejection", () => {
+    expect(
+      stepErrorMessage(
+        snapshot({
+          isInvalid: true,
+          wdkPushError: "wdk said no",
+          validationErrors: { general: ["local"], byKey: {} },
+          lastError: "transient",
+        }),
+      ),
+    ).toBe("wdk said no");
+  });
+
+  it("falls to the validation error when WDK did not reject", () => {
+    expect(
+      stepErrorMessage(
+        snapshot({
+          isInvalid: true,
+          validationErrors: { general: ["local"], byKey: {} },
+          lastError: "transient",
+        }),
+      ),
+    ).toBe("local");
+  });
+
+  it("falls to the transient error last", () => {
+    expect(stepErrorMessage(snapshot({ isFailed: true, lastError: "boom" }))).toBe(
+      "boom",
+    );
+  });
+
+  it("never returns an empty message for a failed step", () => {
+    expect(stepErrorMessage(snapshot({ isInvalid: true }))).toBe("Validation error");
   });
 });

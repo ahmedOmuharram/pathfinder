@@ -264,7 +264,7 @@ stronger than omitting the key and is deliberately so: the named test passes a s
 
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/request/strategy/StepRequestParser.java#L157-L170
-- anchor: apps/api/src/pathfinder/integrations/veupathdb/_analyses.py:update_step_view_filters
+- anchor: apps/api/src/pathfinder/integrations/veupathdb/_analyses.py:update_step_filters
 - status: UNENFORCED
 
 Answer parameters live in the same flat `searchConfig.parameters` map as everything else, so
@@ -372,8 +372,7 @@ send `MINUS`, not `LEFT_MINUS`. The default is `INTERSECT`.
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StepService.java#L148-L169
 - anchor: apps/api/src/pathfinder/services/strategies/wdk_step_cleanup.py:delete_orphaned_wdk_steps
-- status: UNENFORCED
-
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/strategies/test_orphan_delete_after_sync.py::TestTheDeleteFollowsThePush::test_the_strategy_is_pushed_before_any_delete
 `deleteStep` throws `ConflictException` - 409 - with `Steps that are part of strategies
 cannot be deleted. Remove the step from strategy <id> and try again.` The deletion itself is
 a soft one: it sets a deleted flag and updates the row.

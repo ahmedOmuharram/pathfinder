@@ -5,9 +5,11 @@ extracts allowed parameter values from typed vocabulary data.
 """
 
 from pathfinder.domain.parameters.wdk_vocab import (
+    FAKE_ALL_SENTINEL,
     VocabOption,
     WDKTreeBoxVocabNode,
     WDKVocabulary,
+    dedupe_options,
     flatten_vocab,
 )
 
@@ -43,7 +45,7 @@ def render_vocab_tree(
         return _lines
 
     term = node.data.term
-    is_fake_root = not term or term == "@@fake@@"
+    is_fake_root = not term or term == FAKE_ALL_SENTINEL
 
     if not is_fake_root:
         _lines.append(f"{'  ' * _depth}{term}")
@@ -54,7 +56,7 @@ def render_vocab_tree(
             remaining = node.children[node.children.index(child) :]
             for r in remaining:
                 r_term = r.data.term
-                if r_term and r_term != "@@fake@@":
+                if r_term and r_term != FAKE_ALL_SENTINEL:
                     desc_count = _count_descendants(r)
                     if desc_count > 0:
                         _lines.append(
@@ -77,13 +79,4 @@ def allowed_values(vocab: WDKVocabulary | None) -> list[VocabOption]:
     """
     if not vocab:
         return []
-    entries: list[VocabOption] = []
-    seen: set[str] = set()
-    for option in flatten_vocab(vocab):
-        if not option.value or option.value in seen:
-            continue
-        seen.add(option.value)
-        entries.append(option)
-        if len(entries) >= _MAX_VOCAB_ENTRIES:
-            break
-    return entries
+    return dedupe_options(flatten_vocab(vocab))[:_MAX_VOCAB_ENTRIES]
