@@ -112,6 +112,7 @@ function subAgentToolState(
 ): ToolUIPart["state"] {
   if (state === "completed") return "output-available";
   if (state === "failed") return "output-error";
+  if (state === "denied") return "output-denied";
   return "input-available";
 }
 

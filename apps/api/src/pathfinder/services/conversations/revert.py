@@ -23,6 +23,7 @@ from pathfinder.persistence.models import (
     ScratchpadNote,
 )
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.conversations.authz import owned_by_caller
 
 logger = get_logger(__name__)
 
@@ -45,14 +46,14 @@ async def revert_conversation_to_message(
     conv = await session.scalar(
         select(Conversation).where(Conversation.id == conversation_id),
     )
-    if conv is None or conv.user_id != user_id:
+    if conv is None or not owned_by_caller(conv, user_id):
         logger.warning(
             "revert: conversation lookup failed",
             conversation_id=str(conversation_id),
             target_message_id=str(target_message_id),
             user_id=str(user_id),
             row_exists=conv is not None,
-            owner_match=conv is not None and conv.user_id == user_id,
+            owner_match=conv is not None and owned_by_caller(conv, user_id),
         )
         msg = "Conversation not found"
         raise RevertError(msg)

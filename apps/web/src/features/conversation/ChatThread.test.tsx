@@ -8,6 +8,9 @@ import { http } from "msw";
 import type { ReactNode } from "react";
 
 import { server } from "../../../vitest.msw-setup";
+import { authStatusOptions } from "@/lib/api/veupathdb-auth";
+import { createTestWrapper } from "@/lib/query/testing";
+import { useSessionStore } from "@/state/useSessionStore";
 import { ChatThread } from "./ChatThread";
 
 function StubRuntimeProvider({ children }: { children: ReactNode }) {
@@ -27,10 +30,17 @@ describe("ChatThread", () => {
       http.post("http://localhost:3000/api/v1/chat", () => new Response(null)),
     );
 
+    const { queryClient, Wrapper } = createTestWrapper();
+    queryClient.setQueryData(
+      authStatusOptions(useSessionStore.getState().selectedSite).queryKey,
+      { signedIn: true },
+    );
+
     render(
       <StubRuntimeProvider>
         <ChatThread conversationId="c1" />
       </StubRuntimeProvider>,
+      { wrapper: Wrapper },
     );
 
     expect(screen.getByPlaceholderText(/ask about strategies/i)).toBeInTheDocument();

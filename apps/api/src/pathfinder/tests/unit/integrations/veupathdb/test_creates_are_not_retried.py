@@ -15,6 +15,12 @@ from pathfinder.integrations.veupathdb.delayed_result import DELAYED_RESULT_MESS
 from pathfinder.platform.errors import AppError
 
 
+@pytest.fixture(autouse=True)
+def _registered_user(wdk_request_token: str) -> None:
+    """These calls address a user's own WDK resources."""
+    del wdk_request_token
+
+
 class _FlakyTransport(httpx.AsyncBaseTransport):
     """Answers 502 until `fail_times` is exhausted, then 200."""
 
@@ -24,7 +30,9 @@ class _FlakyTransport(httpx.AsyncBaseTransport):
         self._body = body if body is not None else {"id": 1}
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        del request
+        if request.url.path.startswith("/app"):
+            # The WDK session bootstrap, not the request under test.
+            return httpx.Response(200, text="ok")
         self.attempts += 1
         if self.attempts <= self.fail_times:
             return httpx.Response(502, text="Bad Gateway")

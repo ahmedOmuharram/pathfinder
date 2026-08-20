@@ -10,75 +10,131 @@ from uuid import UUID
 import jwt
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
-from fastapi.security import APIKeyCookie
+from fastapi.security import APIKeyCookie, APIKeyHeader, HTTPBearer
+from fastapi.security.http import HTTPAuthorizationCredentials
 from jwt.types import Options
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.context import user_id_ctx
+from pathfinder.platform.context import (
+    application_id_ctx,
+    user_id_ctx,
+    veupathdb_auth_token_ctx,
+)
 from pathfinder.platform.error_handlers import problem_response
 from pathfinder.platform.errors import ErrorCode, UnauthorizedError
+from pathfinder.platform.principal import (
+    DEFAULT_APPLICATION_ID,
+    SERVICE_AUTH_HEADER,
+    Principal,
+)
+from pathfinder.services.wdk_identity import resolve_veupathdb_bearer
 
 _JWT_ALGORITHM = "HS256"
 _JWT_DECODE_OPTIONS: Options = {"require": ["exp", "sub"]}
 
-# Cookie auth is the public contract, so OpenAPI documents only the cookie.
-# An Authorization header is also accepted, for local tools.
+# A request proves who it is with the browser cookie, a PathFinder bearer token,
+# or a VEuPathDB bearer token; the service-token header names the caller instead.
 auth_cookie = APIKeyCookie(name="pathfinder-auth", auto_error=False)
+bearer_scheme = HTTPBearer(auto_error=False)
+service_token_header = APIKeyHeader(name=SERVICE_AUTH_HEADER, auto_error=False)
 
 limiter = Limiter(key_func=get_remote_address)
 
 
-def _extract_token(cookie_token: str | None, request: Request) -> str | None:
-    """Extract the raw JWT string from a cookie or Authorization header."""
-    raw = str(cookie_token) if cookie_token else None
-
-    if not raw:
-        raw = request.headers.get("Authorization")
-
-    if not raw:
-        return None
-
-    scheme, _, token = raw.partition(" ")
-    if scheme.lower() == "bearer":
-        return token or None
-    return raw
-
-
-async def get_optional_user(
-    request: Request,
-    cookie_token: Annotated[str | None, Depends(auth_cookie)] = None,
-) -> UUID | None:
-    """Return the current user ID, or None when the request is not authenticated."""
-    token = _extract_token(cookie_token, request)
-    if not token:
-        return None
-
+def decode_user_id(token: str) -> UUID | None:
+    """Return the user a PathFinder JWT names, or None when it is not one."""
     try:
-        settings = get_settings()
         payload = jwt.decode(
             token,
-            settings.api_secret_key,
+            get_settings().api_secret_key,
             algorithms=[_JWT_ALGORITHM],
             options=_JWT_DECODE_OPTIONS,
         )
-        user_id = UUID(payload["sub"])
-        user_id_ctx.set(user_id)
-    except jwt.InvalidTokenError, ValueError, KeyError:
+        return UUID(payload["sub"])
+    except jwt.InvalidTokenError, ValueError, KeyError, TypeError:
         return None
-    else:
-        return user_id
+
+
+def _application_id(service_token: str | None) -> str:
+    """Name the calling application. An unknown service token authenticates nobody."""
+    if service_token is None:
+        return DEFAULT_APPLICATION_ID
+    application_id = get_settings().service_tokens.application_for(service_token)
+    if application_id is None:
+        raise UnauthorizedError(detail="Unknown service token")
+    return application_id
+
+
+async def _veupathdb_principal(token: str, application_id: str) -> Principal:
+    """Identify the registered VEuPathDB user a bearer token names."""
+    bearer = await resolve_veupathdb_bearer(token)
+    if bearer.user_id is None:
+        raise UnauthorizedError(detail=bearer.rejection)
+
+    # WDK calls on this request act as the bearer's own user.
+    veupathdb_auth_token_ctx.set(token)
+    return Principal(
+        user_id=bearer.user_id,
+        application_id=application_id,
+        credential="veupathdb-bearer",
+    )
+
+
+async def _identify(
+    cookie_token: str | None,
+    bearer: HTTPAuthorizationCredentials | None,
+    application_id: str,
+) -> Principal:
+    """Read the request's credential: bearer first, then the cookie."""
+    if bearer is not None:
+        user_id = decode_user_id(bearer.credentials)
+        if user_id is not None:
+            return Principal(
+                user_id=user_id,
+                application_id=application_id,
+                credential="pathfinder-bearer",
+            )
+        return await _veupathdb_principal(bearer.credentials, application_id)
+
+    if cookie_token:
+        user_id = decode_user_id(cookie_token)
+        if user_id is not None:
+            return Principal(
+                user_id=user_id,
+                application_id=application_id,
+                credential="pathfinder-cookie",
+            )
+
+    raise UnauthorizedError(detail="Not authenticated")
+
+
+async def resolve_principal(
+    cookie_token: Annotated[str | None, Depends(auth_cookie)] = None,
+    bearer: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ] = None,
+    service_token: Annotated[str | None, Depends(service_token_header)] = None,
+) -> Principal:
+    """Identify the request, or raise UnauthorizedError."""
+    principal = await _identify(
+        cookie_token,
+        bearer,
+        _application_id(service_token),
+    )
+    user_id_ctx.set(principal.user_id)
+    application_id_ctx.set(principal.application_id)
+    return principal
 
 
 async def get_current_user(
-    user_id: Annotated[UUID | None, Depends(get_optional_user)],
+    principal: Annotated[Principal, Depends(resolve_principal)],
 ) -> UUID:
-    """Return the current user ID. Raise UnauthorizedError when there is none."""
-    if user_id is None:
-        raise UnauthorizedError(detail="Not authenticated")
-    return user_id
+    """Return the current user ID."""
+    return principal.user_id
 
 
 def create_user_token(user_id: UUID, expires_in: int = 86400) -> str:
@@ -97,17 +153,23 @@ def create_user_token(user_id: UUID, expires_in: int = 86400) -> str:
 _CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
+def _carries_bearer_credentials(request: Request) -> bool:
+    scheme, _, credentials = request.headers.get("Authorization", "").partition(" ")
+    return scheme.lower() == "bearer" and bool(credentials.strip())
+
+
 async def csrf_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    """Require the X-Requested-With header on state-changing requests.
+    """Require the X-Requested-With header on state-changing cookie requests.
 
-    A browser cannot send a custom header cross-origin without a CORS
-    preflight, so a forged form or navigation cannot set it.
+    A browser sets neither that header cross-origin nor an Authorization
+    header, so a forged request can carry neither.
     """
     if (
         request.method not in _CSRF_SAFE_METHODS
+        and not _carries_bearer_credentials(request)
         and not request.headers.get("X-Requested-With", "").strip()
     ):
         return JSONResponse(

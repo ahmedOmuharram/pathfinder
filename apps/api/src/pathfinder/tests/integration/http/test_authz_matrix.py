@@ -1,246 +1,120 @@
-"""Every mutating conversation-scoped route refuses a non-owner.
+"""Every mutating route over an owned resource refuses a non-owner.
 
-The matrix is explicit so a reviewer can read what is covered, and it is
-cross-checked against ``app.routes`` so a new route cannot join the app
-without joining the matrix.
+The matrix is cross-checked against ``app.routes``, so a new route cannot join
+the app without joining it. Each case runs twice: the non-owner must be
+refused and the owner must not, which is what makes the refusal ownership.
 """
 
 from __future__ import annotations
 
-import asyncio
-import re
-from dataclasses import dataclass
-from typing import Any
-from uuid import UUID, uuid4
+from collections.abc import AsyncGenerator
 
-import httpx
 import pytest
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 from procrastinate.testing import InMemoryConnector
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.domain.scratchpad.models import NoteCreate
-from pathfinder.persistence.models import Conversation
-from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
+from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.ai.memory.store import MemoryStore
+from pathfinder.platform.config import get_settings
+from pathfinder.tests._support.wdk_credentials import (
+    NO_CREDENTIALS_REASON,
+    wdk_test_account,
+)
+from pathfinder.tests.integration.http._authz_matrix_cases import cases
+from pathfinder.tests.integration.http._authz_matrix_owned import (
+    create_owned,
+    placeholder_owned,
+)
+from pathfinder.tests.integration.http._authz_matrix_support import (
+    EXPERIMENT,
+    NO_OWNER_CONTRAST,
+    OWNER_REFUSAL_STATUSES,
+    REFUSAL_STATUSES,
+    RESOURCES,
+    WDK_BACKED,
+    Owned,
+    Resource,
+    registered_routes,
+    scoped_routes,
+    stale_exclusions,
+    status_for,
+    wdk_backed_indexes,
+)
 from pathfinder.tests.integration.http.conftest import (
-    chat_body,
     client_for,
+    first_frame_client_for,
     make_user,
+    other_application_client_for,
 )
 
-_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
-_ALLOWED_STATUSES = frozenset({403, 404})
-_STREAM_TIMEOUT_SECONDS = 15.0
-
-# Names that address a conversation, whether in the path or in the JSON body.
-_CONVERSATION_KEYS = frozenset(
-    {
-        "conversation_id",
-        "conversationId",
-        "chat_id",
-        "chatId",
-        "strategy_id",
-        "strategyId",
-    }
-)
-
-# Langfuse telemetry: the id is an analytics label, and the route reads and
-# writes no PathFinder-owned resource.
-_NOT_CONVERSATION_SCOPED = frozenset({("POST", "/api/v1/feedback/actions")})
+_BLUEPRINTS = cases(placeholder_owned())
+_WDK_BACKED_INDEXES = wdk_backed_indexes(_BLUEPRINTS)
 
 
-@dataclass(frozen=True)
-class _Case:
-    method: str
-    route: str
-    url: str
-    body: dict[str, Any] | None = None
+def _wdk_backed_id(index: int) -> str:
+    return f"{_BLUEPRINTS[index].method} {_BLUEPRINTS[index].route}"
 
 
-def _cases(conversation_id: UUID, note_id: str) -> tuple[_Case, ...]:
-    conv = str(conversation_id)
-    base = f"/api/v1/conversations/{conv}"
-    notes = f"{base}/scratchpad/notes/{note_id}"
-    site = "?siteId=plasmodb"
-    return (
-        _Case("POST", "/api/v1/chat", "/api/v1/chat", chat_body(conversation_id)),
-        _Case(
-            "PATCH",
-            "/api/v1/conversations/{strategyId:uuid}",
-            base,
-            {"name": "renamed by an intruder"},
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{strategyId:uuid}/fork",
-            f"{base}/fork",
-            {"fromMessageId": str(uuid4())},
-        ),
-        _Case("DELETE", "/api/v1/conversations/{strategyId:uuid}", base),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{strategyId:uuid}/restore",
-            f"{base}/restore",
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{conversation_id}/begin",
-            f"{base}/begin",
-            {"siteId": "plasmodb"},
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{strategyId:uuid}/operations",
-            f"{base}/operations{site}",
-            {"op": {"kind": "updateStrategyMeta", "name": "renamed by an intruder"}},
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/open",
-            "/api/v1/conversations/open",
-            {"conversationId": conv, "siteId": "plasmodb"},
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{conversation_id}/dismiss",
-            f"{base}/dismiss",
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{conversation_id}/duplicate",
-            f"{base}/duplicate",
-        ),
-        _Case(
-            "PATCH",
-            "/api/v1/conversations/{conversation_id}/scratchpad/notes/{note_id}",
-            notes,
-            {"pinned": True},
-        ),
-        _Case(
-            "DELETE",
-            "/api/v1/conversations/{conversation_id}/scratchpad/notes/{note_id}",
-            notes,
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{conversation_id}/revert-to-message",
-            f"{base}/revert-to-message",
-            {"messageId": str(uuid4())},
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{conversation_id:uuid}/save-substrategy",
-            f"{base}/save-substrategy{site}",
-            {"stepId": "root", "name": "stolen subtree"},
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{conversation_id:uuid}/insert-saved",
-            f"{base}/insert-saved{site}",
-            {"targetStepId": "root", "savedWdkStrategyId": 1},
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{conversation_id}/turns/{turn_id}/cancel",
-            f"{base}/turns/{uuid4()}/cancel",
-        ),
-        _Case(
-            "POST",
-            "/api/v1/conversations/{conversation_id}/cancel",
-            f"{base}/cancel",
-        ),
-        _Case(
-            "POST",
-            "/api/v1/eval/strategy-gene-ids",
-            "/api/v1/eval/strategy-gene-ids",
-            {"strategyId": conv, "siteId": "plasmodb"},
+# Each WDK-backed case skips under its own name, so the run reports which
+# owner contrasts did not happen and why.
+_WDK_BACKED_CASES = [
+    pytest.param(
+        index,
+        id=_wdk_backed_id(index),
+        marks=pytest.mark.skipif(
+            not wdk_test_account().is_named,
+            reason=(
+                f"{NO_CREDENTIALS_REASON}; owner case not contrasted: "
+                f"{_wdk_backed_id(index)}"
+            ),
         ),
     )
+    for index in _WDK_BACKED_INDEXES
+]
 
 
-def _path_keys(path: str) -> set[str]:
-    return {token.split(":")[0] for token in re.findall(r"\{([^}]+)\}", path)}
-
-
-def _body_keys(route: APIRoute) -> set[str]:
-    body = route.body_field
-    if body is None:
-        return set()
-    annotation = body.field_info.annotation
-    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        return set(annotation.model_fields)
-    return set()
-
-
-def _conversation_scoped_routes(app: FastAPI) -> set[tuple[str, str]]:
-    found: set[tuple[str, str]] = set()
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
-        keys = (_path_keys(route.path) | _body_keys(route)) & _CONVERSATION_KEYS
-        if not keys:
-            continue
-        found |= {
-            (method, route.path)
-            for method in route.methods & _MUTATING_METHODS
-            if (method, route.path) not in _NOT_CONVERSATION_SCOPED
-        }
-    return found
-
-
-def _registered_routes(app: FastAPI) -> set[tuple[str, str]]:
-    return {
-        (method, route.path)
-        for route in app.routes
-        if isinstance(route, APIRoute)
-        for method in route.methods
-    }
-
-
-async def _status_for(client: httpx.AsyncClient, case: _Case) -> int | None:
-    """Return the status code, or None when the route streams instead."""
-    call = asyncio.create_task(
-        client.request(case.method, case.url, json=case.body, timeout=60.0),
-    )
-    try:
-        response = await asyncio.wait_for(
-            asyncio.shield(call),
-            timeout=_STREAM_TIMEOUT_SECONDS,
-        )
-    except TimeoutError:
-        call.cancel()
-        await asyncio.gather(call, return_exceptions=True)
-        return None
-    return response.status_code
+@pytest.fixture(scope="module", autouse=True)
+async def _langgraph_checkpoint_tables(
+    patch_app_db_engine: None,
+) -> AsyncGenerator[None]:
+    """Fork and revert write checkpoints, which the test transport never creates."""
+    del patch_app_db_engine
+    async with lifespan_checkpointer(get_settings().database_url):
+        yield
 
 
 @pytest.fixture
-async def owned_resources(db_session: AsyncSession) -> tuple[UUID, str]:
-    """One conversation owned by a fresh user, and one scratchpad note in it."""
-    owner = await make_user(db_session)
-    conversation = Conversation(
-        user_id=owner.id,
-        site_id="plasmodb",
-        name="Owner kinases",
-        experiment_id=None,
-    )
-    db_session.add(conversation)
-    await db_session.flush()
-    note = await ScratchpadRepository(db_session).create(
-        conversation_id=conversation.id,
-        data=NoteCreate(title="t", summary="s", body="b"),
-    )
-    await db_session.commit()
-    return conversation.id, note.id
+async def owned(
+    db_session: AsyncSession,
+    app_memory_store: MemoryStore,
+    signed_in_to_veupathdb: None,
+) -> Owned:
+    """One instance of every owned resource kind, held by a fresh user."""
+    del signed_in_to_veupathdb
+    return await create_owned(db_session, app_memory_store)
+
+
+def _served(status: int | None) -> str:
+    return "an open SSE stream" if status is None else str(status)
+
+
+class _NestedTarget(BaseModel):
+    experiment_id: str
+
+
+class _NestedBody(BaseModel):
+    """A resource id one model down, behind a list and an optional."""
+
+    targets: list[_NestedTarget] | None = None
 
 
 def test_every_case_names_a_route_the_app_still_serves(app: FastAPI) -> None:
-    registered = _registered_routes(app)
+    registered = registered_routes(app)
     missing = [
         (case.method, case.route)
-        for case in _cases(uuid4(), "note-1")
+        for case in _BLUEPRINTS
         if (case.method, case.route) not in registered
     ]
     assert missing == [], (
@@ -248,13 +122,45 @@ def test_every_case_names_a_route_the_app_still_serves(app: FastAPI) -> None:
     )
 
 
-def test_every_conversation_scoped_mutating_route_is_in_the_matrix(
+def test_every_exclusion_names_a_route_the_matrix_would_otherwise_demand(
     app: FastAPI,
 ) -> None:
-    covered = {(case.method, case.route) for case in _cases(uuid4(), "note-1")}
-    uncovered = sorted(_conversation_scoped_routes(app) - covered)
+    """A stale exclusion is a silent coverage hole, so each one must still bite."""
+    stale = stale_exclusions(app)
+    covered = {(case.method, case.route) for case in _BLUEPRINTS}
+    stale += [
+        f"{method} {route} ({reason})"
+        for listing in (NO_OWNER_CONTRAST, WDK_BACKED)
+        for (method, route), reason in listing.items()
+        if (method, route) not in covered
+    ]
+    assert stale == [], f"authz matrix exclusions that name nothing: {stale}"
+
+
+def test_a_resource_id_behind_a_list_and_an_optional_is_still_classified() -> None:
+    """Classification reaches a model through any nesting of generics."""
+    probe = FastAPI()
+
+    @probe.post("/api/v1/probe")
+    async def _endpoint(body: _NestedBody) -> None:
+        del body
+
+    assert scoped_routes(probe, EXPERIMENT) == {("POST", "/api/v1/probe")}
+
+
+@pytest.mark.parametrize("resource", RESOURCES, ids=lambda r: r.name)
+def test_every_scoped_mutating_route_is_in_the_matrix(
+    app: FastAPI,
+    resource: Resource,
+) -> None:
+    covered = {
+        (case.method, case.route)
+        for case in _BLUEPRINTS
+        if resource.name in case.resources
+    }
+    uncovered = sorted(scoped_routes(app, resource) - covered)
     assert uncovered == [], (
-        f"conversation-scoped mutating routes missing from the authz matrix: "
+        f"{resource.name}-scoped mutating routes missing from the authz matrix: "
         f"{uncovered}"
     )
 
@@ -263,16 +169,15 @@ async def test_begin_refuses_a_non_owner_with_a_stable_problem_code(
     app: FastAPI,
     patch_app_db_engine: None,
     db_session: AsyncSession,
-    owned_resources: tuple[UUID, str],
+    owned: Owned,
 ) -> None:
     """Pins the refusal the begin route surfaces, wherever it is raised."""
     del patch_app_db_engine
-    conversation_id, _note_id = owned_resources
     intruder = await make_user(db_session)
 
     async with client_for(app, intruder.id) as client:
         response = await client.post(
-            f"/api/v1/conversations/{conversation_id}/begin",
+            f"/api/v1/conversations/{owned.conversation_id}/begin",
             json={"siteId": "plasmodb"},
         )
 
@@ -285,21 +190,125 @@ async def test_a_non_owner_is_refused_by_every_route(
     app: FastAPI,
     patch_app_db_engine: None,
     db_session: AsyncSession,
-    owned_resources: tuple[UUID, str],
+    owned: Owned,
     in_memory_jobs: InMemoryConnector,
 ) -> None:
     del patch_app_db_engine, in_memory_jobs
-    conversation_id, note_id = owned_resources
     intruder = await make_user(db_session)
 
     offenders: list[str] = []
+    ambiguous: list[str] = []
     async with client_for(app, intruder.id) as client:
-        for case in _cases(conversation_id, note_id):
-            status = await _status_for(client, case)
-            if status not in _ALLOWED_STATUSES:
-                served = "an open SSE stream" if status is None else str(status)
-                offenders.append(f"{case.method} {case.url} -> {served}")
+        for case in cases(owned):
+            status = await status_for(client, case)
+            if status not in REFUSAL_STATUSES:
+                offenders.append(f"{case.method} {case.url} -> {_served(status)}")
+            elif status != 403 and (case.method, case.route) in NO_OWNER_CONTRAST:
+                ambiguous.append(f"{case.method} {case.url} -> {_served(status)}")
 
     assert offenders == [], (
         "routes that served a non-owner instead of 403/404: " + "; ".join(offenders)
+    )
+    assert ambiguous == [], (
+        "routes excused from the owner contrast must refuse with 403, which no "
+        "missing sub-resource produces; these answered otherwise: "
+        + "; ".join(ambiguous)
+    )
+
+
+async def test_another_application_is_refused_by_every_route(
+    app: FastAPI,
+    patch_app_db_engine: None,
+    db_session: AsyncSession,
+    owned: Owned,
+    other_application: str,
+    in_memory_jobs: InMemoryConnector,
+) -> None:
+    """A resource is owned by a user under one application, not by the user alone.
+
+    The owner contrast that proves these refusals is
+    :func:`test_the_owner_is_not_refused_by_any_route`, which issues the same
+    requests as the same user under the application that holds the resources.
+    """
+    del patch_app_db_engine, db_session, other_application, in_memory_jobs
+
+    offenders: list[str] = []
+    async with other_application_client_for(app, owned.user_id) as client:
+        for case in cases(owned):
+            status = await status_for(client, case)
+            if status not in REFUSAL_STATUSES:
+                offenders.append(f"{case.method} {case.url} -> {_served(status)}")
+
+    assert offenders == [], (
+        "routes that served another application's request for this user's "
+        "resources instead of 403/404: " + "; ".join(offenders)
+    )
+
+
+async def test_the_owner_is_not_refused_by_any_route(
+    app: FastAPI,
+    patch_app_db_engine: None,
+    db_session: AsyncSession,
+    app_memory_store: MemoryStore,
+    in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
+) -> None:
+    """The same request, from the owner, must not be refused.
+
+    A refusal here means the non-owner's refusal proves nothing. Every case
+    gets its own resources, so a case that deletes cannot disturb the next.
+    The cases WDK answers are contrasted by
+    :func:`test_the_owner_is_not_refused_by_a_wdk_backed_route`.
+    """
+    del patch_app_db_engine, in_memory_jobs, signed_in_to_veupathdb
+
+    offenders: list[str] = []
+    contrasted = 0
+    for index, blueprint in enumerate(_BLUEPRINTS):
+        key = (blueprint.method, blueprint.route)
+        if key in NO_OWNER_CONTRAST or key in WDK_BACKED:
+            continue
+        fresh = await create_owned(db_session, app_memory_store)
+        case = cases(fresh)[index]
+        async with first_frame_client_for(app, fresh.user_id) as client:
+            status = await status_for(client, case)
+        contrasted += 1
+        if status in OWNER_REFUSAL_STATUSES or status is None:
+            offenders.append(f"{case.method} {case.url} -> {_served(status)}")
+
+    expected = len(_BLUEPRINTS) - len(NO_OWNER_CONTRAST) - len(_WDK_BACKED_INDEXES)
+    assert contrasted == expected, (
+        f"the owner contrast ran {contrasted} of {len(_BLUEPRINTS)} cases"
+    )
+    assert offenders == [], (
+        "routes that answered 404 to their own owner, or never answered at "
+        "all, so the non-owner 404 proves nothing: " + "; ".join(offenders)
+    )
+
+
+@pytest.mark.parametrize("index", _WDK_BACKED_CASES)
+async def test_the_owner_is_not_refused_by_a_wdk_backed_route(
+    app: FastAPI,
+    patch_app_db_engine: None,
+    owned: Owned,
+    in_memory_jobs: InMemoryConnector,
+    require_wdk_creds: str,
+    index: int,
+) -> None:
+    """The owner contrast for a route whose answer comes from WDK.
+
+    VEuPathDB serves the WDK service to registered users only, so the request
+    carries the test account's token, or the case skips under its own name.
+    """
+    del patch_app_db_engine, in_memory_jobs
+    case = cases(owned)[index]
+    async with first_frame_client_for(
+        app, owned.user_id, wdk_token=require_wdk_creds
+    ) as client:
+        status = await status_for(client, case)
+
+    refused = f"{case.method} {case.url} -> {_served(status)}: the route refused "
+    assert status is not None, refused + "to answer its own owner at all"
+    assert status not in OWNER_REFUSAL_STATUSES, (
+        refused + "its own owner, so the non-owner refusal proves nothing"
     )

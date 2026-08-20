@@ -6,7 +6,12 @@ import logging
 from pathlib import Path
 from uuid import uuid4
 
-from pathfinder.devtools.capture import RunCapture, capture_tracebacks, reset_run_dir
+from pathfinder.devtools.capture import (
+    LOOP_THRESHOLD,
+    RunCapture,
+    capture_tracebacks,
+    reset_run_dir,
+)
 
 
 def _write(cap: RunCapture, chunk: dict) -> None:
@@ -80,6 +85,24 @@ def test_failed_tool_call_decodes_errors(tmp_path: Path) -> None:
     assert any(
         e.param == "document_type" and e.kind == "missing_required" for e in call.errors
     )
+
+
+def test_denied_tool_call_is_terminal_and_is_not_a_failure(tmp_path: Path) -> None:
+    cap = _new(tmp_path)
+    for i in range(LOOP_THRESHOLD):
+        tcid = f"d{i}"
+        _write(cap, _step("delete_step", tcid, "p1", "started", args={"stepId": "s2"}))
+        _write(
+            cap, _step("delete_step", tcid, "p1", "denied", result="Keep that step.")
+        )
+    calls = cap.tool_calls()
+    assert [c.status for c in calls] == ["denied"] * LOOP_THRESHOLD
+    assert calls[0].result == "Keep that step."
+    assert calls[0].errors == []
+    summary = cap.summary()
+    assert summary.tool_calls == LOOP_THRESHOLD
+    assert summary.failures == 0
+    assert summary.loop_detected is False
 
 
 def test_tokens_read_total_tokens_from_turn_usage(tmp_path: Path) -> None:

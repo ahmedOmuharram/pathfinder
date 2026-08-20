@@ -34,6 +34,7 @@ Choices with a real alternative, where the reasoning is not recoverable from the
 - [Prompts are checked against the architecture](prompts-match-the-architecture.md) - the base prompt named three schemas that do not exist
 - [Strict state, and the checkpoints flushed to allow it](no-checkpoint-truncation.md) - a permissive `extra` was a shim for a shape nothing writes
 - [A capability is not shipped until the model can find it](capability-must-be-reachable.md) - built, registered, and undiscoverable is not shipped
+- [A sub-agent's approval is answered inside that sub-agent](sub-agent-approvals-re-enter-the-sub-agent.md) - the inner tool call is forwarded as its own approval card and the answer re-enters the suspended run
 
 ## Frontend
 
@@ -52,3 +53,6 @@ Choices with a real alternative, where the reasoning is not recoverable from the
 ## Transport
 
 - [NUL is rejected at the ASGI boundary](nul-rejected-at-the-asgi-boundary.md) - why not a validator, and why not an exception handler
+- [A VEuPathDB bearer token is the user; a service token is the application](bearer-identity-and-service-tokens.md) - the ES512 JWKS protocol, and why `proxied-user-id` cannot serve a service that acts as the user
+- [A resource is owned by a user under one application](application-id-tenancy.md) - the scope key, isolated memories, a per-user cap with per-application attribution, and why not one user row or one database per application
+- [A WDK-backed feature requires a registered VEuPathDB login](wdk-requires-registered-login.md) - one 401 code for the refusal, guest minting deleted, the service account confined to user-independent reads, and why not one shared identity for anonymous users

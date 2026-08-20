@@ -9,9 +9,10 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 
-from pathfinder.persistence.models import BackgroundTask, TaskProgress
+from pathfinder.persistence.models import BackgroundTask, Conversation, TaskProgress
+from pathfinder.platform.context import calling_application
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.errors import NotFoundError
 
@@ -66,14 +67,27 @@ def _to_progress_row(p: TaskProgress) -> ProgressRow:
     )
 
 
+def _scoped_tasks(
+    conversation_id: UUID, user_id: UUID
+) -> Select[tuple[BackgroundTask]]:
+    """Tasks of one conversation, which the user holds under this application."""
+    return (
+        select(BackgroundTask)
+        .join(Conversation, BackgroundTask.conversation_id == Conversation.id)
+        .where(
+            BackgroundTask.conversation_id == conversation_id,
+            BackgroundTask.user_id == user_id,
+            Conversation.application_id == calling_application(),
+        )
+    )
+
+
 async def load_task(*, conversation_id: UUID, task_id: UUID, user_id: UUID) -> TaskRow:
     async with async_session_factory() as session:
         task = (
             await session.execute(
-                select(BackgroundTask).where(
+                _scoped_tasks(conversation_id, user_id).where(
                     BackgroundTask.id == task_id,
-                    BackgroundTask.conversation_id == conversation_id,
-                    BackgroundTask.user_id == user_id,
                 ),
             )
         ).scalar_one_or_none()
@@ -89,13 +103,8 @@ async def list_task_rows(
     statuses: set[str] | None,
 ) -> list[TaskRow]:
     async with async_session_factory() as session:
-        query = (
-            select(BackgroundTask)
-            .where(
-                BackgroundTask.conversation_id == conversation_id,
-                BackgroundTask.user_id == user_id,
-            )
-            .order_by(BackgroundTask.created_at.desc())
+        query = _scoped_tasks(conversation_id, user_id).order_by(
+            BackgroundTask.created_at.desc(),
         )
         if statuses:
             query = query.where(BackgroundTask.status.in_(statuses))

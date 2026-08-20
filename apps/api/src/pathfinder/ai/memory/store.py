@@ -9,6 +9,24 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from pathfinder.ai.memory.embedding import format_embedded_string
 from pathfinder.ai.memory.schemas import MemoryKind, MemoryValue
 from pathfinder.integrations.embeddings.prefixes import SEARCH_QUERY_PREFIX
+from pathfinder.platform.context import calling_application
+
+MemoryNamespace = tuple[str, str, str, str, str]
+
+
+def memory_namespace(
+    *,
+    user_id: UUID,
+    kind: MemoryKind,
+    application_id: str | None = None,
+) -> MemoryNamespace:
+    """Namespace one memory under an application, a user and a kind.
+
+    The application defaults to the one the request or the job runs as, so a
+    memory never leaves the application that wrote it.
+    """
+    resolved = application_id if application_id is not None else calling_application()
+    return ("app", resolved, "user", str(user_id), kind)
 
 
 @dataclass(frozen=True)
@@ -29,18 +47,25 @@ class StoredMemory:
 class MemoryStore:
     """High-level API over LangGraph AsyncPostgresStore.
 
-    Keys are auto-generated UUIDs unless caller supplies one. Namespaces are
-    ``("user", user_id, kind)``. The stored payload is the raw
+    Keys are auto-generated UUIDs unless caller supplies one. Namespaces come
+    from :func:`memory_namespace`. The stored payload is the raw
     :class:`MemoryValue` serialisation — the backing
     :class:`AsyncPostgresStore` embeds the fields configured in
     ``lifespan_memory_store`` (kind, name, tags, summary).
+
+    ``application_id`` names the application to read and write as. Left unset,
+    every call follows the application on the context.
     """
 
     store: AsyncPostgresStore
+    application_id: str | None = None
 
-    @staticmethod
-    def _ns(user_id: UUID, kind: MemoryKind) -> tuple[str, str, str]:
-        return ("user", str(user_id), kind)
+    def _ns(self, user_id: UUID, kind: MemoryKind) -> MemoryNamespace:
+        return memory_namespace(
+            user_id=user_id,
+            kind=kind,
+            application_id=self.application_id,
+        )
 
     async def put(
         self,

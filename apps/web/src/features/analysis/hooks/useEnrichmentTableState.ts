@@ -1,7 +1,14 @@
 import { useState } from "react";
 import type { EnrichmentTerm } from "@pathfinder/shared";
 import type { SortDir } from "../constants";
-import type { SortKey } from "../components/enrichment-utils";
+import { compareNullableAsc, type SortKey } from "../components/enrichment-utils";
+
+/** Ascending order for one column. Reversing it flips a missing value's place. */
+function compareAsc(a: EnrichmentTerm, b: EnrichmentTerm, key: SortKey): number {
+  if (key === "termName") return a.termName.localeCompare(b.termName);
+  if (key === "geneCount") return a.geneCount - b.geneCount;
+  return compareNullableAsc(a[key], b[key]);
+}
 
 interface EnrichmentTableState {
   sorted: EnrichmentTerm[];
@@ -20,14 +27,8 @@ export function useEnrichmentTableState(terms: EnrichmentTerm[]): EnrichmentTabl
   const sorted = (() => {
     const copy = [...terms];
     copy.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      if (typeof av === "number" && typeof bv === "number") {
-        return sortDir === "asc" ? av - bv : bv - av;
-      }
-      return sortDir === "asc"
-        ? String(av).localeCompare(String(bv))
-        : String(bv).localeCompare(String(av));
+      const ascending = compareAsc(a, b, sortKey);
+      return sortDir === "asc" ? ascending : -ascending;
     });
     return copy;
   })();

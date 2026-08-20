@@ -20,7 +20,7 @@ from pathfinder.services.gene_sets.enrichment import run_enrichment_for_gene_set
 from pathfinder.services.gene_sets.types import GeneSet
 
 
-def _term(term_id: str, p_value: float, fdr: float) -> EnrichmentTerm:
+def _term(term_id: str, p_value: float, fdr: float | None) -> EnrichmentTerm:
     return EnrichmentTerm(
         term_id=term_id,
         term_name=f"term {term_id}",
@@ -42,6 +42,7 @@ _RESULTS = [
             _term("GO:0006468", p_value=0.001, fdr=0.01),
             _term("GO:0016311", p_value=0.01, fdr=0.20),
             _term("GO:0004672", p_value=0.03, fdr=0.04),
+            _term("GO:0000001", p_value=0.001, fdr=None),
         ],
         total_genes_analyzed=42,
     ),
@@ -120,6 +121,20 @@ async def test_only_terms_that_pass_fdr_are_counted(
     assert summary["totalSignificantTerms"] == 2
 
 
+async def test_a_term_with_no_computable_fdr_is_not_significant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_services(monkeypatch)
+
+    summary = await run_enrichment_for_gene_set(_gene_set(), _TYPES)
+    results = as_json_array(summary["enrichmentResults"])
+    terms = as_json_array(as_json_object(results[0])["terms"])
+    unscored = as_json_object(terms[3])
+
+    assert unscored["fdr"] is None
+    assert summary["totalSignificantTerms"] == 2
+
+
 async def test_the_summary_keeps_its_wire_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -131,7 +146,7 @@ async def test_the_summary_keeps_its_wire_shape(
     results = as_json_array(summary["enrichmentResults"])
     first = as_json_object(results[0])
     assert first["analysisType"] == "go_process"
-    assert len(as_json_array(first["terms"])) == 3
+    assert len(as_json_array(first["terms"])) == 4
     downloads = as_json_object(summary["downloads"])
     assert downloads["csv"] == "/api/v1/exports/export-csv"
     assert downloads["expiresInSeconds"] == 3600

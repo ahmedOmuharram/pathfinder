@@ -220,6 +220,11 @@ class RunCapture:
             call.result = data.result_summary
             call.errors = decode_errors(data.result_summary)
             self._note_failure(call.tool)
+        elif data.state == "denied":
+            # The user refused the call. The tool did not fail, so the loop
+            # counter stays where it is.
+            call.status = "denied"
+            call.result = data.result_summary
 
     def _note_failure(self, tool: str) -> None:
         self._fail_counts[tool] = self._fail_counts.get(tool, 0) + 1

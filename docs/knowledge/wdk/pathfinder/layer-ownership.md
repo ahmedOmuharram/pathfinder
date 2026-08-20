@@ -163,6 +163,12 @@ researcher as a finding. That is the failure mode the whole `SILENT` class in
 [the rules](../rules/) exists to name, and it is why the tool layer gets
 `get_strategy_api()` from `services.wdk` rather than a URL.
 
+Since 2026-08-19 the silent half of that is closed from two directions: VEuPathDB
+refuses a guest identity outright, and `_http.py` refuses a user-scoped call that
+carries no request token before it leaves the process
+([WDK-AUTH-001](../rules/auth-and-transport.md)). The continuity argument for one
+client per site is unchanged.
+
 Do **not** reach for the other explanation. The belief that a process query returns
 zero without a `JSESSIONID` did not reproduce - a cookie-less
 `GenesByOrthologPattern` returned `totalCount` a large result - and it is recorded as an open

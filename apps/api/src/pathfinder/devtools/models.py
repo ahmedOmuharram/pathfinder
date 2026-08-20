@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 ErrorKind = Literal["missing_required", "unknown_param", "type_error", "other"]
-ToolStatus = Literal["started", "completed", "failed"]
+ToolStatus = Literal["started", "completed", "failed", "denied"]
 
 
 class Chunk(BaseModel):

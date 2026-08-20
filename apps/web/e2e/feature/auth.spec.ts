@@ -1,4 +1,56 @@
-import { test, expect } from "../fixtures/test";
+import { BASE_URL, test, expect } from "../fixtures/test";
+
+const SIGNED_OUT_STATUS = { signedIn: false, name: null, email: null };
+
+test.describe("VEuPathDB login gate", () => {
+  test("a session with no VEuPathDB login gets the sign-in prompt instead of the app", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto(`${BASE_URL}/veupathdb/conversation`);
+
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("Sign in to VEuPathDB")).toBeVisible();
+    await expect(page.getByTestId("message-composer")).toHaveCount(0);
+
+    await context.close();
+  });
+
+  test("an embedded session with no VEuPathDB login cannot send and is offered sign-in", async ({
+    page,
+  }) => {
+    // The auth-status route is the gate under test; the rest of the app is real.
+    await page.route("**/api/v1/veupathdb/auth/status*", (route) =>
+      route.fulfill({ json: SIGNED_OUT_STATUS }),
+    );
+    await page.goto(`${BASE_URL}/veupathdb/conversation?embedded=true`);
+
+    const prompt = page.getByTestId("veupathdb-signin-required");
+    await expect(prompt).toBeVisible({ timeout: 20_000 });
+    await expect(prompt).toContainText("Sign in to VEuPathDB to build strategies");
+    await expect(page.getByTestId("message-input")).toBeDisabled();
+    await expect(page.getByTestId("send-button")).toBeDisabled();
+
+    await prompt.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+
+  test("the postcondition API client carries both the PathFinder and the VEuPathDB cookie", async ({
+    chatPage,
+    apiClient,
+  }) => {
+    await chatPage.goto();
+
+    const cookieNames = (await apiClient.storageState()).cookies.map((c) => c.name);
+    expect(cookieNames).toContain("pathfinder-auth");
+    expect(cookieNames).toContain("Authorization");
+
+    // Both cookies together are what a WDK-backed route needs.
+    const geneSets = await apiClient.get("/api/v1/gene-sets");
+    expect(geneSets.status()).toBe(200);
+  });
+});
 
 test.describe("Auth", () => {
   test("authenticated state shows full UI with working API access", async ({

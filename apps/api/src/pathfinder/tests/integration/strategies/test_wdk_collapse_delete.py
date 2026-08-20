@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import contextlib
-import os
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.parameters.values import MultiPickValue, StringValue
@@ -28,7 +26,6 @@ from pathfinder.services.strategies.commit import apply_and_commit
 from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.spec_build import build_strategy_from_spec
-from pathfinder.tests.integration.strategies.conftest import _real_account_token
 
 pytestmark = [pytest.mark.live_wdk, pytest.mark.asyncio]
 
@@ -69,18 +66,13 @@ class _BuiltConv:
 
 @pytest.fixture
 async def built_nested_conv(
-    app: FastAPI,
+    require_wdk_creds: str,
     patch_app_db_engine: None,
     session_maker: async_sessionmaker[AsyncSession],
     db_cleaner: None,
 ) -> AsyncGenerator[_BuiltConv]:
     del patch_app_db_engine, db_cleaner
-    email = os.environ.get("WDK_TEST_EMAIL", "")
-    password = os.environ.get("WDK_TEST_PASSWORD", "")
-    if not email or not password:
-        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
-    token = await _real_account_token(app, email, password)
-    reset = veupathdb_auth_token_ctx.set(token)
+    reset = veupathdb_auth_token_ctx.set(require_wdk_creds)
     created: list[int] = []
     user_id, conv_id = uuid4(), uuid4()
     async with session_maker() as session:
@@ -132,10 +124,8 @@ async def _persisted_step_ids(built: _BuiltConv) -> list[str]:
 
 
 async def test_collapse_delete_drops_step_and_combine_no_orphans(
-    require_wdk_creds: None,
     built_nested_conv: _BuiltConv,
 ) -> None:
-    del require_wdk_creds
     assert await _persisted_step_ids(built_nested_conv) == [
         "go_kinase_genes",
         "narrowed",
@@ -166,7 +156,6 @@ async def test_collapse_delete_drops_step_and_combine_no_orphans(
 
 
 async def test_delete_edge_detaches_against_live_wdk(
-    require_wdk_creds: None,
     built_nested_conv: _BuiltConv,
 ) -> None:
     """Deleting an edge on the canvas used to 422 before reaching WDK.
@@ -176,7 +165,6 @@ async def test_delete_edge_detaches_against_live_wdk(
     real commit pipeline: detach the root combine's secondary input and
     confirm the freed subtree survives while the strategy still pushes.
     """
-    del require_wdk_creds
     assert await _persisted_step_ids(built_nested_conv) == [
         "go_kinase_genes",
         "narrowed",
@@ -211,12 +199,9 @@ async def test_delete_edge_detaches_against_live_wdk(
 
 
 async def test_delete_edge_collapse_against_live_wdk(
-    require_wdk_creds: None,
     built_nested_conv: _BuiltConv,
 ) -> None:
     """Collapse resolves to the same shape the delete dialog produces."""
-    del require_wdk_creds
-
     await apply_and_commit(
         deps=built_nested_conv.deps,
         op=DeleteEdgeOp(

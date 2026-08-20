@@ -139,6 +139,29 @@ describe("streamTypedEvents", () => {
     }).rejects.toThrow(/stream failed: 500/);
   });
 
+  it("names the API's reason in the thrown error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ detail: "Missing required X-Requested-With header" }),
+            {
+              status: 403,
+              statusText: "Forbidden",
+              headers: { "content-type": "application/json" },
+            },
+          ),
+      ),
+    );
+
+    await expect(async () => {
+      for await (const _ of streamTypedEvents("/x", { method: "POST", body: {} })) {
+        void _;
+      }
+    }).rejects.toThrow("stream failed: 403: Missing required X-Requested-With header");
+  });
+
   it("throws when the response body is null", async () => {
     stubFetchWithStream(null, true, 200);
 
@@ -167,8 +190,23 @@ describe("streamTypedEvents", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBe('{"p":1}');
     const headers = init.headers as Record<string, string>;
-    expect(headers["accept"]).toBe("text/event-stream");
-    expect(headers["content-type"]).toBe("application/json");
+    expect(headers["Accept"]).toBe("text/event-stream");
+    expect(headers["Content-Type"]).toBe("application/json");
+  });
+
+  it("sends the CSRF header the API demands on state-changing requests", async () => {
+    const fetchSpy = stubFetchWithStream(streamFromChunks(["data: [DONE]\n\n"]));
+
+    for await (const _ of streamTypedEvents("/api/v1/experiments/", {
+      method: "POST",
+      body: { siteId: "plasmodb" },
+    })) {
+      void _;
+    }
+
+    const call = fetchSpy.mock.calls[0] ?? [];
+    const headers = (call[1] as RequestInit).headers as Record<string, string>;
+    expect(headers["X-Requested-With"]).toBe("XMLHttpRequest");
   });
 
   it("defaults to GET without a body or content-type header", async () => {
@@ -185,9 +223,11 @@ describe("streamTypedEvents", () => {
     const init = call[1] as RequestInit;
     expect(init.method).toBe("GET");
     expect(init.body).toBeUndefined();
+    expect(init.credentials).toBe("include");
     const headers = init.headers as Record<string, string>;
-    expect(headers["accept"]).toBe("text/event-stream");
-    expect(headers["content-type"]).toBeUndefined();
+    expect(headers["Accept"]).toBe("text/event-stream");
+    expect(headers["Content-Type"]).toBeUndefined();
+    expect(headers["X-Requested-With"]).toBe("XMLHttpRequest");
   });
 
   it("handles multiple events in a single chunk", async () => {

@@ -3,28 +3,25 @@
 from typing import TypedDict
 from urllib.parse import urlparse
 
-import httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import ConfigDict, Field, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.errors import UnauthorizedError, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.security import (
     create_user_token,
-    get_optional_user,
+    decode_user_id,
     limiter,
 )
 from pathfinder.services.users import get_or_create_user_id
-from pathfinder.services.wdk import (
-    get_site,
-    get_wdk_client,
-    password_login,
-    password_logout,
+from pathfinder.services.wdk import password_login, password_logout
+from pathfinder.services.wdk_identity import (
+    WDKCurrentUser,
+    fetch_wdk_user,
+    resolve_veupathdb_email,
 )
 from pathfinder.transport.http.deps import DBSession
 from pathfinder.transport.http.schemas import (
@@ -40,30 +37,6 @@ router = APIRouter(prefix="/api/v1/veupathdb/auth", tags=["veupathdb-auth"])
 class LoginPayload(CamelModel):
     email: str
     password: str
-
-
-class _WDKUserProperties(CamelModel):
-    """Properties nested in a WDK current-user response."""
-
-    model_config = ConfigDict(extra="ignore")
-    first_name: str | None = Field(default=None)
-    last_name: str | None = Field(default=None)
-
-
-class _WDKUserResponse(CamelModel):
-    """Typed parse of a WDK current-user response."""
-
-    model_config = ConfigDict(extra="ignore")
-    is_guest: bool = Field(default=True)
-    email: str | None = None
-    properties: _WDKUserProperties = Field(default_factory=_WDKUserProperties)
-
-
-def _parse_wdk_user(raw: JsonValue) -> _WDKUserResponse | None:
-    """Parse a raw WDK user response. Return None if the response is not an object."""
-    if not isinstance(raw, dict):
-        return None
-    return _WDKUserResponse.model_validate(raw)
 
 
 def _pick_redirect_url(candidate: str | None) -> str:
@@ -84,40 +57,15 @@ def _pick_redirect_url(candidate: str | None) -> str:
     return allowed[0] if allowed else "http://localhost:3000"
 
 
-async def _resolve_veupathdb_email(
-    veupathdb_token: str, site_id: str = "veupathdb"
-) -> str | None:
-    """Return the email of the current VEuPathDB user, or None for a guest."""
-    reset_token = veupathdb_auth_token_ctx.set(veupathdb_token)
-    try:
-        site = get_site(site_id)
-        client = get_wdk_client(site.id)
-        raw = await client.get("/users/current")
-    except (httpx.HTTPError, KeyError, ValueError) as exc:
-        logger.debug("Failed to resolve VEuPathDB email from token", error=str(exc))
-        return None
-    finally:
-        veupathdb_auth_token_ctx.reset(reset_token)
-
-    user = _parse_wdk_user(raw)
-    if user is None:
-        return None
-    return user.email if not user.is_guest else None
-
-
 async def _link_internal_user(
-    session: AsyncSession, veupathdb_token: str, site_id: str = "veupathdb"
-) -> tuple[str | None, str | None]:
-    """Resolve the VEuPathDB identity and find or create the internal user.
-
-    :returns: Tuple of (auth_token, email), or (None, None) if the session is invalid.
-    """
-    email = await _resolve_veupathdb_email(veupathdb_token, site_id)
+    session: AsyncSession, veupathdb_token: str, site_id: str
+) -> str | None:
+    """Mint the internal auth token for the VEuPathDB identity, or None."""
+    email = await resolve_veupathdb_email(veupathdb_token, site_id)
     if not email:
-        return None, None
+        return None
     internal_id = await get_or_create_user_id(session, email)
-    auth_token = create_user_token(internal_id)
-    return auth_token, email
+    return create_user_token(internal_id)
 
 
 def _build_success_response(
@@ -195,7 +143,7 @@ async def login_with_password(
         )
         raise UnauthorizedError(detail="Invalid email or password")
 
-    auth_token, _email = await _link_internal_user(session, token, site_id)
+    auth_token = await _link_internal_user(session, token, site_id)
     if not auth_token:
         raise UnauthorizedError(detail="Invalid email or password")
     return _build_success_response(token, auth_token)
@@ -246,6 +194,10 @@ async def refresh_internal_auth(
     Use this when the internal token is absent or expired but the VEuPathDB
     cookie is still valid.
     """
+    existing = request.cookies.get("pathfinder-auth")
+    if existing and decode_user_id(existing) is not None:
+        return JSONResponse({"success": True})
+
     veupathdb_token = (
         request.headers.get("X-VEUPATHDB-AUTH")
         or request.headers.get("X-VEUPATHDB-AUTHORIZATION")
@@ -254,7 +206,7 @@ async def refresh_internal_auth(
     if not veupathdb_token:
         raise UnauthorizedError(detail="No VEuPathDB session")
 
-    auth_token, _email = await _link_internal_user(session, veupathdb_token, site_id)
+    auth_token = await _link_internal_user(session, veupathdb_token, site_id)
     if not auth_token:
         raise UnauthorizedError(detail="VEuPathDB session expired or invalid")
 
@@ -292,34 +244,21 @@ async def auth_status(
     settings = get_settings()
     if settings.pathfinder_chat_provider.strip().lower() == "mock":
         cookie_token = request.cookies.get("pathfinder-auth")
-        mock_user_id = await get_optional_user(request, cookie_token)
-        if mock_user_id is not None:
+        if cookie_token and decode_user_id(cookie_token) is not None:
             return {
                 "signedIn": True,
                 "name": "E2E Test User",
                 "email": "e2e@test.local",
             }
 
-    user = await _fetch_wdk_user(site_id)
+    user = await fetch_wdk_user(site_id)
     if user is None:
         return {"signedIn": False, "name": None, "email": None}
 
     return _format_auth_status(user)
 
 
-async def _fetch_wdk_user(site_id: str) -> _WDKUserResponse | None:
-    """Fetch the current user from WDK. Return None on failure."""
-    site = get_site(site_id)
-    client = get_wdk_client(site.id)
-    try:
-        raw = await client.get("/users/current")
-    except (httpx.HTTPError, KeyError, ValueError) as exc:
-        logger.debug("Failed to fetch VEuPathDB auth status", error=str(exc))
-        return None
-    return _parse_wdk_user(raw)
-
-
-def _format_auth_status(user: _WDKUserResponse) -> _AuthStatusDict:
+def _format_auth_status(user: WDKCurrentUser) -> _AuthStatusDict:
     """Format a parsed WDK user as an auth status."""
     props = user.properties
     name: str | None = None

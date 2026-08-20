@@ -2,7 +2,7 @@ import asyncio
 import os
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 # The scanner is built at module import, so the PIGuard model must be on disk
@@ -44,7 +44,8 @@ import procrastinate
 import psycopg
 import pydantic_ai.models
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from procrastinate.testing import InMemoryConnector
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -59,10 +60,19 @@ import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.jobs.app import procrastinate_app
+from pathfinder.jobs.tasks import ensure_registered
 from pathfinder.main import create_app
 from pathfinder.persistence.models import Base, User
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.security import create_user_token, limiter
+from pathfinder.tests._support.wdk_credentials import (
+    NO_CREDENTIALS_REASON,
+    registered_wdk_token,
+)
+from pathfinder.transport.http.deps import (
+    get_current_user_with_db_row,
+    require_registered_wdk_identity,
+)
 
 # A test must never send a request to a real model.
 pydantic_ai.models.ALLOW_MODEL_REQUESTS = False
@@ -268,6 +278,24 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
         )
 
 
+@pytest.fixture
+async def in_memory_jobs() -> AsyncGenerator[InMemoryConnector]:
+    """Route deferred jobs to an in-memory connector, so a test decides when
+    a job runs. The teardown restores the original connector.
+    """
+    original_connector = procrastinate_app.connector
+    original_jm_connector = procrastinate_app.job_manager.connector
+    connector = InMemoryConnector()
+    procrastinate_app.connector = connector
+    procrastinate_app.job_manager.connector = connector
+    ensure_registered()
+    try:
+        yield connector
+    finally:
+        procrastinate_app.connector = original_connector
+        procrastinate_app.job_manager.connector = original_jm_connector
+
+
 # Environment and app.
 
 
@@ -317,11 +345,31 @@ async def authed_user_id(
 
 
 @pytest.fixture
+def signed_in_to_veupathdb(app: FastAPI) -> Generator[None]:
+    """Let the WDK-backed routes run as a user who holds a VEuPathDB session.
+
+    The gate itself is covered by ``test_wdk_login_required``; a suite about
+    what a route does once past it states that it is past it.
+    """
+
+    async def _identity(
+        user_id: Annotated[UUID, Depends(get_current_user_with_db_row)],
+    ) -> UUID:
+        return user_id
+
+    app.dependency_overrides[require_registered_wdk_identity] = _identity
+    yield
+    app.dependency_overrides.pop(require_registered_wdk_identity, None)
+
+
+@pytest.fixture
 async def authed_client(
     client: httpx.AsyncClient,
     authed_user_id: UUID,
+    signed_in_to_veupathdb: None,
 ) -> httpx.AsyncClient:
     """Returns a client that carries a valid authentication cookie."""
+    del signed_in_to_veupathdb
     token = create_user_token(authed_user_id)
     client.cookies.set("pathfinder-auth", token)
     return client
@@ -377,19 +425,21 @@ async def app_memory_store(
         yield store
 
 
-@pytest.fixture(autouse=True)
-def _no_wdk_guest_minting(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keeps guest-identity minting inert, so no test makes a live WDK mint call.
+@pytest.fixture(scope="session")
+async def wdk_registered_token() -> str | None:
+    """The WDK token of the registered test account, or None when unconfigured.
 
-    A test that covers minting patches the mint function itself.
+    Resolved once for the whole session.
     """
-    from pathfinder.services import wdk_identity  # noqa: PLC0415
+    return await registered_wdk_token()
 
-    async def _no_mint(site_id: str) -> str | None:
-        del site_id
-        return None
 
-    monkeypatch.setattr(wdk_identity, "mint_guest_token", _no_mint)
+@pytest.fixture
+def require_wdk_creds(wdk_registered_token: str | None) -> str:
+    """The registered WDK token, or a skip naming the credentials to set."""
+    if wdk_registered_token is None:
+        pytest.skip(NO_CREDENTIALS_REASON)
+    return wdk_registered_token
 
 
 @pytest.fixture(autouse=True)

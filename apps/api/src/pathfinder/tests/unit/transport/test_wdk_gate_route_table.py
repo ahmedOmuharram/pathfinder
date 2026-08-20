@@ -1,0 +1,168 @@
+"""Which routes require a registered VEuPathDB login, named one by one.
+
+The rule: a route carries the gate when one of its normal paths reads or writes
+the caller's WDK account. A route that changes category has to change this list,
+and a route that reaches WDK without the gate has to state why here.
+"""
+
+from __future__ import annotations
+
+import pytest
+from fastapi import FastAPI
+from fastapi.dependencies.models import Dependant
+from fastapi.routing import APIRoute
+
+from pathfinder.main import create_app
+from pathfinder.transport.http.deps import require_registered_wdk_identity
+
+GATED: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("POST", "/api/v1/chat"),
+        # Conversations: the subroutes that act on the user's WDK strategies.
+        ("POST", "/api/v1/conversations/step-counts"),
+        ("POST", "/api/v1/conversations/open"),
+        ("POST", "/api/v1/conversations/sync-wdk"),
+        ("POST", "/api/v1/conversations/{strategyId:uuid}/operations"),
+        ("POST", "/api/v1/conversations/{strategyId:uuid}/fork"),
+        ("POST", "/api/v1/conversations/{conversation_id:uuid}/save-substrategy"),
+        ("POST", "/api/v1/conversations/{conversation_id:uuid}/insert-saved"),
+        # Gene sets: the routes that materialize or read a WDK dataset.
+        ("POST", "/api/v1/gene-sets"),
+        ("POST", "/api/v1/gene-sets/{gene_set_id}/retake"),
+        ("POST", "/api/v1/gene-sets/{gene_set_id}/enrich"),
+        ("GET", "/api/v1/gene-sets/{gene_set_id}/results/attributes"),
+        ("GET", "/api/v1/gene-sets/{gene_set_id}/results/records"),
+        (
+            "GET",
+            "/api/v1/gene-sets/{gene_set_id}/results/distributions/{attribute_name}",
+        ),
+        ("POST", "/api/v1/gene-sets/{gene_set_id}/results/record"),
+        # Experiments: the routes that run, refine, read or delete a WDK strategy.
+        ("POST", "/api/v1/experiments/"),
+        ("POST", "/api/v1/experiments/batch"),
+        ("POST", "/api/v1/experiments/benchmark"),
+        ("POST", "/api/v1/experiments/seed"),
+        ("DELETE", "/api/v1/experiments/{experiment_id}"),
+        ("POST", "/api/v1/experiments/{experiment_id}/cross-validate"),
+        ("POST", "/api/v1/experiments/{experiment_id}/enrich"),
+        ("POST", "/api/v1/experiments/{experiment_id}/re-evaluate"),
+        ("POST", "/api/v1/experiments/{experiment_id}/threshold-sweep"),
+        ("POST", "/api/v1/experiments/{experiment_id}/refine"),
+        ("GET", "/api/v1/experiments/{experiment_id}/results/attributes"),
+        ("GET", "/api/v1/experiments/{experiment_id}/results/records"),
+        (
+            "GET",
+            "/api/v1/experiments/{experiment_id}/results/distributions/{attribute_name}",
+        ),
+        ("POST", "/api/v1/experiments/{experiment_id}/results/record"),
+        # Eval: both routes build or read a WDK strategy in the caller's account.
+        ("POST", "/api/v1/eval/build-gold"),
+        ("POST", "/api/v1/eval/strategy-gene-ids"),
+    }
+)
+
+# Routes that can reach WDK without the gate, and the reason each one may.
+UNGATED_BUT_REACHES_WDK: dict[tuple[str, str], str] = {
+    (
+        "DELETE",
+        "/api/v1/conversations/{strategyId:uuid}",
+    ): "The WDK delete is opt-in (deleteFromWdk) and best-effort; gating the "
+    "route would stop a signed-out user removing their own local rows.",
+    (
+        "DELETE",
+        "/api/v1/user/data",
+    ): "Same shape: the WDK purge is opt-in (deleteWdk) and best-effort, and "
+    "the local purge must run either way.",
+    (
+        "POST",
+        "/api/v1/conversations/strategy-ast/normalize",
+    ): "Reads parameter metadata, which is the same for every user.",
+    (
+        "GET",
+        "/api/v1/sites/{siteId}/record-types",
+    ): "User-independent catalog read.",
+    ("GET", "/api/v1/sites/{siteId}/searches"): "User-independent catalog read.",
+    ("GET", "/api/v1/sites/{site_id}/organisms"): "User-independent vocabulary read.",
+    ("GET", "/api/v1/sites/{site_id}/genes/search"): "User-independent answer read.",
+    ("POST", "/api/v1/sites/{site_id}/genes/resolve"): "User-independent answer read.",
+    (
+        "POST",
+        "/api/v1/sites/{siteId}/searches/{recordType}/{searchName}/validate",
+    ): "User-independent parameter metadata read.",
+    (
+        "POST",
+        "/api/v1/sites/{siteId}/searches/{recordType}/{searchName}/param-specs",
+    ): "User-independent parameter metadata read.",
+    (
+        "POST",
+        "/api/v1/sites/{siteId}/searches/{recordType}/{searchName}/refreshed-dependent-params",
+    ): "User-independent parameter metadata read.",
+    (
+        "GET",
+        "/api/v1/veupathdb/auth/status",
+    ): "Reads the caller's own WDK session, and answers 'signed out' when the "
+    "request carries no token.",
+    (
+        "POST",
+        "/api/v1/veupathdb/auth/login",
+    ): "Obtains the token the gate requires; gating it would deadlock.",
+    ("POST", "/api/v1/veupathdb/auth/logout"): "Ends the session the token names.",
+    (
+        "POST",
+        "/api/v1/veupathdb/auth/refresh",
+    ): "Re-derives the internal token from a live VEuPathDB session.",
+}
+
+
+@pytest.fixture(scope="module")
+def app() -> FastAPI:
+    return create_app()
+
+
+def _carries_gate(dependant: Dependant) -> bool:
+    return any(
+        sub.call is require_registered_wdk_identity or _carries_gate(sub)
+        for sub in dependant.dependencies
+    )
+
+
+def _gated_routes(app: FastAPI) -> set[tuple[str, str]]:
+    return {
+        (method, route.path)
+        for route in app.routes
+        if isinstance(route, APIRoute) and _carries_gate(route.dependant)
+        for method in route.methods - {"HEAD", "OPTIONS"}
+    }
+
+
+def _all_routes(app: FastAPI) -> set[tuple[str, str]]:
+    return {
+        (method, route.path)
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        for method in route.methods - {"HEAD", "OPTIONS"}
+    }
+
+
+def test_exactly_the_listed_routes_require_a_registered_login(app: FastAPI) -> None:
+    gated = _gated_routes(app)
+
+    assert sorted(gated - GATED) == [], (
+        "routes gained the gate without joining the list"
+    )
+    assert sorted(GATED - gated) == [], "listed routes no longer carry the gate"
+
+
+def test_every_listed_route_still_exists(app: FastAPI) -> None:
+    registered = _all_routes(app)
+    missing = sorted((GATED | UNGATED_BUT_REACHES_WDK.keys()) - registered)
+
+    assert missing == [], f"the list names routes the app no longer serves: {missing}"
+
+
+def test_no_exception_is_secretly_gated(app: FastAPI) -> None:
+    """An exception that gained the gate is a reason nobody needs any more."""
+    gated = _gated_routes(app)
+    stale = sorted(UNGATED_BUT_REACHES_WDK.keys() & gated)
+
+    assert stale == [], f"exceptions that now carry the gate: {stale}"

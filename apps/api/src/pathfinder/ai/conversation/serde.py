@@ -15,7 +15,13 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
 
 from pathfinder.ai.agents.state import SearchOverview
-from pathfinder.ai.graph.state import PhaseDisposition, VerificationDigest
+from pathfinder.ai.graph.state import (
+    PendingApproval,
+    PhaseDisposition,
+    SubAgentApprovalCall,
+    SubAgentApprovalPending,
+    VerificationDigest,
+)
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.build_outcome import BuildOutcome, NodeResult
@@ -40,6 +46,9 @@ CHECKPOINT_MSGPACK_TYPES: tuple[type, ...] = (
     OperationalSpec,
     StaleBuild,
     TextUIPart,
+    PendingApproval,
+    SubAgentApprovalPending,
+    SubAgentApprovalCall,
 )
 
 

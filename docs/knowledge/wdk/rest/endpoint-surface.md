@@ -59,7 +59,7 @@ and the WDK service base returns 404 for it.
 
 | Method | Path | Purpose | Request | Response | PathFinder client |
 |---|---|---|---|---|---|
-| GET | `/users/current` | Resolve the requesting identity | - | `User` with `id`, `isGuest` | `strategy_api/helpers.py:resolve_wdk_user_id`, `auth_login.py:mint_guest_token`, and `transport/http/routers/veupathdb_auth.py:_resolve_veupathdb_email` and `:_fetch_wdk_user` |
+| GET | `/users/current` | Resolve the requesting identity | - | `User` with `id`, `isGuest` | `strategy_api/helpers.py:resolve_wdk_user_id` and `services/wdk_identity.py:fetch_wdk_user` |
 | POST | `/login` | Exchange email and password for an `Authorization` token | `{email, password, redirectUrl}` | `{success, message, redirectUrl}` plus `Set-Cookie: Authorization` | `auth_login.py:password_login` |
 | GET | `/logout` | Invalidate and issue a fresh guest token | - | redirect plus new guest cookie | `transport/http/routers/veupathdb_auth.py:logout` |
 | POST | `/users` | Register a new user | registration form | `{id}` | unused, and must stay so |

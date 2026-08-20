@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import JSONB, array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import ControlSet
+from pathfinder.platform.context import calling_application
 
 
 @dataclass
@@ -43,8 +44,15 @@ class ControlSetRepository:
         tags: list[str] | None = None,
         limit: int = 100,
     ) -> list[ControlSet]:
-        """List control sets for a site, including public ones and user-owned."""
-        conditions = [ControlSet.site_id == site_id]
+        """List control sets for a site, including public ones and user-owned.
+
+        A public set is public to the application that holds it, not to every
+        application.
+        """
+        conditions = [
+            ControlSet.site_id == site_id,
+            ControlSet.application_id == calling_application(),
+        ]
         if user_id is not None:
             conditions.append(
                 or_(ControlSet.is_public.is_(True), ControlSet.user_id == user_id)

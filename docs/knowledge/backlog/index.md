@@ -20,9 +20,7 @@ and values; none has a fix yet.
 - [Revert succeeds on the server but the client keeps the reverted turns until reload](revert-does-not-truncate-client-thread.md) - two contradictory answers on one screen
 - [The agent cannot find a saved strategy by name or id, and builds the leftover criterion alone](agent-cannot-see-saved-strategy-library.md) - 187K-token frame to ask for an id; given the id, a 1-step decoy strategy is built
 - [Enrichment "N genes analyzed" shows a term's background count](enrichment-genes-analyzed-shows-background-count.md) - 46-gene set reports 217 analyzed; percentInResult on the wire is result over background
-- [Workbench Evaluate/Batch/Benchmark/seed/sweep streams POST without X-Requested-With and get 403](workbench-experiment-streams-fail-csrf-403.md) - "stream failed: 403"; every experiment surface is unusable from the browser
 - [Every scored variant fails at persist time (typed ParamValues into WDKSearchConfig) and the UI prints pydantic dumps](scored-comparison-single-mode-persists-typed-params.md) - materialization single-mode branch skips encode_params; Lead then says "no control set" falsely
-- [A queued or long-running turn streams no heartbeat, so the client shows "Failed to fetch" and a retry queues a duplicate turn](worker-serializes-all-turns-and-client-gives-up.md) - worker concurrency and per-conversation locking are done; the SSE "queued"/keep-alive half remains
 - [One failed tool call leaves an output-error part the request parser refuses, and the conversation can never send again](output-error-tool-part-bricks-conversation-on-resend.md) - differential_sides max 2 fails a 3-way compare; resultProviderMetadata is not accepted by pydantic-ai's ToolOutputErrorPart
 - [The worker heartbeat stalls during a turn and the whole UI shows "Some services failed to start"](worker-heartbeat-starves-during-turn-and-ui-gate-goes-fatal.md) - heartbeat 153 s stale mid-frame; 30 s window; fatal gate on every page load
 - [A clarification turn forgets the original request and asks for the motif the user already gave](clarification-turn-forgets-the-original-request.md) - organism silently became Aedes aegypti; RNA-Seq and GO dropped; 297K-token frame
@@ -31,6 +29,9 @@ and values; none has a fix yet.
 
 ## Chat
 
+- [26 e2e specs still fail after the auth overhaul, in four clusters, while every worker turn succeeds](e2e-suite-residual-failures-after-auth-overhaul.md) - 94 passed / 26 failed on the isolated stack; strategy-UI, deletion, durable-SSE and one never-run auth spec; two product bugs already fixed on the way (open committed before response; refresh keeps a valid session)
+
+- [A failed turn shows "Response failed" while it streams, and nothing at all after a reload](failed-turn-shows-no-error-after-reload.md) - neither reducer turns the `error` chunk into a part; the nine-chunk log reduces to two parts on both sides
 - [FRAME's tool budget does not scale with the problem](frame-budget-does-not-scale.md) - nine criteria do not fit in 60 calls, and the bound ones are discarded
 
 ## Agents
@@ -38,8 +39,6 @@ and values; none has a fix yet.
 - [A numeric bound stated in the request is ignored, then reported as honoured](numeric-intent-ignored-then-reported-as-honoured.md) - the resolution half is closed; a reply can still restate a bound value with an interpretation the value does not support
 
 - [No way for a user to authorise defaults](frame-ignores-use-defaults.md) - the slots now fill, but "pick something sensible" still has no mechanism and an assumed value is only narrated, not recorded
-
-- [An approval-required tool inside a sub-agent never reaches the user](sub-agent-tool-approvals-never-reach-the-user.md) - no tool-approval-request chunk for optimize_search_parameters, delete_step or clear_strategy; verify_strategy ends in TypeError and recover_failed_steps returns an empty delta
 
 ## WDK integration
 

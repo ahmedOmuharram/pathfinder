@@ -1,0 +1,314 @@
+"""The requests the authorization matrix issues, and the resources they need."""
+
+from __future__ import annotations
+
+from pathfinder.tests.integration.http._authz_matrix_support import (
+    CONTROL_SET,
+    CONVERSATION,
+    EXPERIMENT,
+    GENE_IDS,
+    GENE_SET,
+    MEMORY,
+    MEMORY_KIND,
+    ROOT_STEP_ID,
+    SITE_ID,
+    Case,
+    Owned,
+)
+from pathfinder.tests.integration.http.conftest import chat_body
+
+_CONV = frozenset({CONVERSATION.name})
+_EXP = frozenset({EXPERIMENT.name})
+_GS = frozenset({GENE_SET.name})
+_CS = frozenset({CONTROL_SET.name})
+_MEM = frozenset({MEMORY.name})
+_PRIMARY_KEY = {"primaryKey": [{"name": "source_id", "value": GENE_IDS[0]}]}
+
+
+def _conversation_cases(owned: Owned) -> tuple[Case, ...]:
+    conv = str(owned.conversation_id)
+    base = f"/api/v1/conversations/{conv}"
+    notes = f"{base}/scratchpad/notes/{owned.note_id}"
+    site = f"?siteId={SITE_ID}"
+    return (
+        Case(
+            "POST",
+            "/api/v1/chat",
+            "/api/v1/chat",
+            _CONV,
+            chat_body(owned.conversation_id),
+        ),
+        Case(
+            "PATCH",
+            "/api/v1/conversations/{strategyId:uuid}",
+            base,
+            _CONV,
+            {"name": "renamed by an intruder"},
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{strategyId:uuid}/fork",
+            f"{base}/fork",
+            _CONV,
+            {"fromMessageId": str(owned.message_id)},
+        ),
+        Case("DELETE", "/api/v1/conversations/{strategyId:uuid}", base, _CONV),
+        Case(
+            "POST",
+            "/api/v1/conversations/{strategyId:uuid}/restore",
+            f"{base}/restore",
+            _CONV,
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id}/begin",
+            f"{base}/begin",
+            _CONV,
+            {"siteId": SITE_ID},
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{strategyId:uuid}/operations",
+            f"{base}/operations{site}",
+            _CONV,
+            {"op": {"kind": "updateStrategyMeta", "name": "renamed by an intruder"}},
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/open",
+            "/api/v1/conversations/open",
+            _CONV,
+            {"conversationId": conv, "siteId": SITE_ID},
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id}/dismiss",
+            f"{base}/dismiss",
+            _CONV,
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id}/duplicate",
+            f"{base}/duplicate",
+            _CONV,
+        ),
+        Case(
+            "PATCH",
+            "/api/v1/conversations/{conversation_id}/scratchpad/notes/{note_id}",
+            notes,
+            _CONV,
+            {"pinned": True},
+        ),
+        Case(
+            "DELETE",
+            "/api/v1/conversations/{conversation_id}/scratchpad/notes/{note_id}",
+            notes,
+            _CONV,
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id}/revert-to-message",
+            f"{base}/revert-to-message",
+            _CONV,
+            {"messageId": str(owned.message_id)},
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id:uuid}/save-substrategy",
+            f"{base}/save-substrategy{site}",
+            _CONV,
+            {"stepId": ROOT_STEP_ID, "name": "stolen subtree"},
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id:uuid}/insert-saved",
+            f"{base}/insert-saved{site}",
+            _CONV,
+            {"targetStepId": ROOT_STEP_ID, "savedWdkStrategyId": 1},
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id}/turns/{turn_id}/cancel",
+            f"{base}/turns/{owned.turn_id}/cancel",
+            _CONV,
+        ),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id}/cancel",
+            f"{base}/cancel",
+            _CONV,
+        ),
+        Case(
+            "POST",
+            "/api/v1/eval/strategy-gene-ids",
+            "/api/v1/eval/strategy-gene-ids",
+            _CONV,
+            {"strategyId": conv, "siteId": SITE_ID},
+        ),
+    )
+
+
+def _experiment_cases(owned: Owned) -> tuple[Case, ...]:
+    first, second = owned.experiment_ids
+    base = f"/api/v1/experiments/{first}"
+    both = [first, second]
+    # A conversation id nobody holds yet, so the experiment is the only
+    # foreign resource in the request.
+    fresh = str(owned.unclaimed_conversation_id)
+    chat = chat_body(owned.unclaimed_conversation_id) | {"experimentId": first}
+    return (
+        Case("POST", "/api/v1/chat", "/api/v1/chat", _EXP, chat),
+        Case(
+            "POST",
+            "/api/v1/conversations/{conversation_id}/begin",
+            f"/api/v1/conversations/{fresh}/begin",
+            _EXP,
+            {"siteId": SITE_ID, "experimentId": first},
+        ),
+        Case("DELETE", "/api/v1/experiments/{experiment_id}", base, _EXP),
+        Case(
+            "PATCH",
+            "/api/v1/experiments/{experiment_id}",
+            base,
+            _EXP,
+            {"notes": "annotated by an intruder"},
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/{experiment_id}/cross-validate",
+            f"{base}/cross-validate",
+            _EXP,
+            {"kFolds": 2},
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/{experiment_id}/custom-enrich",
+            f"{base}/custom-enrich",
+            _EXP,
+            {"geneIds": list(GENE_IDS), "geneSetName": "intruder set"},
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/{experiment_id}/enrich",
+            f"{base}/enrich",
+            _EXP,
+            {"enrichmentTypes": ["go_function"]},
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/{experiment_id}/re-evaluate",
+            f"{base}/re-evaluate",
+            _EXP,
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/{experiment_id}/refine",
+            f"{base}/refine",
+            _EXP,
+            {"action": "transform", "transformName": "GeneTranscript"},
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/{experiment_id}/results/record",
+            f"{base}/results/record",
+            _EXP,
+            _PRIMARY_KEY,
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/{experiment_id}/threshold-sweep",
+            f"{base}/threshold-sweep",
+            _EXP,
+            {"parameterName": "organism", "sweepType": "numeric", "values": ["1"]},
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/overlap",
+            "/api/v1/experiments/overlap",
+            _EXP,
+            {"experimentIds": both},
+        ),
+        Case(
+            "POST",
+            "/api/v1/experiments/enrichment-compare",
+            "/api/v1/experiments/enrichment-compare",
+            _EXP,
+            {"experimentIds": both, "analysisType": "go_function"},
+        ),
+    )
+
+
+def _gene_set_cases(owned: Owned) -> tuple[Case, ...]:
+    first, second = owned.gene_set_ids
+    base = f"/api/v1/gene-sets/{first}"
+    return (
+        Case("DELETE", "/api/v1/gene-sets/{gene_set_id}", base, _GS),
+        Case(
+            "POST",
+            "/api/v1/gene-sets/{gene_set_id}/enrich",
+            f"{base}/enrich",
+            _GS,
+            {"enrichmentTypes": ["go_function"]},
+        ),
+        Case(
+            "POST",
+            "/api/v1/gene-sets/{gene_set_id}/export",
+            f"{base}/export",
+            _GS,
+        ),
+        Case(
+            "POST",
+            "/api/v1/gene-sets/{gene_set_id}/results/record",
+            f"{base}/results/record",
+            _GS,
+            _PRIMARY_KEY,
+        ),
+        Case(
+            "POST",
+            "/api/v1/gene-sets/{gene_set_id}/retake",
+            f"{base}/retake",
+            _GS,
+        ),
+        Case(
+            "POST",
+            "/api/v1/gene-sets/ensemble",
+            "/api/v1/gene-sets/ensemble",
+            _GS,
+            {"geneSetIds": [first, second], "positiveControls": [GENE_IDS[0]]},
+        ),
+        Case(
+            "POST",
+            "/api/v1/gene-sets/operations",
+            "/api/v1/gene-sets/operations",
+            _GS,
+            {
+                "setAId": first,
+                "setBId": second,
+                "operation": "union",
+                "name": "stolen union",
+            },
+        ),
+    )
+
+
+def cases(owned: Owned) -> tuple[Case, ...]:
+    memory = f"/api/v1/memories/{owned.memory_key}?kind={MEMORY_KIND}"
+    return (
+        *_conversation_cases(owned),
+        *_experiment_cases(owned),
+        *_gene_set_cases(owned),
+        Case(
+            "DELETE",
+            "/api/v1/control-sets/{control_set_id}",
+            f"/api/v1/control-sets/{owned.control_set_id}",
+            _CS,
+        ),
+        Case(
+            "PATCH",
+            "/api/v1/memories/{key}",
+            memory,
+            _MEM,
+            {"name": "renamed by an intruder"},
+        ),
+        Case("DELETE", "/api/v1/memories/{key}", memory, _MEM),
+    )

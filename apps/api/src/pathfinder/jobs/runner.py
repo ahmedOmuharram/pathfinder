@@ -32,7 +32,11 @@ from pathfinder.ai.graph._llm_capture import capture_llm
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
-from pathfinder.jobs.auth_context import attach_user_id, attach_wdk_auth
+from pathfinder.jobs.auth_context import (
+    attach_conversation_application,
+    attach_user_id,
+    attach_wdk_auth,
+)
 from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runtime import build_worker_runtime_context
@@ -107,6 +111,7 @@ async def _run_durable_task_inner(
     try:
         async with (
             attach_wdk_auth(veupathdb_auth_token),
+            attach_conversation_application(chat_uuid),
             lifespan_memory_store(settings.database_url) as raw_memory,
         ):
             mem_store = MemoryStore(store=raw_memory)
@@ -269,6 +274,7 @@ async def _resume_graph(
     settings = get_settings()
     async with (
         attach_wdk_auth(veupathdb_auth_token),
+        attach_conversation_application(UUID(thread_id)),
         lifespan_checkpointer(settings.database_url) as saver,
         lifespan_memory_store(settings.database_url) as raw_memory,
     ):

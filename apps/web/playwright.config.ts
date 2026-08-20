@@ -15,20 +15,26 @@ const isCI = Boolean(process.env["CI"]);
  *        -f docker-compose.e2e.yml \
  *        up -d --build api web
  *
- * 2. Run the tests:
+ * 2. Export the registered VEuPathDB token and run the tests:
  *
+ *      export WDK_TEST_TOKEN=...   # from .env.dev; never printed or committed
  *      yarn test:e2e
  *
  * ## CI
  *
- * The GitHub Actions workflow starts both servers and sets PLAYWRIGHT_BASE_URL.
+ * The GitHub Actions workflow starts both servers and sets PLAYWRIGHT_BASE_URL
+ * and WDK_TEST_TOKEN.
  *
- * ## Worker isolation
+ * ## Authentication
  *
- * Each Playwright worker authenticates as a unique user via
- * `/dev/login?user_id=worker-{N}`. This means parallel workers never
- * share gene sets, strategies, or conversations — `clearAllGeneSets`
- * only affects the calling worker's user.
+ * VEuPathDB refuses guest service calls, so every worker acts as the registered
+ * account: `e2e/fixtures/test.ts` puts `WDK_TEST_TOKEN` in the `Authorization`
+ * cookie of the per-worker storage state (`e2e/.auth/worker-{N}.json`), which is
+ * the token the API forwards to WDK. PathFinder identity stays per worker via
+ * `/dev/login?user_id=worker-{N}`, so parallel workers never share gene sets,
+ * strategies, or conversations: `clearAllGeneSets` only affects the calling
+ * worker's user. The postcondition client in `e2e/fixtures/api-client.ts` copies
+ * the whole browser cookie jar, so it carries both cookies too.
  */
 export default defineConfig({
   testDir: "./e2e",

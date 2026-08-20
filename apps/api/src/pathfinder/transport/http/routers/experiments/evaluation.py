@@ -1,6 +1,6 @@
 """Evaluation endpoints: re-evaluate, threshold-sweep, export."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from pathfinder.platform.types import JSONObject
@@ -11,7 +11,11 @@ from pathfinder.services.experiment.sweep_service import (
     generate_sweep_events,
     validate_sweep_parameter,
 )
-from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    ExperimentDep,
+    require_registered_wdk_identity,
+)
 from pathfinder.transport.http.schemas.experiments import ThresholdSweepRequest
 from pathfinder.transport.http.sse_utils import (
     SSE_RESPONSES,
@@ -21,7 +25,10 @@ from pathfinder.transport.http.sse_utils import (
 router = APIRouter()
 
 
-@router.post("/{experiment_id}/re-evaluate")
+@router.post(
+    "/{experiment_id}/re-evaluate",
+    dependencies=[Depends(require_registered_wdk_identity)],
+)
 async def re_evaluate_experiment(
     exp: ExperimentDep, user_id: CurrentUser
 ) -> JSONObject:
@@ -29,7 +36,11 @@ async def re_evaluate_experiment(
     return await re_evaluate(exp)
 
 
-@router.post("/{experiment_id}/threshold-sweep", responses=SSE_RESPONSES)
+@router.post(
+    "/{experiment_id}/threshold-sweep",
+    responses=SSE_RESPONSES,
+    dependencies=[Depends(require_registered_wdk_identity)],
+)
 async def threshold_sweep(
     exp: ExperimentDep,
     request: ThresholdSweepRequest,

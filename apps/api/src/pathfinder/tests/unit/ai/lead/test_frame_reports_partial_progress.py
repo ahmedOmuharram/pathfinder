@@ -7,7 +7,7 @@ tells the Lead to start again.
 
 from __future__ import annotations
 
-from pathfinder.ai.lead.sub_agent_dispatch import frame_result_from_draft
+from pathfinder.ai.lead.dispatch_messages import frame_result_from_draft
 from pathfinder.domain.strategy.operational_spec import Criterion, OperationalSpec
 
 

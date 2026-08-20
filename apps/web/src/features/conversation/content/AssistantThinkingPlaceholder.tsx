@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuiState, type MessageState } from "@assistant-ui/react";
+import { useAuiState } from "@assistant-ui/react";
 
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { ProviderIcon } from "@/lib/components/ProviderIcon";
@@ -13,11 +13,18 @@ interface TurnStatusData {
   model?: unknown;
 }
 
-function turnStatusData(part: {
+interface StatusPart {
   type: string;
-  name?: string;
+  name?: string | undefined;
   data?: unknown;
-}): TurnStatusData | null {
+}
+
+interface StatusCarrier {
+  status?: { type: string } | undefined;
+  content: readonly StatusPart[];
+}
+
+function turnStatusData(part: StatusPart): TurnStatusData | null {
   const isTurnStatus =
     part.type === "data-turn-status" ||
     (part.type === "data" &&
@@ -32,7 +39,7 @@ function turnStatusData(part: {
 // (React #185). The status stays visible for the whole running turn, tracking
 // the latest data-turn-status label instead of hiding once tool calls or text
 // start.
-function selectStatusLabel(m: MessageState | undefined): string | null {
+export function selectStatusLabel(m: StatusCarrier | undefined): string | null {
   if (m == null || m.status?.type !== "running") return null;
   let label = DEFAULT_LABEL;
   for (const part of m.content) {
@@ -44,7 +51,7 @@ function selectStatusLabel(m: MessageState | undefined): string | null {
   return label;
 }
 
-function selectStatusModel(m: MessageState | undefined): string | null {
+function selectStatusModel(m: StatusCarrier | undefined): string | null {
   if (m == null || m.status?.type !== "running") return null;
   let model: string | null = null;
   for (const part of m.content) {

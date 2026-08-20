@@ -11,7 +11,12 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from uuid import UUID
 
-from pathfinder.platform.context import user_id_ctx, veupathdb_auth_token_ctx
+from pathfinder.platform.context import (
+    application_id_ctx,
+    user_id_ctx,
+    veupathdb_auth_token_ctx,
+)
+from pathfinder.services.conversations.authz import conversation_application_id
 
 
 @asynccontextmanager
@@ -34,4 +39,28 @@ async def attach_user_id(user_id: UUID | None) -> AsyncIterator[None]:
         user_id_ctx.reset(reset)
 
 
-__all__ = ["attach_user_id", "attach_wdk_auth"]
+@asynccontextmanager
+async def attach_conversation_application(
+    conversation_id: UUID,
+) -> AsyncIterator[None]:
+    """Run the block as the application that holds ``conversation_id``.
+
+    The conversation row is the only record of which application a turn
+    belongs to, so a job that cannot read it must not run.
+    """
+    application_id = await conversation_application_id(conversation_id)
+    if application_id is None:
+        msg = f"conversation {conversation_id} not found"
+        raise LookupError(msg)
+    reset = application_id_ctx.set(application_id)
+    try:
+        yield
+    finally:
+        application_id_ctx.reset(reset)
+
+
+__all__ = [
+    "attach_conversation_application",
+    "attach_user_id",
+    "attach_wdk_auth",
+]

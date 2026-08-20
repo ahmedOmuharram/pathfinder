@@ -5,14 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 
-import { toast } from "sonner";
-
 import { AppNavRail } from "@/app/components/AppNavRail";
 import { AppShellError } from "@/app/components/AppShellError";
 import { EmbeddedToolbar } from "@/app/components/EmbeddedToolbar";
 import { LoadingScreen } from "@/app/components/LoadingScreen";
-import { LoginModal } from "@/app/components/LoginModal";
 import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
+import { VeupathdbSignInGate } from "@/app/components/VeupathdbSignInGate";
 import { TopBar } from "@/app/components/TopBar";
 import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
 import { useAutoCollapseSidebar } from "@/app/hooks/useAutoCollapseSidebar";
@@ -24,7 +22,7 @@ import { ConversationSidebar } from "@/features/sidebar/components/ConversationS
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
-import { setQueryErrorHandler } from "@/lib/query/client";
+import { requiresFullScreenSignIn } from "@/state/useAuthGateStore";
 import { useLeftSidebarStore } from "@/state/useRightRailStore";
 import { useSessionStore } from "@/state/useSessionStore";
 
@@ -75,10 +73,6 @@ function AppShellInner({
   useSiteTheme(selectedSite);
   const { setupRequired, retry: retryConfig } = useSystemConfig();
 
-  setQueryErrorHandler((notice) => {
-    toast.error(notice.message);
-  });
-
   const { layoutRef, sidebarWidth, isDragging, startDragging } = useSidebarResize();
   const leftCollapsed = useLeftSidebarStore((s) => s.collapsed);
   const toggleLeft = useLeftSidebarStore((s) => s.toggle);
@@ -91,21 +85,23 @@ function AppShellInner({
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
 
-  if (!embedded && !veupathdbSignedIn) {
-    return (
-      <LoginModal open selectedSite={selectedSite} onSiteChange={handleSiteChange} />
-    );
-  }
+  const forcedSignIn = requiresFullScreenSignIn({
+    embedded,
+    signedIn: veupathdbSignedIn,
+  });
+  const signInGate = (
+    <VeupathdbSignInGate
+      forced={forcedSignIn}
+      selectedSite={selectedSite}
+      onSiteChange={handleSiteChange}
+    />
+  );
+
+  if (forcedSignIn) return signInGate;
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
-      {!embedded && (
-        <LoginModal
-          open={!veupathdbSignedIn}
-          selectedSite={selectedSite}
-          onSiteChange={handleSiteChange}
-        />
-      )}
+      {signInGate}
       {embedded ? (
         <EmbeddedToolbar siteId={selectedSite} onOpenSettings={modals.openSettings} />
       ) : (

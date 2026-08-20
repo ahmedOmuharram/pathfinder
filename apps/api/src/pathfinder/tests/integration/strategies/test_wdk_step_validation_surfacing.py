@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import contextlib
-import os
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.parameters.values import MultiPickValue, StringValue
@@ -23,7 +21,6 @@ from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.spec_build import build_strategy_from_spec
 from pathfinder.services.strategies.sync_state import ensure_sync_state
-from pathfinder.tests.integration.strategies.conftest import _real_account_token
 
 pytestmark = [pytest.mark.live_wdk, pytest.mark.asyncio]
 
@@ -52,18 +49,13 @@ class _Built:
 
 @pytest.fixture
 async def built_union(
-    app: FastAPI,
+    require_wdk_creds: str,
     patch_app_db_engine: None,
     session_maker: async_sessionmaker[AsyncSession],
     db_cleaner: None,
 ) -> AsyncGenerator[_Built]:
     del patch_app_db_engine, db_cleaner
-    email = os.environ.get("WDK_TEST_EMAIL", "")
-    password = os.environ.get("WDK_TEST_PASSWORD", "")
-    if not email or not password:
-        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
-    token = await _real_account_token(app, email, password)
-    reset = veupathdb_auth_token_ctx.set(token)
+    reset = veupathdb_auth_token_ctx.set(require_wdk_creds)
     created: list[int] = []
     user_id, conv_id = uuid4(), uuid4()
     async with session_maker() as session:
@@ -104,10 +96,7 @@ async def built_union(
         veupathdb_auth_token_ctx.reset(reset)
 
 
-async def test_wdk_step_validations_fetched_live(
-    require_wdk_creds: None, built_union: _Built
-) -> None:
-    del require_wdk_creds
+async def test_wdk_step_validations_fetched_live(built_union: _Built) -> None:
     sync_state = ensure_sync_state(built_union.deps.strategy_session)
     validations = sync_state.step_validations
     assert set(validations) == {"kinase", "phosphatase", "combine"}
@@ -116,9 +105,8 @@ async def test_wdk_step_validations_fetched_live(
 
 
 async def test_wdk_step_validations_surfaced_in_persisted_ast(
-    require_wdk_creds: None, built_union: _Built
+    built_union: _Built,
 ) -> None:
-    del require_wdk_creds
     async with built_union.session_maker() as session:
         conv = await session.get(Conversation, built_union.conv_id)
         assert conv is not None

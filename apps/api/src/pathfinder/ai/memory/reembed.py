@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from uuid import UUID
 
 from pydantic import TypeAdapter
@@ -21,16 +22,17 @@ async def reembed_all_memories(store: MemoryStore) -> int:
     of memories re-embedded.
     """
     namespaces = await store.store.alist_namespaces(
-        prefix=("user",), limit=_NAMESPACE_PAGE
+        prefix=("app",), limit=_NAMESPACE_PAGE
     )
     count = 0
     for namespace in namespaces:
-        _, user_id_raw, kind_raw = namespace
+        _, application_id, _, user_id_raw, kind_raw = namespace
         user_id = UUID(user_id_raw)
         kind = _KIND_ADAPTER.validate_python(kind_raw)
-        for stored in await store.list_all(
+        scoped = dataclasses.replace(store, application_id=application_id)
+        for stored in await scoped.list_all(
             user_id=user_id, kind=kind, limit=_NAMESPACE_PAGE
         ):
-            await store.put(user_id=user_id, value=stored.value, key=stored.key)
+            await scoped.put(user_id=user_id, value=stored.value, key=stored.key)
             count += 1
     return count

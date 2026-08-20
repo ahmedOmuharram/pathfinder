@@ -4,25 +4,21 @@ import { request } from "@playwright/test";
 /**
  * Create an authenticated API client for postcondition verification.
  *
- * Copies cookies from the browser context so the API client shares
- * the same auth session. This client is for ASSERTING server-side
- * state after UI actions — never for setup.
+ * Takes the browser context's whole storage state, so the client carries both
+ * `pathfinder-auth` (PathFinder identity) and `Authorization` (the registered
+ * VEuPathDB token every WDK-backed route needs). This client is for ASSERTING
+ * server-side state after UI actions, never for setup.
  */
 export async function createApiClient(
   context: BrowserContext,
   baseURL: string,
 ): Promise<APIRequestContext> {
-  const cookies = await context.cookies();
-  const authCookie = cookies.find((c) => c.name === "pathfinder-auth");
-
   // Mutations require the CSRF header (`csrf_middleware` rejects non-GET
   // requests without it), so set it on every request from this client.
   return request.newContext({
     baseURL,
-    extraHTTPHeaders: {
-      "X-Requested-With": "XMLHttpRequest",
-      ...(authCookie ? { Cookie: `pathfinder-auth=${authCookie.value}` } : {}),
-    },
+    storageState: await context.storageState(),
+    extraHTTPHeaders: { "X-Requested-With": "XMLHttpRequest" },
   });
 }
 

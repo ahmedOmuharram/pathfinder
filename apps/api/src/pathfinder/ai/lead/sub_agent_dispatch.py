@@ -1,18 +1,22 @@
 """The Lead Agent's sub-agent dispatch tools.
 
-The six tool wrappers the Lead invokes to run a phase sub-agent (plus the
-``AgentDeps`` construction they share). The streaming/runner machinery they
-call lives in ``sub_agent_tools``.
+The tool wrappers the Lead invokes to run a phase sub-agent, the
+``AgentDeps`` construction they share, and the re-entry that finishes one
+after the user answers an approval.
 """
 
 from __future__ import annotations
 
+from typing import NoReturn
+
 from langgraph.config import get_stream_writer
+from pydantic import BaseModel, ConfigDict
 from pydantic_ai import RunContext
-from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.exceptions import CallDeferred, ModelRetry
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import PendingApproval
 from pathfinder.ai.lead.deltas import (
     ExecuteDelta,
     FrameResult,
@@ -20,11 +24,19 @@ from pathfinder.ai.lead.deltas import (
     VerificationDelta,
 )
 from pathfinder.ai.lead.derive import derive_ledger
+from pathfinder.ai.lead.dispatch_messages import (
+    build_not_ready_message,
+    frame_result_from_draft,
+)
+from pathfinder.ai.lead.sub_agent_stream import (
+    PhaseRun,
+    SubAgentApprovalWait,
+    SubAgentResume,
+    stream_sub_agent,
+)
 from pathfinder.ai.lead.sub_agent_tools import (
     LeadDeps,
-    PhaseRun,
-    _apply_agent_state,
-    _stream_sub_agent,
+    apply_agent_state,
 )
 from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
@@ -75,30 +87,48 @@ def _parent_tool_call_id(ctx: RunContext[LeadDeps]) -> str:
     return ctx.tool_call_id or ""
 
 
-def frame_result_from_draft(spec: OperationalSpec | None) -> FrameResult:
-    """Report a run that ran out of budget by what it managed to bind.
+def _defer_to_user(
+    deps: LeadDeps,
+    tool_call_id: str,
+    wait: SubAgentApprovalWait,
+) -> NoReturn:
+    """End the Lead's run deferred so the user answers the sub-agent's tool."""
+    deps.pending_sub_agent_approvals[tool_call_id] = wait.pending
+    raise CallDeferred
 
-    Every criterion is written into the shared draft as it is bound, so the
-    work is there to report. Saying "no result" discards a usable turn.
-    """
-    bound = [c for c in (spec.criteria if spec else []) if c.bound]
-    if not bound:
-        return FrameResult(
-            disposition="needs_user",
-            summary=(
-                "FRAME ran out of its tool budget with no criteria bound. "
-                "Narrow the goal or state fewer criteria, then try again."
-            ),
-        )
-    names = ", ".join(c.id for c in bound)
-    return FrameResult(
-        disposition="needs_user",
-        summary=(
-            f"FRAME ran out of its tool budget after binding {len(bound)} "
-            f"criteria ({names}). They are kept. Ask it to continue with the "
-            f"rest rather than starting again."
-        ),
+
+async def run_frame(
+    *,
+    deps: LeadDeps,
+    parent_tool_call_id: str,
+    reason: str,
+    expected_criteria: int = 3,
+    resume: SubAgentResume | None = None,
+) -> FrameResult | SubAgentApprovalWait:
+    """Run FRAME and apply its result, on a fresh dispatch or a resumed one."""
+    work_order = (
+        f"FRAME work order: {reason}\n"
+        f"User's goal: {deps.state.user_prompt}\n"
+        "Operationalize into criteria, bind each to a real WDK search, resolve "
+        "params, set the structure. Return a FrameResult."
     )
+    agent_deps = _agent_deps(deps)
+    if not agent_deps.agent_state.operational_spec_draft.goal:
+        agent_deps.agent_state.operational_spec_draft.goal = deps.state.user_prompt
+    delta = await stream_sub_agent(
+        run=PhaseRun("frame", work_order, expected_criteria),
+        agent_deps=agent_deps,
+        parent_tool_call_id=parent_tool_call_id,
+        expected_output_type=FrameResult,
+        deps=deps,
+        resume=resume,
+    )
+    if isinstance(delta, SubAgentApprovalWait):
+        return delta
+    apply_agent_state(deps, agent_deps)
+    if delta is None:
+        return frame_result_from_draft(deps.state.operational_spec)
+    return delta
 
 
 async def frame_problem(
@@ -113,69 +143,16 @@ async def frame_problem(
     ``expected_criteria`` is how many distinct filters the goal states — count
     the "and"s in the request. It sizes FRAME's tool budget, so undercounting a
     large request makes it run out before it binds them all."""
-    deps = ctx.deps
-    work_order = (
-        f"FRAME work order: {reason}\n"
-        f"User's goal: {deps.state.user_prompt}\n"
-        "Operationalize into criteria, bind each to a real WDK search, resolve "
-        "params, set the structure. Return a FrameResult."
+    tool_call_id = _parent_tool_call_id(ctx)
+    result = await run_frame(
+        deps=ctx.deps,
+        parent_tool_call_id=tool_call_id,
+        reason=reason,
+        expected_criteria=expected_criteria,
     )
-    agent_deps = _agent_deps(deps)
-    if not agent_deps.agent_state.operational_spec_draft.goal:
-        agent_deps.agent_state.operational_spec_draft.goal = deps.state.user_prompt
-    delta = await _stream_sub_agent(
-        run=PhaseRun("frame", work_order, expected_criteria),
-        agent_deps=agent_deps,
-        parent_tool_call_id=_parent_tool_call_id(ctx),
-        expected_output_type=FrameResult,
-        deps=deps,
-    )
-    _apply_agent_state(deps, agent_deps)
-    if delta is None:
-        return frame_result_from_draft(deps.state.operational_spec)
-    return delta
-
-
-def build_not_ready_message(spec: OperationalSpec | None) -> str:
-    """Why the spec cannot be built, phrased for what the model can do next.
-
-    Open parameter slots are not a retry. Re-running FRAME regenerates the
-    same slots, so telling the model to "call frame_problem first" sends it
-    round a loop it cannot exit -- only the user can answer. Observed on a
-    real multi-criterion build: FRAME bound all 8 criteria, left 7 open slots, and
-    the Lead re-dispatched instead of asking.
-    """
-    if spec is None or not spec.criteria or spec.structure is None:
-        return (
-            "No OperationalSpec to build yet (no criteria or no structure). "
-            "Call frame_problem first."
-        )
-    if spec.open_slots:
-        slots = "; ".join(
-            f"{slot.param_name}"
-            + (f" -- {slot.question}" if slot.question else "")
-            + (f" (options: {', '.join(slot.options)})" if slot.options else "")
-            for slot in spec.open_slots
-        )
-        return (
-            f"The strategy cannot be built until the user answers "
-            f"{len(spec.open_slots)} open parameter(s): {slots}. "
-            "Do NOT re-frame -- the same slots come back. Ask the user for "
-            "these values in your reply, then build once they answer."
-        )
-    unbound = [c.id for c in spec.criteria if not c.bound]
-    if unbound:
-        return (
-            f"These criteria are not bound to a WDK search: {', '.join(unbound)}. "
-            "Call frame_problem to bind them."
-        )
-    open_params = [
-        f"{c.id}.{slot.param_name}" for c in spec.criteria for slot in c.open_params
-    ]
-    return (
-        f"These criteria still need user-supplied parameters: "
-        f"{', '.join(open_params)}. Ask the user for them, then build."
-    )
+    if isinstance(result, SubAgentApprovalWait):
+        _defer_to_user(ctx.deps, tool_call_id, result)
+    return result
 
 
 async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
@@ -226,18 +203,14 @@ async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     return ExecuteDelta(outcome=outcome)
 
 
-async def recover_failed_steps(
-    ctx: RunContext[LeadDeps],
+async def run_recovery(
+    *,
+    deps: LeadDeps,
+    parent_tool_call_id: str,
     reason: str,
-) -> RecoveryDelta:
-    """Run the LLM execution-recovery sub-agent on a failed build.
-
-    Only valid when ``ledger.build.needs_recovery`` is True and the
-    failure shape is amenable to targeted edits (param replan, partial
-    build). When a criterion needs a different search entirely, the Lead
-    should call ``frame_problem`` again to re-bind the spec instead.
-    """
-    deps = ctx.deps
+    resume: SubAgentResume | None = None,
+) -> RecoveryDelta | SubAgentApprovalWait:
+    """Run recovery and re-sync the build, on a fresh dispatch or a resumed one."""
     outcome = deps.state.last_build_outcome
     if outcome is None:
         msg = "No build outcome to recover from."
@@ -252,22 +225,47 @@ async def recover_failed_steps(
     ]
     work_order = "\n".join(work_order_parts)
     agent_deps = _agent_deps(deps)
-    streamed = await _stream_sub_agent(
+    streamed = await stream_sub_agent(
         run=PhaseRun("execution", work_order),
         agent_deps=agent_deps,
-        parent_tool_call_id=_parent_tool_call_id(ctx),
+        parent_tool_call_id=parent_tool_call_id,
         expected_output_type=RecoveryDelta,
         deps=deps,
+        resume=resume,
     )
-    _apply_agent_state(deps, agent_deps)
+    if isinstance(streamed, SubAgentApprovalWait):
+        return streamed
+    apply_agent_state(deps, agent_deps)
     delta = streamed if streamed is not None else RecoveryDelta()
     deps.state.last_build_outcome = await _resync_outcome(agent_deps, outcome)
     return delta
 
 
+async def recover_failed_steps(
+    ctx: RunContext[LeadDeps],
+    reason: str,
+) -> RecoveryDelta:
+    """Run the LLM execution-recovery sub-agent on a failed build.
+
+    Only valid when ``ledger.build.needs_recovery`` is True and the
+    failure shape is amenable to targeted edits (param replan, partial
+    build). When a criterion needs a different search entirely, the Lead
+    should call ``frame_problem`` again to re-bind the spec instead.
+    """
+    tool_call_id = _parent_tool_call_id(ctx)
+    result = await run_recovery(
+        deps=ctx.deps,
+        parent_tool_call_id=tool_call_id,
+        reason=reason,
+    )
+    if isinstance(result, SubAgentApprovalWait):
+        _defer_to_user(ctx.deps, tool_call_id, result)
+    return result
+
+
 async def _resync_outcome(agent_deps: AgentDeps, prior: BuildOutcome) -> BuildOutcome:
     """Re-derive the BuildOutcome after recovery edits by re-syncing the
-    strategy — the recovery agent no longer emits the outcome itself."""
+    strategy. The recovery agent no longer emits the outcome itself."""
     graph = agent_deps.strategy_session.get_graph(None)
     if graph is None:
         return prior
@@ -293,6 +291,37 @@ async def _resync_outcome(agent_deps: AgentDeps, prior: BuildOutcome) -> BuildOu
     return fresh
 
 
+async def run_verification(
+    *,
+    deps: LeadDeps,
+    parent_tool_call_id: str,
+    reason: str,
+    resume: SubAgentResume | None = None,
+) -> VerificationDelta | SubAgentApprovalWait:
+    """Run verification and record its digest, on a fresh or a resumed dispatch."""
+    work_order = (
+        f"Verification work order: {reason}\n"
+        "Inspect the built strategy. Return a VerificationDelta."
+    )
+    agent_deps = _agent_deps(deps)
+    delta = await stream_sub_agent(
+        run=PhaseRun("verification", work_order),
+        agent_deps=agent_deps,
+        parent_tool_call_id=parent_tool_call_id,
+        expected_output_type=VerificationDelta,
+        deps=deps,
+        resume=resume,
+    )
+    if isinstance(delta, SubAgentApprovalWait):
+        return delta
+    apply_agent_state(deps, agent_deps)
+    if delta is None:
+        msg = "Verification sub-agent did not return a VerificationDelta."
+        raise TypeError(msg)
+    deps.state.verification_digest = delta.digest
+    return delta
+
+
 async def verify_strategy(
     ctx: RunContext[LeadDeps],
     reason: str,
@@ -304,22 +333,62 @@ async def verify_strategy(
     set; control tests on a step or a search; parameter optimization; sample
     records from a result; result export. None of these are Lead tools.
     """
-    deps = ctx.deps
-    work_order = (
-        f"Verification work order: {reason}\n"
-        "Inspect the built strategy. Return a VerificationDelta."
+    tool_call_id = _parent_tool_call_id(ctx)
+    result = await run_verification(
+        deps=ctx.deps,
+        parent_tool_call_id=tool_call_id,
+        reason=reason,
     )
-    agent_deps = _agent_deps(deps)
-    delta = await _stream_sub_agent(
-        run=PhaseRun("verification", work_order),
-        agent_deps=agent_deps,
-        parent_tool_call_id=_parent_tool_call_id(ctx),
-        expected_output_type=VerificationDelta,
-        deps=deps,
-    )
-    _apply_agent_state(deps, agent_deps)
-    if delta is None:
-        msg = "Verification sub-agent did not return a VerificationDelta."
-        raise TypeError(msg)
-    deps.state.verification_digest = delta.digest
-    return delta
+    if isinstance(result, SubAgentApprovalWait):
+        _defer_to_user(ctx.deps, tool_call_id, result)
+    return result
+
+
+class _ReasonArgs(BaseModel):
+    """The ``reason`` every dispatch wrapper takes."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    reason: str = ""
+
+
+class _FrameArgs(_ReasonArgs):
+    expected_criteria: int = 3
+
+
+async def resume_sub_agent(
+    *,
+    deps: LeadDeps,
+    approval: PendingApproval,
+    resume: SubAgentResume,
+) -> FrameResult | RecoveryDelta | VerificationDelta | SubAgentApprovalWait:
+    """Finish the dispatch the user answered, from its own arguments."""
+    call_id = approval.tool_call_id
+    args = dict(approval.tool_args)
+    match approval.tool_name:
+        case "verify_strategy":
+            return await run_verification(
+                deps=deps,
+                parent_tool_call_id=call_id,
+                reason=_ReasonArgs.model_validate(args).reason,
+                resume=resume,
+            )
+        case "recover_failed_steps":
+            return await run_recovery(
+                deps=deps,
+                parent_tool_call_id=call_id,
+                reason=_ReasonArgs.model_validate(args).reason,
+                resume=resume,
+            )
+        case "frame_problem":
+            frame_args = _FrameArgs.model_validate(args)
+            return await run_frame(
+                deps=deps,
+                parent_tool_call_id=call_id,
+                reason=frame_args.reason,
+                expected_criteria=frame_args.expected_criteria,
+                resume=resume,
+            )
+        case _:
+            msg = f"No sub-agent dispatch named {approval.tool_name!r} to resume."
+            raise RuntimeError(msg)

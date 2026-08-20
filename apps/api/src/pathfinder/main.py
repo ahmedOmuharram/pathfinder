@@ -44,6 +44,7 @@ from pathfinder.platform.error_handlers import (
 )
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger, setup_logging
+from pathfinder.platform.principal import SERVICE_AUTH_HEADER
 from pathfinder.platform.readiness import get_readiness, reset_readiness
 from pathfinder.platform.security import (
     RejectNullBytesMiddleware,
@@ -231,6 +232,7 @@ def create_app() -> FastAPI:
         allow_headers=[
             "Authorization",
             "Content-Type",
+            SERVICE_AUTH_HEADER,
             "X-Request-ID",
             "X-Requested-With",
             "X-VEUPATHDB-AUTH",

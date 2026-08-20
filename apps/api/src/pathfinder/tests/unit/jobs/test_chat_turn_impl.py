@@ -5,15 +5,18 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.jobs import auth_context as auth_context_mod
 from pathfinder.jobs.impls import chat_turn_impl as chat_turn_impl_mod
 from pathfinder.jobs.impls.chat_turn_impl import run_chat_turn
 from pathfinder.jobs.payloads import ChatTurnPayload
-from pathfinder.platform.context import veupathdb_auth_token_ctx
+from pathfinder.platform.context import application_id_ctx, veupathdb_auth_token_ctx
+
+HOLDING_APPLICATION = "companion"
 
 
 def _body() -> ChatRequestBody:
@@ -57,19 +60,36 @@ def _fake_build_graph(*args: object, **kwargs: object) -> _FakeGraph:
 
 
 class _ObservingRunTurn:
-    """Records the ctxvar value at the moment run_turn is invoked."""
+    """Records the ctxvar values at the moment run_turn is invoked."""
 
     def __init__(self) -> None:
         self.observed_token: str | None | object = _sentinel
+        self.observed_application: str | None = None
         self.call_count = 0
 
     async def __call__(self, **kwargs: Any) -> None:
         del kwargs
         self.observed_token = veupathdb_auth_token_ctx.get()
+        self.observed_application = application_id_ctx.get()
         self.call_count += 1
 
 
 _sentinel = object()
+
+
+async def _holding_application(conversation_id: UUID) -> str:
+    del conversation_id
+    return HOLDING_APPLICATION
+
+
+@pytest.fixture(autouse=True)
+def _conversation_application(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The row lookup the worker uses to name its application."""
+    monkeypatch.setattr(
+        auth_context_mod,
+        "conversation_application_id",
+        _holding_application,
+    )
 
 
 @pytest.mark.asyncio
@@ -101,6 +121,8 @@ async def test_run_chat_turn_sets_ctxvar_from_payload(
 
     assert observer.call_count == 1
     assert observer.observed_token == "user-token-abc"
+    assert observer.observed_application == HOLDING_APPLICATION
+    assert application_id_ctx.get() == "pathfinder"
 
 
 @pytest.mark.asyncio

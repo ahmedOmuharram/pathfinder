@@ -61,6 +61,7 @@ def test_an_enriched_gene_set_reports_the_exact_tail() -> None:
 
     assert result["backgroundSize"] == 200
     assert result["geneSetSize"] == 12
+    assert result["geneSetInBackground"] == 12
     assert result["overlapCount"] == 8
     assert result["tpCount"] == 8
     assert result["foldEnrichment"] == 6.6667
@@ -84,6 +85,7 @@ def test_ids_outside_the_background_take_no_part_in_the_statistics() -> None:
     result = run_custom_enrichment(_experiment(), gene_ids, "panel with strays")
 
     assert result["geneSetSize"] == 18
+    assert result["geneSetInBackground"] == 12
     assert result["overlapCount"] == 8
     assert result["foldEnrichment"] == 6.6667
     assert result["oddsRatio"] == 29.3333
@@ -97,11 +99,46 @@ def test_a_gene_set_larger_than_the_background_is_scored() -> None:
     result = run_custom_enrichment(_experiment(), gene_ids, "genome wide paste")
 
     assert result["geneSetSize"] == 250
+    assert result["geneSetInBackground"] == 5
     assert result["overlapCount"] == 3
     assert result["foldEnrichment"] == 6.0
     assert result["oddsRatio"] == 15.7059
     assert result["pValue"] == pytest.approx(_exact_sf(3, 200, 20, 5), rel=1e-12)
     assert result["pValue"] == pytest.approx(0.0075929263487795814, rel=1e-12)
+
+
+def test_a_set_that_is_exactly_the_result_has_an_unbounded_odds_ratio() -> None:
+    gene_ids = [*_TRUE_POSITIVES, *_FALSE_POSITIVES]
+
+    result = run_custom_enrichment(_experiment(), gene_ids, "the result itself")
+
+    assert result["geneSetInBackground"] == 20
+    assert result["overlapCount"] == 20
+    assert result["oddsRatio"] is None
+
+
+@pytest.mark.parametrize(
+    "gene_ids",
+    [
+        _TRUE_POSITIVES,
+        [*_TRUE_POSITIVES, *_FALSE_POSITIVES, *_FALSE_NEGATIVES[:4]],
+    ],
+    ids=["set inside the result", "set covering the result"],
+)
+def test_an_empty_margin_makes_the_odds_ratio_unbounded(gene_ids: list[str]) -> None:
+    result = run_custom_enrichment(_experiment(), gene_ids, "empty margin panel")
+
+    assert result["oddsRatio"] is None
+
+
+def test_a_set_that_never_meets_the_result_has_a_zero_odds_ratio() -> None:
+    gene_ids = _TRUE_NEGATIVES[:12]
+
+    result = run_custom_enrichment(_experiment(), gene_ids, "no overlap panel")
+
+    assert result["geneSetInBackground"] == 12
+    assert result["overlapCount"] == 0
+    assert result["oddsRatio"] == 0.0
 
 
 @pytest.mark.parametrize("size", [3, 250])
@@ -111,6 +148,8 @@ def test_a_gene_set_outside_the_universe_is_certain(size: int) -> None:
     result = run_custom_enrichment(_experiment(), gene_ids, "unrelated panel")
 
     assert result["geneSetSize"] == size
+    assert result["geneSetInBackground"] == 0
     assert result["overlapCount"] == 0
     assert result["foldEnrichment"] == 0.0
+    assert result["oddsRatio"] == 0.0
     assert result["pValue"] == 1.0

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathfinder.persistence.models import Export
 from pathfinder.platform.context import request_base_url_ctx, user_id_ctx
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.enrichment.ranking import probability_cell, ratio_cell
 from pathfinder.services.enrichment.types import EnrichmentResult
 from pathfinder.services.experiment.types import Experiment
 from pathfinder.services.gene_sets.types import GeneSet
@@ -28,6 +29,44 @@ EXPORT_TTL = timedelta(minutes=10)
 _EXPORT_TTL_SECONDS = int(EXPORT_TTL.total_seconds())
 
 SessionFactory = Callable[[], AsyncSession]
+
+_ENRICHMENT_HEADER = [
+    "analysis_type",
+    "term_id",
+    "term_name",
+    "gene_count",
+    "background_count",
+    "fold_enrichment",
+    "odds_ratio",
+    "p_value",
+    "fdr",
+    "bonferroni",
+    "genes",
+]
+
+
+def enrichment_rows(
+    results: list[EnrichmentResult],
+) -> tuple[list[str], list[list[object]]]:
+    """Build the header and the data rows of an enrichment export."""
+    rows: list[list[object]] = [
+        [
+            result.analysis_type,
+            term.term_id,
+            term.term_name,
+            term.gene_count,
+            term.background_count,
+            ratio_cell(term.fold_enrichment),
+            ratio_cell(term.odds_ratio),
+            probability_cell(term.p_value),
+            probability_cell(term.fdr),
+            probability_cell(term.bonferroni),
+            ";".join(term.genes),
+        ]
+        for result in results
+        for term in result.terms
+    ]
+    return list(_ENRICHMENT_HEADER), rows
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,48 +202,12 @@ class ExportService:
             buf.getvalue().encode("utf-8"), f"{name_part}.csv", "text/csv"
         )
 
-    def _enrichment_rows(
-        self, results: list[EnrichmentResult]
-    ) -> tuple[list[str], list[list[object]]]:
-        """Build header + data rows from enrichment results."""
-        header = [
-            "analysis_type",
-            "term_id",
-            "term_name",
-            "gene_count",
-            "background_count",
-            "fold_enrichment",
-            "odds_ratio",
-            "p_value",
-            "fdr",
-            "bonferroni",
-            "genes",
-        ]
-        rows: list[list[object]] = [
-            [
-                result.analysis_type,
-                term.term_id,
-                term.term_name,
-                term.gene_count,
-                term.background_count,
-                term.fold_enrichment,
-                term.odds_ratio,
-                term.p_value,
-                term.fdr,
-                term.bonferroni,
-                ";".join(term.genes),
-            ]
-            for result in results
-            for term in result.terms
-        ]
-        return header, rows
-
     async def export_enrichment(
         self, results: list[EnrichmentResult], name: str
     ) -> ExportResult:
         """Export enrichment results as CSV."""
         name_part = _sanitize_filename(name or "enrichment")
-        header, rows = self._enrichment_rows(results)
+        header, rows = enrichment_rows(results)
         buf = io.StringIO()
         writer = csv.writer(buf)
         writer.writerow(header)
@@ -219,7 +222,7 @@ class ExportService:
     ) -> ExportResult:
         """Export enrichment results as TSV."""
         name_part = _sanitize_filename(name or "enrichment")
-        header, rows = self._enrichment_rows(results)
+        header, rows = enrichment_rows(results)
         buf = io.StringIO()
         writer = csv.writer(buf, delimiter="\t")
         writer.writerow(header)

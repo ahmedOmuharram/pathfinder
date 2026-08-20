@@ -1,18 +1,19 @@
 """Application configuration using pydantic-settings."""
 
 import tomllib
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from ipaddress import IPv4Address
 from pathlib import Path
 from typing import Literal, get_origin
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
 
+from pathfinder.platform.principal import ServiceTokenRegistry
 from pathfinder.platform.types import ModelProvider, TierName
 
 _API_DIR = Path(__file__).resolve().parents[3]  # apps/api/
@@ -26,6 +27,7 @@ _PLACEHOLDER_SECRET_MARKERS = (
     "example",
 )
 _ALLOWED_CHAT_PROVIDERS = {"default", "mock"}
+_DEFAULT_VEUPATHDB_OAUTH_URL = "https://auth.veupathdb.org"
 
 
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
@@ -117,8 +119,12 @@ class Settings(BaseSettings):
 
     # Semantic Scholar
     s2_api_key: str = Field(default="", repr=False)
-    veupathdb_oauth_url: str | None = None
-    veupathdb_oauth_client_id: str | None = None
+
+    # OAuth server that signs VEuPathDB bearer tokens. One server serves every site.
+    veupathdb_oauth_url: str = _DEFAULT_VEUPATHDB_OAUTH_URL
+
+    # Application identities, as "app_id:secret[,app_id:secret...]".
+    pathfinder_service_tokens: str = Field(default="", repr=False)
 
     # Conversation provider. "mock" gives deterministic offline runs.
     pathfinder_chat_provider: str = ""
@@ -137,6 +143,15 @@ class Settings(BaseSettings):
         ge=300,
         description=(
             "Age at which a job still in 'doing' is failed so its lock releases."
+        ),
+    )
+
+    # Chat SSE
+    sse_keepalive_seconds: int = Field(
+        default=15,
+        ge=1,
+        description=(
+            "Seconds of silence after which the chat SSE stream sends a comment frame."
         ),
     )
 
@@ -174,6 +189,12 @@ class Settings(BaseSettings):
 
     # Default monthly usage quota in USD. The `users` row can override it.
     pathfinder_user_monthly_cost_limit_usd: float = 20.0
+
+    @field_validator("veupathdb_oauth_url", mode="before")
+    @classmethod
+    def _blank_oauth_url_means_the_default(cls, value: object) -> object:
+        """A config file may declare the key empty; that is not a URL."""
+        return _DEFAULT_VEUPATHDB_OAUTH_URL if value in (None, "") else value
 
     @computed_field
     def is_development(self) -> bool:
@@ -252,6 +273,14 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
 
+    @cached_property
+    def service_tokens(self) -> ServiceTokenRegistry:
+        """The application identities, parsed once per settings instance."""
+        return ServiceTokenRegistry.parse(self.pathfinder_service_tokens)
+
+    def _validate_service_tokens(self) -> None:
+        _ = self.service_tokens
+
     def _validate_langfuse_settings(self) -> None:
         langfuse_values = {
             "LANGFUSE_HOST": self.langfuse_host.strip(),
@@ -268,6 +297,7 @@ class Settings(BaseSettings):
         """Validate settings after initialization."""
         self._validate_required_settings()
         self._validate_chat_provider()
+        self._validate_service_tokens()
         self._validate_langfuse_settings()
 
     @classmethod

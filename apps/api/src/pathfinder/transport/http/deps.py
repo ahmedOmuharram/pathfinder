@@ -9,12 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.platform.db import get_db_session
 from pathfinder.platform.errors import ForbiddenError, NotFoundError
-from pathfinder.platform.security import get_current_user
+from pathfinder.platform.principal import Principal
+from pathfinder.platform.security import resolve_principal
 from pathfinder.services import quota as quota_service
 from pathfinder.services.experiment.store import get_experiment_store
 from pathfinder.services.experiment.types import Experiment
 from pathfinder.services.users import ensure_user_exists
-from pathfinder.services.wdk_identity import ensure_wdk_identity
+from pathfinder.services.wdk_identity import require_registered_wdk_login
 
 # Type aliases for dependencies
 DBSession = Annotated[AsyncSession, Depends(get_db_session)]
@@ -23,33 +24,38 @@ DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 SiteIdQuery = Annotated[str | None, Query(alias="siteId")]
 
 
-async def get_current_user_with_db_row(
-    user_id: Annotated[UUID, Depends(get_current_user)],
+async def get_current_principal_with_db_row(
+    principal: Annotated[Principal, Depends(resolve_principal)],
     session: DBSession,
-) -> UUID:
+) -> Principal:
     """Ensure authenticated users exist in the local DB.
 
     We persist user IDs because many tables have a FK to `users.id`. Without this,
     first-time sessions can trigger integrity errors that bubble up as 500s.
     """
-    await ensure_user_exists(session, user_id)
-    return user_id
+    await ensure_user_exists(session, principal.user_id)
+    return principal
+
+
+CurrentPrincipal = Annotated[Principal, Depends(get_current_principal_with_db_row)]
+
+
+async def get_current_user_with_db_row(principal: CurrentPrincipal) -> UUID:
+    """Return the authenticated user's ID."""
+    return principal.user_id
 
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_with_db_row)]
 
 
-async def with_wdk_identity(
+async def require_registered_wdk_identity(
     user_id: Annotated[UUID, Depends(get_current_user_with_db_row)],
-    session: DBSession,
 ) -> UUID:
-    """Guarantee the request carries a WDK identity before touching WDK.
+    """Refuse a request that acts on WDK without a registered VEuPathDB login.
 
-    Routes that create/read/write WDK-owned resources (strategies, steps,
-    datasets) attach this so guest-mode users act as ONE durable WDK guest
-    across api and worker instead of per-container ephemeral guests.
+    Routes that read or write a WDK account attach this.
     """
-    await ensure_wdk_identity(session, user_id)
+    await require_registered_wdk_login()
     return user_id
 
 

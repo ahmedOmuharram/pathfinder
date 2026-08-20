@@ -2,7 +2,7 @@
 
 from typing import cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.logging import get_logger
@@ -13,12 +13,16 @@ from pathfinder.services.experiment.cross_validation import (
 )
 from pathfinder.services.experiment.helpers import ControlsContext
 from pathfinder.services.experiment.store import get_experiment_store
-from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    ExperimentDep,
+    require_registered_wdk_identity,
+)
 from pathfinder.transport.http.schemas.experiments import (
     RunCrossValidationRequest,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_registered_wdk_identity)])
 logger = get_logger(__name__)
 
 

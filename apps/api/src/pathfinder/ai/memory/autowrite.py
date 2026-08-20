@@ -15,6 +15,7 @@ from pathfinder.ai.memory.tombstones import (
     compute_content_hash,
 )
 from pathfinder.persistence.models import Conversation, Message
+from pathfinder.platform.context import calling_application
 from pathfinder.platform.db import async_session_factory
 
 PREFERENCE_MIN_SUCCESSES = 3
@@ -191,6 +192,7 @@ async def _check_verifications_threshold(
         .join(Conversation, Message.conversation_id == Conversation.id)
         .where(
             Conversation.user_id == user_id,
+            Conversation.application_id == calling_application(),
             Message.role == "assistant",
             Message.metadata_["phase"].as_string() == "verification",
             Message.metadata_["turnCompleted"].as_boolean().is_(True),

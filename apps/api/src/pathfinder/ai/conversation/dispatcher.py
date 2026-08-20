@@ -15,6 +15,7 @@ from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
 from pathfinder.ai.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
+from pathfinder.ai.graph.stream_events import turn_status_event
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
 from pathfinder.persistence.models import ConversationEvent
@@ -103,6 +104,18 @@ async def dispatch(
         body=body,
         user_id=user_id,
         turn_id=turn_id,
+    )
+    # The status is persisted before the job exists, so it can never land after
+    # the worker's first chunk.
+    await ChatEventWriter(
+        conversation_id=body.conversation_id,
+        turn_id=turn_id,
+    ).write(
+        turn_status_event(label="Queued").model_dump(
+            by_alias=True,
+            mode="json",
+            exclude_none=True,
+        ),
     )
     # Every turn for one conversation writes the same checkpoint thread, so the
     # lock keeps concurrent workers from running two of them together.

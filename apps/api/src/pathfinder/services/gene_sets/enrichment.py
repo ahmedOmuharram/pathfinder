@@ -42,7 +42,10 @@ async def run_enrichment_for_gene_set(
     summary: JSONObject = {
         "analysisTypesRun": [r.analysis_type for r in results],
         "totalSignificantTerms": sum(
-            1 for r in results for t in r.terms if t.fdr < _FDR_SIGNIFICANCE_THRESHOLD
+            1
+            for r in results
+            for t in r.terms
+            if t.fdr is not None and t.fdr < _FDR_SIGNIFICANCE_THRESHOLD
         ),
     }
 

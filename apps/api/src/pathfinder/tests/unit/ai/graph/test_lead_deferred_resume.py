@@ -8,9 +8,12 @@ must capture ``all_messages()`` (request + tool call) into ``prior_messages_json
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
+import pytest
 from pydantic_ai import DeferredToolRequests
 from pydantic_ai.messages import (
     ModelMessagesTypeAdapter,
@@ -20,9 +23,24 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.usage import RunUsage
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph._lead_capture import _LeadRunCapture
+from pathfinder.ai.graph._lead_turn import (
+    ConcurrentSubAgentApprovalsError,
+    pending_approval,
+)
 from pathfinder.ai.graph.lead_node import _absorb_run_result
+from pathfinder.ai.graph.runtime import Context
+from pathfinder.ai.graph.state import (
+    PipelineState,
+    SubAgentApprovalCall,
+    SubAgentApprovalPending,
+)
+from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.services.research.literature_search import LiteratureSearchService
+from pathfinder.services.research.web_search import WebSearchService
 
 
 class _FakeResult:
@@ -51,6 +69,33 @@ class _FakeResult:
         return self._new
 
 
+def _never_factory() -> AsyncSession:
+    msg = "db factory should not be called in unit tests"
+    raise AssertionError(msg)
+
+
+def _deps() -> LeadDeps:
+    return LeadDeps(
+        state=PipelineState(
+            conversation_id=uuid4(),
+            user_id=uuid4(),
+            site_id="plasmodb",
+            mode="strategy",
+        ),
+        intent=None,
+        runtime=Context(
+            site_id="plasmodb",
+            user_id=uuid4(),
+            strategy_session=StrategySession(site_id="plasmodb"),
+            db_session_factory=_never_factory,
+            web_search_service=WebSearchService(),
+            literature_search_service=LiteratureSearchService(),
+            cancel_event=asyncio.Event(),
+        ),
+        retrieved_memories=[],
+    )
+
+
 def test_deferred_resume_history_includes_user_request() -> None:
     call = ToolCallPart(
         tool_name="consult_user", args={"questions": []}, tool_call_id="c1"
@@ -66,9 +111,11 @@ def test_deferred_resume_history_includes_user_request() -> None:
     )
     capture = _LeadRunCapture()
     event: Any = SimpleNamespace(result=result)
-    _absorb_run_result(event, capture)
+    _absorb_run_result(event, capture, _deps())
 
     assert capture.pending_approval is not None
+    assert capture.pending_approval.phase == "lead"
+    assert capture.pending_approval.sub_agent is None
     history = ModelMessagesTypeAdapter.validate_json(
         capture.pending_approval.prior_messages_json
     )
@@ -77,3 +124,87 @@ def test_deferred_resume_history_includes_user_request() -> None:
     assert len(history) == 2
     assert isinstance(history[0], ModelRequest)
     assert isinstance(history[1], ModelResponse)
+
+
+def _stash(role: str, tool_call_id: str) -> SubAgentApprovalPending:
+    return SubAgentApprovalPending(
+        role=role,
+        approvals=[
+            SubAgentApprovalCall(
+                tool_call_id=f"inner_for_{tool_call_id}",
+                tool_name="delete_step",
+                args={"step_id": "s2"},
+            ),
+        ],
+        messages_json="[]",
+    )
+
+
+def _deferred_dispatch(tool_name: str, tool_call_id: str, reason: str) -> ToolCallPart:
+    return ToolCallPart(
+        tool_name=tool_name,
+        args={"reason": reason},
+        tool_call_id=tool_call_id,
+    )
+
+
+def test_a_dispatch_is_paired_with_its_own_suspended_run() -> None:
+    deps = _deps()
+    deps.pending_sub_agent_approvals = {
+        "call_a": _stash("frame", "call_a"),
+        "call_b": _stash("verification", "call_b"),
+    }
+    output = DeferredToolRequests(
+        calls=[_deferred_dispatch("verify_strategy", "call_b", "check the counts")],
+    )
+
+    pending = pending_approval(output=output, deps=deps, messages=[])
+
+    assert pending is not None
+    assert pending.phase == "verification"
+    assert pending.tool_call_id == "call_b"
+    assert pending.tool_args["reason"] == "check the counts"
+    assert pending.sub_agent is not None
+    assert pending.sub_agent.role == "verification"
+    assert pending.sub_agent.approvals[0].tool_call_id == "inner_for_call_b"
+
+
+def test_a_deferred_dispatch_outranks_a_consult_approval() -> None:
+    deps = _deps()
+    deps.pending_sub_agent_approvals = {"call_b": _stash("execution", "call_b")}
+    consult = ToolCallPart(
+        tool_name="consult_user",
+        args={"questions": []},
+        tool_call_id="call_consult",
+    )
+    output = DeferredToolRequests(
+        approvals=[consult],
+        calls=[_deferred_dispatch("recover_failed_steps", "call_b", "drop s2")],
+    )
+
+    pending = pending_approval(output=output, deps=deps, messages=[])
+
+    assert pending is not None
+    assert pending.phase == "build"
+    assert pending.tool_call_id == "call_b"
+    assert pending.sub_agent is not None
+
+
+def test_two_deferred_dispatches_fail_loudly() -> None:
+    deps = _deps()
+    deps.pending_sub_agent_approvals = {
+        "call_a": _stash("frame", "call_a"),
+        "call_b": _stash("verification", "call_b"),
+    }
+    output = DeferredToolRequests(
+        calls=[
+            _deferred_dispatch("frame_problem", "call_a", "frame it"),
+            _deferred_dispatch("verify_strategy", "call_b", "check it"),
+        ],
+    )
+
+    with pytest.raises(ConcurrentSubAgentApprovalsError) as excinfo:
+        pending_approval(output=output, deps=deps, messages=[])
+
+    assert "call_a" in str(excinfo.value)
+    assert "call_b" in str(excinfo.value)

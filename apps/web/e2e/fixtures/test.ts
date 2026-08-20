@@ -10,6 +10,7 @@ import { SitePickerComponent } from "../pages/site-picker.page";
 import { SettingsPage } from "../pages/settings.page";
 import { AuthPage } from "../pages/auth.page";
 import { GeneSearchSidebar } from "../pages/gene-search.page";
+import { wdkTestToken } from "./wdk-account";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -34,7 +35,7 @@ type WorkerFixtures = {
   workerStorageState: string;
 };
 
-const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
+export const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   // ── Worker-scoped ──────────────────────────────────────────────
@@ -42,9 +43,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   /**
    * Per-worker authentication.
    *
-   * Each Playwright worker calls `/dev/login?user_id=worker-{N}` to get
-   * its own isolated user. This means workers never share gene sets,
-   * strategies, or conversations — eliminating all cross-worker pollution.
+   * Each Playwright worker calls `/dev/login?user_id=worker-{N}` to get its own
+   * isolated PathFinder user, and carries the registered VEuPathDB token in the
+   * `Authorization` cookie the API reads for every WDK call. Workers never share
+   * gene sets, strategies, or conversations.
    */
   workerStorageState: [
     async ({ browser }, use, workerInfo) => {
@@ -57,6 +59,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
       const page = await browser.newPage();
       await page.goto(BASE_URL);
+      await page
+        .context()
+        .addCookies([{ name: "Authorization", value: wdkTestToken(), url: BASE_URL }]);
 
       const resp = await page
         .context()

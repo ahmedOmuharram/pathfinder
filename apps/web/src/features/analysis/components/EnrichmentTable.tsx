@@ -2,7 +2,12 @@ import { Fragment } from "react";
 import type { EnrichmentTerm } from "@pathfinder/shared";
 import { ArrowUpDown, ChevronRight } from "lucide-react";
 import { useEnrichmentTableState } from "../hooks/useEnrichmentTableState";
-import { fmtCount, type SortKey } from "./enrichment-utils";
+import {
+  fmtCount,
+  formatProbability,
+  formatRatio,
+  type SortKey,
+} from "./enrichment-utils";
 
 // ---------------------------------------------------------------------------
 // Column definitions
@@ -32,12 +37,14 @@ function ExpandedTermDetails({ term }: { term: EnrichmentTerm }) {
         </span>
         <span>
           Odds Ratio:{" "}
-          <span className="font-mono text-foreground">{term.oddsRatio.toFixed(3)}</span>
+          <span className="font-mono text-foreground">
+            {formatRatio(term.oddsRatio, 3)}
+          </span>
         </span>
         <span>
           Bonferroni:{" "}
           <span className="font-mono text-foreground">
-            {term.bonferroni.toExponential(2)}
+            {formatProbability(term.bonferroni)}
           </span>
         </span>
       </div>
@@ -133,13 +140,13 @@ export function EnrichmentTable({ terms }: EnrichmentTableProps) {
                     {t.geneCount}
                   </td>
                   <td className="px-4 py-2 text-right font-mono tabular-nums text-muted-foreground">
-                    {t.foldEnrichment.toFixed(2)}
+                    {formatRatio(t.foldEnrichment, 2)}
                   </td>
                   <td className="px-4 py-2 text-right font-mono tabular-nums text-muted-foreground">
-                    {t.pValue.toExponential(2)}
+                    {formatProbability(t.pValue)}
                   </td>
                   <td className="px-4 py-2 text-right font-mono tabular-nums text-muted-foreground">
-                    {t.fdr.toExponential(2)}
+                    {formatProbability(t.fdr)}
                   </td>
                 </tr>
                 {expanded && (

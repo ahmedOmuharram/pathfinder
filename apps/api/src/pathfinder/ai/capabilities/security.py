@@ -37,7 +37,7 @@ _APPROVAL_CONNECTIVE_RE = re.compile(
 _MAX_APPROVAL_LENGTH = 80
 
 
-def _is_pure_approval(text: str) -> bool:
+def is_pure_approval(text: str) -> bool:
     """Strict whitelist: the text is nothing more than an approval phrase.
 
     One or two approval words joined by a connective, within
@@ -101,7 +101,7 @@ class UserInputScanner:
         affirmatives score above the injection threshold although they carry
         no instruction.
         """
-        if _is_pure_approval(text):
+        if is_pure_approval(text):
             return
         piguard, invisible = self._ensure_initialised()
         piguard_name = "PIGuardScanner"
@@ -137,5 +137,6 @@ async def scan_user_input(text: str) -> None:
 __all__ = [
     "SecurityRejectionError",
     "UserInputScanner",
+    "is_pure_approval",
     "scan_user_input",
 ]

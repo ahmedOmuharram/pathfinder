@@ -157,11 +157,12 @@ class TestContextFailureDegrades:
             await get_search_params_under_context(client, "transcript", "S", {"a": "b"})
 
 
-class TestHiddenStructuralParamsJoinTheRead:
-    """A hidden allow-empty param carries the shape WDK's own client sends.
+class TestHiddenParamsJoinTheRead:
+    """A hidden param carries a value the caller cannot state, so the read sends it.
 
     ``GenesByOrthologPattern`` answers 500 to a contextual read that omits
-    ``phyletic_indent_map`` or ``phyletic_term_map``.
+    ``phyletic_indent_map`` or ``phyletic_term_map``, and WDK judges the shape it
+    is given, so a hidden required param it does not receive comes back empty.
     """
 
     def test_a_hidden_allow_empty_default_is_added(self) -> None:
@@ -183,17 +184,19 @@ class TestHiddenStructuralParamsJoinTheRead:
             "organism": "[]"
         }
 
-    def test_a_hidden_required_param_is_not_added(self) -> None:
-        # A hidden param that forbids empty carries a real value, which
-        # ``fill_hidden_required_defaults`` decides.
+    def test_a_hidden_required_param_is_added(self) -> None:
+        """WDK judges the shape it receives, so an omitted one reads as empty.
+
+        The run path still decides the value through
+        ``fill_hidden_required_defaults``; this is the metadata read.
+        """
         published = [
-            _param(
-                "profile_pattern", visible=False, allow_empty=False, default="hsap=1T"
-            )
+            _param("document_type", visible=False, allow_empty=False, default="gene")
         ]
 
-        assert context_for_metadata_read({"organism": "[]"}, published) == {
-            "organism": "[]"
+        assert context_for_metadata_read({"text_expression": "kinase"}, published) == {
+            "text_expression": "kinase",
+            "document_type": "gene",
         }
 
     def test_a_hidden_param_without_a_published_default_is_not_added(self) -> None:
@@ -236,6 +239,7 @@ class TestHiddenStructuralParamsJoinTheRead:
         kwargs = client.get_search_details_with_params.await_args.kwargs
         assert kwargs["context"] == {
             "organism": '["Plasmodium falciparum 3D7"]',
+            "profile_pattern": "hsap=1T",
             "phyletic_indent_map": "[]",
             "phyletic_term_map": "[]",
         }

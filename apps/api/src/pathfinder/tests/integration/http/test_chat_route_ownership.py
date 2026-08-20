@@ -61,8 +61,9 @@ async def test_chat_rejects_a_conversation_owned_by_another_user(
     db_session: AsyncSession,
     session_maker: async_sessionmaker[AsyncSession],
     in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
 ) -> None:
-    del patch_app_db_engine
+    del patch_app_db_engine, signed_in_to_veupathdb
     owner = await make_user(db_session)
     intruder = await make_user(db_session)
     conversation = Conversation(

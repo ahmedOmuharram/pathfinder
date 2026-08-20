@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import contextlib
-import os
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.parameters.values import (
@@ -27,10 +25,7 @@ from pathfinder.services.strategies.commit import apply_and_commit
 from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.spec_build import build_strategy_from_spec
-from pathfinder.tests.integration.strategies.conftest import (
-    _real_account_token,
-    go_term_leaf,
-)
+from pathfinder.tests.integration.strategies.conftest import go_term_leaf
 
 pytestmark = [pytest.mark.live_wdk, pytest.mark.asyncio]
 
@@ -44,18 +39,13 @@ class _BuiltGo:
 
 @pytest.fixture
 async def built_go_conv(
-    app: FastAPI,
+    require_wdk_creds: str,
     patch_app_db_engine: None,
     session_maker: async_sessionmaker[AsyncSession],
     db_cleaner: None,
 ) -> AsyncGenerator[_BuiltGo]:
     del patch_app_db_engine, db_cleaner
-    email = os.environ.get("WDK_TEST_EMAIL", "")
-    password = os.environ.get("WDK_TEST_PASSWORD", "")
-    if not email or not password:
-        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
-    token = await _real_account_token(app, email, password)
-    reset = veupathdb_auth_token_ctx.set(token)
+    reset = veupathdb_auth_token_ctx.set(require_wdk_creds)
     created: list[int] = []
     user_id, conv_id = uuid4(), uuid4()
     async with session_maker() as session:
@@ -100,10 +90,8 @@ async def _persisted_params(built: _BuiltGo) -> dict[str, ParamValue]:
 
 
 async def test_edit_branch_organism_canonicalizes_and_preserves_go_params(
-    require_wdk_creds: None,
     built_go_conv: _BuiltGo,
 ) -> None:
-    del require_wdk_creds
     await apply_and_commit(
         deps=built_go_conv.deps,
         op=UpdateStepParamsOp(
@@ -123,10 +111,8 @@ async def test_edit_branch_organism_canonicalizes_and_preserves_go_params(
 
 
 async def test_edit_dependent_param_to_invalid_value_is_rejected(
-    require_wdk_creds: None,
     built_go_conv: _BuiltGo,
 ) -> None:
-    del require_wdk_creds
     with pytest.raises(ValidationError):
         await apply_and_commit(
             deps=built_go_conv.deps,
@@ -138,10 +124,8 @@ async def test_edit_dependent_param_to_invalid_value_is_rejected(
 
 
 async def test_edit_go_term_to_different_valid_term_persists(
-    require_wdk_creds: None,
     built_go_conv: _BuiltGo,
 ) -> None:
-    del require_wdk_creds
     await apply_and_commit(
         deps=built_go_conv.deps,
         op=UpdateStepParamsOp(

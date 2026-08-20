@@ -24,7 +24,7 @@ function extractEnrichmentCounts(enrichmentResults: EnrichmentResult[]): {
   let maxTerms = 0;
   for (const result of enrichmentResults) {
     for (const term of result.terms) {
-      if (term.fdr <= 0.05) {
+      if (term.fdr !== null && term.fdr <= 0.05) {
         maxTerms++;
         for (const geneId of term.genes ?? []) {
           counts[geneId] = (counts[geneId] ?? 0) + 1;

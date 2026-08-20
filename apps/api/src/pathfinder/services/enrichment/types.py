@@ -10,8 +10,8 @@ from pydantic import ConfigDict, Field
 
 from pathfinder.platform.pydantic_base import (
     CamelModel,
-    SafeFiniteFloat,
-    SafeFiniteRoundedFloat,
+    NonFiniteToNone,
+    NonFiniteToNoneRounded,
 )
 
 EnrichmentAnalysisType = Literal[
@@ -23,8 +23,8 @@ class EnrichmentTerm(CamelModel):
     """Single enriched term from WDK analysis.
 
     WDK returns numeric fields as JSON strings (``"3.48"``, ``"3.40e-13"``,
-    ``"Infinity"``).  Pydantic lax mode coerces str→int/float; SafeFiniteFloat
-    clamps inf/nan to 0.0.
+    ``"Infinity"``). A None ratio is unbounded; a None probability is not
+    computable.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -33,11 +33,11 @@ class EnrichmentTerm(CamelModel):
     term_name: str
     gene_count: int
     background_count: int
-    fold_enrichment: SafeFiniteRoundedFloat
-    odds_ratio: SafeFiniteRoundedFloat
-    p_value: SafeFiniteFloat
-    fdr: SafeFiniteFloat
-    bonferroni: SafeFiniteFloat
+    fold_enrichment: NonFiniteToNoneRounded
+    odds_ratio: NonFiniteToNoneRounded
+    p_value: NonFiniteToNone
+    fdr: NonFiniteToNone
+    bonferroni: NonFiniteToNone
     genes: list[str] = Field(default_factory=list)
 
 

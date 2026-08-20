@@ -90,17 +90,20 @@ class CrossValidationResultResponse(CamelModel):
 
 
 class EnrichmentTermResponse(CamelModel):
-    """Single enriched term from WDK analysis."""
+    """Single enriched term from WDK analysis.
+
+    A None ratio is unbounded; a None probability is not computable.
+    """
 
     term_id: str
     term_name: str
     gene_count: int
     background_count: int
-    fold_enrichment: float
-    odds_ratio: float
-    p_value: float
-    fdr: float
-    bonferroni: float
+    fold_enrichment: float | None
+    odds_ratio: float | None
+    p_value: float | None
+    fdr: float | None
+    bonferroni: float | None
     genes: list[str] = Field(default_factory=list)
 
     model_config = _MODEL_CONFIG

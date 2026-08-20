@@ -111,8 +111,8 @@ has neither guard.
 
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/filter/CheckLoginFilter.java#L135-L148
-- anchor: apps/api/src/pathfinder/integrations/veupathdb/auth_login.py:mint_guest_token
-- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/test_wdk_identity_is_one_guest.py::TestOneIdentityPerUser::test_the_second_call_does_not_mint_again
+- anchor: apps/api/src/pathfinder/integrations/veupathdb/_http.py:_effective_token
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_user_scoped_needs_request_token.py::TestAUserResourceNeedsTheUsersOwnToken::test_a_step_read_is_refused_and_never_leaves
 
 `CheckLoginFilter` runs before every endpoint. With no bearer token it does not return
 401: `isValidTokenRequired` is false and `isGuestUserAllowed` is true by default, so it
@@ -131,6 +131,13 @@ step created on request one is owned by a user that no longer exists by request 
 `GET /users/current/strategies` returns `[]` rather than an error, because for that guest
 it is true. This is the shape of every silent-empty in this system: a well-formed request,
 a 200, and an empty answer that reads like a scientific negative.
+
+The filter still behaves this way; what changed on 2026-08-19 is what the minted guest
+can then do, which is nothing ([transport-quirks](../rest/transport-quirks.md)). So the
+hazard is no longer a silent wrong answer, it is a 403 on every call. PathFinder mints
+no guests and refuses a user-scoped WDK call that carries no registered token before it
+leaves the process, which is what the anchor pins
+([the decision](../../decisions/wdk-requires-registered-login.md)).
 
 ### WDK-AUTH-002 - A request carries exactly one `Authorization` cookie pair
 

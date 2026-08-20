@@ -14,6 +14,7 @@ from pathfinder.persistence.models import Conversation, Message
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.conversations.authz import owned_by_caller
 
 logger = get_logger(__name__)
 
@@ -300,7 +301,7 @@ async def fork_conversation(
     source = await session.scalar(
         select(Conversation).where(Conversation.id == source_conversation_id),
     )
-    if source is None or source.user_id != user_id:
+    if source is None or not owned_by_caller(source, user_id):
         msg = "Source conversation not found"
         raise ForkError(msg)
 

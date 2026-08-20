@@ -1,10 +1,11 @@
 """Per-user monthly USD quota service.
 
 One budget per user, denominated in USD, rolling over on the first of each
-month (UTC). Agents accumulate cost on turn completion; the chat route does a
-pre-flight ``check_allowed`` gate and returns 429 when a user is at 100%.
-Warnings fire at 80% (soft) on the frontend via the :class:`QuotaStatus`
-``percent`` field.
+month (UTC). Cost is recorded per application and the cap counts every
+application of the user. Agents accumulate cost on turn completion; the chat
+route does a pre-flight ``check_allowed`` gate and returns 429 when a user is
+at 100%. Warnings fire at 80% (soft) on the frontend via the
+:class:`QuotaStatus` ``percent`` field.
 """
 
 from __future__ import annotations
@@ -14,12 +15,13 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import MonthlyUsage, User
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.context import calling_application
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -65,16 +67,25 @@ async def _effective_limit_usd(session: AsyncSession, user_id: UUID) -> Decimal:
 
 
 async def get_current(session: AsyncSession, user_id: UUID) -> QuotaStatus:
-    """Return the user's usage for the current monthly period."""
+    """Return the user's usage for the current monthly period.
+
+    The budget belongs to the user, so every application the user drove in the
+    period counts against the same limit.
+    """
     period = current_period_start()
-    row = await session.scalar(
-        select(MonthlyUsage).where(
-            MonthlyUsage.user_id == user_id,
-            MonthlyUsage.period_start == period,
+    totals = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(MonthlyUsage.total_cost_usd), 0),
+                func.coalesce(func.sum(MonthlyUsage.total_tokens), 0),
+            ).where(
+                MonthlyUsage.user_id == user_id,
+                MonthlyUsage.period_start == period,
+            ),
         )
-    )
-    used = row.total_cost_usd if row is not None else Decimal(0)
-    tokens = row.total_tokens if row is not None else 0
+    ).one()
+    used = Decimal(totals[0])
+    tokens = int(totals[1])
     limit = await _effective_limit_usd(session, user_id)
     percent = float(used / limit) if limit > 0 else 0.0
     return QuotaStatus(
@@ -98,7 +109,7 @@ async def accumulate(
     tokens: int,
     cost_usd: Decimal,
 ) -> None:
-    """Upsert the user's current-period row with the delta."""
+    """Upsert the current-period row of the calling application with the delta."""
     if tokens <= 0 and cost_usd <= 0:
         return
 
@@ -107,12 +118,13 @@ async def accumulate(
         pg_insert(MonthlyUsage)
         .values(
             user_id=user_id,
+            application_id=calling_application(),
             period_start=period,
             total_cost_usd=cost_usd,
             total_tokens=tokens,
         )
         .on_conflict_do_update(
-            index_elements=["user_id", "period_start"],
+            index_elements=["user_id", "application_id", "period_start"],
             set_={
                 "total_cost_usd": MonthlyUsage.total_cost_usd + cost_usd,
                 "total_tokens": MonthlyUsage.total_tokens + tokens,

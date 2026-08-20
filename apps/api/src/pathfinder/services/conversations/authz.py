@@ -1,12 +1,27 @@
-"""Conversation lookup + ownership authorization (service-internal)."""
+"""Conversation lookup + ownership authorization (service-internal).
+
+A conversation belongs to a user under one application, so both must match
+before a caller reaches it.
+"""
 
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.repositories import ConversationRepository
+from pathfinder.platform.context import calling_application
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.errors import ErrorCode, ForbiddenError, NotFoundError
+
+
+def owned_by_caller(conversation: Conversation, user_id: UUID) -> bool:
+    """Whether the conversation belongs to this user under this application."""
+    return (
+        conversation.user_id == user_id
+        and conversation.application_id == calling_application()
+    )
 
 
 async def get_chat_or_404(
@@ -28,7 +43,7 @@ async def get_owned_conversation_or_404(
     user_id: UUID,
 ) -> Conversation:
     conversation = await get_chat_or_404(conv_repo, conversation_id)
-    if conversation.user_id != user_id:
+    if not owned_by_caller(conversation, user_id):
         raise ForbiddenError
     return conversation
 
@@ -45,7 +60,7 @@ async def get_owned_or_404(
     events, cancel and sidebar endpoints have always had.
     """
     conv = await conv_repo.get_by_id(conversation_id)
-    if conv is None or conv.user_id != user_id:
+    if conv is None or not owned_by_caller(conv, user_id):
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="conversation not found",
@@ -64,3 +79,18 @@ async def assert_owner(
         conversation_id,
         user_id,
     )
+
+
+async def conversation_application_id(conversation_id: UUID) -> str | None:
+    """Return the application that holds a conversation, or None if it is gone.
+
+    The row is the source of truth a worker job reads to run as the right
+    application.
+    """
+    async with async_session_factory() as session:
+        application_id: str | None = await session.scalar(
+            select(Conversation.application_id).where(
+                Conversation.id == conversation_id,
+            ),
+        )
+    return application_id

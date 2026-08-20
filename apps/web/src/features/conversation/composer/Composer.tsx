@@ -17,11 +17,18 @@ import { commands, findCommand } from "@/features/conversation/slash/registry";
 import type { Command, CommandResult } from "@/features/conversation/slash/types";
 import { parseSlashInput } from "@/features/conversation/slash/parser";
 import { beginStrategy } from "@pathfinder/shared/generated/hooks/useBeginStrategy";
+import { toUserMessage } from "@/lib/api/errors";
 import { getAuthHeaders } from "@/lib/api/http";
 import { strategyQueryOptions } from "@/lib/api/strategy";
+import { handleWdkLoginRequired } from "@/state/useAuthGateStore";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { QuotaExhaustedBanner, useQuotaExhausted } from "./QuotaExhaustedBanner";
+import {
+  SIGN_IN_TO_BUILD,
+  VeupathdbSignInRequired,
+  useVeupathdbSignedIn,
+} from "./VeupathdbSignInRequired";
 import { formatTokens, formatCost, formatUsage } from "@/lib/utils/usageFormat";
 import { aggregateSessionUsage } from "@/lib/utils/sessionUsage";
 import { useChatHelpersOptional } from "@/features/conversation/runtime/chatHelpersContext";
@@ -94,6 +101,8 @@ export function Composer({ conversationId }: { conversationId: string }) {
   const attachmentCount = useAuiState((s) => s.composer.attachments.length);
   const siteId = useSessionStore((s) => s.selectedSite);
   const quotaExhausted = useQuotaExhausted();
+  const signedIn = useVeupathdbSignedIn();
+  const blocked = quotaExhausted || !signedIn;
   const isRunning = useAuiState((s) => s.thread.isRunning);
   const requestServerCancel = (): void => {
     void fetch(`/api/v1/conversations/${conversationId}/cancel`, {
@@ -115,8 +124,9 @@ export function Composer({ conversationId }: { conversationId: string }) {
     try {
       await beginStrategy(conversationId, { siteId });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to start conversation";
-      toast.error(msg);
+      if (!handleWdkLoginRequired(err)) {
+        toast.error(toUserMessage(err, "Failed to start conversation"));
+      }
       return;
     }
 
@@ -213,20 +223,23 @@ export function Composer({ conversationId }: { conversationId: string }) {
         }}
       />
       <QuotaExhaustedBanner />
+      <VeupathdbSignInRequired />
       <div
         className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow aria-disabled:opacity-60"
-        aria-disabled={quotaExhausted}
+        aria-disabled={blocked}
       >
         <ComposerPrimitive.Input
           data-testid="message-input"
           placeholder={
-            quotaExhausted
-              ? "Monthly quota reached — try again after the reset date."
-              : "Ask about strategies, genes, or data... (try /help)"
+            !signedIn
+              ? SIGN_IN_TO_BUILD
+              : quotaExhausted
+                ? "Monthly quota reached — try again after the reset date."
+                : "Ask about strategies, genes, or data... (try /help)"
           }
           className="max-h-36 w-full resize-none overflow-y-auto bg-transparent p-3 text-sm outline-none disabled:cursor-not-allowed"
           autoFocus
-          disabled={quotaExhausted}
+          disabled={blocked}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && wantsDirectRun) {
               e.preventDefault();
@@ -262,7 +275,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
             <ComposerPrimitive.Send
               data-testid="send-button"
               aria-label="Send"
-              disabled={quotaExhausted}
+              disabled={blocked}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground shadow-[var(--shadow-card)] transition-transform hover:-translate-y-px disabled:opacity-50 disabled:hover:translate-y-0"
             >
               <Send className="h-4 w-4" /> Send

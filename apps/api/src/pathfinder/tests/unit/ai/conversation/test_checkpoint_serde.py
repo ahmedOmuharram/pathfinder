@@ -9,6 +9,7 @@ that nobody registered fails here instead of after a LangGraph upgrade.
 """
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
@@ -18,7 +19,13 @@ from pathfinder.ai.conversation.serde import (
     CHECKPOINT_MSGPACK_TYPES,
     build_checkpoint_serde,
 )
-from pathfinder.ai.graph.state import PhaseDisposition, VerificationDigest
+from pathfinder.ai.graph.state import (
+    PendingApproval,
+    PhaseDisposition,
+    SubAgentApprovalCall,
+    SubAgentApprovalPending,
+    VerificationDigest,
+)
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.build_outcome import BuildOutcome, NodeResult
@@ -97,6 +104,31 @@ def test_tuples_restore_as_lists() -> None:
     # msgpack has no tuple type. Pinned so state that round-trips through a
     # checkpoint is never compared against a tuple and silently mismatched.
     assert _strict_roundtrip((ConstraintKind.ORGANISM,)) == [ConstraintKind.ORGANISM]
+
+
+def test_pending_sub_agent_approval_survives_strict_roundtrip() -> None:
+    # A sub-agent approval checkpoints the run that must be re-entered, so the
+    # nested models ride into the checkpoint with the approval.
+    value = PendingApproval(
+        phase="verification",
+        tool_call_id="call_verify_strategy",
+        tool_name="verify_strategy",
+        tool_args={"reason": "optimize the fold change"},
+        prior_messages_json='[{"kind":"request","parts":[]}]',
+        user_message_id=UUID("01a011a9-5c65-74b2-8813-215ab5b382fa"),
+        sub_agent=SubAgentApprovalPending(
+            role="verification",
+            approvals=[
+                SubAgentApprovalCall(
+                    tool_call_id="call_optimize_search_parameters",
+                    tool_name="optimize_search_parameters",
+                    args={"settings": {"budget": 8}},
+                ),
+            ],
+            messages_json='[{"kind":"response","parts":[]}]',
+        ),
+    )
+    assert _strict_roundtrip(value) == value
 
 
 def test_all_observed_checkpoint_types_are_registered() -> None:

@@ -17,6 +17,12 @@ from pathfinder.platform.errors import AppError
 from pathfinder.services.enrichment.types import EnrichmentResult
 
 
+@pytest.fixture(autouse=True)
+def _registered_user(wdk_request_token: str) -> None:
+    """These calls address a user's own WDK resources."""
+    del wdk_request_token
+
+
 class _FixedTransport(httpx.AsyncBaseTransport):
     """Answers every request with one canned response."""
 

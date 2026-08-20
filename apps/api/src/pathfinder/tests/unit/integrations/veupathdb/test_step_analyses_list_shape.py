@@ -14,6 +14,13 @@ import pytest
 
 from pathfinder.integrations.veupathdb.client import VEuPathDBClient
 
+
+@pytest.fixture(autouse=True)
+def _registered_user(wdk_request_token: str) -> None:
+    """These calls address a user's own WDK resources."""
+    del wdk_request_token
+
+
 _LIVE_ENTRY: dict[str, Any] = {
     "displayName": "Word Enrichment",
     "analysisId": 203635253,

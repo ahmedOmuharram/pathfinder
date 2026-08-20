@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
 from pathfinder.platform.types import JSONObject
@@ -13,7 +13,12 @@ from pathfinder.services.conversations.service import (
     ConversationService,
     ConversationUpdateInput,
 )
-from pathfinder.transport.http.deps import CurrentUser, DBSession, SiteIdQuery
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    DBSession,
+    SiteIdQuery,
+    require_registered_wdk_identity,
+)
 from pathfinder.transport.http.schemas import (
     BeginConversationRequest,
     BeginConversationResponse,
@@ -90,7 +95,12 @@ async def update_strategy(
     return await ConversationService(session).update(strategyId, user_id, patch)
 
 
-@router.post("/{strategyId:uuid}/fork", response_model=ConversationResponse)
+# A fork copies the source WDK strategy into the user's own account.
+@router.post(
+    "/{strategyId:uuid}/fork",
+    response_model=ConversationResponse,
+    dependencies=[Depends(require_registered_wdk_identity)],
+)
 async def fork_strategy(
     strategyId: UUID,
     request: ForkConversationRequest,

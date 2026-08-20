@@ -1,7 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-// Mock the http module before importing the module under test
-vi.mock("@/lib/api/http", () => ({
+import type * as HttpModule from "@/lib/api/http";
+
+// Stub the two calls this module makes; the seed stream still builds its real
+// request headers.
+vi.mock("@/lib/api/http", async (importOriginal) => ({
+  ...(await importOriginal<typeof HttpModule>()),
   requestJson: vi.fn(),
   buildUrl: vi.fn((path: string) => `http://localhost:8000${path}`),
 }));
@@ -222,7 +226,7 @@ describe("seedExperiments", () => {
     await expect(seedExperiments(() => {})).rejects.toThrow(/no response body/);
   });
 
-  it("calls fetch with POST and credentials:include", async () => {
+  it("calls fetch with POST, credentials:include and the CSRF header", async () => {
     const fetchSpy = vi.fn(async () =>
       makeFetchResponse(true, 200, makeReadableStream(["data: [DONE]\n\n"])),
     );
@@ -235,6 +239,9 @@ describe("seedExperiments", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "include",
+        headers: expect.objectContaining({
+          "X-Requested-With": "XMLHttpRequest",
+        }),
       }),
     );
   });

@@ -4,17 +4,26 @@ from typing import TypedDict
 
 from pydantic import JsonValue
 
+from pathfinder.services.enrichment.ranking import (
+    best_ratio,
+    ratio_cell,
+    ratio_sort_key,
+)
 from pathfinder.services.experiment.types import Experiment
 
 
 class EnrichmentRow(TypedDict):
-    """Shape of one term row in the enrichment comparison."""
+    """Shape of one term row in the enrichment comparison.
+
+    A score is a number, the unbounded token, or null when the experiment has
+    no such term.
+    """
 
     termKey: str
     termName: str
     analysisType: str
     scores: dict[str, JsonValue]
-    maxScore: float
+    maxScore: float | str
     experimentCount: int
 
 
@@ -43,7 +52,7 @@ def compare_enrichment_across(
 
     # Collect scores: term_key -> { experiment_id -> fold_enrichment }
     # Also track term metadata (name, analysis type)
-    term_scores: dict[str, dict[str, float]] = {}
+    term_scores: dict[str, dict[str, float | None]] = {}
     term_meta: dict[str, tuple[str, str]] = {}
 
     for exp in experiments:
@@ -57,27 +66,25 @@ def compare_enrichment_across(
                     term_scores[key] = {}
                 term_scores[key][exp.id] = term.fold_enrichment
 
-    # Build rows sorted by max score descending
+    # Build rows sorted by best score, unbounded first
+    best: dict[str, float | None] = {
+        key: best_ratio(scores.values()) for key, scores in term_scores.items()
+    }
     rows: list[EnrichmentRow] = []
-    for key in sorted(
-        term_scores,
-        key=lambda k: max(term_scores[k].values()) if term_scores[k] else 0.0,
-        reverse=True,
-    ):
+    for key in sorted(term_scores, key=lambda k: ratio_sort_key(best[k])):
         name, a_type = term_meta[key]
         scores_map = term_scores[key]
         scores_for_row: dict[str, JsonValue] = {
-            eid: round(scores_map[eid], 4) if eid in scores_map else None
+            eid: ratio_cell(scores_map[eid]) if eid in scores_map else None
             for eid in experiment_ids
         }
-        max_score = max(scores_map.values()) if scores_map else 0.0
         rows.append(
             {
                 "termKey": key,
                 "termName": name,
                 "analysisType": a_type,
                 "scores": scores_for_row,
-                "maxScore": round(max_score, 4),
+                "maxScore": ratio_cell(best[key]),
                 "experimentCount": len(scores_map),
             }
         )

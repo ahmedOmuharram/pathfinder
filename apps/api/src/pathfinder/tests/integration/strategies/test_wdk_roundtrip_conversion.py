@@ -5,13 +5,10 @@ Gated on WDK_TEST_EMAIL/WDK_TEST_PASSWORD (skipped when unset).
 
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncGenerator
 from uuid import uuid4
 
-import httpx
 import pytest
-from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.parameters.values import MultiPickValue
@@ -34,14 +31,6 @@ pytestmark = [pytest.mark.live_wdk, pytest.mark.asyncio]
 _ORGANISM = "Plasmodium falciparum 3D7"
 
 
-def _creds() -> tuple[str, str]:
-    email = os.environ.get("WDK_TEST_EMAIL", "")
-    password = os.environ.get("WDK_TEST_PASSWORD", "")
-    if not email or not password:
-        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
-    return email, password
-
-
 @pytest.fixture
 async def db_session(
     session_maker: async_sessionmaker[AsyncSession],
@@ -52,32 +41,12 @@ async def db_session(
         yield session
 
 
-async def _real_account_token(app: FastAPI, email: str, password: str) -> str:
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(
-        transport=transport,
-        base_url="http://test",
-        headers={"X-Requested-With": "XMLHttpRequest"},
-    ) as client:
-        resp = await client.post(
-            "/api/v1/veupathdb/auth/login",
-            params={"siteId": "plasmodb"},
-            json={"email": email, "password": password},
-        )
-        assert resp.status_code == 200, resp.text
-        token = client.cookies.get("Authorization")
-    assert token, "login did not set an Authorization cookie"
-    return token
-
-
 async def test_organism_multipick_survives_wdk_roundtrip(
-    app: FastAPI,
+    require_wdk_creds: str,
     patch_app_db_engine: None,
     db_session: AsyncSession,
 ) -> None:
     del patch_app_db_engine
-    email, password = _creds()
-    token = await _real_account_token(app, email, password)
 
     user_id = uuid4()
     conv_id = uuid4()
@@ -87,7 +56,7 @@ async def test_organism_multipick_survives_wdk_roundtrip(
     )
     await db_session.commit()
 
-    reset = veupathdb_auth_token_ctx.set(token)
+    reset = veupathdb_auth_token_ctx.set(require_wdk_creds)
     wdk_strategy_id: int | None = None
     try:
         session = build_strategy_session(

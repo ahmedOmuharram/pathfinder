@@ -7,7 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useSessionStore } from "@/state/useSessionStore";
 import { AppNavRail } from "@/app/components/AppNavRail";
 import { TopBar } from "@/app/components/TopBar";
-import { LoginModal } from "@/app/components/LoginModal";
+import { VeupathdbSignInGate } from "@/app/components/VeupathdbSignInGate";
 import { LoadingScreen } from "@/app/components/LoadingScreen";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
@@ -19,6 +19,7 @@ import { WorkbenchSidebar } from "@/features/workbench/components/WorkbenchSideb
 import { GeneSearchSidebar } from "@/features/workbench/components/GeneSearchSidebar";
 import { SidebarEdgeTab } from "@/features/workbench/components/SidebarEdgeTab";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { requiresFullScreenSignIn } from "@/state/useAuthGateStore";
 import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import { AppShellError } from "@/app/components/AppShellError";
@@ -78,8 +79,11 @@ function WorkbenchLayoutInner({
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
-      <LoginModal
-        open={!veupathdbSignedIn}
+      <VeupathdbSignInGate
+        forced={requiresFullScreenSignIn({
+          embedded: false,
+          signedIn: veupathdbSignedIn,
+        })}
         selectedSite={selectedSite}
         onSiteChange={handleSiteChange}
       />

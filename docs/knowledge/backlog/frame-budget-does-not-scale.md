@@ -65,7 +65,8 @@ the ninth needs another pass" is a usable turn; losing all nine is not.
 
 Two things were already right and one was not.
 
-`_stream_sub_agent` catches `UsageLimitExceeded`, logs it as a budget rather
+`stream_sub_agent` (in `ai/lead/sub_agent_stream.py`) catches
+`UsageLimitExceeded`, logs it as a budget rather
 than a failure, and returns `None`; and `_apply_agent_state` runs after every
 inner tool result, so the draft the sub-agent has been writing is already in
 `deps.state.operational_spec` when the ceiling fires. The criteria were never

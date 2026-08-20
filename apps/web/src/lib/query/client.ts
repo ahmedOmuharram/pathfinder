@@ -1,5 +1,6 @@
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 
+import { wdkLoginRequiredDetail } from "@/lib/api/errors";
 import { APIError } from "@/lib/api/http";
 import {
   listModelsQueryKey,
@@ -10,6 +11,7 @@ import { sitesOptions } from "@/lib/api/sites";
 export interface QueryErrorNotice {
   message: string;
   queryKey: readonly unknown[];
+  error: unknown;
 }
 
 type NoticeHandler = (notice: QueryErrorNotice) => void;
@@ -34,9 +36,11 @@ function makeQueryClient(): QueryClient {
     queryCache: new QueryCache({
       onError: (error, query) => {
         if (isSilent(query.meta)) return;
-        if (error instanceof APIError && error.status === 401) return;
+        // A missing VEuPathDB login is the one 401 the user can act on.
+        const loginRequired = wdkLoginRequiredDetail(error) !== null;
+        if (!loginRequired && error instanceof APIError && error.status === 401) return;
         const message = extractMessage(error, "Request failed");
-        handler?.({ message, queryKey: query.queryKey });
+        handler?.({ message, queryKey: query.queryKey, error });
       },
     }),
     defaultOptions: {

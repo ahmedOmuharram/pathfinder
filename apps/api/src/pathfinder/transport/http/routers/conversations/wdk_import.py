@@ -37,6 +37,9 @@ async def open_strategy(
         site_id=request.site_id,
         user_id=user_id,
     )
+    # Commit before the response: the caller reads this id back immediately,
+    # and the session dependency commits only after the response is sent.
+    await session.commit()
     return OpenConversationResponse(conversation_id=conversation_id)
 
 

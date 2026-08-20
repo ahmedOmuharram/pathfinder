@@ -1,15 +1,31 @@
+"""VEuPathDB credentials: password login, logout, and bearer validation."""
+
 from __future__ import annotations
 
 import base64
 import binascii
 import json
+import time
 from http import HTTPStatus
 
 import httpx
+import jwt
+from jwt import PyJWK
+from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.integrations.veupathdb.factory import get_site
+from pathfinder.platform.errors import ExternalServiceError
+from pathfinder.platform.logging import get_logger
+
+logger = get_logger(__name__)
 
 _JWT_MIN_SEGMENTS = 2
+
+_IDENTITY_PROVIDER = "VEuPathDB identity provider"
+_JWKS_PATH = "/jwks"
+_JWKS_TIMEOUT_SECONDS = 15.0
+_OAUTH_ALGORITHM = "ES512"
+_SIGNING_KEY_CACHE_SECONDS = 120.0
 
 
 def _is_guest_jwt(token: str) -> bool:
@@ -77,32 +93,112 @@ async def password_logout(site_id: str, auth_token: str) -> bool:
     return response.status_code < HTTPStatus.BAD_REQUEST
 
 
-def extract_any_auth_cookie(set_cookie_headers: list[str]) -> str | None:
-    """Return the first ``Authorization`` cookie value, guest or not."""
-    for header in set_cookie_headers:
-        if not header.startswith("Authorization="):
-            continue
-        value = header.split(";", 1)[0].split("=", 1)[1].strip('"')
-        if value:
-            return value
-    return None
+class VEuPathDBClaims(BaseModel):
+    """The claims PathFinder reads from a VEuPathDB bearer token."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    sub: str
+    is_guest: bool = True
 
 
-async def mint_guest_token(site_id: str) -> str | None:
-    """Create a fresh WDK guest identity and return its ``Authorization`` token.
+class _JWK(BaseModel):
+    model_config = ConfigDict(extra="ignore")
 
-    An unauthenticated ``GET /users/current`` makes WDK mint a guest user and
-    hand back its long-lived JWT via ``Set-Cookie``. VEuPathDB auth is
-    BRC-central, so a guest token minted on one site is valid on all of them.
-    Returns None when WDK is unreachable or responds without the cookie.
-    """
-    site = get_site(site_id)
+    kty: str
+    crv: str = ""
+    x: str = ""
+    y: str = ""
+
+
+class _JWKS(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    keys: list[_JWK] = Field(default_factory=list)
+
+    def elliptic_curve_key(self) -> _JWK | None:
+        """Return the signing key, which the OAuth server publishes as the EC one."""
+        return next((key for key in self.keys if key.kty == "EC"), None)
+
+
+_signing_keys: dict[str, tuple[float, PyJWK]] = {}
+
+
+def clear_oauth_signing_key_cache() -> None:
+    """Drop every cached OAuth signing key."""
+    _signing_keys.clear()
+
+
+def _unavailable(jwks_url: str, reason: str) -> ExternalServiceError:
+    """Report that no token can be verified right now."""
+    logger.warning(
+        "Cannot read the OAuth signing key", jwks_url=jwks_url, reason=reason
+    )
+    return ExternalServiceError(
+        service=_IDENTITY_PROVIDER,
+        detail=f"{_IDENTITY_PROVIDER} at {jwks_url} cannot be read: {reason}",
+        status=HTTPStatus.SERVICE_UNAVAILABLE,
+    )
+
+
+async def _fetch_oauth_signing_key(oauth_url: str) -> PyJWK:
+    """Read the elliptic-curve signing key from the OAuth server's JWKS."""
+    jwks_url = f"{oauth_url.rstrip('/')}{_JWKS_PATH}"
     try:
-        async with httpx.AsyncClient(
-            base_url=site.service_url, follow_redirects=True, timeout=15.0
-        ) as client:
-            response = await client.get("/users/current")
+        async with httpx.AsyncClient(timeout=_JWKS_TIMEOUT_SECONDS) as client:
+            response = await client.get(jwks_url)
             response.raise_for_status()
-    except httpx.HTTPError:
+            jwks = _JWKS.model_validate(response.json())
+    except (httpx.HTTPError, ValueError) as exc:
+        raise _unavailable(jwks_url, str(exc)) from exc
+
+    key = jwks.elliptic_curve_key()
+    if key is None:
+        raise _unavailable(jwks_url, "the JWKS carries no elliptic-curve key")
+
+    try:
+        return PyJWK(
+            {
+                "kty": key.kty,
+                "crv": key.crv,
+                "x": key.x,
+                "y": key.y,
+                "alg": _OAUTH_ALGORITHM,
+            },
+        )
+    except (jwt.PyJWTError, ValueError) as exc:
+        raise _unavailable(jwks_url, f"the published key is unusable: {exc}") from exc
+
+
+async def _get_oauth_signing_key(oauth_url: str) -> PyJWK:
+    """Return the OAuth signing key, refetching it when the cached one expires."""
+    cached = _signing_keys.get(oauth_url)
+    if cached is not None and cached[0] > time.monotonic():
+        return cached[1]
+
+    key = await _fetch_oauth_signing_key(oauth_url)
+    _signing_keys[oauth_url] = (time.monotonic() + _SIGNING_KEY_CACHE_SECONDS, key)
+    return key
+
+
+async def validate_oauth_token(token: str, oauth_url: str) -> VEuPathDBClaims | None:
+    """Verify a VEuPathDB bearer token and return its claims, or None if invalid.
+
+    The token is an ES512 JWT signed by the OAuth server. Issuer and audience
+    are not checked: a site mints its tokens for its own client id, and every
+    VEuPathDB site shares this signing key. Raises ExternalServiceError when the
+    signing key cannot be read, which is not the token's fault.
+    """
+    key = await _get_oauth_signing_key(oauth_url)
+
+    try:
+        payload = jwt.decode(
+            token,
+            key=key,
+            algorithms=[_OAUTH_ALGORITHM],
+            options={"require": ["exp", "sub"], "verify_aud": False},
+        )
+        return VEuPathDBClaims.model_validate(payload)
+    except jwt.PyJWTError, ValueError:
+        logger.debug("Rejected a VEuPathDB bearer token")
         return None
-    return extract_any_auth_cookie(response.headers.get_list("set-cookie"))

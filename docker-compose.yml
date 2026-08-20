@@ -28,7 +28,6 @@ services:
       VEUPATHDB_SITES_CONFIG: ${VEUPATHDB_SITES_CONFIG:-}
       VEUPATHDB_AUTH_TOKEN: ${VEUPATHDB_AUTH_TOKEN:-}
       VEUPATHDB_OAUTH_URL: ${VEUPATHDB_OAUTH_URL:-}
-      VEUPATHDB_OAUTH_CLIENT_ID: ${VEUPATHDB_OAUTH_CLIENT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
       LOG_FORMAT: ${LOG_FORMAT:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
@@ -37,6 +36,8 @@ services:
       PIGUARD_ENABLED: ${PIGUARD_ENABLED:-true}
       # Set OTEL_INCLUDE_CONTENT=true to export prompts and completions in agent traces.
       OTEL_INCLUDE_CONTENT: ${OTEL_INCLUDE_CONTENT:-false}
+      # Seconds of silence after which the chat SSE stream sends a comment frame.
+      SSE_KEEPALIVE_SECONDS: ${SSE_KEEPALIVE_SECONDS:-15}
       # Dev WDK login for the chat debugger (pathfinder.devtools.chat); set in .env.dev.
       WDK_DEV_EMAIL: ${WDK_DEV_EMAIL:-}
       WDK_DEV_PASSWORD: ${WDK_DEV_PASSWORD:-}
@@ -77,11 +78,12 @@ services:
       VEUPATHDB_SITES_CONFIG: ${VEUPATHDB_SITES_CONFIG:-}
       VEUPATHDB_AUTH_TOKEN: ${VEUPATHDB_AUTH_TOKEN:-}
       VEUPATHDB_OAUTH_URL: ${VEUPATHDB_OAUTH_URL:-}
-      VEUPATHDB_OAUTH_CLIENT_ID: ${VEUPATHDB_OAUTH_CLIENT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
       LOG_FORMAT: ${LOG_FORMAT:-}
       # Jobs the worker runs in parallel, across every queue.
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      # Age at which a job still in 'doing' is failed so its lock releases.
+      WORKER_STALLED_JOB_TIMEOUT_SECONDS: ${WORKER_STALLED_JOB_TIMEOUT_SECONDS:-3600}
     volumes:
       - ./apps/api/.pf-runs:/data/pf-runs
 

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import contextlib
-import os
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from dataclasses import dataclass
 from uuid import uuid4
 
-import httpx
 import pytest
-from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.parameters.values import (
@@ -83,64 +80,29 @@ async def step_gene_ids(rt: RoundTrip) -> tuple[int, set[str]]:
 
 
 @pytest.fixture
-def require_wdk_creds() -> None:
-    if not (os.environ.get("WDK_TEST_EMAIL") and os.environ.get("WDK_TEST_PASSWORD")):
-        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
-
-
-@pytest.fixture
-async def wdk_session(
-    app: FastAPI,
+def wdk_session(
+    require_wdk_creds: str,
     patch_app_db_engine: None,
     db_cleaner: None,
-) -> AsyncGenerator[None]:
-    """Authenticate the WDK client as the real account (no build machinery)."""
+) -> Generator[None]:
+    """Act on WDK as the registered account (no build machinery)."""
     del patch_app_db_engine, db_cleaner
-    email = os.environ.get("WDK_TEST_EMAIL", "")
-    password = os.environ.get("WDK_TEST_PASSWORD", "")
-    if not email or not password:
-        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
-    token = await _real_account_token(app, email, password)
-    reset = veupathdb_auth_token_ctx.set(token)
+    reset = veupathdb_auth_token_ctx.set(require_wdk_creds)
     try:
         yield
     finally:
         veupathdb_auth_token_ctx.reset(reset)
 
 
-async def _real_account_token(app: FastAPI, email: str, password: str) -> str:
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(
-        transport=transport,
-        base_url="http://test",
-        headers={"X-Requested-With": "XMLHttpRequest"},
-    ) as client:
-        resp = await client.post(
-            "/api/v1/veupathdb/auth/login",
-            params={"siteId": "plasmodb"},
-            json={"email": email, "password": password},
-        )
-        assert resp.status_code == 200, resp.text
-        token = client.cookies.get("Authorization")
-    assert token, "login did not set an Authorization cookie"
-    return token
-
-
 @pytest.fixture
 async def wdk_builder(
-    app: FastAPI,
+    require_wdk_creds: str,
     patch_app_db_engine: None,
     session_maker: async_sessionmaker[AsyncSession],
     db_cleaner: None,
 ) -> AsyncGenerator[BuildAndRead]:
     del patch_app_db_engine, db_cleaner
-    email = os.environ.get("WDK_TEST_EMAIL", "")
-    password = os.environ.get("WDK_TEST_PASSWORD", "")
-    if not email or not password:
-        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
-
-    token = await _real_account_token(app, email, password)
-    reset = veupathdb_auth_token_ctx.set(token)
+    reset = veupathdb_auth_token_ctx.set(require_wdk_creds)
     created: list[int] = []
 
     async def build_and_read(root: StrategyStepNode) -> RoundTrip:
@@ -190,19 +152,13 @@ async def wdk_builder(
 
 @pytest.fixture
 async def wdk_build_raw(
-    app: FastAPI,
+    require_wdk_creds: str,
     patch_app_db_engine: None,
     session_maker: async_sessionmaker[AsyncSession],
     db_cleaner: None,
 ) -> AsyncGenerator[BuildRaw]:
     del patch_app_db_engine, db_cleaner
-    email = os.environ.get("WDK_TEST_EMAIL", "")
-    password = os.environ.get("WDK_TEST_PASSWORD", "")
-    if not email or not password:
-        pytest.skip("set WDK_TEST_EMAIL/WDK_TEST_PASSWORD to run live WDK tests")
-
-    token = await _real_account_token(app, email, password)
-    reset = veupathdb_auth_token_ctx.set(token)
+    reset = veupathdb_auth_token_ctx.set(require_wdk_creds)
     created: list[int] = []
 
     async def build_raw(root: StrategyStepNode) -> BuildOutcome:

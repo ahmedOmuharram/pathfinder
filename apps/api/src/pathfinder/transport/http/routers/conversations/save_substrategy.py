@@ -3,11 +3,15 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.conversations.service import ConversationService
-from pathfinder.transport.http.deps import CurrentUser, DBSession
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    DBSession,
+    require_registered_wdk_identity,
+)
 from pathfinder.transport.http.schemas import (
     SaveSubstrategyRequest,
     SaveSubstrategyResponse,
@@ -26,6 +30,7 @@ router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 @router.post(
     "/{conversation_id:uuid}/save-substrategy",
     response_model=SaveSubstrategyResponse,
+    dependencies=[Depends(require_registered_wdk_identity)],
 )
 async def save_substrategy(
     conversation_id: UUID,

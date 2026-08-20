@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
@@ -16,21 +15,6 @@ from pathfinder.platform.config import Settings, get_settings
 
 _TASK_NAME = "maintenance:release_stalled_jobs"
 _LOCK = "8f14e45f-ceea-467a-9e58-2b1c9d3e4a5b"
-
-
-@pytest.fixture
-async def in_memory_jobs() -> AsyncGenerator[InMemoryConnector]:
-    original_connector = procrastinate_app.connector
-    original_jm_connector = procrastinate_app.job_manager.connector
-    connector = InMemoryConnector()
-    procrastinate_app.connector = connector
-    procrastinate_app.job_manager.connector = connector
-    ensure_registered()
-    try:
-        yield connector
-    finally:
-        procrastinate_app.connector = original_connector
-        procrastinate_app.job_manager.connector = original_jm_connector
 
 
 async def _defer_locked_turn(connector: InMemoryConnector, lock: str) -> int:

@@ -15,6 +15,23 @@ export function wdkAccountCreds(): WdkCreds | null {
     : null;
 }
 
+/**
+ * The registered VEuPathDB token every worker acts with. VEuPathDB refuses
+ * guest service calls, so a run without it cannot reach any WDK-backed route.
+ * The value is never logged.
+ */
+export function wdkTestToken(): string {
+  const token = process.env["WDK_TEST_TOKEN"] ?? "";
+  if (token === "") {
+    throw new Error(
+      "WDK_TEST_TOKEN is not set. VEuPathDB refuses guest service calls, so the " +
+        "e2e suite must run as a registered VEuPathDB account. Export the token " +
+        "in the shell that starts Playwright.",
+    );
+  }
+  return token;
+}
+
 export async function loginWdkAccount(
   apiClient: APIRequestContext,
   creds: WdkCreds,

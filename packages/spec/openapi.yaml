@@ -566,6 +566,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/conversations:
     get:
       tags:
@@ -575,6 +577,8 @@ paths:
       operationId: list_strategies_api_v1_conversations_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: siteId
         in: query
@@ -611,6 +615,8 @@ paths:
       operationId: create_strategy_api_v1_conversations_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       requestBody:
         required: true
         content:
@@ -642,6 +648,8 @@ paths:
       operationId: list_dismissed_strategies_api_v1_conversations_dismissed_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: siteId
         in: query
@@ -679,6 +687,8 @@ paths:
       operationId: get_strategy_api_v1_conversations__strategyId__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: strategyId
         in: path
@@ -717,6 +727,8 @@ paths:
       operationId: update_strategy_api_v1_conversations__strategyId__patch
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: strategyId
         in: path
@@ -761,6 +773,8 @@ paths:
       operationId: delete_strategy_api_v1_conversations__strategyId__delete
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: strategyId
         in: path
@@ -810,6 +824,8 @@ paths:
       operationId: fork_strategy_api_v1_conversations__strategyId__fork_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: strategyId
         in: path
@@ -855,6 +871,8 @@ paths:
       operationId: get_strategy_ast_api_v1_conversations__strategyId__ast_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: strategyId
         in: path
@@ -894,6 +912,8 @@ paths:
       operationId: restore_strategy_api_v1_conversations__strategyId__restore_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: strategyId
         in: path
@@ -933,6 +953,8 @@ paths:
       operationId: begin_strategy_api_v1_conversations__conversation_id__begin_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: conversation_id
         in: path
@@ -969,37 +991,6 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/step-counts:
-    post:
-      tags:
-      - conversations
-      summary: Compute Step Counts
-      description: Compute step counts by executing the plan in WDK.
-      operationId: compute_step_counts_api_v1_conversations_step_counts_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StepCountsRequest'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StepCountsResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-      security:
-      - APIKeyCookie: []
   /api/v1/conversations/{conversation_id}/events:
     get:
       tags:
@@ -1009,6 +1000,8 @@ paths:
       operationId: conversation_events_api_v1_conversations__conversation_id__events_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: conversation_id
         in: path
@@ -1054,6 +1047,8 @@ paths:
       operationId: conversation_events_snapshot_api_v1_conversations__conversation_id__events_snapshot_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: conversation_id
         in: path
@@ -1120,8 +1115,547 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/dismiss:
+    post:
+      tags:
+      - conversations
+      summary: Soft-delete a conversation (hide from sidebar).
+      operationId: dismiss_conversation_api_v1_conversations__conversation_id__dismiss_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/duplicate:
+    post:
+      tags:
+      - conversations
+      summary: Clone a conversation (new row + copied messages).
+      operationId: duplicate_conversation_api_v1_conversations__conversation_id__duplicate_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDuplicateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/scratchpad/notes:
+    get:
+      tags:
+      - scratchpad
+      summary: List scratchpad notes for the conversation.
+      operationId: list_scratchpad_notes_api_v1_conversations__conversation_id__scratchpad_notes_get
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Note'
+                title: Response List Scratchpad Notes Api V1 Conversations  Conversation Id  Scratchpad Notes Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/scratchpad/notes/{note_id}:
+    get:
+      tags:
+      - scratchpad
+      summary: Get a single scratchpad note.
+      operationId: get_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__get
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    patch:
+      tags:
+      - scratchpad
+      summary: Pin or unpin a scratchpad note.
+      operationId: patch_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__patch
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScratchpadPatchRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      tags:
+      - scratchpad
+      summary: Delete a scratchpad note.
+      operationId: delete_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__delete
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/scratchpad/compactions:
+    get:
+      tags:
+      - scratchpad
+      summary: Audit log for scratchpad compaction runs.
+      operationId: list_compactions_api_v1_conversations__conversation_id__scratchpad_compactions_get
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompactionRun'
+                title: Response List Compactions Api V1 Conversations  Conversation Id  Scratchpad Compactions Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/revert-to-message:
+    post:
+      tags:
+      - conversations
+      summary: Delete all state at or after the target user message.
+      operationId: revert_to_message_api_v1_conversations__conversation_id__revert_to_message_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevertRequest'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/save-substrategy:
+    post:
+      tags:
+      - conversations
+      summary: Save Substrategy
+      description: Save a subtree of the active strategy as a new WDK saved strategy.
+      operationId: save_substrategy_api_v1_conversations__conversation_id__save_substrategy_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveSubstrategyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaveSubstrategyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/saved-strategy-consumers:
+    get:
+      tags:
+      - conversations
+      summary: Get Saved Strategy Consumer Counts
+      description: Count how many conversations consume each saved strategy.
+      operationId: get_saved_strategy_consumer_counts_api_v1_conversations_saved_strategy_consumers_get
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStrategyConsumerCounts'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/turns/{turn_id}/cancel:
+    post:
+      tags:
+      - conversations
+      summary: Cancel Turn Endpoint
+      operationId: cancel_turn_endpoint_api_v1_conversations__conversation_id__turns__turn_id__cancel_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: turn_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Turn Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/cancel:
+    post:
+      tags:
+      - conversations
+      summary: Cancel Conversation
+      operationId: cancel_conversation_api_v1_conversations__conversation_id__cancel_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/step-counts:
+    post:
+      tags:
+      - conversations
+      summary: Compute Step Counts
+      description: Compute step counts by executing the plan in WDK.
+      operationId: compute_step_counts_api_v1_conversations_step_counts_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepCountsRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepCountsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/conversations/{strategyId}/operations:
     post:
       tags:
@@ -1131,6 +1665,8 @@ paths:
       operationId: apply_operation_endpoint_api_v1_conversations__strategyId__operations_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: strategyId
         in: path
@@ -1204,6 +1740,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/conversations/sync-wdk:
     post:
       tags:
@@ -1213,6 +1751,8 @@ paths:
       operationId: sync_all_wdk_strategies_api_v1_conversations_sync_wdk_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: siteId
         in: query
@@ -1239,415 +1779,6 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/dismiss:
-    post:
-      tags:
-      - conversations
-      summary: Soft-delete a conversation (hide from sidebar).
-      operationId: dismiss_conversation_api_v1_conversations__conversation_id__dismiss_post
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      responses:
-        '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/duplicate:
-    post:
-      tags:
-      - conversations
-      summary: Clone a conversation (new row + copied messages).
-      operationId: duplicate_conversation_api_v1_conversations__conversation_id__duplicate_post
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      responses:
-        '201':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ConversationDuplicateResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/scratchpad/notes:
-    get:
-      tags:
-      - scratchpad
-      summary: List scratchpad notes for the conversation.
-      operationId: list_scratchpad_notes_api_v1_conversations__conversation_id__scratchpad_notes_get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Note'
-                title: Response List Scratchpad Notes Api V1 Conversations  Conversation Id  Scratchpad Notes Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/scratchpad/notes/{note_id}:
-    get:
-      tags:
-      - scratchpad
-      summary: Get a single scratchpad note.
-      operationId: get_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      - name: note_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Note Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Note'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-    patch:
-      tags:
-      - scratchpad
-      summary: Pin or unpin a scratchpad note.
-      operationId: patch_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__patch
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      - name: note_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Note Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ScratchpadPatchRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Note'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-    delete:
-      tags:
-      - scratchpad
-      summary: Delete a scratchpad note.
-      operationId: delete_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__delete
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      - name: note_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Note Id
-      responses:
-        '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/scratchpad/compactions:
-    get:
-      tags:
-      - scratchpad
-      summary: Audit log for scratchpad compaction runs.
-      operationId: list_compactions_api_v1_conversations__conversation_id__scratchpad_compactions_get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/CompactionRun'
-                title: Response List Compactions Api V1 Conversations  Conversation Id  Scratchpad Compactions Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/revert-to-message:
-    post:
-      tags:
-      - conversations
-      summary: Delete all state at or after the target user message.
-      operationId: revert_to_message_api_v1_conversations__conversation_id__revert_to_message_post
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RevertRequest'
-      responses:
-        '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/save-substrategy:
-    post:
-      tags:
-      - conversations
-      summary: Save Substrategy
-      description: Save a subtree of the active strategy as a new WDK saved strategy.
-      operationId: save_substrategy_api_v1_conversations__conversation_id__save_substrategy_post
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      - name: siteId
-        in: query
-        required: true
-        schema:
-          type: string
-          title: Siteid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SaveSubstrategyRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SaveSubstrategyResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/saved-strategy-consumers:
-    get:
-      tags:
-      - conversations
-      summary: Get Saved Strategy Consumer Counts
-      description: Count how many conversations consume each saved strategy.
-      operationId: get_saved_strategy_consumer_counts_api_v1_conversations_saved_strategy_consumers_get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: siteId
-        in: query
-        required: true
-        schema:
-          type: string
-          title: Siteid
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SavedStrategyConsumerCounts'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
   /api/v1/conversations/{conversation_id}/insert-saved:
     post:
       tags:
@@ -1657,6 +1788,8 @@ paths:
       operationId: insert_saved_api_v1_conversations__conversation_id__insert_saved_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: conversation_id
         in: path
@@ -1699,81 +1832,6 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/turns/{turn_id}/cancel:
-    post:
-      tags:
-      - conversations
-      summary: Cancel Turn Endpoint
-      operationId: cancel_turn_endpoint_api_v1_conversations__conversation_id__turns__turn_id__cancel_post
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      - name: turn_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Turn Id
-      responses:
-        '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  /api/v1/conversations/{conversation_id}/cancel:
-    post:
-      tags:
-      - conversations
-      summary: Cancel Conversation
-      operationId: cancel_conversation_api_v1_conversations__conversation_id__cancel_post
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      responses:
-        '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Not Found
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
   /api/v1/experiments/:
     post:
       tags:
@@ -1783,6 +1841,8 @@ paths:
       operationId: create_experiment_api_v1_experiments__post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       requestBody:
         required: true
         content:
@@ -1815,6 +1875,8 @@ paths:
       operationId: list_experiments_api_v1_experiments__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: siteId
         in: query
@@ -1876,6 +1938,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/experiments/benchmark:
     post:
       tags:
@@ -1909,6 +1973,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/experiments/seed:
     post:
       tags:
@@ -1921,6 +1987,8 @@ paths:
       operationId: seed_strategies_api_v1_experiments_seed_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: site_id
         in: query
@@ -1979,6 +2047,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/experiments/enrichment-compare:
     post:
       tags:
@@ -2010,6 +2080,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/experiments/{experiment_id}/cross-validate:
     post:
       tags:
@@ -2019,6 +2091,8 @@ paths:
       operationId: run_cv_api_v1_experiments__experiment_id__cross_validate_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2063,6 +2137,8 @@ paths:
       operationId: run_enrichment_api_v1_experiments__experiment_id__enrich_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2110,6 +2186,8 @@ paths:
       operationId: custom_enrichment_api_v1_experiments__experiment_id__custom_enrich_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2154,6 +2232,8 @@ paths:
       operationId: re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2192,6 +2272,8 @@ paths:
       operationId: threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2238,6 +2320,8 @@ paths:
       operationId: get_experiment_report_api_v1_experiments__experiment_id__export_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2278,6 +2362,8 @@ paths:
       operationId: get_experiment_api_v1_experiments__experiment_id__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2315,6 +2401,8 @@ paths:
       operationId: update_experiment_api_v1_experiments__experiment_id__patch
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2358,6 +2446,8 @@ paths:
       operationId: delete_experiment_api_v1_experiments__experiment_id__delete
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2388,10 +2478,12 @@ paths:
       tags:
       - experiments
       summary: Get Experiment Attributes
-      description: Get available attributes for an experiment's record type.
+      description: Returns the available attributes for the experiment record type.
       operationId: get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2426,10 +2518,12 @@ paths:
       tags:
       - experiments
       summary: Get Experiment Records
-      description: Get paginated result records for an experiment.
+      description: Returns one page of classified result records.
       operationId: get_experiment_records_api_v1_experiments__experiment_id__results_records_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2523,10 +2617,12 @@ paths:
       tags:
       - experiments
       summary: Get Experiment Record Detail
-      description: Get a single record's full details by primary key.
+      description: Returns the full detail of one record, selected by primary key.
       operationId: get_experiment_record_detail_api_v1_experiments__experiment_id__results_record_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2567,10 +2663,12 @@ paths:
       tags:
       - experiments
       summary: Get Experiment Distribution
-      description: Get distribution data for an attribute using the byValue column reporter.
+      description: Returns the distribution of one attribute from the byValue column reporter.
       operationId: get_experiment_distribution_api_v1_experiments__experiment_id__results_distributions__attribute_name__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: attribute_name
         in: path
@@ -2611,10 +2709,12 @@ paths:
       tags:
       - experiments
       summary: Refine Experiment
-      description: Add a step to the experiment's strategy (combine, transform, etc.).
+      description: Adds a combine or transform step to the experiment strategy.
       operationId: refine_experiment_api_v1_experiments__experiment_id__refine_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: experiment_id
         in: path
@@ -2659,6 +2759,8 @@ paths:
       operationId: list_control_sets_api_v1_control_sets_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: siteId
         in: query
@@ -2703,6 +2805,8 @@ paths:
       operationId: create_control_set_api_v1_control_sets_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       requestBody:
         required: true
         content:
@@ -2734,6 +2838,8 @@ paths:
       operationId: get_control_set_api_v1_control_sets__control_set_id__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: control_set_id
         in: path
@@ -2772,6 +2878,8 @@ paths:
       operationId: delete_control_set_api_v1_control_sets__control_set_id__delete
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: control_set_id
         in: path
@@ -2803,7 +2911,7 @@ paths:
       tags:
       - veupathdb-auth
       summary: Login With Password
-      description: Login via VEuPathDB /login, link internal user, and store auth cookies.
+      description: Log in to VEuPathDB, link the internal user, and set the auth cookies.
       operationId: login_with_password_api_v1_veupathdb_auth_login_post
       parameters:
       - name: redirectTo
@@ -2850,7 +2958,12 @@ paths:
       tags:
       - veupathdb-auth
       summary: Logout
-      description: Clear local auth cookie and log out of VEuPathDB.
+      description: 'Clear the local auth cookies and end the VEuPathDB session.
+
+
+        The cookies are cleared either way: the local session is over even when WDK
+
+        could not be reached. ``success`` reports what WDK did.'
       operationId: logout_api_v1_veupathdb_auth_logout_post
       parameters:
       - name: siteId
@@ -2881,12 +2994,12 @@ paths:
       tags:
       - veupathdb-auth
       summary: Refresh Internal Auth
-      description: 'Re-derive the internal ``pathfinder-auth`` token from a live VEuPathDB session.
+      description: 'Re-derive the internal auth token from a live VEuPathDB session.
 
 
-        Called on page load when the internal token is missing/expired but the
+        Use this when the internal token is absent or expired but the VEuPathDB
 
-        VEuPathDB ``Authorization`` cookie is still valid.'
+        cookie is still valid.'
       operationId: refresh_internal_auth_api_v1_veupathdb_auth_refresh_post
       parameters:
       - name: siteId
@@ -2917,14 +3030,12 @@ paths:
       tags:
       - veupathdb-auth
       summary: Auth Status
-      description: 'Return current VEuPathDB auth status.
+      description: 'Return the current VEuPathDB auth status.
 
 
-        In test-mode mock runs (``PATHFINDER_CHAT_PROVIDER=mock``), a valid
+        A mock chat provider has no VEuPathDB session, so the internal cookie
 
-        ``pathfinder-auth`` cookie is sufficient — the dev-login endpoint
-
-        doesn''t create a VEuPathDB session, so we skip the real WDK call.'
+        alone proves identity there.'
       operationId: auth_status_api_v1_veupathdb_auth_status_get
       parameters:
       - name: siteId
@@ -2959,6 +3070,8 @@ paths:
       operationId: create_gene_set_api_v1_gene_sets_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       requestBody:
         required: true
         content:
@@ -2989,6 +3102,8 @@ paths:
       operationId: list_gene_sets_api_v1_gene_sets_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: siteId
         in: query
@@ -3026,6 +3141,8 @@ paths:
       operationId: get_gene_set_api_v1_gene_sets__gene_set_id__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: gene_set_id
         in: path
@@ -3063,6 +3180,8 @@ paths:
       operationId: delete_gene_set_api_v1_gene_sets__gene_set_id__delete
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: gene_set_id
         in: path
@@ -3095,6 +3214,46 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/gene-sets/{gene_set_id}/retake:
+    post:
+      tags:
+      - gene-sets
+      summary: Retake Gene Set
+      description: Replace a gene set's genes with what its source strategy holds now.
+      operationId: retake_gene_set_api_v1_gene_sets__gene_set_id__retake_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: gene_set_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Gene Set Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneSetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/v1/gene-sets/{gene_set_id}/export:
     post:
       tags:
@@ -3104,6 +3263,8 @@ paths:
       operationId: export_gene_set_endpoint_api_v1_gene_sets__gene_set_id__export_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: gene_set_id
         in: path
@@ -3171,6 +3332,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/gene-sets/operations:
     post:
       tags:
@@ -3202,6 +3365,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/gene-sets/reverse-search:
     post:
       tags:
@@ -3236,6 +3401,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/gene-sets/ensemble:
     post:
       tags:
@@ -3270,6 +3437,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/gene-sets/{gene_set_id}/enrich:
     post:
       tags:
@@ -3279,6 +3448,8 @@ paths:
       operationId: enrich_gene_set_api_v1_gene_sets__gene_set_id__enrich_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: gene_set_id
         in: path
@@ -3326,6 +3497,8 @@ paths:
       operationId: get_gene_set_attributes_api_v1_gene_sets__gene_set_id__results_attributes_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: gene_set_id
         in: path
@@ -3364,6 +3537,8 @@ paths:
       operationId: get_gene_set_records_api_v1_gene_sets__gene_set_id__results_records_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: gene_set_id
         in: path
@@ -3461,6 +3636,8 @@ paths:
       operationId: get_gene_set_distribution_api_v1_gene_sets__gene_set_id__results_distributions__attribute_name__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: gene_set_id
         in: path
@@ -3505,6 +3682,8 @@ paths:
       operationId: get_gene_set_record_detail_api_v1_gene_sets__gene_set_id__results_record_post
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: gene_set_id
         in: path
@@ -3572,8 +3751,6 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-      security:
-      - APIKeyCookie: []
   /api/v1/exports/{export_id}:
     get:
       tags:
@@ -3588,6 +3765,8 @@ paths:
       operationId: download_export_api_v1_exports__export_id__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: export_id
         in: path
@@ -3768,6 +3947,8 @@ paths:
       operationId: purge_user_data_endpoint_api_v1_user_data_delete
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: siteId
         in: query
@@ -3831,6 +4012,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/eval/strategy-gene-ids:
     post:
       tags:
@@ -3864,6 +4047,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/memories:
     get:
       tags:
@@ -3872,6 +4057,8 @@ paths:
       operationId: list_memories_api_v1_memories_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: limit
         in: query
@@ -3918,6 +4105,8 @@ paths:
       operationId: search_memories_api_v1_memories_search_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: q
         in: query
@@ -3951,6 +4140,8 @@ paths:
       operationId: edit_memory_api_v1_memories__key__patch
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: key
         in: path
@@ -4004,6 +4195,8 @@ paths:
       operationId: delete_memory_api_v1_memories__key__delete
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: key
         in: path
@@ -4040,6 +4233,24 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/me/principal:
+    get:
+      tags:
+      - me
+      summary: Get My Principal
+      description: Return the identity the request is served under.
+      operationId: get_my_principal_api_v1_me_principal_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Principal'
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/me/quota:
     get:
       tags:
@@ -4055,6 +4266,8 @@ paths:
                 $ref: '#/components/schemas/QuotaResponse'
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/conversations/{conversation_id}/tasks:
     get:
       tags:
@@ -4064,6 +4277,8 @@ paths:
       operationId: list_tasks_api_v1_conversations__conversation_id__tasks_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: conversation_id
         in: path
@@ -4113,6 +4328,8 @@ paths:
       operationId: task_status_api_v1_conversations__conversation_id__tasks__task_id__get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: conversation_id
         in: path
@@ -4159,6 +4376,8 @@ paths:
       operationId: task_progress_history_api_v1_conversations__conversation_id__tasks__task_id__progress_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: conversation_id
         in: path
@@ -4208,6 +4427,8 @@ paths:
       operationId: task_events_api_v1_conversations__conversation_id__tasks__task_id__events_get
       security:
       - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
       parameters:
       - name: conversation_id
         in: path
@@ -4324,6 +4545,7 @@ components:
           - $ref: '#/components/schemas/AddTransformOp'
           - $ref: '#/components/schemas/DuplicateStepOp'
           - $ref: '#/components/schemas/DeleteStepOp'
+          - $ref: '#/components/schemas/DeleteEdgeOp'
           - $ref: '#/components/schemas/ReplaceSubtreeOp'
           - $ref: '#/components/schemas/UpdateStepParamsOp'
           - $ref: '#/components/schemas/UpdateCombineOperatorOp'
@@ -4338,6 +4560,7 @@ components:
               addCombine: '#/components/schemas/AddCombineOp'
               addLeaf: '#/components/schemas/AddLeafOp'
               addTransform: '#/components/schemas/AddTransformOp'
+              deleteEdge: '#/components/schemas/DeleteEdgeOp'
               deleteStep: '#/components/schemas/DeleteStepOp'
               duplicateStep: '#/components/schemas/DuplicateStepOp'
               replaceStrategy: '#/components/schemas/ReplaceStrategyOp'
@@ -4915,17 +5138,12 @@ components:
           default: 0
       type: object
       title: ColocationParams
-      description: 'Full WDK GenesBySpanLogic parameters for COLOCATE operator.
+      description: 'Span-logic parameters for the COLOCATE operator.
 
 
-        Human-readable field values for the AI model; ``to_wdk_params()``
+        Field values are readable words. Serialization translates them to the WDK
 
-        translates to WDK internal vocabulary values before submission.
-
-
-        WDK source of truth:
-
-        ``GET /record-types/transcript/searches/GenesBySpanLogic?expandParams=true``'
+        vocabulary values.'
     CombineOp:
       type: string
       enum:
@@ -4937,7 +5155,12 @@ components:
       - COLOCATE
       - UNION
       title: CombineOp
-      description: Set operations for combining two step results.
+      description: 'Set operations that combine two step results.
+
+
+        WDK defines the same set. LONLY matches MINUS and RONLY matches RMINUS.
+
+        Both names stay, for round-trip fidelity with WDK.'
     CompactionRun:
       properties:
         id:
@@ -5327,6 +5550,10 @@ components:
             format: uuid
           - type: 'null'
           title: Parentmessageid
+        strategyRevision:
+          type: string
+          title: Strategyrevision
+          default: ''
       type: object
       required:
       - id
@@ -5345,7 +5572,7 @@ components:
       required:
       - title
       title: ConversationTitlePayload
-      description: Payload for the ``data-conversation-title`` chunk.
+      description: Payload for the conversation-title chunk.
     CreateBatchExperimentRequest:
       properties:
         base:
@@ -5761,7 +5988,7 @@ components:
       - siteId
       - geneIds
       title: CreateGeneSetRequest
-      description: Create a gene set from IDs, strategy, or upload.
+      description: Request to create a gene set from IDs, a strategy, or an upload.
     CrossValidationResultResponse:
       properties:
         k:
@@ -5820,6 +6047,9 @@ components:
         geneSetSize:
           type: integer
           title: Genesetsize
+        geneSetInBackground:
+          type: integer
+          title: Genesetinbackground
         overlapCount:
           type: integer
           title: Overlapcount
@@ -5841,12 +6071,15 @@ components:
           type: number
           title: Pvalue
         oddsRatio:
-          type: number
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Oddsratio
       type: object
       required:
       - geneSetName
       - geneSetSize
+      - geneSetInBackground
       - overlapCount
       - overlapGenes
       - backgroundSize
@@ -5930,10 +6163,53 @@ components:
       required:
       - value
       title: DateValue
+    DeleteEdgeOp:
+      properties:
+        kind:
+          type: string
+          const: deleteEdge
+          title: Kind
+          default: deleteEdge
+        sourceId:
+          type: string
+          title: Sourceid
+        targetId:
+          type: string
+          title: Targetid
+        slot:
+          type: string
+          enum:
+          - primary
+          - secondary
+          title: Slot
+        resolution:
+          $ref: '#/components/schemas/DeleteEdgeResolution'
+      type: object
+      required:
+      - sourceId
+      - targetId
+      - slot
+      - resolution
+      title: DeleteEdgeOp
+      description: 'Remove one wire, addressed by the edge the canvas actually shows.
+
+
+        ``delete_step`` addresses a node; the graph canvas addresses an edge.
+
+        Keeping both endpoints lets the apply step reject a request built from a
+
+        stale canvas rather than detaching whatever now occupies the slot.'
+    DeleteEdgeResolution:
+      type: string
+      enum:
+      - detach
+      - collapse
+      title: DeleteEdgeResolution
     DeleteResolution:
       type: string
       enum:
       - collapse-combine
+      - orphan-sibling
       - delete-subtree
       - promote-primary
       - delete-strategy
@@ -6479,6 +6755,41 @@ components:
       - totalTerms
       title: EnrichmentCompareResult
       description: Return shape of :func:`compare_enrichment_across`.
+    EnrichmentResult:
+      properties:
+        analysisType:
+          type: string
+          enum:
+          - go_function
+          - go_component
+          - go_process
+          - pathway
+          - word
+          title: Analysistype
+        terms:
+          items:
+            $ref: '#/components/schemas/EnrichmentTerm'
+          type: array
+          title: Terms
+        totalGenesAnalyzed:
+          type: integer
+          title: Totalgenesanalyzed
+          default: 0
+        backgroundSize:
+          type: integer
+          title: Backgroundsize
+          default: 0
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - analysisType
+      - terms
+      title: EnrichmentResult
+      description: Results for a single enrichment analysis type.
     EnrichmentResultResponse:
       properties:
         analysisType:
@@ -6568,7 +6879,9 @@ components:
           type: object
           title: Scores
         maxScore:
-          type: number
+          anyOf:
+          - type: number
+          - type: string
           title: Maxscore
         experimentCount:
           type: integer
@@ -6582,7 +6895,76 @@ components:
       - maxScore
       - experimentCount
       title: EnrichmentRow
-      description: Shape of one term row in the enrichment comparison.
+      description: 'Shape of one term row in the enrichment comparison.
+
+
+        A score is a number, the unbounded token, or null when the experiment has
+
+        no such term.'
+    EnrichmentTerm:
+      properties:
+        termId:
+          type: string
+          title: Termid
+        termName:
+          type: string
+          title: Termname
+        geneCount:
+          type: integer
+          title: Genecount
+        backgroundCount:
+          type: integer
+          title: Backgroundcount
+        foldEnrichment:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Foldenrichment
+        oddsRatio:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Oddsratio
+        pValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pvalue
+        fdr:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fdr
+        bonferroni:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Bonferroni
+        genes:
+          items:
+            type: string
+          type: array
+          title: Genes
+      type: object
+      required:
+      - termId
+      - termName
+      - geneCount
+      - backgroundCount
+      - foldEnrichment
+      - oddsRatio
+      - pValue
+      - fdr
+      - bonferroni
+      title: EnrichmentTerm
+      description: 'Single enriched term from WDK analysis.
+
+
+        WDK returns numeric fields as JSON strings (``"3.48"``, ``"3.40e-13"``,
+
+        ``"Infinity"``). A None ratio is unbounded; a None probability is not
+
+        computable.'
     EnrichmentTermResponse:
       properties:
         termId:
@@ -6598,19 +6980,29 @@ components:
           type: integer
           title: Backgroundcount
         foldEnrichment:
-          type: number
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Foldenrichment
         oddsRatio:
-          type: number
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Oddsratio
         pValue:
-          type: number
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Pvalue
         fdr:
-          type: number
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Fdr
         bonferroni:
-          type: number
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Bonferroni
         genes:
           items:
@@ -6629,7 +7021,10 @@ components:
       - fdr
       - bonferroni
       title: EnrichmentTermResponse
-      description: Single enriched term from WDK analysis.
+      description: 'Single enriched term from WDK analysis.
+
+
+        A None ratio is unbounded; a None probability is not computable.'
     EnsembleScore:
       properties:
         geneId:
@@ -6675,7 +7070,7 @@ components:
       required:
       - geneSetIds
       title: EnsembleScoringRequest
-      description: Compute ensemble frequency scores across multiple gene sets.
+      description: Request to compute ensemble frequency scores across gene sets.
     ErrorEvent:
       properties:
         type:
@@ -7559,7 +7954,7 @@ components:
       - fnIds
       - tnIds
       title: GeneConfidenceRequest
-      description: Compute per-gene confidence scores from classification data.
+      description: Request to compute per-gene confidence scores from classification data.
     GeneConfidenceScoreResponse:
       properties:
         geneId:
@@ -7585,7 +7980,7 @@ components:
       - ensembleScore
       - enrichmentScore
       title: GeneConfidenceScoreResponse
-      description: Single gene confidence score in the response.
+      description: One gene confidence score.
     GeneInfoResponse:
       properties:
         id:
@@ -7760,7 +8155,7 @@ components:
       required:
       - enrichmentTypes
       title: GeneSetEnrichRequest
-      description: Run enrichment on a gene set.
+      description: Request to run enrichment on a gene set.
     GeneSetExportResponse:
       properties:
         exportId:
@@ -7900,6 +8295,11 @@ components:
           type: integer
           title: Stepcount
           default: 1
+        enrichmentResults:
+          items:
+            $ref: '#/components/schemas/EnrichmentResult'
+          type: array
+          title: Enrichmentresults
       type: object
       required:
       - id
@@ -7910,7 +8310,7 @@ components:
       - geneCount
       - createdAt
       title: GeneSetResponse
-      description: Gene set response DTO.
+      description: A gene set, as returned to the client.
     GraphCleared:
       properties:
         reason:
@@ -8176,11 +8576,9 @@ components:
           default: '0'
       type: object
       title: LeadUsagePayload
-      description: 'Payload for the ``data-lead-usage`` chunk — the Lead agent''s own
+      description: 'Payload for the lead-usage chunk. The counts cover the Lead agent only
 
-        model, tokens, and cost (excluding sub-agents). Drives the per-message
-
-        lead badge and updates live as the Lead streams.'
+        and exclude sub-agents.'
     LoginPayload:
       properties:
         email:
@@ -8550,11 +8948,8 @@ components:
           items:
             type: string
           type: array
-          minItems: 1
           title: Values
       type: object
-      required:
-      - values
       title: MultiPickValue
     NegativeSetVariantResponse:
       properties:
@@ -9532,6 +9927,29 @@ components:
       - value
       title: PrimaryKeyPart
       description: A single part of a composite WDK primary key.
+    Principal:
+      properties:
+        userId:
+          type: string
+          format: uuid
+          title: Userid
+        applicationId:
+          type: string
+          title: Applicationid
+          default: pathfinder
+        credential:
+          type: string
+          enum:
+          - pathfinder-cookie
+          - pathfinder-bearer
+          - veupathdb-bearer
+          title: Credential
+      type: object
+      required:
+      - userId
+      - credential
+      title: Principal
+      description: The identity a request is served under.
     ProductActionRequest:
       properties:
         action:
@@ -9868,10 +10286,14 @@ components:
     RecordsMeta:
       properties:
         totalCount:
-          type: integer
+          anyOf:
+          - type: integer
+          - type: 'null'
           title: Totalcount
         displayTotalCount:
-          type: integer
+          anyOf:
+          - type: integer
+          - type: 'null'
           title: Displaytotalcount
         responseCount:
           type: integer
@@ -9890,13 +10312,17 @@ components:
           title: Tables
       type: object
       required:
-      - totalCount
-      - displayTotalCount
       - responseCount
       - pagination
       - attributes
       - tables
       title: RecordsMeta
+      description: 'Counts for one page of records.
+
+
+        A count is optional because WDK does not always publish one, and a client
+
+        that shows zero there states a result nobody measured.'
     RecordsPagination:
       properties:
         offset:
@@ -9967,8 +10393,7 @@ components:
           type: object
           title: Parameters
         operator:
-          type: string
-          title: Operator
+          $ref: '#/components/schemas/CombineOp'
           default: INTERSECT
         transformName:
           type: string
@@ -10091,7 +10516,7 @@ components:
       - positiveGeneIds
       - siteId
       title: ReverseSearchRequest
-      description: Rank user's gene sets by recall of given positive genes.
+      description: Request to rank a user's gene sets by recall of the given genes.
     ReverseSearchResultItem:
       properties:
         geneSetId:
@@ -10130,7 +10555,7 @@ components:
       - estimatedSize
       - overlapCount
       title: ReverseSearchResultItem
-      description: A single ranked gene set in reverse search results.
+      description: One ranked gene set in a reverse-search result.
     RevertRequest:
       properties:
         messageId:
@@ -10403,7 +10828,7 @@ components:
       - operation
       - name
       title: SetOperationRequest
-      description: Perform set operations between two gene sets.
+      description: Request to combine two gene sets with a set operation.
     SinglePickValue:
       properties:
         type:
@@ -10535,10 +10960,7 @@ components:
       required:
       - analysisType
       title: StepAnalysis
-      description: 'Analysis configuration for a step.
-
-
-        WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).'
+      description: Analysis configuration attached to a step.
     StepAnalysis-Output:
       properties:
         analysisType:
@@ -10555,10 +10977,7 @@ components:
       required:
       - analysisType
       title: StepAnalysis
-      description: 'Analysis configuration for a step.
-
-
-        WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).'
+      description: Analysis configuration attached to a step.
     StepAnalysisProgressDataResponse:
       properties:
         phase:
@@ -10782,10 +11201,7 @@ components:
       required:
       - name
       title: StepFilter
-      description: 'Filter applied to a step''s result.
-
-
-        WDK FilterValueArray element: { name: string, value: any, disabled?: boolean }.'
+      description: One element of a WDK filter value array on a step.
     StepReport-Input:
       properties:
         reportName:
@@ -10796,10 +11212,7 @@ components:
           $ref: '#/components/schemas/JSONObject'
       type: object
       title: StepReport
-      description: 'Report request attached to a step.
-
-
-        WDK fields: reportName (str, default "standard"), config (JSONObject).'
+      description: Report request attached to a step.
     StepReport-Output:
       properties:
         reportName:
@@ -10810,10 +11223,7 @@ components:
           $ref: '#/components/schemas/JSONObject'
       type: object
       title: StepReport
-      description: 'Report request attached to a step.
-
-
-        WDK fields: reportName (str, default "standard"), config (JSONObject).'
+      description: Report request attached to a step.
     StepResponse:
       properties:
         id:
@@ -10900,10 +11310,9 @@ components:
           - type: integer
           - type: 'null'
           title: Wdkstepid
-        isBuilt:
-          type: boolean
-          title: Isbuilt
-          default: false
+        status:
+          $ref: '#/components/schemas/StepStatus'
+          default: draft
         isFiltered:
           type: boolean
           title: Isfiltered
@@ -10964,6 +11373,15 @@ components:
       type: object
       title: StepStartUIPart
       description: A step boundary part of a message.
+    StepStatus:
+      type: string
+      enum:
+      - draft
+      - ready
+      - built
+      - invalid
+      title: StepStatus
+      description: The state of a step. READY means the step is complete but is not yet in WDK.
     StepValidation:
       properties:
         level:
@@ -10980,7 +11398,7 @@ components:
           - type: 'null'
       type: object
       title: StepValidation
-      description: Step/search/strategy validation state.
+      description: A validity claim, and the level the claim was made at.
     StepValidationErrors:
       properties:
         general:
@@ -11005,6 +11423,11 @@ components:
           title: Recordtype
         root:
           $ref: '#/components/schemas/StrategyStepNode-Input'
+        detachedRoots:
+          items:
+            $ref: '#/components/schemas/StrategyStepNode-Input'
+          type: array
+          title: Detachedroots
         name:
           anyOf:
           - type: string
@@ -11040,6 +11463,13 @@ components:
             type: object
           - type: 'null'
           title: Stepvalidations
+        wdkPushErrors:
+          anyOf:
+          - additionalProperties:
+              type: string
+            type: object
+          - type: 'null'
+          title: Wdkpusherrors
       type: object
       required:
       - recordType
@@ -11053,6 +11483,11 @@ components:
           title: Recordtype
         root:
           $ref: '#/components/schemas/StrategyStepNode-Output'
+        detachedRoots:
+          items:
+            $ref: '#/components/schemas/StrategyStepNode-Output'
+          type: array
+          title: Detachedroots
         name:
           anyOf:
           - type: string
@@ -11088,6 +11523,13 @@ components:
             type: object
           - type: 'null'
           title: Stepvalidations
+        wdkPushErrors:
+          anyOf:
+          - additionalProperties:
+              type: string
+            type: object
+          - type: 'null'
+          title: Wdkpusherrors
       type: object
       required:
       - recordType
@@ -11196,6 +11638,18 @@ components:
       - operation
       title: StrategyPatch
       description: A partial update to a strategy, emitted by strategy-mutating tools.
+    StrategyRevisionPayload:
+      properties:
+        revision:
+          type: string
+          title: Revision
+      type: object
+      required:
+      - revision
+      title: StrategyRevisionPayload
+      description: 'Payload for the strategy-revision chunk. The revision is a fingerprint
+
+        of the strategy that the turn describes.'
     StrategyStepNode-Input:
       properties:
         searchName:
@@ -11292,13 +11746,9 @@ components:
       description: 'Recursive strategy node.
 
 
-        Kind is inferred from structure:
+        The kind follows the structure: two inputs is a combine, one input is a
 
-        - combine: primary_input and secondary_input
-
-        - transform: primary_input only
-
-        - search: no inputs'
+        transform, and no input is a search.'
     StrategyStepNode-Output:
       properties:
         searchName:
@@ -11395,13 +11845,9 @@ components:
       description: 'Recursive strategy node.
 
 
-        Kind is inferred from structure:
+        The kind follows the structure: two inputs is a combine, one input is a
 
-        - combine: primary_input and secondary_input
-
-        - transform: primary_input only
-
-        - search: no inputs'
+        transform, and no input is a search.'
     StreamPartsSchemaIndex:
       properties:
         graphSnapshot:
@@ -11500,6 +11946,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/LeadUsagePayload'
           - type: 'null'
+        strategyRevision:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyRevisionPayload'
+          - type: 'null'
       type: object
       title: StreamPartsSchemaIndex
       description: Index of stream-part payload schemas. Never called — exists for OpenAPI generation.
@@ -11563,14 +12013,9 @@ components:
       - phase
       - state
       title: SubAgentCallPayload
-      description: 'Payload for the ``data-sub-agent-call`` chunk.
+      description: 'Payload for the sub-agent-call chunk. The tool call id identifies the
 
-
-        ``tool_call_id`` is the Lead''s tool_call_id for this dispatch; the
-
-        frontend joins ``data-sub-agent-step`` chunks to it via
-
-        ``parentToolCallId``.'
+        dispatch, and sub-agent step chunks join to it.'
     SubAgentStepPayload:
       properties:
         parentToolCallId:
@@ -11589,6 +12034,7 @@ components:
           - started
           - completed
           - failed
+          - denied
           title: State
         toolCallId:
           anyOf:
@@ -11623,16 +12069,9 @@ components:
       - kind
       - state
       title: SubAgentStepPayload
-      description: 'Payload for the ``data-sub-agent-step`` chunk — one event inside
+      description: 'Payload for one event inside a sub-agent run. The parent tool call id
 
-        a sub-agent''s run.
-
-
-        Lets the frontend render each sub-agent dispatch as its own mini
-
-        chat — inner tool calls, reasoning, text — nested under the
-
-        ``data-sub-agent-call`` card with matching ``parentToolCallId``.'
+        nests the event under its dispatch.'
     SubsystemStatus:
       properties:
         ready:
@@ -12590,26 +13029,16 @@ components:
       required:
       - label
       title: TurnStatusPayload
-      description: 'Payload for the ``data-turn-status`` chunk.
+      description: 'Payload for the turn-status chunk. The model id travels on the first
 
-
-        ``waiting_on_llm`` lets the UI distinguish real thinking from
-
-        preparatory work. ``model`` carries the Lead''s model id once (on the
-
-        first status of the turn) so the UI can show the Lead''s provider icon
-
-        alongside the live status.'
+        status of a turn only.'
     TurnStoppedPayload:
       properties: {}
       type: object
       title: TurnStoppedPayload
-      description: 'Payload for the ``data-turn-stopped`` chunk.
+      description: 'Payload for the turn-stopped chunk. The chunk persists as a message
 
-
-        Emitted when a turn is cancelled (user pressed Stop). Persisted as a
-
-        message part so the "stopped" state survives a page refresh.'
+        part, so the stopped state survives a page reload.'
     TurnUsage:
       properties:
         totalTokens:
@@ -13036,7 +13465,7 @@ components:
       required:
       - term
       title: WDKFilterOntologyTerm
-      description: A node in a filter parameter's ontology tree.
+      description: A node in the ontology tree of a filter parameter.
     WDKHistogramBin:
       properties:
         value:
@@ -13123,7 +13552,7 @@ components:
           title: Children
       type: object
       title: WDKTreeBoxVocabNode
-      description: A node in a treeBox enum vocabulary tree.
+      description: A node in a tree-box enum vocabulary.
     WDKVocabNodeData:
       properties:
         term:
@@ -13136,7 +13565,7 @@ components:
           default: ''
       type: object
       title: WDKVocabNodeData
-      description: The ``data`` payload of a treeBox vocabulary node.
+      description: The data payload of a tree-box vocabulary node.
     WDKVocabTerm:
       prefixItems:
       - type: string
@@ -13146,7 +13575,7 @@ components:
       maxItems: 3
       minItems: 3
       title: WDKVocabTerm
-      description: 'A standard-enum vocabulary entry: ``[term, display, null]``.'
+      description: A standard enum vocabulary entry as a term, display, null triple.
     WireInputOp:
       properties:
         kind:
@@ -13300,6 +13729,7 @@ components:
       - SEARCH_NOT_FOUND
       - INVALID_PARAMETERS
       - WDK_ERROR
+      - WDK_LOGIN_REQUIRED
       - STRATEGY_NOT_FOUND
       - INVALID_STRATEGY
       - STEP_NOT_FOUND
@@ -13318,6 +13748,13 @@ components:
       type: apiKey
       in: cookie
       name: pathfinder-auth
+    HTTPBearer:
+      type: http
+      scheme: bearer
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-PathFinder-Service-Token
 servers:
 - url: http://localhost:8000
   description: Local development

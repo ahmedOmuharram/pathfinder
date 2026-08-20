@@ -38,7 +38,7 @@ export function useTaskEventStream(
         announceTaskCompletion(
           streamTypedEvents<TaskEventChunk>(
             `/api/v1/conversations/${conversationId}/tasks/${taskId}/events`,
-            { signal, headers: { "X-Requested-With": "XMLHttpRequest" } },
+            { signal },
           ),
           onComplete,
         ),

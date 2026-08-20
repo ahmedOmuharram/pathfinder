@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
 import httpx
-import pytest
 from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 
 import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.jobs.app import procrastinate_app
-from pathfinder.jobs.tasks import ensure_registered
 from pathfinder.persistence.models import Conversation
 from pathfinder.platform.security import create_user_token
 
@@ -25,25 +22,6 @@ def _event_ids(body: str) -> list[int]:
         for line in body.splitlines()
         if line.startswith("id:")
     ]
-
-
-@pytest.fixture
-async def in_memory_jobs() -> AsyncIterator[InMemoryConnector]:
-    """Points the job connector at an in-memory queue for one test.
-
-    The teardown restores the original connector.
-    """
-    original_connector = procrastinate_app.connector
-    original_jm_connector = procrastinate_app.job_manager.connector
-    connector = InMemoryConnector()
-    procrastinate_app.connector = connector
-    procrastinate_app.job_manager.connector = connector
-    ensure_registered()
-    try:
-        yield connector
-    finally:
-        procrastinate_app.connector = original_connector
-        procrastinate_app.job_manager.connector = original_jm_connector
 
 
 async def _drain() -> None:
@@ -108,8 +86,9 @@ async def test_post_chat_enqueues_runs_and_streams_until_done(
     db_cleaner: None,
     authed_user_id: UUID,
     in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
 ) -> None:
-    del patch_app_db_engine, db_cleaner
+    del patch_app_db_engine, db_cleaner, signed_in_to_veupathdb
     conv_id = uuid4()
     token = create_user_token(authed_user_id)
 
@@ -142,9 +121,10 @@ async def test_post_chat_does_not_replay_prior_turn_events(
     db_cleaner: None,
     authed_user_id: UUID,
     in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
 ) -> None:
     """A new turn streams only its own events, never the events of an earlier turn."""
-    del patch_app_db_engine, db_cleaner
+    del patch_app_db_engine, db_cleaner, signed_in_to_veupathdb
     conv_id = await _seed_conversation(authed_user_id)
     prior_writer = ChatEventWriter(
         conversation_id=conv_id,
@@ -188,9 +168,10 @@ async def test_events_endpoint_returns_204_when_turn_complete(
     db_cleaner: None,
     authed_user_id: UUID,
     in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
 ) -> None:
     """The events endpoint returns no content when the last event is a done chunk."""
-    del patch_app_db_engine, db_cleaner
+    del patch_app_db_engine, db_cleaner, signed_in_to_veupathdb
     conv_id = uuid4()
     token = create_user_token(authed_user_id)
 
@@ -292,9 +273,10 @@ async def test_two_concurrent_subscribers_consistent_204_when_complete(
     db_cleaner: None,
     authed_user_id: UUID,
     in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
 ) -> None:
     """Two subscribers that connect after the turn ends both get no content."""
-    del patch_app_db_engine, db_cleaner
+    del patch_app_db_engine, db_cleaner, signed_in_to_veupathdb
     conv_id = uuid4()
     token = create_user_token(authed_user_id)
 

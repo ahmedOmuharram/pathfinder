@@ -23,53 +23,52 @@ async def _fetch_response() -> WDKSearchResponse:
 
 
 async def test_layer1_wdk_parse_preserves_allow_empty_false(
-    require_wdk_creds: None,
     wdk_session: None,
 ) -> None:
-    del require_wdk_creds, wdk_session
+    del wdk_session
     response = await _fetch_response()
     params = {p.name: p for p in (response.search_data.parameters or [])}
     assert params["text_expression"].allow_empty_value is False
 
 
 async def test_layer2_adapter_preserves_allow_empty_false(
-    require_wdk_creds: None,
     wdk_session: None,
 ) -> None:
-    del require_wdk_creds, wdk_session
+    del wdk_session
     response = await _fetch_response()
     specs = adapt_param_specs_from_search(response.search_data)
     assert specs["text_expression"].allow_empty_value is False
 
 
 async def test_layer3_find_missing_flags_absent_required(
-    require_wdk_creds: None,
     wdk_session: None,
 ) -> None:
-    del require_wdk_creds, wdk_session
+    del wdk_session
     response = await _fetch_response()
     specs = adapt_param_specs_from_search(response.search_data)
     assert "text_expression" in find_missing_required_params(specs, {})
 
 
 async def test_layer4_validate_parameters_raises_on_empty(
-    require_wdk_creds: None,
     wdk_session: None,
 ) -> None:
-    del require_wdk_creds, wdk_session
-    with pytest.raises(ValidationError, match=r"[Mm]issing required"):
+    del wdk_session
+    with pytest.raises(ValidationError) as raised:
         await validate_parameters(
             SearchContext("plasmodb", "transcript", "GenesByText"),
             parameters={},
             callbacks=make_validation_callbacks("plasmodb"),
         )
 
+    # The refusal names the empty required parameter, whatever wording WDK
+    # or the local check gives it.
+    assert "text_expression" in str(raised.value)
+
 
 async def test_document_type_is_hidden_required_with_fixed_default(
-    require_wdk_creds: None,
     wdk_session: None,
 ) -> None:
-    del require_wdk_creds, wdk_session
+    del wdk_session
     response = await _fetch_response()
     specs = adapt_param_specs_from_search(response.search_data)
     doc = specs["document_type"]
@@ -79,13 +78,12 @@ async def test_document_type_is_hidden_required_with_fixed_default(
 
 
 async def test_validate_parameters_autofills_hidden_document_type(
-    require_wdk_creds: None,
     wdk_session: None,
 ) -> None:
     # The model supplies only the VISIBLE required params (it can't see the
     # hidden document_type). validate_parameters must auto-fill document_type
     # rather than reject — the contradiction that spiralled create_plan.
-    del require_wdk_creds, wdk_session
+    del wdk_session
     result = await validate_parameters(
         SearchContext("plasmodb", "transcript", "GenesByText"),
         parameters={
@@ -97,5 +95,7 @@ async def test_validate_parameters_autofills_hidden_document_type(
         },
         callbacks=make_validation_callbacks("plasmodb"),
     )
-    assert "document_type" in result
-    assert result["document_type"].to_decoded() == "gene"
+    assert "document_type" in result.params
+    assert result.params["document_type"].to_decoded() == "gene"
+    # The caller never stated it, so the walk discloses it.
+    assert "document_type" in result.substituted

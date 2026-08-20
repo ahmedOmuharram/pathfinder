@@ -10,17 +10,15 @@ from uuid import UUID
 from sqlalchemy import CursorResult, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.integrations.veupathdb.factory import (
-    get_strategy_api,
-    list_sites,
-)
+from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.persistence.models import (
     ControlSet,
     Conversation,
     ExperimentRow,
     GeneSetRow,
 )
-from pathfinder.platform.errors import WDKError
+from pathfinder.platform.context import calling_application
+from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.gene_sets.store import get_gene_set_store
 
@@ -46,26 +44,37 @@ async def purge_user_data(
     site_id: str | None,
     delete_wdk: bool,
 ) -> PurgeResult:
-    """Purge user data from all local stores.
+    """Purge the calling application's data for one user, from all local stores.
 
     Without ``delete_wdk``, chats are dismissed rather than deleted, so WDK
-    sync does not re-import them. With ``delete_wdk``, chats and their WDK
-    strategies are deleted. Gene sets, experiments, and control sets are
-    always deleted.
+    sync does not re-import them. With ``delete_wdk``, chats are deleted, and
+    so are the WDK strategies those chats built. Gene sets, experiments, and
+    control sets are always deleted. A caller destroys only what it can read,
+    so the same user's data under another application is untouched.
     """
-    conversation_query = select(Conversation).where(Conversation.user_id == user_id)
+    application_id = calling_application()
+    conversation_query = select(Conversation).where(
+        Conversation.user_id == user_id,
+        Conversation.application_id == application_id,
+    )
     if site_id:
         conversation_query = conversation_query.where(Conversation.site_id == site_id)
     conversations = list((await session.execute(conversation_query)).scalars().all())
     conversation_ids = [str(c.id) for c in conversations]
 
-    wdk_deleted = await _purge_wdk_strategies(site_id, delete_wdk=delete_wdk)
+    wdk_deleted = await _purge_wdk_strategies(
+        _strategies_built_by(conversations),
+        delete_wdk=delete_wdk,
+    )
 
     dismissed_count = 0
     hard_deleted_count = 0
 
     if delete_wdk:
-        conv_del = delete(Conversation).where(Conversation.user_id == user_id)
+        conv_del = delete(Conversation).where(
+            Conversation.user_id == user_id,
+            Conversation.application_id == application_id,
+        )
         if site_id:
             conv_del = conv_del.where(Conversation.site_id == site_id)
         sr = cast("CursorResult[object]", await session.execute(conv_del))
@@ -110,26 +119,44 @@ async def purge_user_data(
     )
 
 
-async def _purge_wdk_strategies(site_id: str | None, *, delete_wdk: bool) -> int:
-    """Delete WDK strategies when explicitly requested."""
+def _strategies_built_by(conversations: list[Conversation]) -> dict[str, set[int]]:
+    """Group by site the WDK strategies these conversations built.
+
+    A saved strategy a conversation only imported is left out: the user can
+    have made it on the website, and another conversation can still consume it.
+    """
+    by_site: dict[str, set[int]] = {}
+    for conversation in conversations:
+        if conversation.wdk_strategy_id is None:
+            continue
+        by_site.setdefault(conversation.site_id, set()).add(
+            conversation.wdk_strategy_id,
+        )
+    return by_site
+
+
+async def _purge_wdk_strategies(
+    built: dict[str, set[int]],
+    *,
+    delete_wdk: bool,
+) -> int:
+    """Delete the WDK strategies the purged conversations built, and no others.
+
+    A site PathFinder cannot reach, or cannot act on because the request names
+    no registered VEuPathDB user, is skipped so the local purge still runs.
+    """
     if not delete_wdk:
         return 0
-
-    sites_to_purge: set[str] = set()
-    if site_id:
-        sites_to_purge.add(site_id)
-    else:
-        sites_to_purge.update(s.id for s in list_sites())
 
     # Deletes run concurrently. A sequential loop over every site exceeds the
     # upstream connection idle timeout.
     semaphore = asyncio.Semaphore(10)
     wdk_deleted = 0
-    for purge_site in sites_to_purge:
+    for purge_site, wanted in built.items():
         try:
             api = get_strategy_api(purge_site)
-            wdk_strategies = await api.list_strategies()
-        except (ValueError, RuntimeError, WDKError) as exc:
+            live = {s.strategy_id for s in await api.list_strategies()}
+        except (AppError, OSError, RuntimeError) as exc:
             logger.debug("WDK purge skipped for site", site=purge_site, error=str(exc))
             continue
 
@@ -137,7 +164,7 @@ async def _purge_wdk_strategies(site_id: str | None, *, delete_wdk: bool) -> int
             async with semaphore:
                 try:
                     await get_strategy_api(site).delete_strategy(strategy_id)
-                except (ValueError, RuntimeError, WDKError) as exc:
+                except (AppError, OSError, RuntimeError) as exc:
                     logger.warning(
                         "Failed to delete WDK strategy during user data purge",
                         wdk_strategy_id=strategy_id,
@@ -148,7 +175,7 @@ async def _purge_wdk_strategies(site_id: str | None, *, delete_wdk: bool) -> int
                 return 1
 
         outcomes = await asyncio.gather(
-            *(_delete_one(s.strategy_id) for s in wdk_strategies)
+            *(_delete_one(strategy_id) for strategy_id in sorted(wanted & live))
         )
         wdk_deleted += sum(outcomes)
     return wdk_deleted
@@ -159,20 +186,30 @@ async def _purge_related_data(
     user_id: UUID,
     site_id: str | None,
 ) -> tuple[int, int, int]:
-    """Delete gene sets, experiments, and control sets."""
-    gs_del = delete(GeneSetRow).where(GeneSetRow.user_id == user_id)
+    """Delete the calling application's gene sets, experiments and control sets."""
+    application_id = calling_application()
+    gs_del = delete(GeneSetRow).where(
+        GeneSetRow.user_id == user_id,
+        GeneSetRow.application_id == application_id,
+    )
     if site_id:
         gs_del = gs_del.where(GeneSetRow.site_id == site_id)
     gr = cast("CursorResult[object]", await session.execute(gs_del))
     pg_gene_sets = gr.rowcount or 0
 
-    exp_del = delete(ExperimentRow).where(ExperimentRow.user_id == user_id)
+    exp_del = delete(ExperimentRow).where(
+        ExperimentRow.user_id == user_id,
+        ExperimentRow.application_id == application_id,
+    )
     if site_id:
         exp_del = exp_del.where(ExperimentRow.site_id == site_id)
     er = cast("CursorResult[object]", await session.execute(exp_del))
     pg_experiments = er.rowcount or 0
 
-    cs_del = delete(ControlSet).where(ControlSet.user_id == user_id)
+    cs_del = delete(ControlSet).where(
+        ControlSet.user_id == user_id,
+        ControlSet.application_id == application_id,
+    )
     if site_id:
         cs_del = cs_del.where(ControlSet.site_id == site_id)
     cr = cast("CursorResult[object]", await session.execute(cs_del))
@@ -182,13 +219,16 @@ async def _purge_related_data(
 
 
 def _clear_gene_set_cache(user_id: UUID, site_id: str | None) -> None:
-    """Clear in-memory gene set cache entries."""
+    """Clear the calling application's in-memory gene set cache entries."""
+    application_id = calling_application()
     try:
         cache = get_gene_set_store()
         to_evict = [
             gid
             for gid, gs in cache._cache.items()
-            if gs.user_id == user_id and (site_id is None or gs.site_id == site_id)
+            if gs.user_id == user_id
+            and gs.application_id == application_id
+            and (site_id is None or gs.site_id == site_id)
         ]
         for gid in to_evict:
             cache._cache.pop(gid, None)

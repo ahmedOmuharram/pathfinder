@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import Conversation
+from pathfinder.platform.context import calling_application
 
 
 @dataclass
@@ -86,7 +87,11 @@ def _collect_chat_values(upd: ConversationUpdate) -> dict[str, Any]:
 
 
 class ConversationRepository:
-    """Data access for chat conversations."""
+    """Data access for chat conversations.
+
+    Every listing is scoped to the user under the calling application; a
+    lookup by id is not, because the ownership helpers decide that case.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -101,7 +106,9 @@ class ConversationRepository:
         """Return a unique chat name for the user and site. A taken name gets
         a numeric suffix."""
         query = select(Conversation.name).where(
-            Conversation.user_id == user_id, Conversation.site_id == site_id
+            Conversation.user_id == user_id,
+            Conversation.application_id == calling_application(),
+            Conversation.site_id == site_id,
         )
         if exclude_conversation_id is not None:
             query = query.where(Conversation.id != exclude_conversation_id)
@@ -215,6 +222,7 @@ class ConversationRepository:
         stmt = (
             select(Conversation)
             .where(Conversation.user_id == user_id)
+            .where(Conversation.application_id == calling_application())
             .where(Conversation.dismissed_at.is_(None))
             .order_by(Conversation.updated_at.desc())
             .limit(limit)
@@ -233,6 +241,7 @@ class ConversationRepository:
         stmt = (
             select(Conversation)
             .where(Conversation.user_id == user_id)
+            .where(Conversation.application_id == calling_application())
             .where(Conversation.dismissed_at.is_not(None))
             .order_by(Conversation.dismissed_at.desc())
             .limit(limit)
@@ -248,6 +257,7 @@ class ConversationRepository:
         result = await self.session.execute(
             select(Conversation).where(
                 Conversation.user_id == user_id,
+                Conversation.application_id == calling_application(),
                 Conversation.wdk_strategy_id == wdk_strategy_id,
             )
         )
@@ -262,6 +272,7 @@ class ConversationRepository:
         result = await self.session.execute(
             select(Conversation.imported_saved_strategy_ids).where(
                 Conversation.user_id == user_id,
+                Conversation.application_id == calling_application(),
                 Conversation.site_id == site_id,
                 Conversation.dismissed_at.is_(None),
             ),
@@ -284,6 +295,7 @@ class ConversationRepository:
         strategy with consumers cannot be hard-deleted."""
         stmt = select(Conversation).where(
             Conversation.user_id == user_id,
+            Conversation.application_id == calling_application(),
             Conversation.imported_saved_strategy_ids.contains([wdk_strategy_id]),
         )
         if exclude_conversation_id is not None:
@@ -345,6 +357,7 @@ class ConversationRepository:
         return how many are deleted."""
         stmt = select(Conversation.id, Conversation.wdk_strategy_id).where(
             Conversation.user_id == user_id,
+            Conversation.application_id == calling_application(),
             Conversation.site_id == site_id,
             Conversation.wdk_strategy_id.is_not(None),
             Conversation.dismissed_at.is_(None),

@@ -1,5 +1,12 @@
 [
   {
+    "data": {
+      "label": "Queued",
+      "waitingOnLlm": false
+    },
+    "type": "data-turn-status"
+  },
+  {
     "messageId": "<REDACTED>",
     "type": "start"
   },

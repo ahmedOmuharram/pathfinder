@@ -4,7 +4,8 @@ The Lead is the only LLM in the dispatcher; sub-agents run as tools the
 Lead invokes inside its single ``run_stream_events`` call. This module
 owns the turn driver (``_drive_lead_stream``) and the node entrypoint
 (``lead_node``); run accounting lives in ``_lead_capture``, sub-agent
-event rendering in ``_lead_events``, and turn persistence in ``_lead_turn``.
+event rendering in ``_lead_events``, and approval resolution plus turn
+persistence in ``_lead_turn``.
 """
 
 from __future__ import annotations
@@ -26,11 +27,7 @@ from pydantic_ai.messages import (
     ModelMessagesTypeAdapter,
 )
 from pydantic_ai.models.function import FunctionModel
-from pydantic_ai.tools import (
-    DeferredToolRequests,
-    DeferredToolResults,
-    ToolDenied,
-)
+from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RunUsage, UsageLimits
 
 from pathfinder.ai.conversation.vercel_adapter import (
@@ -52,7 +49,11 @@ from pathfinder.ai.graph._lead_events import (
     handle_sub_agent_event,
     is_suppressed_sub_agent_chunk,
 )
-from pathfinder.ai.graph._lead_turn import retrieve_memories
+from pathfinder.ai.graph._lead_turn import (
+    pending_approval,
+    resolve_pending_approval,
+    retrieve_memories,
+)
 from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PendingApproval, PipelineState
@@ -105,30 +106,10 @@ def _resume_message_history(
     return ModelMessagesTypeAdapter.validate_json(approval.prior_messages_json)
 
 
-def _build_deferred_tool_results(
-    state: PipelineState,
-) -> DeferredToolResults | None:
-    """Resolve a pending approval from the user's structured response."""
-    approval = state.pending_approval
-    if approval is None:
-        return None
-    response = state.approval_responses.get(approval.tool_call_id)
-    if response is None:
-        return None
-    if response.approved:
-        return DeferredToolResults(approvals={approval.tool_call_id: True})
-    return DeferredToolResults(
-        approvals={
-            approval.tool_call_id: ToolDenied(
-                message=response.reason or "User denied the plan.",
-            ),
-        },
-    )
-
-
 def _absorb_run_result(
     event: AgentRunResultEvent[Any],
     capture: _LeadRunCapture,
+    deps: LeadDeps,
 ) -> None:
     run_result = event.result
     capture.new_messages = list(run_result.new_messages())
@@ -138,22 +119,11 @@ def _absorb_run_result(
     output = run_result.output
     if isinstance(output, LeadResponse):
         capture.response = output
-    elif isinstance(output, DeferredToolRequests) and output.approvals:
-        approval_call = output.approvals[0]
-        # Replay the FULL run history (request + the deferred tool call), not
-        # just new_messages(): when the Lead's first action is the deferred
-        # tool, new_messages() holds only the assistant ToolCallPart with no
-        # leading ModelRequest, which pydantic-ai rejects on resume as an
-        # empty history. all_messages() always carries the user request.
-        capture.pending_approval = PendingApproval(
-            phase="lead",
-            tool_call_id=approval_call.tool_call_id,
-            tool_name=approval_call.tool_name,
-            tool_args=approval_call.args_as_dict(),
-            plan_id=None,
-            prior_messages_json=ModelMessagesTypeAdapter.dump_json(
-                list(run_result.all_messages()),
-            ).decode(),
+    elif isinstance(output, DeferredToolRequests):
+        capture.pending_approval = pending_approval(
+            output=output,
+            deps=deps,
+            messages=list(run_result.all_messages()),
         )
     usage = run_result.usage
     capture.tokens = usage.total_tokens
@@ -213,14 +183,20 @@ async def _drive_lead_stream(
     writer: Any,
     message_id: UUID,
 ) -> None:
+    resolution = await resolve_pending_approval(state=state, deps=deps)
+    if resolution.still_pending is not None:
+        # The sub-agent asked for another approval. The Lead's run is untouched,
+        # so the turn ends on the new question instead of resuming it.
+        capture.pending_approval = resolution.still_pending
+        return
     deferred_hint = _deferred_hint(state.pending_approval)
     emitter = PhaseStreamEmitter(
         message_id=str(message_id),
         deferred_hint=deferred_hint,
     )
-    deferred_results = _build_deferred_tool_results(state)
+    deferred_results = resolution.results
     capture.approval_consumed = deferred_results is not None
-    resume_prompt = _resume_user_prompt(state)
+    resume_prompt = resolution.user_prompt or _resume_user_prompt(state)
     resume_history = _resume_message_history(state)
     usage_acc = RunUsage()
     override_ctx, agent_model = _resolve_lead_model_context(
@@ -247,7 +223,7 @@ async def _drive_lead_stream(
         ) as events:
             async for event in events:
                 if isinstance(event, AgentRunResultEvent):
-                    _absorb_run_result(event, capture)
+                    _absorb_run_result(event, capture, deps)
                 else:
                     handle_sub_agent_event(
                         deps,

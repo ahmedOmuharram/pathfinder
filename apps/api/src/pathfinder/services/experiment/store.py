@@ -7,6 +7,7 @@ from functools import cache
 from sqlalchemy import select
 
 from pathfinder.persistence.models import ExperimentRow
+from pathfinder.platform.context import calling_application
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.store import WriteThruStore
 from pathfinder.services.experiment._deserialize import experiment_from_json
@@ -32,6 +33,7 @@ def _row_from_experiment(exp: Experiment) -> dict[str, object]:
         "id": exp.id,
         "site_id": exp.config.site_id,
         "user_id": exp.user_id,
+        "application_id": exp.application_id,
         "name": exp.config.name or "",
         "status": exp.status,
         "data": experiment_to_json(exp),
@@ -42,8 +44,13 @@ def _row_from_experiment(exp: Experiment) -> dict[str, object]:
 
 
 def _experiment_from_row(row: ExperimentRow) -> Experiment:
-    """Reconstruct an experiment from a database row."""
-    return experiment_from_json(row.data)
+    """Reconstruct an experiment from a database row.
+
+    The column carries the application, not the serialized blob, so a row
+    written before the column existed reads as the application it belongs to.
+    """
+    experiment = experiment_from_json(row.data)
+    return experiment.model_copy(update={"application_id": row.application_id})
 
 
 async def _list_from_db(
@@ -52,7 +59,9 @@ async def _list_from_db(
 ) -> list[Experiment]:
     """List experiments from the database with optional site and user
     filters."""
-    stmt = select(ExperimentRow)
+    stmt = select(ExperimentRow).where(
+        ExperimentRow.application_id == calling_application(),
+    )
     if site_id:
         stmt = stmt.where(ExperimentRow.site_id == site_id)
     if user_id:
@@ -67,7 +76,10 @@ async def _list_from_db(
 
 async def _list_by_benchmark_from_db(benchmark_id: str) -> list[Experiment]:
     """List the experiments of one benchmark from the database."""
-    stmt = select(ExperimentRow).where(ExperimentRow.benchmark_id == benchmark_id)
+    stmt = select(ExperimentRow).where(
+        ExperimentRow.benchmark_id == benchmark_id,
+        ExperimentRow.application_id == calling_application(),
+    )
     async with async_session_factory() as session:
         result = await session.execute(stmt)
         rows = result.scalars().all()
@@ -76,11 +88,17 @@ async def _list_by_benchmark_from_db(benchmark_id: str) -> list[Experiment]:
 
 class ExperimentStore(WriteThruStore[Experiment]):
     """Experiment repository with an in-memory cache and database
-    write-through."""
+    write-through. Every read answers only for the calling application."""
 
     _model = ExperimentRow
     _to_row = staticmethod(_row_from_experiment)
     _from_row = staticmethod(_experiment_from_row)
+
+    async def aget(self, entity_id: str) -> Experiment | None:
+        exp = await super().aget(entity_id)
+        if exp is None or exp.application_id != calling_application():
+            return None
+        return exp
 
     async def alist_all(
         self, site_id: str | None = None, user_id: str | None = None
@@ -89,7 +107,10 @@ class ExperimentStore(WriteThruStore[Experiment]):
         wins, because a running experiment holds the newer state."""
         db_exps = await _list_from_db(site_id, user_id)
         merged: dict[str, Experiment] = {e.id: e for e in db_exps}
+        application_id = calling_application()
         for eid, exp in self._cache.items():
+            if exp.application_id != application_id:
+                continue
             if site_id and exp.config.site_id != site_id:
                 continue
             if user_id and exp.user_id != user_id:
@@ -104,11 +125,13 @@ class ExperimentStore(WriteThruStore[Experiment]):
         cache."""
         db_exps = await _list_by_benchmark_from_db(benchmark_id)
         merged: dict[str, Experiment] = {e.id: e for e in db_exps}
+        application_id = calling_application()
         merged.update(
             {
                 eid: exp
                 for eid, exp in self._cache.items()
                 if exp.benchmark_id == benchmark_id
+                and exp.application_id == application_id
             }
         )
         result = list(merged.values())

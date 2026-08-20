@@ -3,21 +3,38 @@
 import Image from "next/image";
 import { Modal } from "@/lib/components/Modal";
 import { SignInForm } from "@/features/sites/components/SignInForm";
+import { useAuthGateStore } from "@/state/useAuthGateStore";
 
 interface LoginModalProps {
   open: boolean;
   selectedSite: string;
   onSiteChange: (siteId: string) => void;
+  /** The server's explanation, shown in place of the standing invitation. */
+  reason?: string | null;
+  /** Present only where the prompt may be closed again. */
+  onDismiss?: () => void;
 }
 
+const STANDING_INVITATION =
+  "Sign in with your VEuPathDB account to build and manage search strategies.";
+
 /**
- * Forced sign-in modal overlay.
+ * VEuPathDB sign-in overlay.
  *
- * Shown when the user is not authenticated. Cannot be dismissed until signed in.
- * Accepts VEuPathDB login only; no database/site selection.
+ * Every WDK-backed feature needs a registered VEuPathDB login. Without
+ * `onDismiss` the prompt cannot be closed until the user signs in.
  */
-export function LoginModal({ open, selectedSite, onSiteChange }: LoginModalProps) {
+export function LoginModal({
+  open,
+  selectedSite,
+  onSiteChange,
+  reason,
+  onDismiss,
+}: LoginModalProps) {
+  const dismissSignIn = useAuthGateStore((s) => s.dismissSignIn);
+  const dismissible = onDismiss !== undefined;
   const handleSuccess = () => {
+    dismissSignIn();
     // Preserve the user's current site selection after login.
     // Default to veupathdb only if no site was previously selected.
     onSiteChange(selectedSite || "veupathdb");
@@ -26,10 +43,11 @@ export function LoginModal({ open, selectedSite, onSiteChange }: LoginModalProps
   return (
     <Modal
       open={open}
-      onClose={() => {}}
+      onClose={onDismiss ?? (() => {})}
       title="Sign in to VEuPathDB"
       maxWidth="max-w-md"
-      dismissible={false}
+      dismissible={dismissible}
+      showCloseButton={dismissible}
     >
       <div className="overflow-hidden rounded-xl">
         <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-6 pb-4 pt-6">
@@ -45,7 +63,7 @@ export function LoginModal({ open, selectedSite, onSiteChange }: LoginModalProps
             </div>
           </div>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            Sign in with your VEuPathDB account to build and manage search strategies.
+            {reason != null && reason !== "" ? reason : STANDING_INVITATION}
           </p>
         </div>
 

@@ -23,7 +23,7 @@ async def test_valid_params_canonicalize_against_real_spec(wdk_session: None) ->
         parameters={"organism": MultiPickValue(values=[_ORGANISM])},
         callbacks=make_validation_callbacks("plasmodb"),
     )
-    organism = canonical["organism"]
+    organism = canonical.params["organism"]
     assert isinstance(organism, MultiPickValue)
     assert _ORGANISM in organism.values
 

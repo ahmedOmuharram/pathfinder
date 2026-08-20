@@ -12,13 +12,23 @@ class CustomEnrichmentResult(TypedDict):
 
     geneSetName: str
     geneSetSize: int
+    geneSetInBackground: int
     overlapCount: int
     overlapGenes: list[str]
     backgroundSize: int
     tpCount: int
     foldEnrichment: float
     pValue: float
-    oddsRatio: float
+    oddsRatio: float | None
+
+
+def _odds_ratio(a: int, b: int, c: int, d: int) -> float | None:
+    """Return the odds ratio of a 2x2 table. None is unbounded."""
+    if a == 0:
+        return 0.0
+    if b == 0 or c == 0:
+        return None
+    return round((a * d) / (b * c), 4)
 
 
 def run_custom_enrichment(
@@ -50,8 +60,7 @@ def run_custom_enrichment(
     a = len(overlap)  # in result AND in the in-universe gene set
     b = in_universe_size - a  # in the in-universe gene set but NOT in result
     c = result_size - a  # in result but NOT in the in-universe gene set
-    d = max(background - a - b - c, 0)  # in neither
-    odds = (a * max(d, 1)) / (max(b, 1) * max(c, 1))
+    d = background - a - b - c  # in neither
 
     log_p = hypergeometric_log_sf(
         len(overlap), background, result_size, in_universe_size
@@ -61,11 +70,12 @@ def run_custom_enrichment(
     return {
         "geneSetName": gene_set_name,
         "geneSetSize": len(gene_set),
+        "geneSetInBackground": in_universe_size,
         "overlapCount": len(overlap),
         "overlapGenes": sorted(overlap),
         "backgroundSize": background,
         "tpCount": len(tp_in_overlap),
         "foldEnrichment": round(fold, 4),
         "pValue": p_value,
-        "oddsRatio": round(odds, 4),
+        "oddsRatio": _odds_ratio(a, b, c, d),
     }

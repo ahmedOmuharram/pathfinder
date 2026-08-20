@@ -28,6 +28,17 @@ that has neither ([WDK-AUTH-001](../rules/auth-and-transport.md)). When it does,
 when it does, the response carries a `Set-Cookie: Authorization=...` for the guest it just
 minted, with a three-year max-age.
 
+**A guest identity no longer buys access, as of 2026-08-19.** The deployment now
+refuses programmatic calls from unregistered identities: measured on plasmodb.org and
+toxodb.org that day, `GET /record-types/transcript/searches/GenesByTaxon` answers 401
+"Valid API Key required for this endpoint." with no cookie and 403 "This endpoint is
+only available to registered users, and requires an API key." with a freshly minted
+guest cookie, while a registered user's token answers 200. `POST /users/current/steps`
+behaves the same way. The minting behavior below is unchanged and still describes the
+wire; what changed is that the token it hands back opens nothing. PathFinder therefore
+mints no guests at all, and requires a registered login for every WDK-backed feature
+([the decision](../../decisions/wdk-requires-registered-login.md)).
+
 Be exact about the scope, because the loose version of this sentence caused a defect in
 this bundle. The response filter is guarded on a request property that `useNewGuest` is
 the only thing to set, so the cookie is written for a request that arrived with no token

@@ -9,7 +9,6 @@ database_url = "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder
 veupathdb_default_site = "veupathdb"
 veupathdb_cache_ttl = 3600
 veupathdb_oauth_url = ""
-veupathdb_oauth_client_id = ""
 
 log_level = "INFO"
 log_format = "json"

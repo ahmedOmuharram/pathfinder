@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+import contextlib
+from collections.abc import AsyncGenerator, AsyncIterator
 from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -46,6 +47,10 @@ from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
+
+# A comment frame carries no id and no data, so cursors and the client parser
+# see nothing.
+_KEEPALIVE_FRAME = ": keep-alive\n\n"
 
 
 class UserMessage(BaseModel):
@@ -311,7 +316,7 @@ async def replay_and_tail(
     *,
     conversation_id: UUID,
     after: int,
-) -> AsyncIterator[tuple[int, dict[str, Any]]]:
+) -> AsyncGenerator[tuple[int, dict[str, Any]]]:
     last_sent = after
     for event_id, chunk in await _fetch_after(conversation_id, after):
         yield event_id, chunk
@@ -346,15 +351,50 @@ async def replay_and_tail(
         await conn.close()
 
 
+async def _tail_or_idle(
+    source: AsyncGenerator[tuple[int, dict[str, Any]]],
+    interval_seconds: float,
+) -> AsyncIterator[tuple[int, dict[str, Any]] | None]:
+    """Yield each tailed event, and ``None`` after every silent interval.
+
+    The pending pull survives a timeout, so the source generator keeps its
+    LISTEN connection across any number of idle intervals.
+    """
+    pending: asyncio.Task[tuple[int, dict[str, Any]]] | None = None
+    try:
+        while True:
+            if pending is None:
+                pending = asyncio.create_task(anext(source))
+            done, _ = await asyncio.wait({pending}, timeout=interval_seconds)
+            if not done:
+                yield None
+                continue
+            finished, pending = pending, None
+            try:
+                event = finished.result()
+            except StopAsyncIteration:
+                return
+            yield event
+    finally:
+        if pending is not None:
+            pending.cancel()
+            with contextlib.suppress(asyncio.CancelledError, StopAsyncIteration):
+                await pending
+        await source.aclose()
+
+
 async def iter_sse(
     *,
     conversation_id: UUID,
     after: int,
 ) -> AsyncIterator[str]:
-    async for event_id, chunk in replay_and_tail(
-        conversation_id=conversation_id,
-        after=after,
-    ):
+    source = replay_and_tail(conversation_id=conversation_id, after=after)
+    interval_seconds = float(get_settings().sse_keepalive_seconds)
+    async for event in _tail_or_idle(source, interval_seconds):
+        if event is None:
+            yield _KEEPALIVE_FRAME
+            continue
+        event_id, chunk = event
         if not isinstance(chunk, dict) or "type" not in chunk:
             logger.warning(
                 "skipping persisted chunk without type discriminator",

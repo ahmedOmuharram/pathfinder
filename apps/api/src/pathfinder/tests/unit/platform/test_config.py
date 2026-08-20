@@ -140,6 +140,66 @@ def test_worker_concurrency_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert make_settings().worker_concurrency == 8
 
 
+def test_service_tokens_are_unset_by_default() -> None:
+    assert make_settings().pathfinder_service_tokens == ""
+
+
+def test_a_service_token_without_a_separator_is_rejected_at_load() -> None:
+    with pytest.raises(ValueError, match="application_id:secret"):
+        make_settings(pathfinder_service_tokens="analytics-secret-0123456789abcdef")
+
+
+def test_a_short_service_token_secret_is_rejected_at_load() -> None:
+    with pytest.raises(ValueError, match="at least 32 characters"):
+        make_settings(pathfinder_service_tokens="analytics:too-short")
+
+
+def test_a_valid_service_token_setting_loads() -> None:
+    settings = make_settings(
+        pathfinder_service_tokens="analytics:analytics-secret-0123456789abcdef",
+    )
+
+    assert "analytics-secret" not in repr(settings)
+
+
+def test_the_service_token_registry_is_parsed_once() -> None:
+    settings = make_settings(
+        pathfinder_service_tokens="analytics:analytics-secret-0123456789abcdef",
+    )
+
+    assert settings.service_tokens is settings.service_tokens
+    assert (
+        settings.service_tokens.application_for(
+            "analytics-secret-0123456789abcdef",
+        )
+        == "analytics"
+    )
+
+
+def test_the_service_token_registry_stays_out_of_the_serialized_settings() -> None:
+    settings = make_settings(
+        pathfinder_service_tokens="analytics:analytics-secret-0123456789abcdef",
+    )
+
+    assert "service_tokens" not in settings.model_dump()
+
+
+def test_the_oauth_client_id_setting_is_gone() -> None:
+    """Nothing reads it, and the audience claim is deliberately not checked."""
+    assert "veupathdb_oauth_client_id" not in Settings.model_fields
+
+
+def test_the_oauth_url_defaults_to_the_veupathdb_auth_server() -> None:
+    assert make_settings().veupathdb_oauth_url == "https://auth.veupathdb.org"
+
+
+def test_a_blank_oauth_url_falls_back_to_the_default() -> None:
+    assert (
+        make_settings(veupathdb_oauth_url="").veupathdb_oauth_url
+        == "https://auth.veupathdb.org"
+    )
+
+
 def test_otel_include_content_defaults_false() -> None:
     assert make_settings().otel_include_content is False
 

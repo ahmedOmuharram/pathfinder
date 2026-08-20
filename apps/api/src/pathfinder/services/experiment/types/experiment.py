@@ -5,6 +5,7 @@ from pydantic import Field
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.integrations.veupathdb.wdk_models import WDKSortDirection
+from pathfinder.platform.context import calling_application
 from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat2
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.types import (
@@ -111,6 +112,9 @@ class Experiment(CamelModel):
     id: str
     config: ExperimentConfig
     user_id: str | None = None
+    # The application the experiment was created under; it owns the experiment
+    # with the user.
+    application_id: str = Field(default_factory=calling_application)
     status: ExperimentStatus = "pending"
     metrics: ExperimentMetrics | None = None
     cross_validation: CrossValidationResult | None = None

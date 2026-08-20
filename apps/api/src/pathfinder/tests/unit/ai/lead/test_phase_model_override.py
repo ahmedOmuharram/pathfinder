@@ -11,8 +11,8 @@ from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.request_body import ReasoningEffort
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.lead.sub_agent_tools import (
-    _phase_default_model_id,
-    _phase_override_kwargs,
+    phase_default_model_id,
+    phase_override_kwargs,
 )
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.config import get_settings
@@ -59,12 +59,12 @@ def test_default_phase_model_comes_from_the_configured_tier() -> None:
     # (default_provider, default_tier) preset -- and the stable
     # ``provider:model`` id goes to pydantic-ai verbatim, since in v2 a bare
     # ``openai:`` prefix already means the Responses API.
-    kwargs = _phase_override_kwargs(_ctx(), "frame")
+    kwargs = phase_override_kwargs(_ctx(), "frame")
     assert kwargs["model"] == "openai:gpt-5.6-luna"
 
 
 def test_anthropic_pick_enables_caching() -> None:
-    kwargs = _phase_override_kwargs(
+    kwargs = phase_override_kwargs(
         _ctx(phase_models={"frame": "anthropic:claude-opus-5"}),
         "frame",
     )
@@ -76,7 +76,7 @@ def test_anthropic_pick_enables_caching() -> None:
 
 
 def test_openai_pick_carries_no_anthropic_flags() -> None:
-    kwargs = _phase_override_kwargs(
+    kwargs = phase_override_kwargs(
         _ctx(phase_models={"execution": "openai:gpt-5.6-terra"}),
         "execution",
     )
@@ -85,7 +85,7 @@ def test_openai_pick_carries_no_anthropic_flags() -> None:
 
 
 def test_reasoning_effort_composes_with_caching() -> None:
-    kwargs = _phase_override_kwargs(
+    kwargs = phase_override_kwargs(
         _ctx(
             phase_models={"execution": "anthropic:claude-opus-5"},
             phase_reasoning={"execution": "high"},
@@ -97,10 +97,10 @@ def test_reasoning_effort_composes_with_caching() -> None:
     assert settings["anthropic_cache_instructions"] is True
 
 
-def test_phase_default_model_id_stays_stable_for_cost() -> None:
+def testphase_default_model_id_stays_stable_for_cost() -> None:
     # The readback id used for cost attribution must remain the stable
     # ``provider:model`` catalog id.
-    assert _phase_default_model_id("frame") == "openai:gpt-5.6-luna"
+    assert phase_default_model_id("frame") == "openai:gpt-5.6-luna"
 
 
 def test_configured_tier_actually_drives_phase_model_and_effort(
@@ -113,8 +113,8 @@ def test_configured_tier_actually_drives_phase_model_and_effort(
     monkeypatch.setattr(settings, "default_provider", "openai", raising=False)
     monkeypatch.setattr(settings, "default_tier", "quality", raising=False)
 
-    frame = _phase_override_kwargs(_ctx(), "frame")
-    execution = _phase_override_kwargs(_ctx(), "execution")
+    frame = phase_override_kwargs(_ctx(), "frame")
+    execution = phase_override_kwargs(_ctx(), "execution")
 
     # quality: reasoning phases on sol at high, the mechanical phase on terra.
     assert frame["model"] == "openai:gpt-5.6-sol"
@@ -130,7 +130,7 @@ def test_explicit_phase_pick_outranks_the_configured_tier(
     monkeypatch.setattr(settings, "default_provider", "openai", raising=False)
     monkeypatch.setattr(settings, "default_tier", "quality", raising=False)
 
-    kwargs = _phase_override_kwargs(
+    kwargs = phase_override_kwargs(
         _ctx(phase_models={"frame": "openai:gpt-5.6-terra"}), "frame"
     )
     assert kwargs["model"] == "openai:gpt-5.6-terra"

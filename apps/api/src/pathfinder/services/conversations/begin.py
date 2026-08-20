@@ -30,6 +30,7 @@ from pathfinder.persistence.repositories.conversation import (
     ConversationRepository,
     ConversationUpdate,
 )
+from pathfinder.platform.context import calling_application
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.errors import NotFoundError
 from pathfinder.platform.logging import get_logger
@@ -58,9 +59,14 @@ async def begin_conversation(
     site_id: str,
     experiment_id: str | None = None,
 ) -> BeginResult:
+    application_id = calling_application()
     if experiment_id is not None:
         experiment = await session.get(ExperimentRow, experiment_id)
-        if experiment is None or experiment.user_id != user_id:
+        if (
+            experiment is None
+            or experiment.user_id != user_id
+            or experiment.application_id != application_id
+        ):
             raise NotFoundError(
                 title="Experiment not found",
                 detail=f"No experiment {experiment_id!r} owned by the current user.",
@@ -70,6 +76,7 @@ async def begin_conversation(
         .values(
             id=conversation_id,
             user_id=user_id,
+            application_id=application_id,
             site_id=site_id,
             name=DEFAULT_NEW_CONVERSATION_NAME,
             experiment_id=experiment_id,

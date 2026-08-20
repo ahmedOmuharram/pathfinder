@@ -3,20 +3,24 @@
 # Forces mock chat provider so the dev-login endpoint is available,
 # and maps the DB to port 5433 to avoid conflicts with local PostgreSQL.
 #
+# VEuPathDB refuses guest service calls, so the Playwright process needs the
+# registered account's WDK token in its own shell as WDK_TEST_TOKEN. Playwright
+# sends it as the browser's Authorization cookie; no container reads it.
+#
 # Usage:
 #   docker compose --env-file .env.test \
 #     -f docker-compose.yml \
 #     -f docker-compose.dev.yml \
 #     -f docker-compose.e2e.yml \
 #     up -d --build api web
-#   cd apps/web && yarn test:e2e
+#   cd apps/web && export WDK_TEST_TOKEN=... && yarn test:e2e
 
 services:
   api:
     environment:
       API_ENV: test
       PATHFINDER_CHAT_PROVIDER: mock
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder_test
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health/ready || exit 1"]
       interval: 5s
@@ -27,7 +31,7 @@ services:
     environment:
       API_ENV: test
       PATHFINDER_CHAT_PROVIDER: mock
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder_test
 
   db:
     ports:

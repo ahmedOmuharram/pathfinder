@@ -158,11 +158,12 @@ def test_malformed_row_missing_go_id_is_skipped() -> None:
     assert [t.term_id for t in terms] == ["GO:0004672"]
 
 
-def test_infinity_pvalue_clamped_to_zero() -> None:
+def test_infinity_becomes_none_not_a_finite_number() -> None:
     row: JSONObject = {**_go_row(), "pValue": "Infinity", "foldEnrich": "Infinity"}
     [term] = parse_enrichment_terms([row], "go_process")
-    assert term.p_value == 0.0
-    assert term.fold_enrichment == 0.0
+    assert term.p_value is None
+    assert term.fold_enrichment is None
+    assert term.odds_ratio == pytest.approx(4.12)
 
 
 def test_non_dict_result_yields_empty_envelope() -> None:

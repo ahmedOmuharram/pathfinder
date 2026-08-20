@@ -1,6 +1,8 @@
-"""Helpers for the chat SSE golden snapshot test.
+"""Helpers for the chat turn integration tests.
 
-Two responsibilities only:
+Three responsibilities only:
+- drive one turn against ``/api/v1/chat`` (request body, wait for the
+  deferred job, run it);
 - parse the raw SSE response body emitted by ``/api/v1/chat`` into a list
   of typed chunk dicts (one per ``data:`` line, ``[DONE]`` excluded);
 - redact volatile fields (ids, timestamps, UUIDs) so the snapshot stays
@@ -9,10 +11,18 @@ Two responsibilities only:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from datetime import datetime
 from typing import Any
+from uuid import UUID, uuid4
+
+from procrastinate.testing import InMemoryConnector
+
+from pathfinder.jobs.app import procrastinate_app
+
+_CHAT_TURN_TASK = "chat_turn:run"
 
 _VOLATILE_KEYS: frozenset[str] = frozenset(
     {
@@ -53,6 +63,49 @@ _GENERIC_UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
+
+
+def chat_post_body(conversation_id: UUID, prompt: str) -> dict[str, Any]:
+    """Build the ``POST /api/v1/chat`` body for one user message."""
+    message_id = str(uuid4())
+    return {
+        "trigger": "submit-message",
+        "id": message_id,
+        "messages": [
+            {
+                "id": message_id,
+                "role": "user",
+                "parts": [{"type": "text", "text": prompt}],
+            },
+        ],
+        "conversationId": str(conversation_id),
+        "siteId": "plasmodb",
+    }
+
+
+def chat_turn_jobs(connector: InMemoryConnector) -> list[dict[str, Any]]:
+    """Return the deferred chat-turn jobs, oldest first."""
+    return [
+        job for job in connector.jobs.values() if job["task_name"] == _CHAT_TURN_TASK
+    ]
+
+
+async def wait_until_chat_turn_deferred(connector: InMemoryConnector) -> None:
+    while True:
+        if chat_turn_jobs(connector):
+            return
+        await asyncio.sleep(0.02)
+
+
+async def run_deferred_chat_turns() -> None:
+    """Run every queued chat turn to completion, then return."""
+    async with procrastinate_app.open_async():
+        await procrastinate_app.run_worker_async(
+            queues=["chat_turn"],
+            wait=False,
+            listen_notify=False,
+            install_signal_handlers=False,
+        )
 
 
 def parse_sse_body(body: str) -> list[dict[str, Any]]:

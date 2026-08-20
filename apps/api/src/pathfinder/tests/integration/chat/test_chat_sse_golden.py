@@ -18,20 +18,22 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
-import pytest
 from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 
-from pathfinder.jobs.app import procrastinate_app
-from pathfinder.jobs.tasks import ensure_registered
 from pathfinder.platform.security import create_user_token
-from pathfinder.tests.integration.chat._helpers import parse_sse_body, redact
+from pathfinder.tests.integration.chat._helpers import (
+    chat_post_body,
+    parse_sse_body,
+    redact,
+    run_deferred_chat_turns,
+    wait_until_chat_turn_deferred,
+)
 
 _FIXTURE_PATH = Path(__file__).parent / "_fixtures" / "chat_sse_golden_simple_turn.json"
 
@@ -68,55 +70,6 @@ _ALLOWED_CHUNK_TYPES: frozenset[str] = frozenset(
 )
 
 
-@pytest.fixture
-async def in_memory_jobs() -> AsyncIterator[InMemoryConnector]:
-    original_connector = procrastinate_app.connector
-    original_jm_connector = procrastinate_app.job_manager.connector
-    connector = InMemoryConnector()
-    procrastinate_app.connector = connector
-    procrastinate_app.job_manager.connector = connector
-    ensure_registered()
-    try:
-        yield connector
-    finally:
-        procrastinate_app.connector = original_connector
-        procrastinate_app.job_manager.connector = original_jm_connector
-
-
-async def _drain_chat_jobs() -> None:
-    async with procrastinate_app.open_async():
-        await procrastinate_app.run_worker_async(
-            queues=["chat_turn"],
-            wait=False,
-            listen_notify=False,
-            install_signal_handlers=False,
-        )
-
-
-async def _wait_until_enqueued(connector: InMemoryConnector) -> None:
-    while True:
-        if any(j["task_name"] == "chat_turn:run" for j in connector.jobs.values()):
-            return
-        await asyncio.sleep(0.02)
-
-
-def _post_body(conv_id: UUID, prompt: str) -> dict[str, Any]:
-    msg_id = str(uuid4())
-    return {
-        "trigger": "submit-message",
-        "id": msg_id,
-        "messages": [
-            {
-                "id": msg_id,
-                "role": "user",
-                "parts": [{"type": "text", "text": prompt}],
-            },
-        ],
-        "conversationId": str(conv_id),
-        "siteId": "plasmodb",
-    }
-
-
 async def _run_turn_and_collect(
     app: FastAPI,
     user_id: UUID,
@@ -133,12 +86,15 @@ async def _run_turn_and_collect(
         post_task = asyncio.create_task(
             client.post(
                 "/api/v1/chat",
-                json=_post_body(conv_id, _PROMPT),
+                json=chat_post_body(conv_id, _PROMPT),
                 timeout=30.0,
             ),
         )
-        await asyncio.wait_for(_wait_until_enqueued(in_memory_jobs), timeout=5.0)
-        await _drain_chat_jobs()
+        await asyncio.wait_for(
+            wait_until_chat_turn_deferred(in_memory_jobs),
+            timeout=5.0,
+        )
+        await run_deferred_chat_turns()
         response = await asyncio.wait_for(post_task, timeout=30.0)
 
     if response.status_code != 200:
@@ -185,9 +141,10 @@ async def test_chat_sse_golden_snapshot_simple_turn(
     db_cleaner: None,
     authed_user_id: UUID,
     in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
 ) -> None:
     """One simple-turn SSE stream, frozen as a golden chunk list."""
-    del patch_app_db_engine, db_cleaner
+    del patch_app_db_engine, db_cleaner, signed_in_to_veupathdb
     chunks = await _run_turn_and_collect(app, authed_user_id, in_memory_jobs)
 
     if os.environ.get("PATHFINDER_RECORD_GOLDEN") == "1":
@@ -212,7 +169,10 @@ async def test_chat_sse_golden_snapshot_simple_turn(
     )
     assert types.count("start") == 1
     assert types.count("done") == 1
-    assert types[0] == "start"
+    # The dispatcher announces the queued job before the worker opens the turn.
+    assert types[0] == "data-turn-status"
+    assert chunks[0]["data"]["label"] == "Queued"
+    assert types[1] == "start"
     assert types[-1] == "done"
 
     assert chunks == expected, _diff_message(chunks, expected)

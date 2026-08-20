@@ -6,6 +6,7 @@ from typing import Literal
 from uuid import UUID
 
 from pathfinder.domain.parameters.values import ParamValue
+from pathfinder.platform.context import calling_application
 from pathfinder.services.enrichment.types import EnrichmentResult
 
 GeneSetSource = Literal["strategy", "paste", "upload", "derived", "saved"]
@@ -21,6 +22,8 @@ class GeneSet:
     gene_ids: list[str]
     source: GeneSetSource
     user_id: UUID | None = None
+    # The application the set was created under; it owns the set with the user.
+    application_id: str = field(default_factory=calling_application)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     wdk_strategy_id: int | None = None
     wdk_step_id: int | None = None

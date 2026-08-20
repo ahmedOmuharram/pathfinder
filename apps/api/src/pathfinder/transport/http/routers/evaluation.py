@@ -10,7 +10,7 @@ not affect PathFinder's own data).  Used by thesis/eval/scripts/ only.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import Field
 
 from pathfinder.platform.logging import get_logger
@@ -20,9 +20,18 @@ from pathfinder.services.eval import (
     build_gold_strategy,
     get_strategy_gene_ids,
 )
-from pathfinder.transport.http.deps import CurrentUser, DBSession
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    DBSession,
+    require_registered_wdk_identity,
+)
 
-router = APIRouter(prefix="/api/v1/eval", tags=["eval"])
+# Both routes build or read a WDK strategy in the caller's own account.
+router = APIRouter(
+    prefix="/api/v1/eval",
+    tags=["eval"],
+    dependencies=[Depends(require_registered_wdk_identity)],
+)
 logger = get_logger(__name__)
 
 

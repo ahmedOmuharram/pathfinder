@@ -9,6 +9,7 @@ from pathfinder.integrations.veupathdb.factory import (
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
+from pathfinder.platform.context import calling_application
 from pathfinder.platform.errors import (
     InternalError,
     NotFoundError,
@@ -73,7 +74,10 @@ class GeneSetService:
             await self._store._persist(entity)
 
     async def get_for_user(self, user_id: UUID, gene_set_id: str) -> GeneSet:
-        """Retrieve a gene set. Raise NotFoundError if it is missing or owned by another user."""
+        """Retrieve a gene set owned by this user under this application.
+
+        :raises NotFoundError: If it is missing or held by anyone else.
+        """
         gs = await self._store.aget(gene_set_id)
         if gs is None or gs.user_id != user_id:
             msg = f"Gene set not found: {gene_set_id}"
@@ -186,8 +190,13 @@ class GeneSetService:
         self, user_id: UUID, wdk_strategy_id: int
     ) -> GeneSet | None:
         """Find a cached gene set for a WDK strategy."""
+        application_id = calling_application()
         for gs in self._store._cache.values():
-            if gs.user_id == user_id and gs.wdk_strategy_id == wdk_strategy_id:
+            if (
+                gs.user_id == user_id
+                and gs.application_id == application_id
+                and gs.wdk_strategy_id == wdk_strategy_id
+            ):
                 return gs
         return None
 

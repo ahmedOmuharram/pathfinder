@@ -1,6 +1,6 @@
 """Enrichment analysis endpoints for experiments."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from pathfinder.platform.errors import InternalError
 from pathfinder.platform.logging import get_logger
@@ -14,7 +14,11 @@ from pathfinder.services.enrichment.parser import (
 )
 from pathfinder.services.enrichment.service import EnrichmentService
 from pathfinder.services.experiment.store import get_experiment_store
-from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    ExperimentDep,
+    require_registered_wdk_identity,
+)
 from pathfinder.transport.http.schemas.experiments import (
     CustomEnrichRequest,
     RunEnrichmentRequest,
@@ -24,7 +28,10 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
-@router.post("/{experiment_id}/enrich")
+@router.post(
+    "/{experiment_id}/enrich",
+    dependencies=[Depends(require_registered_wdk_identity)],
+)
 async def run_enrichment(
     exp: ExperimentDep,
     request: RunEnrichmentRequest,

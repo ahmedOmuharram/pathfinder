@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.platform.errors import NotFoundError
+from pathfinder.platform.principal import DEFAULT_APPLICATION_ID
 from pathfinder.services import eval as eval_service
 
 _OWNER = UUID(int=1)
@@ -25,6 +26,7 @@ def session() -> AsyncSession:
 class _Conversation:
     user_id: UUID
     wdk_strategy_id: int | None = None
+    application_id: str = DEFAULT_APPLICATION_ID
 
 
 @dataclass

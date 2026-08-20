@@ -15,10 +15,9 @@ _ORG = "Plasmodium falciparum 3D7"
 
 
 async def test_control_test_bad_target_surfaces_error(
-    require_wdk_creds: None,
     wdk_session: None,
 ) -> None:
-    del require_wdk_creds, wdk_session
+    del wdk_session
     config = IntersectionConfig(
         site_id="plasmodb",
         record_type="transcript",

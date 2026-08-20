@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { APIError } from "./http";
 import { AppError } from "@/lib/errors/AppError";
 import { isRecord } from "@/lib/utils/isRecord";
@@ -63,4 +65,30 @@ export function toUserMessage(err: unknown, fallback = "Request failed."): strin
   } catch {
     return fallback;
   }
+}
+
+const wdkLoginRequiredProblemSchema = z.object({
+  code: z.literal("WDK_LOGIN_REQUIRED"),
+  detail: z.string().min(1),
+});
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The server's explanation when a route refuses for want of a VEuPathDB login,
+ * or null for every other error. The chat transport rethrows the response body
+ * as the message of a plain Error, so both shapes are read here.
+ */
+export function wdkLoginRequiredDetail(err: unknown): string | null {
+  if (!(err instanceof Error)) return null;
+  if (err instanceof APIError && err.status !== 401) return null;
+  const body = err instanceof APIError ? err.data : parseJson(err.message);
+  const problem = wdkLoginRequiredProblemSchema.safeParse(body);
+  return problem.success ? problem.data.detail : null;
 }

@@ -5,7 +5,9 @@ import { Button } from "@/lib/components/ui/Button";
 import { Badge } from "@/lib/components/ui/Badge";
 import { Card } from "@/lib/components/ui/Card";
 import { Input } from "@/lib/components/ui/Input";
-import { runCustomEnrichment, type CustomEnrichmentResult } from "@/lib/api/analysis";
+import type { CustomEnrichmentResult } from "@pathfinder/shared/generated/types/CustomEnrichmentResult";
+import { runCustomEnrichment } from "@/lib/api/analysis";
+import { formatRatio } from "./enrichment-utils";
 
 interface CustomEnrichmentSectionProps {
   experimentId: string;
@@ -97,8 +99,10 @@ export function CustomEnrichmentSection({
                   Overlap: {r.overlapCount} / {r.tpCount} TP genes
                 </span>
                 <span>Fold: {r.foldEnrichment.toFixed(2)}x</span>
-                <span>Odds Ratio: {r.oddsRatio.toFixed(2)}</span>
-                <span>Gene set size: {r.geneSetSize}</span>
+                <span>Odds Ratio: {formatRatio(r.oddsRatio, 2)}</span>
+                <span>
+                  Gene set size: {r.geneSetSize} ({r.geneSetInBackground} in background)
+                </span>
               </div>
               {r.overlapGenes.length > 0 && (
                 <div className="mt-1.5 truncate text-xs font-mono text-muted-foreground/60">

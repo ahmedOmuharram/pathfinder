@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 from pydantic_ai.exceptions import ModelRetry
 
-from pathfinder.ai.lead.sub_agent_dispatch import build_not_ready_message
+from pathfinder.ai.lead.dispatch_messages import build_not_ready_message
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
     OpenSlot,

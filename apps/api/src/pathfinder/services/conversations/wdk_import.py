@@ -17,6 +17,7 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.services.control_helpers import (
     cleanup_internal_control_test_strategies,
 )
+from pathfinder.services.conversations.authz import owned_by_caller
 from pathfinder.services.conversations.responses import (
     ConversationResponse,
     build_conversation_summary,
@@ -66,7 +67,7 @@ async def open_strategy(
 
     if conversation_id:
         existing = await conv_repo.get_by_id(conversation_id)
-        if not existing or existing.user_id != user_id:
+        if not existing or not owned_by_caller(existing, user_id):
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND,
                 title="Strategy not found",

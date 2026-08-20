@@ -12,6 +12,9 @@ import {
   MAX_CHART_TERMS,
   DOT_MIN_R,
   DOT_MAX_R,
+  compareNullableAsc,
+  formatProbability,
+  formatRatio,
   pvalColor,
   truncateLabel,
 } from "./enrichment-utils";
@@ -22,9 +25,10 @@ import {
 
 interface DotChartDatum {
   name: string;
-  foldEnrichment: number;
+  /** Null when the fold enrichment is unbounded, which has no bar length. */
+  foldEnrichment: number | null;
   geneCount: number;
-  pValue: number;
+  pValue: number | null;
   /** Pre-computed dot radius based on geneCount / maxGeneCount. */
   dotRadius: number;
 }
@@ -41,7 +45,7 @@ function DotShape(props: {
   payload?: DotChartDatum;
 }) {
   const { x = 0, y = 0, width = 0, height = 0, payload } = props;
-  if (payload == null) return null;
+  if (payload?.foldEnrichment == null) return null;
   const d = payload;
 
   return (
@@ -72,9 +76,9 @@ function DotPlotTooltip({
     <div className="rounded border border-border bg-card px-3 py-2 text-xs shadow-lg">
       <p className="mb-1 font-medium text-foreground">{d.name}</p>
       <div className="flex gap-3 text-muted-foreground">
-        <span>Fold: {d.foldEnrichment.toFixed(2)}</span>
+        <span>Fold: {formatRatio(d.foldEnrichment, 2)}</span>
         <span>Genes: {d.geneCount}</span>
-        <span>p: {d.pValue.toExponential(2)}</span>
+        <span>p: {formatProbability(d.pValue)}</span>
       </div>
     </div>
   );
@@ -139,7 +143,7 @@ interface EnrichmentDotPlotProps {
 export function EnrichmentDotPlot({ terms }: EnrichmentDotPlotProps) {
   const { data, maxGeneCount } = (() => {
     const top = [...terms]
-      .sort((a, b) => a.pValue - b.pValue)
+      .sort((a, b) => compareNullableAsc(a.pValue, b.pValue))
       .slice(0, MAX_CHART_TERMS)
       .reverse();
 

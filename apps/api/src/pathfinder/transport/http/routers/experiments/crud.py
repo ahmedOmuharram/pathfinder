@@ -1,6 +1,6 @@
 """CRUD endpoints for experiments: list, get, update, delete."""
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from pydantic import Field
 
 from pathfinder.platform.pydantic_base import CamelModel
@@ -13,7 +13,12 @@ from pathfinder.services.experiment.types import (
     experiment_summary_to_json,
     experiment_to_json,
 )
-from pathfinder.transport.http.deps import CurrentUser, ExperimentDep, SiteIdQuery
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    ExperimentDep,
+    SiteIdQuery,
+    require_registered_wdk_identity,
+)
 
 router = APIRouter()
 
@@ -61,7 +66,13 @@ async def update_experiment(
     return experiment_to_json(exp)
 
 
-@router.delete("/{experiment_id}", status_code=204, response_class=Response)
+# Deleting an experiment deletes the WDK strategy it materialized.
+@router.delete(
+    "/{experiment_id}",
+    status_code=204,
+    response_class=Response,
+    dependencies=[Depends(require_registered_wdk_identity)],
+)
 async def delete_experiment(exp: ExperimentDep, user_id: CurrentUser) -> Response:
     """Delete an experiment and clean up its WDK strategy."""
     await cleanup_experiment_strategy(exp)

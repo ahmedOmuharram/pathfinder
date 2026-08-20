@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk, TextStartChunk
 
-from pathfinder.ai.lead.sub_agent_tools import _forward_tool_metadata
+from pathfinder.ai.lead.sub_agent_stream import _forward_tool_metadata
 
 
 def _collect() -> tuple[list[dict[str, Any]], Any]:

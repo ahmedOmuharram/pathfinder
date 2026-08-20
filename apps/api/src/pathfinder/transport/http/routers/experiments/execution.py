@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from pathfinder.platform.errors import sanitize_error_for_client
@@ -25,6 +25,7 @@ from pathfinder.services.experiment.types import (
 from pathfinder.transport.http.deps import (
     CurrentUser,
     DBSession,
+    require_registered_wdk_identity,
 )
 from pathfinder.transport.http.schemas.experiments import (
     CreateBatchExperimentRequest,
@@ -38,7 +39,8 @@ from pathfinder.transport.http.sse_utils import (
 
 from ._config import config_from_request
 
-router = APIRouter()
+# Every route here runs a search in the user's own VEuPathDB account.
+router = APIRouter(dependencies=[Depends(require_registered_wdk_identity)])
 logger = get_logger(__name__)
 
 

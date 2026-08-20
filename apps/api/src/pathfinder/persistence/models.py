@@ -29,10 +29,34 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.engine import Dialect
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    MappedColumn,
+    mapped_column,
+    relationship,
+)
 from sqlalchemy.types import CHAR, TypeDecorator, TypeEngine
 
+from pathfinder.platform.context import calling_application
+from pathfinder.platform.principal import DEFAULT_APPLICATION_ID
 from pathfinder.platform.types import JSONArray, JSONObject
+
+APPLICATION_ID_LENGTH = 64
+
+
+def _application_id_column() -> MappedColumn[str]:
+    """The application a row belongs to. Ownership is user plus application.
+
+    An insert that names no application takes the caller's, so a row cannot
+    land under an application nobody was acting as.
+    """
+    return mapped_column(
+        String(APPLICATION_ID_LENGTH),
+        nullable=False,
+        default=calling_application,
+        server_default=DEFAULT_APPLICATION_ID,
+    )
 
 
 class GUID(TypeDecorator[UUID]):
@@ -87,9 +111,6 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     monthly_cost_limit_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # Durable WDK guest identity used when the request carries no WDK token.
-    # All processes share it, so one guest user owns the WDK strategies.
-    wdk_guest_token: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     conversations: Mapped[list[Conversation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -108,6 +129,7 @@ class ControlSet(Base):
     user_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    application_id: Mapped[str] = _application_id_column()
     name: Mapped[str] = mapped_column(String(255))
     site_id: Mapped[str] = mapped_column(String(100))
     record_type: Mapped[str] = mapped_column(String(100))
@@ -123,7 +145,7 @@ class ControlSet(Base):
     )
 
     __table_args__ = (
-        Index("ix_control_sets_site_id", "site_id"),
+        Index("ix_control_sets_site_app", "site_id", "application_id"),
         Index("ix_control_sets_user_id", "user_id"),
     )
 
@@ -138,6 +160,7 @@ class ExperimentRow(Base):
     user_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    application_id: Mapped[str] = _application_id_column()
     name: Mapped[str] = mapped_column(String(255), default="")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     data: Mapped[JSONObject] = mapped_column(JSON, default=dict)
@@ -152,7 +175,7 @@ class ExperimentRow(Base):
 
     __table_args__ = (
         Index("ix_experiments_site_id", "site_id"),
-        Index("ix_experiments_user_id", "user_id"),
+        Index("ix_experiments_user_app", "user_id", "application_id"),
         Index("ix_experiments_batch_id", "batch_id"),
         Index("ix_experiments_benchmark_id", "benchmark_id"),
     )
@@ -167,6 +190,7 @@ class GeneSetRow(Base):
     user_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    application_id: Mapped[str] = _application_id_column()
     site_id: Mapped[str] = mapped_column(String(100))
     name: Mapped[str] = mapped_column(String(255), default="")
     gene_ids: Mapped[JSONArray] = mapped_column(JSON, default=list)
@@ -187,7 +211,7 @@ class GeneSetRow(Base):
     __table_args__ = (
         Index("ix_gene_sets_user_id", "user_id"),
         Index("ix_gene_sets_site_id", "site_id"),
-        Index("ix_gene_sets_user_site", "user_id", "site_id"),
+        Index("ix_gene_sets_user_app_site", "user_id", "application_id", "site_id"),
     )
 
 
@@ -196,7 +220,12 @@ class Conversation(Base):
 
     __tablename__ = "conversations"
     __table_args__ = (
-        Index("ix_conversations_user_site", "user_id", "site_id"),
+        Index(
+            "ix_conversations_user_app_site",
+            "user_id",
+            "application_id",
+            "site_id",
+        ),
         Index(
             "ix_conversations_wdk_strategy_id",
             "wdk_strategy_id",
@@ -211,6 +240,7 @@ class Conversation(Base):
     user_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="CASCADE")
     )
+    application_id: Mapped[str] = _application_id_column()
     site_id: Mapped[str] = mapped_column(String(50), default="")
     name: Mapped[str] = mapped_column(String(255), default="")
     record_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -338,6 +368,7 @@ class MemoryTombstoneRow(Base):
         index=True,
         nullable=False,
     )
+    application_id: Mapped[str] = _application_id_column()
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     reason: Mapped[str] = mapped_column(
@@ -350,9 +381,10 @@ class MemoryTombstoneRow(Base):
     __table_args__ = (
         UniqueConstraint(
             "user_id",
+            "application_id",
             "kind",
             "content_hash",
-            name="uq_tombstones_user_kind_hash",
+            name="uq_tombstones_user_app_kind_hash",
         ),
     )
 
@@ -555,10 +587,10 @@ class ScratchpadCompaction(Base):
 
 
 class MonthlyUsage(Base):
-    """Accumulated token and cost usage for one user in one month.
+    """Accumulated token and cost usage for one application of one user, per month.
 
     period_start is always the first UTC day of the month. Accumulation is
-    an upsert on the user and the period.
+    an upsert on the user, the application and the period.
     """
 
     __tablename__ = "monthly_usage"
@@ -567,6 +599,7 @@ class MonthlyUsage(Base):
     user_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    application_id: Mapped[str] = _application_id_column()
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
     total_cost_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, server_default=text("0")
@@ -585,7 +618,10 @@ class MonthlyUsage(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "period_start", name="monthly_usage_user_period_key"
+            "user_id",
+            "application_id",
+            "period_start",
+            name="monthly_usage_user_app_period_key",
         ),
         Index("monthly_usage_user_idx", "user_id"),
     )

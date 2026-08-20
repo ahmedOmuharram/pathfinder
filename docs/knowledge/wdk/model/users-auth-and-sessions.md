@@ -54,9 +54,13 @@ max-age. The endpoint stays enabled on OAuth-configured production sites specifi
 that programmatic clients can log in, which is a deliberate upstream decision recorded in
 a comment there, not an accident PathFinder is exploiting.
 
-`auth_login.py:mint_guest_token` is the other half: an unauthenticated `GET /users/current`
-makes WDK create a guest and hand back its token, which PathFinder then carries
-deliberately instead of being assigned a new one per request.
+**PathFinder no longer obtains a guest one at all.** An unauthenticated
+`GET /users/current` still makes WDK create a guest and hand back its token, but as of
+2026-08-19 the deployment refuses that identity on the service endpoints
+([transport-quirks](../rest/transport-quirks.md)), so the token opens nothing. The
+minting helper is deleted and a WDK-backed request without a registered token is refused
+with 401 `WDK_LOGIN_REQUIRED`
+([the decision](../../decisions/wdk-requires-registered-login.md)).
 
 Credentials themselves live only in the environment. Nothing in this bundle, and nothing
 in any document, records one.

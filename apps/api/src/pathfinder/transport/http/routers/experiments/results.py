@@ -26,7 +26,11 @@ from pathfinder.services.wdk.step_results_models import (
     AttributesResponse,
     RecordDetailResponse,
 )
-from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    ExperimentDep,
+    require_registered_wdk_identity,
+)
 from pathfinder.transport.http.schemas.experiments import RefineRequest, RefineResponse
 from pathfinder.transport.http.schemas.step_results import (
     ClassifiedRecord,
@@ -39,7 +43,8 @@ from pathfinder.transport.http.schemas.steps import RecordDetailRequest
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+# Every route here reads or writes the experiment's WDK strategy.
+router = APIRouter(dependencies=[Depends(require_registered_wdk_identity)])
 
 
 @dataclass

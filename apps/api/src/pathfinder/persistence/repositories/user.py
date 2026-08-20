@@ -65,11 +65,3 @@ class UserRepository:
         self.session.add(user)
         await self.session.flush()
         return user
-
-    async def set_wdk_guest_token(self, user_id: UUID, token: str) -> None:
-        """Persist the user's durable WDK guest token."""
-        user = await self.get_by_id(user_id)
-        if user is None:
-            return
-        user.wdk_guest_token = token
-        await self.session.flush()

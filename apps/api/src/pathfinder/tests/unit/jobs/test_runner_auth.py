@@ -8,9 +8,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from pathfinder.jobs import auth_context as auth_context_mod
 from pathfinder.jobs import runner as runner_mod
 from pathfinder.jobs.runner import run_durable_task
-from pathfinder.platform.context import veupathdb_auth_token_ctx
+from pathfinder.platform.context import application_id_ctx, veupathdb_auth_token_ctx
+
+HOLDING_APPLICATION = "companion"
 
 
 @dataclass
@@ -21,6 +24,7 @@ class _FakeContext:
 
 class _Observer:
     observed_token: str | None = None
+    observed_application: str | None = None
     call_count: int = 0
 
 
@@ -46,8 +50,24 @@ class _FakeRepo:
 
 async def _observing_impl(*_: object, **__: object) -> dict[str, Any]:
     _Observer.observed_token = veupathdb_auth_token_ctx.get()
+    _Observer.observed_application = application_id_ctx.get()
     _Observer.call_count += 1
     return {"ok": True}
+
+
+async def _holding_application(conversation_id: UUID) -> str:
+    del conversation_id
+    return HOLDING_APPLICATION
+
+
+@pytest.fixture(autouse=True)
+def _conversation_application(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The row lookup the worker uses to name its application."""
+    monkeypatch.setattr(
+        auth_context_mod,
+        "conversation_application_id",
+        _holding_application,
+    )
 
 
 async def _fake_resume_with_result(
@@ -139,6 +159,8 @@ async def test_run_durable_task_sets_ctxvar_from_payload(
 
     assert _Observer.call_count == 1
     assert _Observer.observed_token == "worker-token-abc"
+    assert _Observer.observed_application == HOLDING_APPLICATION
+    assert application_id_ctx.get() == "pathfinder"
 
 
 @pytest.mark.asyncio

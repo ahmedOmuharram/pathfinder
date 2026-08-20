@@ -40,7 +40,11 @@ from pathfinder.services.wdk.step_results_models import (
     AttributesResponse,
     RecordDetailResponse,
 )
-from pathfinder.transport.http.deps import CurrentUser, SiteIdQuery, with_wdk_identity
+from pathfinder.transport.http.deps import (
+    CurrentUser,
+    SiteIdQuery,
+    require_registered_wdk_identity,
+)
 from pathfinder.transport.http.schemas.gene_sets import (
     CreateGeneSetRequest,
     EnsembleScoringRequest,
@@ -61,12 +65,11 @@ from pathfinder.transport.http.schemas.step_results import (
 )
 from pathfinder.transport.http.schemas.steps import RecordDetailRequest
 
-# Gene sets materialize as WDK datasets, so every route needs the durable WDK identity.
-router = APIRouter(
-    prefix="/api/v1/gene-sets",
-    tags=["gene-sets"],
-    dependencies=[Depends(with_wdk_identity)],
-)
+router = APIRouter(prefix="/api/v1/gene-sets", tags=["gene-sets"])
+
+# The routes that read or write the user's WDK account carry this; the ones
+# that only touch the stored gene ids do not.
+_NEEDS_WDK_LOGIN = [Depends(require_registered_wdk_identity)]
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -134,7 +137,7 @@ def _no_strategy(exc: ValueError) -> NotFoundError:
 # ---------------------------------------------------------------------------
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=_NEEDS_WDK_LOGIN)
 @limiter.limit("30/minute")
 async def create_gene_set(
     request: Request,
@@ -182,7 +185,7 @@ async def get_gene_set(
     return _to_response(gs)
 
 
-@router.post("/{gene_set_id}/retake")
+@router.post("/{gene_set_id}/retake", dependencies=_NEEDS_WDK_LOGIN)
 async def retake_gene_set(
     gene_set_id: str,
     user_id: CurrentUser,
@@ -378,7 +381,7 @@ async def ensemble_scoring(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{gene_set_id}/enrich")
+@router.post("/{gene_set_id}/enrich", dependencies=_NEEDS_WDK_LOGIN)
 async def enrich_gene_set(
     gene_set_id: str,
     request: GeneSetEnrichRequest,
@@ -403,7 +406,11 @@ async def enrich_gene_set(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{gene_set_id}/results/attributes", response_model=AttributesResponse)
+@router.get(
+    "/{gene_set_id}/results/attributes",
+    response_model=AttributesResponse,
+    dependencies=_NEEDS_WDK_LOGIN,
+)
 async def get_gene_set_attributes(
     gene_set_id: str,
     user_id: CurrentUser,
@@ -418,7 +425,11 @@ async def get_gene_set_attributes(
     return await svc.get_attributes()
 
 
-@router.get("/{gene_set_id}/results/records", response_model=RecordsResponse)
+@router.get(
+    "/{gene_set_id}/results/records",
+    response_model=RecordsResponse,
+    dependencies=_NEEDS_WDK_LOGIN,
+)
 async def get_gene_set_records(
     gene_set_id: str,
     user_id: CurrentUser,
@@ -509,6 +520,7 @@ async def get_gene_set_records(
 @router.get(
     "/{gene_set_id}/results/distributions/{attribute_name}",
     response_model=DistributionResponse,
+    dependencies=_NEEDS_WDK_LOGIN,
 )
 async def get_gene_set_distribution(
     gene_set_id: str,
@@ -526,7 +538,11 @@ async def get_gene_set_distribution(
     return DistributionResponse(histogram=dist.histogram, statistics=dist.statistics)
 
 
-@router.post("/{gene_set_id}/results/record", response_model=RecordDetailResponse)
+@router.post(
+    "/{gene_set_id}/results/record",
+    response_model=RecordDetailResponse,
+    dependencies=_NEEDS_WDK_LOGIN,
+)
 async def get_gene_set_record_detail(
     gene_set_id: str,
     body: RecordDetailRequest,

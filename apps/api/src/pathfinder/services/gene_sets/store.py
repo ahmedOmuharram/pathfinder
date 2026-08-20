@@ -18,6 +18,7 @@ from pathfinder.persistence.models import GeneSetRow
 # ---------------------------------------------------------------------------
 # Row conversion helpers
 # ---------------------------------------------------------------------------
+from pathfinder.platform.context import calling_application
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.store import WriteThruStore
 from pathfinder.services.enrichment.types import EnrichmentResult
@@ -38,6 +39,7 @@ def _row_from_gene_set(gs: GeneSet) -> dict[str, object]:
     return {
         "id": gs.id,
         "user_id": gs.user_id,
+        "application_id": gs.application_id,
         "site_id": gs.site_id,
         "name": gs.name,
         "gene_ids": gs.gene_ids,
@@ -70,6 +72,7 @@ def _gene_set_from_row(row: GeneSetRow) -> GeneSet:
     return GeneSet(
         id=row.id,
         user_id=row.user_id,
+        application_id=row.application_id,
         site_id=row.site_id,
         name=row.name,
         gene_ids=gene_ids,
@@ -98,7 +101,9 @@ async def _list_from_db(
     user_id: UUID | None = None,
     site_id: str | None = None,
 ) -> list[GeneSet]:
-    stmt = select(GeneSetRow)
+    stmt = select(GeneSetRow).where(
+        GeneSetRow.application_id == calling_application(),
+    )
     if user_id:
         stmt = stmt.where(GeneSetRow.user_id == user_id)
     if site_id:
@@ -119,13 +124,19 @@ async def _list_from_db(
 class GeneSetStore(WriteThruStore[GeneSet]):
     """Gene set repository with in-memory cache and DB write-through.
 
-    Inherits save/get/delete/aget/adelete from WriteThruStore.
-    Adds domain-specific listing methods.
+    Inherits save/delete/adelete from WriteThruStore. Every read answers only
+    for the calling application, cache included.
     """
 
     _model = GeneSetRow
     _to_row = staticmethod(_row_from_gene_set)
     _from_row = staticmethod(_gene_set_from_row)
+
+    async def aget(self, entity_id: str) -> GeneSet | None:
+        gs = await super().aget(entity_id)
+        if gs is None or gs.application_id != calling_application():
+            return None
+        return gs
 
     # -- Async listing --------------------------------------------------------
 
@@ -138,7 +149,10 @@ class GeneSetStore(WriteThruStore[GeneSet]):
     ) -> list[GeneSet]:
         """Merge DB rows with in-memory cache (cache wins), filter, and sort."""
         merged: dict[str, GeneSet] = {gs.id: gs for gs in db_sets}
+        application_id = calling_application()
         for gid, gs in self._cache.items():
+            if gs.application_id != application_id:
+                continue
             if user_id is not None and gs.user_id != user_id:
                 continue
             if site_id and gs.site_id != site_id:

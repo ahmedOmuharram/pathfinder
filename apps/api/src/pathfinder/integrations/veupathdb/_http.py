@@ -1,6 +1,7 @@
 """Core HTTP transport for VEuPathDB WDK REST API with retries and cookies."""
 
 import asyncio
+import re
 import time
 from collections.abc import Mapping, Sequence
 from typing import cast
@@ -25,7 +26,7 @@ from pathfinder.integrations.veupathdb.delayed_result import (
 )
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import veupathdb_auth_token_ctx
-from pathfinder.platform.errors import WDKError
+from pathfinder.platform.errors import WDKError, WDKLoginRequiredError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.metrics import wdk_request_duration_s, wdk_requests
 from pathfinder.platform.types import JSONObject
@@ -33,6 +34,15 @@ from pathfinder.platform.types import JSONObject
 logger = get_logger(__name__)
 
 _HTTP_SERVER_ERROR = 500
+
+# Steps, strategies, datasets, baskets, favorites and preferences all hang off
+# a user, and ``/users/current`` resolves which user that is.
+_USER_PATH = re.compile(r"^/users/")
+
+
+def _acts_for_a_user(path: str) -> bool:
+    """True when the path names a WDK account or something inside one."""
+    return bool(_USER_PATH.match(path))
 
 
 def _inject_auth_cookie(request: httpx.Request, auth_token: str) -> None:
@@ -150,6 +160,18 @@ class HTTPClient:
         except httpx.HTTPError, OSError, RuntimeError:
             logger.debug("Failed to initialize WDK session (non-fatal)")
 
+    def _effective_token(self, path: str) -> str | None:
+        """Resolve the token one request travels with.
+
+        Only the request's own token may reach a WDK account.
+        """
+        request_token = veupathdb_auth_token_ctx.get()
+        if request_token:
+            return request_token
+        if _acts_for_a_user(path):
+            raise WDKLoginRequiredError
+        return self.auth_token or get_settings().veupathdb_auth_token
+
     async def close(self) -> None:
         """Close the HTTP client and clear session state.
 
@@ -165,16 +187,12 @@ class HTTPClient:
         self,
         method: str,
         path: str,
+        auth_token: str | None,
         params: JSONObject | None = None,
         json: object = None,
     ) -> JsonValue:
         """Make one HTTP request attempt. Tenacity drives the retries."""
         client = await self._get_client()
-        auth_token = (
-            veupathdb_auth_token_ctx.get()
-            or self.auth_token
-            or get_settings().veupathdb_auth_token
-        )
         telemetry = WdkRequestTelemetry(
             method=method,
             path=path,
@@ -281,11 +299,7 @@ class HTTPClient:
     ) -> JsonValue:
         """Make an HTTP request with retries, and record telemetry."""
         start = time.monotonic()
-        auth_token = (
-            veupathdb_auth_token_ctx.get()
-            or self.auth_token
-            or get_settings().veupathdb_auth_token
-        )
+        auth_token = self._effective_token(path)
         telemetry = WdkRequestTelemetry(
             method=method,
             path=path,
@@ -294,7 +308,12 @@ class HTTPClient:
         )
         try:
             result: JsonValue = await self._retrying(attempts=3 if idempotent else 1)(
-                self._request_attempt, method, path, params=params, json=json
+                self._request_attempt,
+                method,
+                path,
+                auth_token,
+                params=params,
+                json=json,
             )
         except RetryError as e:
             last = e.last_attempt.exception()

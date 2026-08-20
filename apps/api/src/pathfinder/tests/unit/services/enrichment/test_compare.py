@@ -14,7 +14,7 @@ from pathfinder.services.experiment.types.experiment import (
 )
 
 
-def _term(term_id: str, name: str, fold: float) -> EnrichmentTerm:
+def _term(term_id: str, name: str, fold: float | str) -> EnrichmentTerm:
     return EnrichmentTerm.model_validate(
         {
             "term_id": term_id,
@@ -103,6 +103,46 @@ def test_distinct_term_has_null_for_the_other_experiment() -> None:
     )
     assert kinase_only["experimentCount"] == 1
     assert kinase_only["scores"] == {"exp-kinases": 3.0, "exp-phosphatases": None}
+
+
+def _experiments_with_an_unbounded_term() -> list[Experiment]:
+    return [
+        _exp(
+            "exp-kinases",
+            "Kinases",
+            [
+                _term("GO:0004672", "protein kinase activity", "Infinity"),
+                _term("GO:0006468", "protein phosphorylation", 30.0),
+            ],
+        ),
+        _exp(
+            "exp-phosphatases",
+            "Phosphatases",
+            [_term("GO:0004672", "protein kinase activity", 2.0)],
+        ),
+    ]
+
+
+def test_an_unbounded_score_ranks_first_and_says_so_on_the_wire() -> None:
+    result = compare_enrichment_across(
+        _experiments_with_an_unbounded_term(), ["exp-kinases", "exp-phosphatases"]
+    )
+
+    assert [r["maxScore"] for r in result["rows"]] == ["Inf", 30.0]
+    unbounded = result["rows"][0]
+    assert unbounded["termKey"] == "go_process:GO:0004672"
+    assert unbounded["scores"] == {"exp-kinases": "Inf", "exp-phosphatases": 2.0}
+
+
+def test_a_missing_experiment_stays_null_and_never_reads_as_unbounded() -> None:
+    result = compare_enrichment_across(
+        _experiments_with_an_unbounded_term(), ["exp-kinases", "exp-phosphatases"]
+    )
+
+    kinase_only = next(
+        r for r in result["rows"] if r["termKey"] == "go_process:GO:0006468"
+    )
+    assert kinase_only["scores"] == {"exp-kinases": 30.0, "exp-phosphatases": None}
 
 
 def test_analysis_type_filter_excludes_non_matching_terms() -> None:

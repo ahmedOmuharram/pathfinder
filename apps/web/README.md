@@ -136,7 +136,7 @@ src/
 
 **Feature isolation:** Each feature (`chat`, `strategy`, `analysis`, `workbench`, `sidebar`, `sites`, `settings`) is self-contained with its own components, hooks, services, and utilities. Cross-feature imports go through `lib/` or `state/`. Feature-specific stores (workbench) live inside their feature directory.
 
-**Real API + test-only mock LLM for E2E:** Playwright tests call live VEuPathDB APIs for gene searches, enrichment, catalog browsing. Only the LLM chat call is mocked, and only through the dedicated test profile (`PATHFINDER_CHAT_PROVIDER=mock`). This catches real integration bugs that unit tests with mocked APIs would miss. Worker isolation uses `/dev/login?user_id=worker-{N}` so parallel workers don't interfere.
+**Real API + test-only mock LLM for E2E:** Playwright tests call live VEuPathDB APIs for gene searches, enrichment, catalog browsing. Only the LLM chat call is mocked, and only through the dedicated test profile (`PATHFINDER_CHAT_PROVIDER=mock`). This catches real integration bugs that unit tests with mocked APIs would miss. Worker isolation uses `/dev/login?user_id=worker-{N}` so parallel workers don't interfere. VEuPathDB refuses guest service calls, so every worker also carries the registered account's token (`WDK_TEST_TOKEN`) in its `Authorization` cookie.
 
 **SSE over WebSocket:** Chat streaming uses Server-Sent Events (unidirectional server→client) rather than WebSockets. Messages are sent via POST; responses stream via SSE. This is simpler (HTTP/1.1 compatible, no upgrade handshake) and matches the request→stream response pattern. Next.js has compression disabled (`compress: false`) to ensure SSE events flush immediately.
 

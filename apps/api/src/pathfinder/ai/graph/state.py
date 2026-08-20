@@ -11,6 +11,7 @@ from pydantic_ai.ui.vercel_ai.request_types import (
     ToolApprovalResponded,
 )
 
+from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
@@ -101,6 +102,22 @@ class VerificationDigest(CamelModel):
     )
 
 
+class SubAgentApprovalCall(CamelModel):
+    """One approval-required tool call a sub-agent stopped at."""
+
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class SubAgentApprovalPending(CamelModel):
+    """A sub-agent run suspended on approvals, with the history that resumes it."""
+
+    role: PhaseRole
+    approvals: list[SubAgentApprovalCall] = Field(default_factory=list)
+    messages_json: str = ""
+
+
 class PendingApproval(CamelModel):
     phase: PendingApprovalPhase
     tool_call_id: str
@@ -108,6 +125,20 @@ class PendingApproval(CamelModel):
     tool_args: dict[str, JsonValue] = Field(default_factory=dict)
     plan_id: str | None = None
     prior_messages_json: str = ""
+    # Set when the approval belongs to a tool inside a sub-agent. The ids above
+    # then name the Lead's dispatch call, not the tool the user answers.
+    sub_agent: SubAgentApprovalPending | None = None
+    # The user message this approval was raised under. Answering the card
+    # leaves it unchanged, so a later turn with a different id carries a typed
+    # reply rather than an answer.
+    user_message_id: UUID | None = None
+
+
+SUB_AGENT_APPROVAL_PHASE: dict[PhaseRole, PendingApprovalPhase] = {
+    "frame": "frame",
+    "execution": "build",
+    "verification": "verification",
+}
 
 
 ConsultQuestionKind = Literal["single_choice", "multi_choice", "free_text"]

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.memory.schemas import MemoryKind, MemoryValue, TombstoneReason
 from pathfinder.persistence.models import MemoryTombstoneRow
+from pathfinder.platform.context import calling_application
 
 SessionFactory = Callable[[], AsyncSession]
 
@@ -33,7 +34,7 @@ def compute_content_hash(content: dict[str, object]) -> str:
 
 @dataclass(frozen=True)
 class TombstoneRepository:
-    """Soft-delete index for user memories.
+    """Soft-delete index for the memories of one user in one application.
 
     All reads and writes go through ``session_factory``. Use
     :meth:`existing_hashes` for batch lookups when you are about to check
@@ -72,6 +73,7 @@ class TombstoneRepository:
                 MemoryTombstoneRow.content_hash,
             ).where(
                 MemoryTombstoneRow.user_id == user_id,
+                MemoryTombstoneRow.application_id == calling_application(),
                 tuple_(
                     MemoryTombstoneRow.kind,
                     MemoryTombstoneRow.content_hash,
@@ -93,13 +95,19 @@ class TombstoneRepository:
                 pg_insert(MemoryTombstoneRow)
                 .values(
                     user_id=user_id,
+                    application_id=calling_application(),
                     kind=value.kind,
                     content_hash=content_hash,
                     reason=reason,
                     deleted_at=datetime.now(UTC),
                 )
                 .on_conflict_do_nothing(
-                    index_elements=["user_id", "kind", "content_hash"],
+                    index_elements=[
+                        "user_id",
+                        "application_id",
+                        "kind",
+                        "content_hash",
+                    ],
                 )
             )
             await session.execute(stmt)

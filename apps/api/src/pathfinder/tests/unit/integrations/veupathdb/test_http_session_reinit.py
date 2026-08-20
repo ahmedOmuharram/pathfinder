@@ -62,13 +62,13 @@ async def test_reinits_when_token_changes(
         "pathfinder.integrations.veupathdb._http.veupathdb_auth_token_ctx",
         _ConstCtx("token-A"),
     )
-    await client._request_attempt("GET", "/ping")
+    await client._request_attempt("GET", "/ping", client._effective_token("/ping"))
 
     monkeypatch.setattr(
         "pathfinder.integrations.veupathdb._http.veupathdb_auth_token_ctx",
         _ConstCtx("token-B"),
     )
-    await client._request_attempt("GET", "/ping")
+    await client._request_attempt("GET", "/ping", client._effective_token("/ping"))
 
     init_paths = [r for r in _CapturingTransport.requests if "/app" in str(r.url)]
     assert len(init_paths) == 2, (
@@ -90,8 +90,8 @@ async def test_does_not_reinit_when_token_unchanged(
         "pathfinder.integrations.veupathdb._http.veupathdb_auth_token_ctx",
         _ConstCtx("token-same"),
     )
-    await client._request_attempt("GET", "/ping")
-    await client._request_attempt("GET", "/ping")
+    await client._request_attempt("GET", "/ping", client._effective_token("/ping"))
+    await client._request_attempt("GET", "/ping", client._effective_token("/ping"))
 
     init_paths = [r for r in _CapturingTransport.requests if "/app" in str(r.url)]
     assert len(init_paths) == 1, (
@@ -117,7 +117,7 @@ async def test_clears_jsessionid_cookie_on_reinit(
         "pathfinder.integrations.veupathdb._http.veupathdb_auth_token_ctx",
         _ConstCtx("token-B"),
     )
-    await client._request_attempt("GET", "/ping")
+    await client._request_attempt("GET", "/ping", client._effective_token("/ping"))
 
     assert (
         client._client.cookies.get(

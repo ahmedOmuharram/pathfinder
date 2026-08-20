@@ -78,8 +78,9 @@ async def test_the_deferred_turn_carries_the_conversation_lock(
     patch_app_db_engine: None,
     db_session: AsyncSession,
     in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
 ) -> None:
-    del patch_app_db_engine
+    del patch_app_db_engine, signed_in_to_veupathdb
     owner = await make_user(db_session)
     conversation_id = await _make_conversation(db_session, owner.id, "Owner kinases")
 
@@ -95,9 +96,10 @@ async def test_the_lock_groups_turns_by_conversation(
     patch_app_db_engine: None,
     db_session: AsyncSession,
     in_memory_jobs: InMemoryConnector,
+    signed_in_to_veupathdb: None,
 ) -> None:
     """Two turns on one conversation share a lock; another conversation differs."""
-    del patch_app_db_engine
+    del patch_app_db_engine, signed_in_to_veupathdb
     owner = await make_user(db_session)
     first = await _make_conversation(db_session, owner.id, "first")
     second = await _make_conversation(db_session, owner.id, "second")

@@ -78,10 +78,11 @@ export type SubAgentItem =
 
 /**
  * Collapse a sub-agent's raw step stream into render-ready items. A tool call
- * arrives as a ``started`` step (carrying ``args``) and a later
- * ``completed``/``failed`` step (carrying ``resultSummary``); both share a
- * ``toolCallId``. We merge them into one item so each tool call renders as a
- * single expandable card — input + output + final state — like the Lead's.
+ * arrives as a ``started`` step (carrying ``args``) and a later terminal step
+ * (``completed``, ``failed`` or ``denied``, carrying ``resultSummary``); both
+ * share a ``toolCallId``. We merge them into one item so each tool call renders
+ * as a single expandable card, with input, output and final state, like the
+ * Lead's.
  */
 export function mergeSubAgentSteps(steps: DataSubAgentStepPayload[]): SubAgentItem[] {
   const items: SubAgentItem[] = [];

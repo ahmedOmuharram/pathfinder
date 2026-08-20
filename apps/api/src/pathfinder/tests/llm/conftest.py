@@ -11,6 +11,7 @@ is opt-in; the default pytest sweep ignores this directory.
 from __future__ import annotations
 
 import os
+from collections.abc import Generator
 from uuid import uuid4
 
 import pydantic_ai.models
@@ -24,6 +25,7 @@ from pathfinder.ai.graph.state import (
     ResearchNote,
 )
 from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.services.research.literature_search import (
     LiteratureSearchService,
 )
@@ -49,6 +51,16 @@ def _skip_if_no_openai_key() -> None:
             "OPENAI_API_KEY not set — llm tests require a live OpenAI key",
             allow_module_level=True,
         )
+
+
+@pytest.fixture(autouse=True)
+def _act_as_registered_wdk_user(require_wdk_creds: str) -> Generator[None]:
+    """Every test here queries plasmodb, which answers registered users only."""
+    reset = veupathdb_auth_token_ctx.set(require_wdk_creds)
+    try:
+        yield
+    finally:
+        veupathdb_auth_token_ctx.reset(reset)
 
 
 @pytest.fixture

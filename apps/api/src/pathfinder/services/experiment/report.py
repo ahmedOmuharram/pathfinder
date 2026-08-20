@@ -6,6 +6,10 @@ The output HTML loads no external assets.
 import html
 from datetime import UTC, datetime
 
+from pathfinder.services.enrichment.ranking import (
+    NOT_COMPUTABLE_LABEL,
+    UNBOUNDED_RATIO_LABEL,
+)
 from pathfinder.services.experiment.types import (
     BootstrapResult,
     Experiment,
@@ -89,6 +93,14 @@ def _pct(v: float) -> str:
 
 def _num(v: float) -> str:
     return f"{v:.4f}"
+
+
+def _ratio(v: float | None) -> str:
+    return UNBOUNDED_RATIO_LABEL if v is None else f"{v:.2f}"
+
+
+def _probability(v: float | None) -> str:
+    return NOT_COMPUTABLE_LABEL if v is None else f"{v:.2e}"
 
 
 def _header(exp: Experiment) -> str:
@@ -236,8 +248,8 @@ def _enrichment_section(exp: Experiment) -> str:
         rows = [
             f"<tr><td>{_esc(t.term_name)}</td>"
             f"<td class='numeric'>{t.gene_count}</td>"
-            f"<td class='numeric'>{t.fold_enrichment:.2f}</td>"
-            f"<td class='numeric'>{t.fdr:.2e}</td></tr>"
+            f"<td class='numeric'>{_ratio(t.fold_enrichment)}</td>"
+            f"<td class='numeric'>{_probability(t.fdr)}</td></tr>"
             for t in er.terms[:20]
         ]
         parts.append(

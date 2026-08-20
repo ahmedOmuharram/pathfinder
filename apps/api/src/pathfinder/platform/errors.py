@@ -24,6 +24,7 @@ class ErrorCode(StrEnum):
     SEARCH_NOT_FOUND = "SEARCH_NOT_FOUND"
     INVALID_PARAMETERS = "INVALID_PARAMETERS"
     WDK_ERROR = "WDK_ERROR"
+    WDK_LOGIN_REQUIRED = "WDK_LOGIN_REQUIRED"
 
     # Strategy
     STRATEGY_NOT_FOUND = "STRATEGY_NOT_FOUND"
@@ -156,6 +157,22 @@ class WDKError(AppError):
             title="VEuPathDB service error",
             status=status,
             detail=detail,
+        )
+
+
+class WDKLoginRequiredError(AppError):
+    """The request names no registered VEuPathDB user.
+
+    VEuPathDB serves the WDK service to registered users only, so a guest or
+    anonymous request cannot reach a search, a strategy or a gene set.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            code=ErrorCode.WDK_LOGIN_REQUIRED,
+            title="VEuPathDB login required",
+            status=401,
+            detail="Sign in to VEuPathDB to use searches, strategies and gene sets.",
         )
 
 

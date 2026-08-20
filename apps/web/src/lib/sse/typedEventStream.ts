@@ -1,8 +1,8 @@
 /**
  * Shared helper for consuming simple typed-event SSE streams.
  *
- * Used by experiment/sweep/seed routes — NOT for chat.  Chat goes through
- * `useLangGraphStream` and the LangGraph streaming wire format.
+ * Used by experiment/sweep/seed/task routes, not by chat. Chat goes through
+ * `DurableChatTransport` and the AI SDK UI message stream protocol.
  *
  * The async generator fetches the given URL, parses `event:` / `data:`
  * frames out of the response body, and yields each `data:` payload as
@@ -14,20 +14,22 @@
  * Malformed frames (non-JSON payloads) are silently skipped.
  */
 
+import {
+  extractErrorMessage,
+  getAuthHeaders,
+  parseResponseBody,
+} from "@/lib/api/http";
+
 export interface TypedEventStreamOptions {
   /** Abort signal forwarded to `fetch` and the body reader. */
   signal?: AbortSignal;
-  /** Override for `fetch`'s `credentials`. Defaults to `"include"`. */
-  credentials?: RequestCredentials;
-  /** HTTP method — defaults to `"GET"`. */
+  /** HTTP method. Defaults to `"GET"`. */
   method?: "GET" | "POST";
   /**
    * Optional request body. When set, it is JSON-stringified and the
-   * `content-type: application/json` header is added automatically.
+   * `Content-Type: application/json` header is added automatically.
    */
   body?: unknown;
-  /** Additional headers merged on top of `accept` and `content-type`. */
-  headers?: HeadersInit;
 }
 
 function extractDataLine(frame: string): string | null {
@@ -42,24 +44,27 @@ export async function* streamTypedEvents<T>(
   url: string,
   options: TypedEventStreamOptions = {},
 ): AsyncGenerator<T> {
-  const { signal, credentials = "include", method = "GET", body, headers } = options;
+  const { signal, method = "GET", body } = options;
   const hasBody = body !== undefined;
 
   const init: RequestInit = {
     method,
-    credentials,
-    headers: {
+    credentials: "include",
+    headers: getAuthHeaders({
       accept: "text/event-stream",
-      ...(hasBody ? { "content-type": "application/json" } : {}),
-      ...(headers ?? {}),
-    },
+      ...(hasBody ? { contentType: "application/json" } : {}),
+    }),
   };
   if (hasBody) init.body = JSON.stringify(body);
   if (signal !== undefined) init.signal = signal;
 
   const resp = await fetch(url, init);
 
-  if (!resp.ok) throw new Error(`stream failed: ${resp.status}`);
+  if (!resp.ok) {
+    const detail = extractErrorMessage(await parseResponseBody(resp));
+    const reason = detail === null ? "" : `: ${detail}`;
+    throw new Error(`stream failed: ${resp.status}${reason}`);
+  }
   const respBody = resp.body;
   if (respBody === null) throw new Error("no response body");
 
@@ -86,7 +91,7 @@ export async function* streamTypedEvents<T>(
       try {
         yield JSON.parse(dataLine) as T;
       } catch {
-        // Malformed frame — skip silently.
+        // Malformed frame. Skipped.
       }
       boundary = buffer.indexOf("\n\n");
     }
