@@ -15,7 +15,9 @@ from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.repositories import ConversationRepository
-from pathfinder.persistence.repositories.conversation import ConversationUpdate
+from pathfinder.persistence.repositories.conversation_update import (
+    ConversationUpdate,
+)
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.strategies.context import StrategyMutationContext
@@ -30,7 +32,7 @@ async def persist_strategy_ast_to_conversation(
     graph: StrategyGraph,
     sync_result: SyncResult | None,
 ) -> None:
-    """Write ``conversations.strategy_ast`` from the current graph.
+    """Write ``conversation_strategies.strategy_ast`` from the current graph.
 
     Inside an advisory lock keyed on the conversation id so concurrent
     user PATCHes don't race. Re-fetches the row inside the lock to merge
@@ -61,7 +63,11 @@ async def persist_strategy_ast_to_conversation(
             wdk_strategy_id_to_write = (
                 sync_result.wdk_strategy_id
                 if sync_result is not None
-                else (current.wdk_strategy_id if current is not None else None)
+                else (
+                    current.strategy_view.wdk_strategy_id
+                    if current is not None
+                    else None
+                )
             )
             await repo.update_conversation(
                 deps.conversation_id,
@@ -91,7 +97,7 @@ def _total_step_count(ast: StrategyAst) -> int:
 
 
 async def _clear_persisted_strategy(deps: StrategyMutationContext) -> None:
-    """Blank the strategy columns after the last step is deleted."""
+    """Blank the built strategy after the last step is deleted."""
     if deps.conversation_id is None or deps.db_session_factory is None:
         return
     try:
@@ -100,15 +106,8 @@ async def _clear_persisted_strategy(deps: StrategyMutationContext) -> None:
                 text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
                 {"k": f"strategy:{deps.conversation_id}"},
             )
-            await ConversationRepository(session).update_conversation(
+            await ConversationRepository(session).clear_strategy(
                 deps.conversation_id,
-                ConversationUpdate(
-                    strategy_ast=None,
-                    strategy_ast_set=True,
-                    wdk_strategy_id=None,
-                    wdk_strategy_id_set=True,
-                    step_count=0,
-                ),
             )
             await session.commit()
     except (AppError, OSError, RuntimeError) as exc:
@@ -131,9 +130,12 @@ def _merge_agent_ast_into_current(
     did not push this turn. When persisted state is missing entirely
     (fresh chat), use the agent view as-is.
     """
-    if current is None or not current.strategy_ast:
+    if current is None:
         return agent_ast
-    persisted = StrategyAst.model_validate(current.strategy_ast)
+    persisted_ast = current.strategy_view.strategy_ast
+    if not persisted_ast:
+        return agent_ast
+    persisted = StrategyAst.model_validate(persisted_ast)
     merged_step_ids = dict(persisted.wdk_step_ids or {})
     merged_step_ids.update(agent_ast.wdk_step_ids or {})
     return agent_ast.model_copy(update={"wdk_step_ids": merged_step_ids})

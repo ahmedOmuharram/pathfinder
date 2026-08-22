@@ -11,9 +11,8 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
 
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import ConversationStrategy, User
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.platform.db import async_session_factory
@@ -48,8 +47,13 @@ async def test_duplicate_copies_strategy_dropping_wdk_ids(
             conversation_id=conv_id,
             name="Kinase strategy",
         )
-        conv.strategy_ast = dict(_AST)
-        conv.wdk_strategy_id = 555
+        session.add(
+            ConversationStrategy(
+                conversation_id=conv.id,
+                strategy_ast=dict(_AST),
+                wdk_strategy_id=555,
+            ),
+        )
         await MessagesRepository(session).insert_message(
             message_id=uuid4(),
             conversation_id=conv_id,
@@ -65,11 +69,11 @@ async def test_duplicate_copies_strategy_dropping_wdk_ids(
     assert dup.name == "Copy of Kinase strategy"
 
     async with async_session_factory() as session:
-        new = await session.scalar(
-            select(Conversation).where(Conversation.id == dup.id),
-        )
+        repo = ConversationRepository(session)
+        new = await repo.get_by_id(dup.id)
         assert new is not None
-        root = new.strategy_ast.get("root")
+        copied = new.strategy_view
+        root = copied.strategy_ast.get("root")
         assert isinstance(root, dict)
         assert root.get("id") == "kinases"
         assert root.get("searchName") == "GenesByText"
@@ -78,11 +82,9 @@ async def test_duplicate_copies_strategy_dropping_wdk_ids(
         text_expr = params.get("text_expression")
         assert isinstance(text_expr, dict)
         assert text_expr.get("value") == "kinase"
-        assert "wdkStepIds" not in new.strategy_ast
-        assert new.wdk_strategy_id is None
+        assert "wdkStepIds" not in copied.strategy_ast
+        assert copied.wdk_strategy_id is None
 
-        original = await session.scalar(
-            select(Conversation).where(Conversation.id == conv_id),
-        )
+        original = await repo.get_by_id(conv_id)
         assert original is not None
-        assert original.wdk_strategy_id == 555
+        assert original.strategy_view.wdk_strategy_id == 555

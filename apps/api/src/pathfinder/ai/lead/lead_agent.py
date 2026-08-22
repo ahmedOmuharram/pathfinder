@@ -16,7 +16,6 @@ from pydantic_ai.messages import ToolReturn
 from pathfinder.ai.agents._history_processor import (
     PHASE_HISTORY_PROCESSORS,
 )
-from pathfinder.ai.graph.state import ConsultQuestion, UserQuestionAnswer
 from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.intent import UserIntent
@@ -36,6 +35,10 @@ from pathfinder.ai.tools.standalone.control_sets import (
 )
 from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_scored
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
+from pathfinder.assistant_core.graph.turn_state import (
+    ConsultQuestion,
+    UserQuestionAnswer,
+)
 from pathfinder.platform.pydantic_base import CamelModel
 
 LeadTurnState = Literal["await_user", "complete"]
@@ -65,6 +68,9 @@ class LeadResponse(CamelModel):
     next_state: LeadTurnState = "await_user"
 
 
+LeadAgent = Agent[LeadDeps, LeadResponse | DeferredToolRequests]
+
+
 def pinned_ledger_summary(ctx: RunContext[LeadDeps]) -> str:
     """Builds the compact ledger summary. It is derived on each render."""
     ledger = derive_ledger(ctx.deps.state, ctx.deps.intent)
@@ -73,7 +79,7 @@ def pinned_ledger_summary(ctx: RunContext[LeadDeps]) -> str:
 
 def pinned_operational_spec(ctx: RunContext[LeadDeps]) -> str | None:
     """Renders the operational spec, which the Lead reads to decide build readiness."""
-    spec = ctx.deps.state.operational_spec
+    spec = ctx.deps.state.domain.operational_spec
     if spec is None:
         return "## Operational Spec\nNot framed yet. Call ``frame_problem``."
     lines = [
@@ -231,48 +237,50 @@ async def consult_user(
     )
 
 
-_consult_user_tool: Tool[LeadDeps] = Tool(
-    consult_user,
-    requires_approval=True,
-)
+LEAD_MODEL = "openai:gpt-5.6-luna"
 
 
-lead_agent: Agent[LeadDeps, LeadResponse | DeferredToolRequests] = Agent(
-    "openai:gpt-5.6-luna",
-    output_type=[LeadResponse, DeferredToolRequests],
-    deps_type=LeadDeps,
-    instructions=LEAD_INSTRUCTIONS,
-    tools=[
-        Tool(classify_user_intent),
-        Tool(read_ledger_section),
-        Tool(get_live_strategy_state),
-        Tool(frame_problem),
-        Tool(build_strategy),
-        Tool(recover_failed_steps),
-        Tool(verify_strategy),
-        Tool(compare_search_variants),
-        Tool(build_control_set),
-        Tool(list_control_sets),
-        Tool(import_control_ids_from_gene_set),
-        Tool(import_control_ids_from_strategy),
-        Tool(compare_variants_scored),
-        _consult_user_tool,
-    ],
-    capabilities=[
-        Thinking(effort="medium"),
-        *(ProcessHistory[LeadDeps](p) for p in PHASE_HISTORY_PROCESSORS),
-    ],
-    retries=3,
-    description="The user's voice — orchestrates sub-agents via the Ledger",
-    name="lead",
-    defer_model_check=True,
-)
+def build_lead_agent() -> LeadAgent:
+    """A Lead agent for one turn.
 
-
-for _fn in (
-    pinned_user_prompt,
-    pinned_user_intent,
-    pinned_operational_spec,
-    pinned_ledger_summary,
-):
-    lead_agent.instructions(_fn)
+    Each turn gets its own instance, so a per-turn model override never
+    reaches another turn.
+    """
+    agent: LeadAgent = Agent(
+        LEAD_MODEL,
+        output_type=[LeadResponse, DeferredToolRequests],
+        deps_type=LeadDeps,
+        instructions=LEAD_INSTRUCTIONS,
+        tools=[
+            Tool(classify_user_intent),
+            Tool(read_ledger_section),
+            Tool(get_live_strategy_state),
+            Tool(frame_problem),
+            Tool(build_strategy),
+            Tool(recover_failed_steps),
+            Tool(verify_strategy),
+            Tool(compare_search_variants),
+            Tool(build_control_set),
+            Tool(list_control_sets),
+            Tool(import_control_ids_from_gene_set),
+            Tool(import_control_ids_from_strategy),
+            Tool(compare_variants_scored),
+            Tool(consult_user, requires_approval=True),
+        ],
+        capabilities=[
+            Thinking(effort="medium"),
+            *(ProcessHistory[LeadDeps](p) for p in PHASE_HISTORY_PROCESSORS),
+        ],
+        retries=3,
+        description="The user's voice — orchestrates sub-agents via the Ledger",
+        name="lead",
+        defer_model_check=True,
+    )
+    for fn in (
+        pinned_user_prompt,
+        pinned_user_intent,
+        pinned_operational_spec,
+        pinned_ledger_summary,
+    ):
+        agent.instructions(fn)
+    return agent

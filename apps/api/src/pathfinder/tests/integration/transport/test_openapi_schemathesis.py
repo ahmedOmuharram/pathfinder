@@ -43,8 +43,8 @@ from schemathesis.specs.openapi.checks import (
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 import pathfinder.platform.db as session_module
-from pathfinder.ai.conversation.checkpointer import to_psycopg_url
-from pathfinder.ai.memory.lifespan import lifespan_memory_store
+from pathfinder.assistant_core.conversation.checkpointer import to_psycopg_url
+from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.main import create_app
 from pathfinder.persistence.models import User

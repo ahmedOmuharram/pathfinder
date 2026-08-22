@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import (
     JSON,
     BigInteger,
@@ -216,7 +217,7 @@ class GeneSetRow(Base):
 
 
 class Conversation(Base):
-    """One row that holds a message thread, its strategy AST and its WDK links."""
+    """One chat thread: who owns it, where it runs, and how it was branched."""
 
     __tablename__ = "conversations"
     __table_args__ = (
@@ -225,12 +226,6 @@ class Conversation(Base):
             "user_id",
             "application_id",
             "site_id",
-        ),
-        Index(
-            "ix_conversations_wdk_strategy_id",
-            "wdk_strategy_id",
-            unique=True,
-            postgresql_where="wdk_strategy_id IS NOT NULL",
         ),
     )
 
@@ -243,6 +238,66 @@ class Conversation(Base):
     application_id: Mapped[str] = _application_id_column()
     site_id: Mapped[str] = mapped_column(String(50), default="")
     name: Mapped[str] = mapped_column(String(255), default="")
+    dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    parent_conversation_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    parent_message_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped[User] = relationship(back_populates="conversations")
+    # Loaded on request only. An unplanned access raises instead of emitting
+    # a query the caller did not ask for.
+    strategy: Mapped[ConversationStrategy | None] = relationship(
+        back_populates="conversation",
+        lazy="raise",
+        passive_deletes=True,
+    )
+
+    @property
+    def strategy_view(self) -> ConversationStrategyView:
+        """The strategy projection; all-default when the thread has none."""
+        row = self.strategy
+        if row is None:
+            return _ABSENT_STRATEGY
+        return ConversationStrategyView.model_validate(row)
+
+
+class ConversationStrategy(Base):
+    """PathFinder's WDK strategy projection for one chat thread.
+
+    The row exists only after the first strategy write. Ownership is the
+    parent thread's, so this table carries no user or application of its own.
+    """
+
+    __tablename__ = "conversation_strategies"
+    __table_args__ = (
+        Index(
+            "ix_conversation_strategies_wdk_strategy_id",
+            "wdk_strategy_id",
+            unique=True,
+            postgresql_where="wdk_strategy_id IS NOT NULL",
+        ),
+    )
+
+    conversation_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
     record_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     wdk_strategy_id: Mapped[int | None] = mapped_column(nullable=True)
     is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -258,34 +313,42 @@ class Conversation(Base):
         ForeignKey("experiments.id", ondelete="SET NULL"),
         nullable=True,
     )
-    dismissed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    parent_conversation_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    parent_message_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("messages.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    # WDK ids of the saved strategies that this conversation references.
+    # WDK ids of the saved strategies that this strategy embeds.
     # A saved strategy with at least one consumer cannot be deleted.
     imported_saved_strategy_ids: Mapped[list[int]] = mapped_column(
         JSONB,
         nullable=False,
         default=list,
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+
+    conversation: Mapped[Conversation] = relationship(
+        back_populates="strategy",
+        lazy="raise",
     )
 
-    user: Mapped[User] = relationship(back_populates="conversations")
+
+class ConversationStrategyView(BaseModel):
+    """Read shape of a conversation's strategy projection.
+
+    The field defaults are the absent-row semantics: a thread with no side
+    row reads exactly like one whose strategy was never built.
+    """
+
+    model_config = ConfigDict(frozen=True, from_attributes=True, extra="forbid")
+
+    record_type: str | None = None
+    wdk_strategy_id: int | None = None
+    is_saved: bool = False
+    step_count: int = 0
+    strategy_ast: JSONObject = Field(default_factory=dict)
+    estimated_size: int | None = None
+    gene_set_id: str | None = None
+    gene_set_auto_imported: bool = False
+    experiment_id: str | None = None
+    imported_saved_strategy_ids: list[int] = Field(default_factory=list)
+
+
+_ABSENT_STRATEGY = ConversationStrategyView()
 
 
 class Message(Base):

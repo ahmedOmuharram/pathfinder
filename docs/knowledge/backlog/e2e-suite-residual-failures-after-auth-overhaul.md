@@ -1,52 +1,46 @@
 ---
 type: Backlog Item
-title: 26 e2e specs still fail after the auth overhaul, in four clusters, while every worker turn succeeds
-description: With the registered-login gate, the production web image, an isolated pathfinder_test database, the /open commit fix and the refresh no-op fix in place, the Playwright suite reaches 94 passed / 26 failed / 1 flaky (1.3 h). The worker completed 254 of 254 chat turns in that run, so the failures are client-side or spec-level. Clusters: strategy-build UI interactions (auto-build, execution-phase, strategy-edit family, dependent-strategy, and the five journeys that inherit them), deletion and dismissal flows (conversations delete, dismissed-strategies, insert-saved, user-data purge), durable-task live progress via the per-task SSE, and the never-executed unauthenticated-prompt spec whose dialog assertion does not match the DOM.
+title: 10 e2e specs still fail, all deep in composite flows: two real accessibility findings, a shared rail assertion, and tail-of-run flakes
+description: Run 23 (2026-08-21) reached 120 passed / 10 failed / 3 skipped / 0 flaky / 0 did-not-run (1.2 h) - the whole feature project is green, including every strategy-edit spec, both purge specs and the enrichment panels. The 10 remaining are deep in composite flows: (a) chat-to-workbench and gene-set-analysis-pipeline fail their axe checkpoint with serious/critical accessibility violations - real product findings these flows never reached before; (b) five site journeys time out waiting for getByTestId('rail-strategy-panel'); (c) three tail-of-run flakes - a composer that never re-enables in 30 s (cross-species), the startup gate exceeding 60 s (plasmodium), and dev-login 500 on worker-40 (toxoplasma) after many worker restarts. Fresh artifacts in apps/web/test-results.
 tags: [investigation, e2e, playwright, auth, tests]
 generated: { by: claude-code/fable-5, at: 2026-08-20T00:00:00Z }
 verified: { by: claude-code/fable-5, at: 2026-08-20T00:00:00Z }
 status: stable
 ---
 
-# Investigation (full-suite runs, 2026-08-20)
+# Investigation (full-suite runs, 2026-08-20/21)
 
-**What I did.** Ran the full 133-spec Playwright suite against the containerized e2e
-stack (mock provider, live WDK, `WDK_TEST_TOKEN` as the browser's `Authorization`
-cookie) repeatedly while fixing what each run exposed: run 6 = production web image
-(the dev-server image OOM-killed twice and hydration lagged behind clicks); run 8 =
-isolated `pathfinder_test` database (the overlay had pointed at the dev database);
-run 10 = after two product fixes found by trace forensics.
+**What I did.** Ran the 133-spec suite repeatedly against the isolated stack while
+fixing what each run exposed. After run 12 (105 passed) the fixes were: the mock
+follows the FRAME contract (list_searches before binding; the GO criterion carries
+go_typeahead only), the readiness ratchet no longer latches a transient DB ping,
+the enrichment ceiling is 360 s (measured 163 s solo for five types), the purge
+specs assert identity instead of an empty shared account, and the GO spec reads
+the vocabulary half and asks its follow-up without a mock marker phrase (a marker
+routes the mock into a rebuild that re-mints every step id - measured as the AST
+leaf changing from step_65fae9c7 to step_8b4f3fc6 across the question turn).
 
-**What I got.** Run 6: 33 passed / 52 failed. Run 8: 36 passed. Run 10 (both fixes):
-`94 passed / 26 failed / 1 flaky / 3 skipped / 9 did not run (1.3h)`, and the worker
-log for the window shows `254 x "ended with status: Success"` chat turns, zero errors.
-The two fixes, each measured from a trace: (1) `POST /api/v1/conversations/open`
-returned its id before the session committed (the yield-dependency commits after the
-response is sent), so the immediate sidebar listing omitted the new conversation -
-open returned `beb136dc...` while the refreshed listing held only other ids; fixed by
-an explicit commit in the route. (2) The app's on-load `POST /auth/refresh` re-minted
-`pathfinder-auth` from the shared registered WDK token, silently switching every
-worker onto one user - the listing request carried cookie `c147aef8` while /open
-carried `f1e1a927` in one test; fixed by making refresh keep a valid existing session
-(three unit tests).
+**What I got.** Run 23: `120 passed / 10 failed / 3 skipped (1.2h)`, zero flaky,
+zero did-not-run. Every feature spec is green.
 
-**Why that is wrong.** A quarter of the suite cannot gate releases: the strategy-edit
-family and every journey fail on waits for assistant output or AST state that the DOM
-never shows, deletion flows fail waiting for a mock reply after a delete, the durable
-progress card never advances from the per-task SSE in the spec's window, and the new
-unauthenticated-prompt spec (`auth.spec.ts:6`) waits for `getByRole('dialog')` that
-never appears - it had never been executed before this run.
+**Why that is wrong.** Ten composite flows still cannot gate a release, and two of
+them are failing for reasons users would feel directly (accessibility).
 
-**Why it happens.** Not established per cluster; the pipeline is healthy (every turn
-succeeded), so the causes are client rendering, spec assumptions, or flow-specific
-regressions from the login-gate batch, and each cluster needs its own trace read.
+**Why it happens.** (a) `chat-to-workbench` and `gene-set-analysis-pipeline` now
+get far enough to run their axe checkpoint and it reports serious/critical
+violations - unread until now because the flows died earlier. (b) Five journeys
+(crypto, full-researcher-lifecycle, fungal, leishmania, malaria, toxoplasma minus
+the flake) wait for `getByTestId('rail-strategy-panel')` and it never shows - one
+shared assertion, likely one cause in the right-rail panel wiring. (c) Three are
+tail-of-run environment: the composer stayed disabled past 30 s on the second site
+of cross-species, plasmodium's page load exceeded the 60 s startup-gate allowance,
+and toxoplasma's worker-40 (after many Playwright worker restarts) got a 500 from
+dev-login.
 
-**Fix (to decide).** One task per cluster, each starting from a run-10 trace:
-(1) strategy-build UI cluster incl. journeys; (2) deletion/dismissal cluster;
-(3) durable per-task SSE progress; (4) `auth.spec.ts:6` dialog assertion vs the
-forced-modal DOM (likely the spec, possibly a missing dialog role). Keep the e2e
-stack recipe: production web image, `pathfinder_test`, api+worker with the e2e
-overlay, `WDK_TEST_TOKEN` exported in the Playwright shell.
+**Fix (next session).** Read the axe violation lists from the two cross-feature
+traces and fix the components (product work); open one journey trace at the
+rail-strategy-panel wait and find why the panel does not render there; rerun the
+three flaky ones first on a quiet stack before treating them as real.
 
-**What you would get.** A releasable e2e gate: 133 specs green or knowingly skipped,
-on an isolated database, with the auth model the product now enforces.
+**What you would get.** A releasable e2e gate: 133 specs green or knowingly
+skipped, on an isolated database, with the auth model the product now enforces.

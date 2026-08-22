@@ -1,22 +1,25 @@
 import { match } from "ts-pattern";
-import type { DataPartKind, DataPartPayloadMap } from "@pathfinder/shared";
+import type { DataPartPayloadMap, KnownDataPartKind } from "@pathfinder/shared";
 import { createElement, type ReactElement } from "react";
 
 import { dataPartComponents } from "./contentComponents";
 
-function renderKind<K extends DataPartKind>(kind: K, data: unknown): ReactElement {
+function renderKind<K extends KnownDataPartKind>(
+  kind: K,
+  data: unknown,
+): ReactElement {
   return createElement(dataPartComponents[kind], {
     data: data as DataPartPayloadMap[K],
   });
 }
 
-// ts-pattern exhaustive dispatch over all DataPartKind literals.
-// If DataPartKind gains a new literal, .exhaustive() fails compilation.
+// ts-pattern exhaustive dispatch over all KnownDataPartKind literals.
+// If KnownDataPartKind gains a new literal, .exhaustive() fails compilation.
 export function DataPartRenderer({
   kind,
   data,
 }: {
-  kind: DataPartKind;
+  kind: KnownDataPartKind;
   data: unknown;
 }) {
   return match(kind)

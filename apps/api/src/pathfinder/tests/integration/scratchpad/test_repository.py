@@ -17,7 +17,6 @@ async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:
         user_id=seed_user.id,
         site_id="plasmodb",
         name="",
-        experiment_id=None,
     )
     db_session.add(conv)
     await db_session.flush()

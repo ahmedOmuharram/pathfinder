@@ -29,7 +29,7 @@ and values; none has a fix yet.
 
 ## Chat
 
-- [26 e2e specs still fail after the auth overhaul, in four clusters, while every worker turn succeeds](e2e-suite-residual-failures-after-auth-overhaul.md) - 94 passed / 26 failed on the isolated stack; strategy-UI, deletion, durable-SSE and one never-run auth spec; two product bugs already fixed on the way (open committed before response; refresh keeps a valid session)
+- [10 e2e specs still fail, all deep in composite flows](e2e-suite-residual-failures-after-auth-overhaul.md) - 120 passed / 10 failed / 0 flaky; the feature project is fully green; what remains: two real accessibility findings, one shared rail-strategy-panel assertion across five journeys, three tail-of-run flakes
 
 - [A failed turn shows "Response failed" while it streams, and nothing at all after a reload](failed-turn-shows-no-error-after-reload.md) - neither reducer turns the `error` chunk into a part; the nine-chunk log reduces to two parts on both sides
 - [FRAME's tool budget does not scale with the problem](frame-budget-does-not-scale.md) - nine criteria do not fit in 60 calls, and the bound ones are discarded
@@ -39,6 +39,10 @@ and values; none has a fix yet.
 - [A numeric bound stated in the request is ignored, then reported as honoured](numeric-intent-ignored-then-reported-as-honoured.md) - the resolution half is closed; a reply can still restate a bound value with an interpretation the value does not support
 
 - [No way for a user to authorise defaults](frame-ignores-use-defaults.md) - the slots now fill, but "pick something sensible" still has no mechanism and an assumed value is only narrated, not recorded
+
+- [A verification digest can report success over a build that pushed nothing](verification-digest-can-contradict-the-ledger.md) - one message showed "build - failed" and "Verified end-to-end." together while the ledger read criteria 0 / pushed 0 / succeeded no; nothing checks the digest against the build
+
+- [The tool-repetition guard is registered on no agent](repetition-guard-runs-on-no-agent.md) - `Hooks(` appears nowhere, so the third identical read-only call is never blocked; re-wire it or delete it
 
 ## WDK integration
 

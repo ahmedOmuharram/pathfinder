@@ -177,7 +177,7 @@ async def fetch_strategy_gene_ids(
     :param chat: ``Conversation`` with ``wdk_strategy_id``.
     :returns: List of gene ID strings.
     """
-    strategy = await api.get_strategy(conversation.wdk_strategy_id)
+    strategy = await api.get_strategy(conversation.strategy_view.wdk_strategy_id)
     return await fetch_all_gene_ids(api, strategy.root_step_id)
 
 
@@ -193,7 +193,7 @@ async def get_strategy_gene_ids(
         strategy_id,
         user_id,
     )
-    if not conversation.wdk_strategy_id:
+    if not conversation.strategy_view.wdk_strategy_id:
         return StrategyGeneIdsResult(error="No WDK strategy linked")
     api = get_strategy_api(site_id)
     gene_ids = await fetch_strategy_gene_ids(api=api, conversation=conversation)

@@ -11,8 +11,8 @@ from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.scratchpad import tools as sc_tools
+from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.platform.db import DBSessionFactory
@@ -24,7 +24,6 @@ async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:
         user_id=seed_user.id,
         site_id="plasmodb",
         name="",
-        experiment_id=None,
     )
     db_session.add(conv)
     await db_session.flush()

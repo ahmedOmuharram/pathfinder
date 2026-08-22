@@ -31,10 +31,11 @@ def _is_eligible(conversation: Conversation) -> bool:
     - Has not been auto-imported before (one-way latch)
     - Does not already have a linked gene set
     """
+    strategy = conversation.strategy_view
     return (
-        conversation.wdk_strategy_id is not None
-        and not conversation.gene_set_auto_imported
-        and conversation.gene_set_id is None
+        strategy.wdk_strategy_id is not None
+        and not strategy.gene_set_auto_imported
+        and strategy.gene_set_id is None
     )
 
 
@@ -61,7 +62,8 @@ async def auto_import_gene_sets(
         if not _is_eligible(conversation):
             continue
 
-        wdk_id = conversation.wdk_strategy_id
+        strategy = conversation.strategy_view
+        wdk_id = strategy.wdk_strategy_id
         if wdk_id is None:
             msg = "wdk_id must not be None (guaranteed by _is_eligible)"
             raise InternalError(detail=msg)
@@ -93,7 +95,7 @@ async def auto_import_gene_sets(
                 source="strategy",
                 wdk=GeneSetWdkContext(
                     wdk_strategy_id=wdk_id,
-                    record_type=conversation.record_type,
+                    record_type=strategy.record_type,
                 ),
             )
             await gene_set_service.flush(gs.id)
@@ -180,15 +182,16 @@ async def import_gene_set_for_conversation(
             if conversation is None:
                 return None
             gene_set_svc = GeneSetService(get_gene_set_store())
+            strategy = conversation.strategy_view
             if (
-                conversation.gene_set_id is not None
-                and conversation.wdk_strategy_id is not None
+                strategy.gene_set_id is not None
+                and strategy.wdk_strategy_id is not None
             ):
                 # Already linked → re-resolve from the (rebuilt) strategy so a
                 # re-run that changed the result replaces the stale snapshot.
                 resynced = await gene_set_svc.resync_strategy(
-                    conversation.gene_set_id,
-                    wdk_strategy_id=conversation.wdk_strategy_id,
+                    strategy.gene_set_id,
+                    wdk_strategy_id=strategy.wdk_strategy_id,
                     site_id=site_id,
                 )
                 await session.commit()

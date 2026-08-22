@@ -2846,7 +2846,7 @@
           "conversations"
         ],
         "summary": "Sync All Wdk Strategies",
-        "description": "Batch-sync all WDK strategies into the chats table and return the full list.",
+        "description": "Batch-sync all WDK strategies into the conversations and return the list.",
         "operationId": "sync_all_wdk_strategies_api_v1_conversations_sync_wdk_post",
         "security": [
           {
@@ -6457,7 +6457,7 @@
           "internal"
         ],
         "summary": "Stream Parts Schemas",
-        "description": "Stream-part payload schemas \u2014 for OpenAPI generation only.",
+        "description": "Stream-part payload schemas - for OpenAPI generation only.",
         "operationId": "stream_parts_schemas_api_v1_internal_stream_parts_schemas_get",
         "responses": {
           "200": {
@@ -8615,7 +8615,7 @@
           "prompt"
         ],
         "title": "ConsultQuestion",
-        "description": "A design question the Lead asks the user via ``consult_user`` to shape\nthe investigation BEFORE a plan is finalized. Rendered as a carousel slide\nwith options + an optional free-text note."
+        "description": "A design question the assistant asks the user via ``consult_user`` to\nshape the work BEFORE a plan is finalized. Rendered as a carousel slide\nwith options + an optional free-text note."
       },
       "ControlSetResponse": {
         "properties": {
@@ -18886,60 +18886,10 @@
       },
       "StreamPartsSchemaIndex": {
         "properties": {
-          "graphSnapshot": {
+          "backgroundTaskStarted": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GraphSnapshot"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "graphPlan": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/GraphPlan"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "graphCleared": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/GraphCleared"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "strategyPatch": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/StrategyPatch"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "strategyMeta": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/StrategyMeta"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "strategyLink": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/StrategyLink"
+                "$ref": "#/components/schemas/BackgroundTaskStarted"
               },
               {
                 "type": "null"
@@ -18956,30 +18906,20 @@
               }
             ]
           },
-          "userQuestionAnswer": {
+          "conversationTitle": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UserQuestionAnswer"
+                "$ref": "#/components/schemas/ConversationTitlePayload"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "variantComparison": {
+          "enrichmentResults": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/VariantComparison"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "scoredComparison": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ScoredComparison"
+                "$ref": "#/components/schemas/EnrichmentResultsChunk"
               },
               {
                 "type": "null"
@@ -18990,6 +18930,46 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/GeneSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graphCleared": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GraphCleared"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graphPlan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GraphPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graphSnapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GraphSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leadUsage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeadUsagePayload"
               },
               {
                 "type": "null"
@@ -19016,50 +18996,50 @@
               }
             ]
           },
-          "turnUsage": {
+          "scoredComparison": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TurnUsage"
+                "$ref": "#/components/schemas/ScoredComparison"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "backgroundTaskStarted": {
+          "strategyLink": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/BackgroundTaskStarted"
+                "$ref": "#/components/schemas/StrategyLink"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "taskProgress": {
+          "strategyMeta": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TaskProgress"
+                "$ref": "#/components/schemas/StrategyMeta"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "taskCompleted": {
+          "strategyPatch": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TaskCompleted"
+                "$ref": "#/components/schemas/StrategyPatch"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "enrichmentResults": {
+          "strategyRevision": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/EnrichmentResultsChunk"
+                "$ref": "#/components/schemas/StrategyRevisionPayload"
               },
               {
                 "type": "null"
@@ -19086,10 +19066,20 @@
               }
             ]
           },
-          "turnStopped": {
+          "taskCompleted": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TurnStoppedPayload"
+                "$ref": "#/components/schemas/TaskCompleted"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taskProgress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskProgress"
               },
               {
                 "type": "null"
@@ -19106,30 +19096,40 @@
               }
             ]
           },
-          "conversationTitle": {
+          "turnStopped": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ConversationTitlePayload"
+                "$ref": "#/components/schemas/TurnStoppedPayload"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "leadUsage": {
+          "turnUsage": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/LeadUsagePayload"
+                "$ref": "#/components/schemas/TurnUsage"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "strategyRevision": {
+          "userQuestionAnswer": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/StrategyRevisionPayload"
+                "$ref": "#/components/schemas/UserQuestionAnswer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "variantComparison": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VariantComparison"
               },
               {
                 "type": "null"
@@ -19139,7 +19139,7 @@
         },
         "type": "object",
         "title": "StreamPartsSchemaIndex",
-        "description": "Index of stream-part payload schemas. Never called \u2014 exists for OpenAPI generation."
+        "description": "Index of stream-part payload schemas. Never called - exists for OpenAPI generation."
       },
       "StringValue": {
         "properties": {
@@ -21288,7 +21288,7 @@
           "prompt"
         ],
         "title": "UserQuestionAnswer",
-        "description": "The user's answer to one ``ConsultQuestion`` \u2014 chosen option label(s)\nand/or a free-text note. ``chosen_labels`` is empty for free_text."
+        "description": "The user's answer to one ``ConsultQuestion``: chosen option label(s)\nand/or a free-text note. ``chosen_labels`` is empty for free_text."
       },
       "ValidationError": {
         "properties": {

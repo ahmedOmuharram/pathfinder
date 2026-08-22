@@ -8,7 +8,7 @@ import pytest
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from pathfinder.ai.memory.lifespan import lifespan_memory_store
+from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
 from pathfinder.persistence.models import User
 from pathfinder.platform.db import DBSessionFactory
 

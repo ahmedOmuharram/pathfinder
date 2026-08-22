@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from pathfinder.ai.graph.state import UserQuestionAnswer
+from pathfinder.assistant_core.graph.turn_state import UserQuestionAnswer
 from pathfinder.devtools.gates import (
     BodyCtx,
     approval_body,

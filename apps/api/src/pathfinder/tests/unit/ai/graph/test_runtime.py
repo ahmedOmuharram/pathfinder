@@ -14,7 +14,7 @@ from pathfinder.ai.graph.runtime import (
     Context,
     build_node_deps,
 )
-from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.graph.state import PipelineState, StrategyDomainState
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
@@ -67,7 +67,6 @@ def test_agent_deps_is_pydantic_and_lists_live_fields() -> None:
         "retrieved_memories",
         "conversation_id",
         "db_session_factory",
-        "writer",
     }
 
 
@@ -96,7 +95,11 @@ def test_build_node_deps_copies_state_into_scratchpad() -> None:
         required_params=["dataset"],
     )
     state = state.model_copy(
-        update={"discovered_searches": {"GenesByExpression": overview}}
+        update={
+            "domain": StrategyDomainState(
+                discovered_searches={"GenesByExpression": overview},
+            ),
+        },
     )
     deps = build_node_deps(state, ctx)
     assert deps.site_id == ctx.site_id
@@ -104,8 +107,9 @@ def test_build_node_deps_copies_state_into_scratchpad() -> None:
     assert deps.strategy_session is ctx.strategy_session
     assert deps.web_search_service is ctx.web_search_service
     assert deps.literature_search_service is ctx.literature_search_service
-    assert deps.agent_state.discovered_searches == state.discovered_searches
-    assert deps.agent_state.discovered_searches is not state.discovered_searches
+    discovered = state.domain.discovered_searches
+    assert deps.agent_state.discovered_searches == discovered
+    assert deps.agent_state.discovered_searches is not discovered
 
 
 def test_build_node_deps_propagates_experiment_id_from_context() -> None:

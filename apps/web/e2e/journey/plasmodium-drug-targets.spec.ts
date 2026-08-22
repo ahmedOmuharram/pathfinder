@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { combineNode } from "../fixtures/ast";
 
 test.describe("P. falciparum candidate drug-targets journey (6 turns)", () => {
   test("vague prompt → 16-node verified strategy → UI op-change impact", async ({
@@ -35,18 +36,28 @@ test.describe("P. falciparum candidate drug-targets journey (6 turns)", () => {
     );
     await chatPage.expectVerificationSuccess();
 
-    // ── Turn 5: UI mutation — flip interpro_or_go operator ──────
+    // ── Turn 5: UI mutation — flip the combine operator ─────────
     const conversationId = chatPage.lastStrategyId;
     expect(conversationId).toBeTruthy();
+    const astUrl = `/api/v1/conversations/${conversationId as string}/ast`;
+    const combine = await combineNode(await apiClient.get(astUrl));
+    expect(combine.operator).toBe("UNION");
+    const combineStepId = combine.id as string;
+
     await graphPage.goToStrategy("plasmodb", conversationId as string);
     await graphPage.expectStrategyTopbar();
-    await graphPage.expectNodeVisible("interpro_or_go");
-    await graphPage.changeOperator("interpro_or_go", "INTERSECT");
+    await graphPage.expectNodeVisible(combineStepId);
+    await graphPage.changeOperator(combineStepId, "INTERSECT");
     await expect(graphPage.strategyPageSyncState).toHaveAttribute(
       "data-sync-state",
       "idle",
       { timeout: 30_000 },
     );
+    await expect
+      .poll(async () => (await combineNode(await apiClient.get(astUrl))).operator, {
+        timeout: 30_000,
+      })
+      .toBe("INTERSECT");
     await graphPage.strategyPageBackButton.click();
     await graphPage.expectOnChatRoute(conversationId as string);
 

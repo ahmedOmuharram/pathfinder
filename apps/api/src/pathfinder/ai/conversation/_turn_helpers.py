@@ -17,11 +17,10 @@ from pydantic_ai.ui.vercel_ai.request_types import (
     ToolApprovalResponded,
 )
 
-from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.ai.graph.runtime import Context, ReasoningEffort
-from pathfinder.ai.graph.state import UserQuestionAnswer
-from pathfinder.ai.graph.stream_events import background_task_started_event
+from pathfinder.ai.graph.runtime import Context
+from pathfinder.assistant_core.graph.stream_events import background_task_started_event
+from pathfinder.assistant_core.graph.turn_state import UserQuestionAnswer
 from pathfinder.domain.research.citations import (
     LiteratureFilters,
     LiteratureOutputOptions,
@@ -36,6 +35,7 @@ from pathfinder.persistence.models import Conversation
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.platform.types import ReasoningEffort
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.processing import LiteratureSearchResponse
 from pathfinder.services.research.web_search import (
@@ -114,25 +114,26 @@ def _build_runtime_context(
     site_id: str,
     user_id: UUID,
     memory_store: AsyncPostgresStore | None,
-    phase_models: dict[PhaseRole, str] | None = None,
-    phase_reasoning: dict[PhaseRole, ReasoningEffort] | None = None,
+    phase_models: dict[str, str] | None = None,
+    phase_reasoning: dict[str, ReasoningEffort] | None = None,
 ) -> Context:
     persisted: PersistedStrategyGraph | None = None
     experiment_id: str | None = None
     if conversation is not None:
+        strategy = conversation.strategy_view
         plan_payload: StrategyAst | None = None
-        if conversation.strategy_ast and "root" in conversation.strategy_ast:
+        if strategy.strategy_ast and "root" in strategy.strategy_ast:
             try:
-                plan_payload = StrategyAst.model_validate(conversation.strategy_ast)
+                plan_payload = StrategyAst.model_validate(strategy.strategy_ast)
             except ValueError, KeyError, TypeError:
                 plan_payload = None
         persisted = PersistedStrategyGraph(
             id=str(conversation.id),
             name=conversation.name,
             strategy_ast=plan_payload,
-            wdk_strategy_id=conversation.wdk_strategy_id,
+            wdk_strategy_id=strategy.wdk_strategy_id,
         )
-        experiment_id = conversation.experiment_id
+        experiment_id = strategy.experiment_id
 
     strategy_session = build_strategy_session(
         site_id=site_id,

@@ -5,7 +5,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START
 from langgraph.graph.state import CompiledStateGraph
 
-from pathfinder.ai.graph.builder import build_graph
+from pathfinder.ai.graph.composition import build_pathfinder_graph
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 
@@ -17,7 +17,7 @@ def compiled_graph() -> CompiledStateGraph[
     PipelineState,
     PipelineState,
 ]:
-    return build_graph(checkpointer=InMemorySaver())
+    return build_pathfinder_graph(checkpointer=InMemorySaver())
 
 
 def test_graph_has_lead_and_finalize_nodes(

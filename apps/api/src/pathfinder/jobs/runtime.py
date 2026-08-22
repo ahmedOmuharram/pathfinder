@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID
 
+from sqlalchemy.orm import selectinload
+
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
@@ -22,13 +24,18 @@ async def build_worker_runtime_context(
 ) -> Context:
     del task_id
     async with async_session_factory() as session:
-        conversation = await session.get(Conversation, UUID(conversation_id))
+        conversation = await session.get(
+            Conversation,
+            UUID(conversation_id),
+            options=[selectinload(Conversation.strategy)],
+        )
     if conversation is None:
         msg = f"chat {conversation_id} not found"
         raise LookupError(msg)
 
+    strategy = conversation.strategy_view
     plan_payload: StrategyAst | None = None
-    raw_ast = conversation.strategy_ast
+    raw_ast = strategy.strategy_ast
     if raw_ast and "root" in raw_ast:
         try:
             plan_payload = StrategyAst.model_validate(raw_ast)
@@ -41,7 +48,7 @@ async def build_worker_runtime_context(
             id=str(conversation.id),
             name=conversation.name,
             strategy_ast=plan_payload,
-            wdk_strategy_id=conversation.wdk_strategy_id,
+            wdk_strategy_id=strategy.wdk_strategy_id,
         ),
     )
 
@@ -53,6 +60,6 @@ async def build_worker_runtime_context(
         web_search_service=WebSearchService(),
         literature_search_service=LiteratureSearchService(),
         cancel_event=asyncio.Event(),
-        experiment_id=conversation.experiment_id,
+        experiment_id=strategy.experiment_id,
         memory_store=None,
     )

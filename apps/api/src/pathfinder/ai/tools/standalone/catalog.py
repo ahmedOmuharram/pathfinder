@@ -6,9 +6,9 @@ from typing import cast
 from pydantic_ai import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.memory.embedding import embed_text
 from pathfinder.ai.tools.query_validation import search_query_error
 from pathfinder.ai.tools.standalone._catalog_models import _UNIVERSAL_SEARCHES
+from pathfinder.assistant_core.memory.embedding import embed_text
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload

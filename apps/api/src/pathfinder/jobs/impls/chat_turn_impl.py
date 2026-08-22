@@ -3,12 +3,12 @@ from __future__ import annotations
 from contextlib import nullcontext
 from typing import Any
 
-from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.turn_runner import run_turn
 from pathfinder.ai.graph._llm_capture import capture_llm
-from pathfinder.ai.graph.builder import build_graph
-from pathfinder.ai.memory.lifespan import lifespan_memory_store
+from pathfinder.ai.graph.composition import build_pathfinder_graph
+from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
+from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
 from pathfinder.jobs.auth_context import (
     attach_conversation_application,
     attach_user_id,
@@ -44,7 +44,7 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
         lifespan_checkpointer(settings.database_url) as saver,
         lifespan_memory_store(settings.database_url) as store,
     ):
-        graph = build_graph(checkpointer=saver)
+        graph = build_pathfinder_graph(checkpointer=saver)
         capture = (
             capture_llm(parsed.capture_dir) if parsed.capture_dir else nullcontext()
         )

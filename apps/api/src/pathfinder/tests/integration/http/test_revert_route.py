@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.persistence.models import Conversation, Message, User
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.security import create_user_token
@@ -91,7 +91,6 @@ async def conv_with_messages(
         user_id=seed_user.id,
         site_id="plasmodb",
         name="",
-        experiment_id=None,
     )
     db_session.add(conv)
     await db_session.flush()

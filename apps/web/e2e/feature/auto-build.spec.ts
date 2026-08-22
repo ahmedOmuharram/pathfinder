@@ -27,7 +27,7 @@ test.describe("Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/i);
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     // API: Strategy has a real wdkStrategyId (auto-build ran against real WDK)
@@ -46,7 +46,7 @@ test.describe("Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/i);
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     const strategyId = chatPage.lastStrategyId;
@@ -71,7 +71,7 @@ test.describe("Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/i);
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     // Gene sets: auto-build should have created one with real gene IDs
@@ -101,7 +101,7 @@ test.describe("Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/i);
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     const strategyId = chatPage.lastStrategyId;
@@ -149,7 +149,7 @@ test.describe("Delegation Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     const strategyId = chatPage.lastStrategyId;
@@ -171,7 +171,7 @@ test.describe("Delegation Auto-Build Pipeline", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     const gsResp = await apiClient.get("/api/v1/gene-sets");
@@ -291,7 +291,7 @@ test.describe("Auto-Build Persistence", () => {
     apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/i);
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     const strategyId = chatPage.lastStrategyId;

@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.memory.store import MemoryStore
+from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.integrations.veupathdb.auth_login import clear_oauth_signing_key_cache
 from pathfinder.platform.config import get_settings
 from pathfinder.tests._support.veupathdb_tokens import (

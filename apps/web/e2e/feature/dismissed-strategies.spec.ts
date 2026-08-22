@@ -7,10 +7,9 @@ import type { ApiClient } from "../fixtures/api-client";
 /**
  * Feature: Dismissed (soft-deleted) strategies.
  *
- * WDK-linked strategies are soft-deleted (dismissed) rather than hard-deleted
- * when the user clicks Delete without the "Sync delete to WDK" setting enabled.
- * The dismissed section in the sidebar shows these strategies with a Restore
- * button to bring them back.
+ * Sidebar Delete soft-deletes every chat: it POSTs `/dismiss` and leaves the
+ * linked WDK strategy alone. The dismissed section in the sidebar shows these
+ * strategies with a Restore button to bring them back.
  *
  * Strategies are created via chat UI (immediately visible in sidebar), then a
  * unique wdkStrategyId is PATCHed on to simulate a WDK-linked strategy.
@@ -49,12 +48,12 @@ async function startNewChat(page: Page, sidebarPage: SidebarPage) {
   await expect(page.getByTestId("message-input")).toBeVisible({ timeout: 15_000 });
 }
 
-/** Wait for a DELETE 204 response targeting a specific strategy. */
-function waitForDelete(page: Page, strategyId: string) {
+/** Wait for the soft-delete (dismiss) 204 targeting a specific strategy. */
+function waitForDismiss(page: Page, strategyId: string) {
   return page.waitForResponse(
     (resp) =>
-      resp.url().includes(`/conversations/${strategyId}`) &&
-      resp.request().method() === "DELETE" &&
+      resp.url().includes(`/conversations/${strategyId}/dismiss`) &&
+      resp.request().method() === "POST" &&
       resp.status() === 204,
   );
 }
@@ -90,9 +89,9 @@ test.describe("Dismissed Strategies", () => {
   }) => {
     const strategyId = await makeWdkLinked(chatPage, sidebarPage, apiClient);
 
-    const deleteCompleted = waitForDelete(page, strategyId);
+    const dismissCompleted = waitForDismiss(page, strategyId);
     await sidebarPage.delete(strategyId);
-    await deleteCompleted;
+    await dismissCompleted;
 
     await expect(sidebarPage.item(strategyId)).not.toBeVisible({
       timeout: 10_000,
@@ -116,9 +115,9 @@ test.describe("Dismissed Strategies", () => {
   }) => {
     const strategyId = await makeWdkLinked(chatPage, sidebarPage, apiClient);
 
-    const deleteCompleted = waitForDelete(page, strategyId);
+    const dismissCompleted = waitForDismiss(page, strategyId);
     await sidebarPage.delete(strategyId);
-    await deleteCompleted;
+    await dismissCompleted;
 
     await expect(sidebarPage.item(strategyId)).not.toBeVisible({
       timeout: 10_000,
@@ -268,9 +267,9 @@ test.describe("Dismissed Strategies — complex flows", () => {
     );
 
     // Dismiss it.
-    const deleteCompleted = waitForDelete(page, strategyId);
+    const dismissCompleted = waitForDismiss(page, strategyId);
     await sidebarPage.delete(strategyId);
-    await deleteCompleted;
+    await dismissCompleted;
 
     await expect(sidebarPage.item(strategyId)).not.toBeVisible({
       timeout: 10_000,

@@ -7,9 +7,10 @@ from datetime import UTC, datetime
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.memory.retrieval import ALL_KINDS, rerank_by_hybrid_score
-from pathfinder.ai.memory.schemas import MemoryKind, MemoryValue
-from pathfinder.ai.memory.store import MemoryStore, StoredMemory
+from pathfinder.ai.lead.memory_candidates import PRODUCT_MEMORY_KINDS
+from pathfinder.assistant_core.memory.retrieval import rerank_by_hybrid_score
+from pathfinder.assistant_core.memory.schemas import MemoryKind, MemoryValue
+from pathfinder.assistant_core.memory.store import MemoryStore, StoredMemory
 
 
 async def search_memory(
@@ -32,7 +33,7 @@ async def search_memory(
     if store_raw is None or user_id is None:
         return []
     mem_store = MemoryStore(store=store_raw)
-    kinds: tuple[MemoryKind, ...] = (kind,) if kind is not None else ALL_KINDS
+    kinds: tuple[str, ...] = (kind,) if kind is not None else PRODUCT_MEMORY_KINDS
     per_kind = max(1, top_k) if len(kinds) == 1 else max(1, top_k // len(kinds))
 
     all_hits: list[StoredMemory] = []

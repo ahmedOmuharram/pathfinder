@@ -2,6 +2,13 @@ import type { APIRequestContext, BrowserContext } from "@playwright/test";
 import { request } from "@playwright/test";
 
 /**
+ * `csrf_middleware` rejects a cookie-authenticated request that is not GET,
+ * HEAD or OPTIONS and carries no `X-Requested-With`. Every mutating call made
+ * outside the app's own fetch layer must send this.
+ */
+export const CSRF_HEADERS = { "X-Requested-With": "XMLHttpRequest" } as const;
+
+/**
  * Create an authenticated API client for postcondition verification.
  *
  * Takes the browser context's whole storage state, so the client carries both
@@ -13,12 +20,10 @@ export async function createApiClient(
   context: BrowserContext,
   baseURL: string,
 ): Promise<APIRequestContext> {
-  // Mutations require the CSRF header (`csrf_middleware` rejects non-GET
-  // requests without it), so set it on every request from this client.
   return request.newContext({
     baseURL,
     storageState: await context.storageState(),
-    extraHTTPHeaders: { "X-Requested-With": "XMLHttpRequest" },
+    extraHTTPHeaders: { ...CSRF_HEADERS },
   });
 }
 
@@ -102,7 +107,7 @@ export async function clearAllGeneSets(
       await Promise.all(
         geneSets.map((gs) =>
           req.delete(`${baseURL}/api/v1/gene-sets/${gs.id}`, {
-            headers: { "X-Requested-With": "XMLHttpRequest" },
+            headers: CSRF_HEADERS,
           }),
         ),
       );

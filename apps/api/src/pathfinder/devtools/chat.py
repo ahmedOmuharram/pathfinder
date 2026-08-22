@@ -17,17 +17,17 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from pathfinder.ai.agents.roles import PhaseRole
-from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.ai.conversation.event_stream import latest_turn_boundary
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.turn_runner import run_turn
 from pathfinder.ai.graph._llm_capture import capture_llm
-from pathfinder.ai.graph.builder import build_graph
-from pathfinder.ai.graph.state import (
+from pathfinder.ai.graph.composition import build_pathfinder_graph
+from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.assistant_core.conversation.event_stream import latest_turn_boundary
+from pathfinder.assistant_core.graph.turn_state import (
     PendingApproval,
     UserQuestionAnswer,
 )
-from pathfinder.ai.memory.lifespan import lifespan_memory_store
+from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
 from pathfinder.devtools import inspector
 from pathfinder.devtools.capture import RunCapture, capture_tracebacks, reset_run_dir
 from pathfinder.devtools.gates import (
@@ -270,7 +270,7 @@ async def _gate_from_checkpoint(conversation_id: UUID, settings_url: str) -> Gat
     """Derives the pending gate from the conversation checkpoint, which is the single
     source of truth for what the turn waits on."""
     async with lifespan_checkpointer(settings_url) as saver:
-        graph = build_graph(checkpointer=saver)
+        graph = build_pathfinder_graph(checkpointer=saver)
         config: RunnableConfig = {"configurable": {"thread_id": str(conversation_id)}}
         snapshot = await graph.aget_state(config)
     values = snapshot.values or {}
@@ -355,7 +355,7 @@ async def _exec_one(
         await stack.enter_async_context(attach_user_id(DEV_USER_ID))
         saver = await stack.enter_async_context(lifespan_checkpointer(settings_url))
         store = await stack.enter_async_context(lifespan_memory_store(settings_url))
-        graph = build_graph(checkpointer=saver)
+        graph = build_pathfinder_graph(checkpointer=saver)
         await run_turn(
             body=body,
             user_id=DEV_USER_ID,

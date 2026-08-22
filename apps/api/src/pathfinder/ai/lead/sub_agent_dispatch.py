@@ -16,7 +16,6 @@ from pydantic_ai.exceptions import CallDeferred, ModelRetry
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.graph.state import PendingApproval
 from pathfinder.ai.lead.deltas import (
     ExecuteDelta,
     FrameResult,
@@ -39,6 +38,7 @@ from pathfinder.ai.lead.sub_agent_tools import (
     apply_agent_state,
 )
 from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
+from pathfinder.assistant_core.graph.turn_state import PendingApproval
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import (
     OperationalSpec,
@@ -66,8 +66,8 @@ def _agent_deps(deps: LeadDeps) -> AgentDeps:
         web_search_service=runtime.web_search_service,
         literature_search_service=runtime.literature_search_service,
         agent_state=AgentToolState(
-            discovered_searches=dict(state.discovered_searches),
-            operational_spec_draft=state.operational_spec
+            discovered_searches=dict(state.domain.discovered_searches),
+            operational_spec_draft=state.domain.operational_spec
             or OperationalSpec(goal=state.user_prompt),
         ),
         ledger_summary=derive_ledger(state, deps.intent).render_summary(),
@@ -127,7 +127,7 @@ async def run_frame(
         return delta
     apply_agent_state(deps, agent_deps)
     if delta is None:
-        return frame_result_from_draft(deps.state.operational_spec)
+        return frame_result_from_draft(deps.state.domain.operational_spec)
     return delta
 
 
@@ -160,7 +160,7 @@ async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     (no LLM). Requires ``frame_problem`` first. Inspect ``ledger.build`` after
     to decide ``recover_failed_steps`` or ``verify_strategy``."""
     deps = ctx.deps
-    spec = deps.state.operational_spec
+    spec = deps.state.domain.operational_spec
     if spec is None or not spec.ready_to_build:
         raise ModelRetry(build_not_ready_message(spec))
     # Readiness says every criterion is bound and a structure exists. Only the
@@ -180,7 +180,7 @@ async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
         root=root,
         name=spec.title or None,
     )
-    deps.state.last_build_outcome = outcome
+    deps.state.domain.last_build_outcome = outcome
     graph = agent_deps.strategy_session.get_graph(None)
     if graph is not None:
         get_stream_writer()(
@@ -211,7 +211,7 @@ async def run_recovery(
     resume: SubAgentResume | None = None,
 ) -> RecoveryDelta | SubAgentApprovalWait:
     """Run recovery and re-sync the build, on a fresh dispatch or a resumed one."""
-    outcome = deps.state.last_build_outcome
+    outcome = deps.state.domain.last_build_outcome
     if outcome is None:
         msg = "No build outcome to recover from."
         raise RuntimeError(msg)
@@ -237,7 +237,7 @@ async def run_recovery(
         return streamed
     apply_agent_state(deps, agent_deps)
     delta = streamed if streamed is not None else RecoveryDelta()
-    deps.state.last_build_outcome = await _resync_outcome(agent_deps, outcome)
+    deps.state.domain.last_build_outcome = await _resync_outcome(agent_deps, outcome)
     return delta
 
 
@@ -318,7 +318,7 @@ async def run_verification(
     if delta is None:
         msg = "Verification sub-agent did not return a VerificationDelta."
         raise TypeError(msg)
-    deps.state.verification_digest = delta.digest
+    deps.state.domain.verification_digest = delta.digest
     return delta
 
 

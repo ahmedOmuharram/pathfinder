@@ -29,16 +29,7 @@ _WDK_STATUS_UNPROCESSABLE = 422
 
 logger = get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Search-related tool names that get context-specific 404 guidance
-# ---------------------------------------------------------------------------
-
-_SEARCH_LOOKUP_TOOLS = frozenset(
-    {
-        "get_search_overview",
-        "get_parameter_options",
-    }
-)
+DEFAULT_CIRCUIT_BREAK_THRESHOLD: int = 3
 
 _STEP_TREE_FIELDS = frozenset(
     {
@@ -222,10 +213,11 @@ def _semantic_directive(
     error: Exception,
     tool_name: str,
     args: dict[str, Any],
+    search_lookup_tools: frozenset[str],
 ) -> str:
     """Return a context-specific directive for SEMANTIC errors."""
     if isinstance(error, WDKError):
-        if error.status == _WDK_STATUS_NOT_FOUND and tool_name in _SEARCH_LOOKUP_TOOLS:
+        if error.status == _WDK_STATUS_NOT_FOUND and tool_name in search_lookup_tools:
             return build_error_directive(
                 error_type="SEARCH_NOT_FOUND",
                 tool_name=tool_name,
@@ -299,7 +291,8 @@ class ToolResilience(AbstractCapability[AgentDeps]):
     directive string as the tool result.
     """
 
-    _CIRCUIT_BREAK_THRESHOLD: int = 3
+    search_lookup_tools: frozenset[str] = frozenset()
+    circuit_break_threshold: int = DEFAULT_CIRCUIT_BREAK_THRESHOLD
 
     async def on_tool_validate_error(
         self,
@@ -346,7 +339,7 @@ class ToolResilience(AbstractCapability[AgentDeps]):
             raise ModelRetry(retry_message)
 
         if category == ErrorCategory.SEMANTIC:
-            return _semantic_directive(error, tool_name, args)
+            return _semantic_directive(error, tool_name, args, self.search_lookup_tools)
 
         if category == ErrorCategory.PERMANENT:
             return build_error_directive(
@@ -385,7 +378,7 @@ class ToolResilience(AbstractCapability[AgentDeps]):
         filtered = [
             td
             for td in tool_defs
-            if ctx.retries.get(td.name, 0) < self._CIRCUIT_BREAK_THRESHOLD
+            if ctx.retries.get(td.name, 0) < self.circuit_break_threshold
         ]
 
         removed = [td.name for td in tool_defs if td not in filtered]
@@ -393,7 +386,7 @@ class ToolResilience(AbstractCapability[AgentDeps]):
             logger.warning(
                 "Circuit breaker: removing tools past retry threshold",
                 removed_tools=removed,
-                threshold=self._CIRCUIT_BREAK_THRESHOLD,
+                threshold=self.circuit_break_threshold,
             )
 
         return filtered

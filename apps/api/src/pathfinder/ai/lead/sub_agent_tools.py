@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from pydantic_ai.usage import RunUsage, UsageLimits
 
@@ -18,12 +18,13 @@ from pathfinder.ai.agents.frame import frame_agent
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.verification import verification_agent
 from pathfinder.ai.graph.runtime import AgentDeps, Context
-from pathfinder.ai.graph.state import PipelineState, SubAgentApprovalPending
+from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.intent import UserIntent
-from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.ai.models.mock import get_mock_model
-from pathfinder.ai.models.settings import build_model_settings
+from pathfinder.ai.models.settings import baked_model_id, build_model_settings
 from pathfinder.ai.models.tiers import PhaseTierConfig, resolve_phase_tier_config
+from pathfinder.assistant_core.graph.turn_state import SubAgentApprovalPending
+from pathfinder.assistant_core.memory.schemas import MemoryValue
 from pathfinder.platform.config import get_settings
 
 # Binding one criterion costs about seven calls: find a search, read it, read a
@@ -61,15 +62,15 @@ TOOL_TO_PHASE_ROLE: dict[str, PhaseRole] = {
     "verify_strategy": "verification",
 }
 
+PendingApprovalPhase = Literal["frame", "build", "verification", "lead"]
 
-def _model_id_str(agent: Any) -> str:
-    """The stable ``provider:model`` id baked into an agent at construction."""
-    model = agent.model
-    if model is None:
-        return ""
-    if isinstance(model, str):
-        return model
-    return str(model.model_id)
+# The label the approval card carries for a sub-agent's own approval-required
+# tool. It names the phase the user sees, not the role that runs it.
+SUB_AGENT_APPROVAL_PHASE: dict[str, PendingApprovalPhase] = {
+    "frame": "frame",
+    "execution": "build",
+    "verification": "verification",
+}
 
 
 def phase_default_model_id(role: PhaseRole) -> str:
@@ -78,7 +79,7 @@ def phase_default_model_id(role: PhaseRole) -> str:
     cfg = _configured_tier_config(role)
     if cfg is not None:
         return cfg.model_id
-    return _model_id_str(SUB_AGENT_BY_ROLE[role])
+    return baked_model_id(SUB_AGENT_BY_ROLE[role])
 
 
 def _configured_tier_config(role: PhaseRole) -> PhaseTierConfig | None:
@@ -160,9 +161,9 @@ class LeadDeps:
 
 
 def apply_agent_state(deps: LeadDeps, agent_deps: AgentDeps) -> None:
-    deps.state.discovered_searches = dict(
+    deps.state.domain.discovered_searches = dict(
         agent_deps.agent_state.discovered_searches,
     )
     draft = agent_deps.agent_state.operational_spec_draft
     if draft.criteria or draft.dropped:
-        deps.state.operational_spec = draft
+        deps.state.domain.operational_spec = draft

@@ -13,8 +13,7 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.models.catalog import get_model_entry
 from pathfinder.platform.pydantic_base import CamelModel
-
-ReasoningEffort = Literal["none", "low", "medium", "high"]
+from pathfinder.platform.types import ReasoningEffort
 
 
 class ChatRequestBody(CamelModel):
@@ -39,6 +38,8 @@ class ChatRequestBody(CamelModel):
     site_id: str = ""
     mode: str = "strategy"
     experiment_id: str | None = None
+    # ``PhaseRole`` is the product's declared role set; a key outside it is
+    # refused here, so the runtime downstream only ever sees plain strings.
     phase_models: dict[PhaseRole, str] = Field(default_factory=dict)
     phase_reasoning: dict[PhaseRole, ReasoningEffort] = Field(default_factory=dict)
 
@@ -53,6 +54,16 @@ class ChatRequestBody(CamelModel):
                 msg = f"phase {role!r} requests unknown model {model_id!r}"
                 raise ValueError(msg)
         return value
+
+    @property
+    def runtime_phase_models(self) -> dict[str, str]:
+        """The validated per-role model picks, as the runtime keys them."""
+        return dict(self.phase_models.items())
+
+    @property
+    def runtime_phase_reasoning(self) -> dict[str, ReasoningEffort]:
+        """The validated per-role reasoning picks, as the runtime keys them."""
+        return dict(self.phase_reasoning.items())
 
     @property
     def last_user_text(self) -> str:

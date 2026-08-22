@@ -21,6 +21,7 @@ from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import (
     PhaseDisposition,
     PipelineState,
+    StrategyDomainState,
     VerificationDigest,
 )
 from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
@@ -39,7 +40,6 @@ async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:
         user_id=seed_user.id,
         site_id="plasmodb",
         name="",
-        experiment_id=None,
     )
     db_session.add(conv)
     await db_session.flush()
@@ -198,11 +198,13 @@ async def test_finalize_triggers_compactor(
         user_id=seed_user.id,
         site_id="plasmodb",
         mode="strategy",
-        verification_digest=VerificationDigest(
-            disposition=PhaseDisposition.DONE,
-            prose="ok",
-            reason="verified",
-            success=True,
+        domain=StrategyDomainState(
+            verification_digest=VerificationDigest(
+                disposition=PhaseDisposition.DONE,
+                prose="ok",
+                reason="verified",
+                success=True,
+            ),
         ),
     )
     context = Context(

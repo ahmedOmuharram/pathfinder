@@ -78,8 +78,8 @@ test.describe("Conversations", () => {
 
     const conversationId = await sidebarPage.firstConversationId();
 
-    // Link a WDK strategy id so delete soft-dismisses (non-WDK chats are
-    // hard-deleted and would not appear in the dismissed list).
+    // Link a WDK strategy id so the dismissed row also carries the WDK link
+    // the sidebar shows for a built strategy.
     const patchResp = await apiClient.patch(`/api/v1/conversations/${conversationId}`, {
       data: { wdkStrategyId: Math.floor(Date.now() / 1000) },
     });
@@ -89,20 +89,21 @@ test.describe("Conversations", () => {
     const beforeResp = await apiClient.get(`/api/v1/conversations/${conversationId}`);
     expect(beforeResp.ok()).toBeTruthy();
 
-    // Wait for the DELETE API call to complete alongside the UI action
-    const deleteCompleted = page.waitForResponse(
+    // Sidebar Delete soft-deletes: it POSTs /dismiss and leaves the WDK
+    // strategy alone. Hard delete is the opt-in "delete linked strategy" path.
+    const dismissCompleted = page.waitForResponse(
       (resp) =>
-        resp.url().includes(`/conversations/${conversationId}`) &&
-        resp.request().method() === "DELETE",
+        resp.url().includes(`/conversations/${conversationId}/dismiss`) &&
+        resp.request().method() === "POST",
     );
     await sidebarPage.delete(conversationId);
-    await deleteCompleted;
+    await dismissCompleted;
 
     await expect(sidebarPage.item(conversationId)).not.toBeVisible({
       timeout: 10_000,
     });
 
-    // API confirms soft-deleted (moved to dismissed, since auto-build gave it a WDK ID)
+    // API confirms soft-deleted (moved to dismissed).
     const dismissedResp = await apiClient.get("/api/v1/conversations/dismissed");
     expect(dismissedResp.ok()).toBeTruthy();
     const dismissed = (await dismissedResp.json()) as { id: string }[];

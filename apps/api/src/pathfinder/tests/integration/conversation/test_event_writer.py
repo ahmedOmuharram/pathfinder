@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select
 
 import pathfinder.platform.db as session_module
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
 from pathfinder.persistence.models import Conversation, ConversationEvent, User
 
 

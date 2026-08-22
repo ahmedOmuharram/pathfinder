@@ -75,9 +75,10 @@ async def system_ready() -> SystemReadyResponse:
         async with async_session_factory() as session:
             await check_database(session)
             worker_alive = await worker_is_alive(session)
+        state.mark_ready("database")
     except Exception as e:
         logger.exception("System readiness: database unreachable")
-        state.mark_failed("database", str(e))
+        state.mark_failed("database", str(e) or type(e).__name__)
 
     api_ready = state.all_ready
     not_ready = list(state.not_ready)
@@ -106,9 +107,10 @@ async def readiness_check() -> ReadinessResponse | JSONResponse:
     try:
         async with async_session_factory() as session:
             await check_database(session)
+        state.mark_ready("database")
     except Exception as e:
         logger.exception("Readiness check: database unreachable")
-        state.mark_failed("database", str(e))
+        state.mark_failed("database", str(e) or type(e).__name__)
 
     ready = state.all_ready
     response = ReadinessResponse(

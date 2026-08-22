@@ -1,39 +1,5 @@
 import { test, expect } from "../fixtures/test";
-import type { APIResponse } from "@playwright/test";
-
-interface AstNode {
-  id?: string;
-  parameters?: Record<string, { type?: string; value?: unknown }> | null;
-  primaryInput?: AstNode | null;
-  secondaryInput?: AstNode | null;
-  [k: string]: unknown;
-}
-
-function findNode(value: unknown, stepId: string): AstNode | null {
-  if (value === null || typeof value !== "object") return null;
-  const node = value as AstNode;
-  if (node.id === stepId) return node;
-  for (const child of Object.values(node)) {
-    const hit = findNode(child, stepId);
-    if (hit !== null) return hit;
-  }
-  return null;
-}
-
-async function textExpressionOf(resp: APIResponse, stepId: string): Promise<unknown> {
-  expect(resp.ok()).toBeTruthy();
-  const ast = (await resp.json()) as unknown;
-  const node = findNode(ast, stepId);
-  expect(node, `step ${stepId} present in AST`).not.toBeNull();
-  return node?.parameters?.["text_expression"]?.value;
-}
-
-async function paramKeysOf(resp: APIResponse, stepId: string): Promise<string[]> {
-  expect(resp.status()).toBe(200);
-  const node = findNode((await resp.json()) as unknown, stepId);
-  expect(node, `step ${stepId} present in AST`).not.toBeNull();
-  return Object.keys(node?.parameters ?? {}).sort();
-}
+import { leafBySearch, leafIdBySearch } from "../fixtures/ast";
 
 test.describe("Edit leaf param from UI", () => {
   test("changing text_expression persists to AST + re-syncs to WDK", async ({
@@ -55,16 +21,16 @@ test.describe("Edit leaf param from UI", () => {
     expect(conversationId).toBeTruthy();
     const astUrl = `/api/v1/conversations/${conversationId as string}/ast`;
 
-    // Precondition: the InterPro leaf searches for "kinase".
-    expect(
-      await textExpressionOf(await apiClient.get(astUrl), "interpro_kinases"),
-    ).toBe("kinase");
+    // Precondition: the text leaf searches for "kinase".
+    const leaf = await leafBySearch(await apiClient.get(astUrl), "GenesByText");
+    expect(leaf.parameters?.["text_expression"]?.value).toBe("kinase");
+    const leafId = leaf.id as string;
 
     // Open the leaf editor and change the text expression.
     await graphPage.goToStrategy("plasmodb", conversationId as string);
     await graphPage.expectStrategyTopbar();
-    await graphPage.expectNodeVisible("interpro_kinases");
-    await graphPage.clickNode("interpro_kinases");
+    await graphPage.expectNodeVisible(leafId);
+    await graphPage.clickNode(leafId);
     await expect(graphPage.editorSheet).toBeVisible({ timeout: 20_000 });
 
     const textInput = graphPage.editorSheet.locator('input[name="text_expression"]');
@@ -73,9 +39,9 @@ test.describe("Edit leaf param from UI", () => {
     // "[object Object]".
     await expect(textInput).toHaveValue("kinase");
 
-    // Multi-pick values must load too: the seeded organism tree had one
-    // selection. The pre-fix bug rendered it as "0 of N selected" (the
-    // MultiPickValue collapsed to ["[object Object]"]).
+    // Multi-pick values must load too: the organism tree had one selection. The
+    // pre-fix bug rendered it as "0 of N selected" (the MultiPickValue collapsed
+    // to ["[object Object]"]).
     await expect(graphPage.editorSheet.getByText(/0 of \d+ selected/)).toHaveCount(0);
     await expect(
       graphPage.editorSheet.getByText(/[1-9]\d* of \d+ selected/),
@@ -98,12 +64,20 @@ test.describe("Edit leaf param from UI", () => {
     // through the real WDK search-config push without erroring the sync).
     await expect
       .poll(
-        async () => textExpressionOf(await apiClient.get(astUrl), "interpro_kinases"),
+        async () =>
+          (await leafBySearch(await apiClient.get(astUrl), "GenesByText")).parameters?.[
+            "text_expression"
+          ]?.value,
         { timeout: 30_000 },
       )
       .toBe("phosphatase");
 
-    expect(await paramKeysOf(await apiClient.get(astUrl), "interpro_kinases")).toEqual([
+    // The leaf keeps its identity and its whole parameter set across the edit.
+    expect(await leafIdBySearch(await apiClient.get(astUrl), "GenesByText")).toBe(
+      leafId,
+    );
+    const edited = await leafBySearch(await apiClient.get(astUrl), "GenesByText");
+    expect(Object.keys(edited.parameters ?? {}).sort()).toEqual([
       "document_type",
       "text_expression",
       "text_fields",

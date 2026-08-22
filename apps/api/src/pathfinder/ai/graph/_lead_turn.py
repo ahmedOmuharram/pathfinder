@@ -28,19 +28,17 @@ from pydantic_ai.tools import (
 )
 
 from pathfinder.ai.capabilities.security import is_pure_approval
-from pathfinder.ai.conversation.event_stream import fetch_chunks_after
-from pathfinder.ai.conversation.ui_message_reducer import reduce_chunks
 from pathfinder.ai.graph.runtime import Context
-from pathfinder.ai.graph.state import (
-    SUB_AGENT_APPROVAL_PHASE,
-    PendingApproval,
-    PipelineState,
-)
+from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.lead.memory_candidates import PRODUCT_MEMORY_KINDS
 from pathfinder.ai.lead.sub_agent_dispatch import resume_sub_agent
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
-from pathfinder.ai.lead.sub_agent_tools import LeadDeps
-from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
-from pathfinder.ai.memory.store import MemoryStore, StoredMemory
+from pathfinder.ai.lead.sub_agent_tools import SUB_AGENT_APPROVAL_PHASE, LeadDeps
+from pathfinder.assistant_core.conversation.event_stream import fetch_chunks_after
+from pathfinder.assistant_core.conversation.ui_message_reducer import reduce_chunks
+from pathfinder.assistant_core.graph.turn_state import PendingApproval
+from pathfinder.assistant_core.memory.retrieval import retrieve_relevant_memories
+from pathfinder.assistant_core.memory.store import MemoryStore, StoredMemory
 from pathfinder.persistence.repositories import MessagesRepository
 from pathfinder.persistence.repositories._message_metadata import MessageMetadata
 
@@ -90,6 +88,7 @@ async def retrieve_memories(
         user_id=state.user_id,
         query=state.user_prompt,
         site_id=state.site_id,
+        kinds=PRODUCT_MEMORY_KINDS,
         top_k=8,
     )
 

@@ -14,13 +14,13 @@ from uuid import uuid4
 
 import pytest
 
-from pathfinder.ai.graph.state import (
+from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.lead.lead_agent import consult_user
+from pathfinder.assistant_core.graph.turn_state import (
     ConsultQuestion,
     PendingApproval,
-    PipelineState,
     UserQuestionAnswer,
 )
-from pathfinder.ai.lead.lead_agent import consult_user
 
 
 def _ctx(state: PipelineState) -> Any:

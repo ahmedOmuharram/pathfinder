@@ -17,7 +17,7 @@ nine chunks `user-message`, `data-turn-status {label: "Queued"}`, `start {messag
 message again to retry."}`, `finish {finishReason: "error"}`, `done` - and ran it through
 both reducers that rebuild a transcript from that log: the backend's
 `tests/_support/chunk_log.py::reduce_chunks_to_messages` (over
-`ai/conversation/ui_message_reducer.py::reduce_chunks`) and the frontend's
+`assistant_core/conversation/ui_message_reducer.py::reduce_chunks`) and the frontend's
 `readUIMessageStream`, the reducer `lib/api/conversationSnapshot.ts::reduceAssistantSlice`
 drives on every snapshot load.
 
@@ -53,7 +53,7 @@ opens the conversation on another machine, cannot tell a truncated turn from a s
 and the message is quotable and forkable in that state.
 
 **Why it happens.** No reducer maps the `error` chunk to a part.
-`ai/conversation/_chunk_handlers.py::_HANDLERS` has no `"error"` key, so `_apply_chunk` is
+`assistant_core/conversation/_chunk_handlers.py::_HANDLERS` has no `"error"` key, so `_apply_chunk` is
 a no-op for it, and `write_turn_message` (`ai/graph/_lead_turn.py:329`) persists the same
 part list to `messages`. On the client, `processUIMessageStream`'s `case "error"` only
 calls `onError` (`apps/web/node_modules/ai/dist/index.mjs:5781-5784`), and
@@ -63,7 +63,7 @@ because it reads `chat.error`, which the snapshot path never populates: the tran
 rebuilt from chunks alone.
 
 **Fix (to decide).** Two options, and they are not equivalent.
-1. A visible interrupted/failed part: add a payload to `ai/graph/stream_events.py` (next
+1. A visible interrupted/failed part: add a payload to `assistant_core/graph/stream_events.py` (next
    to `TurnStoppedPayload`, which `StoppedNotice.tsx` already renders and which cannot be
    reused here because it reads "You stopped this response."), emit it wherever an
    `ErrorChunk` is written today (`ai/conversation/turn_runner.py:311`,
@@ -71,7 +71,7 @@ rebuilt from chunks alone.
    `features/conversation/content/contentComponents.ts`. The part is a durable chunk, so
    it survives the snapshot with no reducer change, and the wording is ours.
 2. Reduce `error` into a part: add an `"error"` handler to
-   `ai/conversation/_chunk_handlers.py` and a matching client-side part. Cheaper, but the
+   `assistant_core/conversation/_chunk_handlers.py` and a matching client-side part. Cheaper, but the
    AI SDK owns the `error` chunk shape and has no error part type, so the client would
    need a non-standard part that `uiMessageChunkSchema` does not describe.
 Whichever is chosen, the test is a snapshot-replay case asserting a third part for the

@@ -1,33 +1,5 @@
 import { test, expect } from "../fixtures/test";
-import type { APIResponse } from "@playwright/test";
-
-interface AstNode {
-  id?: string;
-  searchName?: string | null;
-  operator?: string | null;
-  parameters?: Record<string, { value?: unknown }> | null;
-  primaryInput?: AstNode | null;
-  secondaryInput?: AstNode | null;
-  [k: string]: unknown;
-}
-
-function findNode(value: unknown, stepId: string): AstNode | null {
-  if (value === null || typeof value !== "object") return null;
-  const node = value as AstNode;
-  if (node.id === stepId) return node;
-  for (const child of Object.values(node)) {
-    const hit = findNode(child, stepId);
-    if (hit !== null) return hit;
-  }
-  return null;
-}
-
-async function nodeOf(resp: APIResponse, stepId: string): Promise<AstNode> {
-  expect(resp.status()).toBe(200);
-  const node = findNode((await resp.json()) as unknown, stepId);
-  expect(node, `${stepId} present in AST`).not.toBeNull();
-  return node as AstNode;
-}
+import { combineNode, leafBySearch } from "../fixtures/ast";
 
 test.describe("Complex combine strategy — multi-edit via UI", () => {
   test("build 3-step combine, flip operator + edit a leaf param, both persist + sync, model answers", async ({
@@ -48,11 +20,13 @@ test.describe("Complex combine strategy — multi-edit via UI", () => {
     const conversationId = chatPage.lastStrategyId as string;
     const astUrl = `/api/v1/conversations/${conversationId}/ast`;
 
-    const combine = await nodeOf(await apiClient.get(astUrl), "interpro_or_go");
+    const combine = await combineNode(await apiClient.get(astUrl));
     expect(combine.operator).toBe("UNION");
-    const leaf = await nodeOf(await apiClient.get(astUrl), "interpro_kinases");
-    expect(leaf.searchName).toBe("GenesByText");
+    const combineStepId = combine.id as string;
+
+    const leaf = await leafBySearch(await apiClient.get(astUrl), "GenesByText");
     expect(leaf.parameters?.["text_expression"]?.value).toBe("kinase");
+    const leafId = leaf.id as string;
 
     await chatPage.send("how many genes are in this combined strategy?");
     await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
@@ -61,21 +35,19 @@ test.describe("Complex combine strategy — multi-edit via UI", () => {
     await graphPage.goToStrategy("plasmodb", conversationId);
     await graphPage.expectStrategyTopbar();
 
-    await graphPage.changeOperator("interpro_or_go", "INTERSECT");
+    await graphPage.changeOperator(combineStepId, "INTERSECT");
     await expect(graphPage.strategyPageSyncState).toHaveAttribute(
       "data-sync-state",
       "idle",
       { timeout: 30_000 },
     );
     await expect
-      .poll(
-        async () =>
-          (await nodeOf(await apiClient.get(astUrl), "interpro_or_go")).operator,
-        { timeout: 30_000 },
-      )
+      .poll(async () => (await combineNode(await apiClient.get(astUrl))).operator, {
+        timeout: 30_000,
+      })
       .toBe("INTERSECT");
 
-    await graphPage.clickNode("interpro_kinases");
+    await graphPage.clickNode(leafId);
     await expect(graphPage.editorSheet).toBeVisible({ timeout: 20_000 });
     const textInput = graphPage.editorSheet.locator('input[name="text_expression"]');
     await expect(textInput).toHaveValue("kinase");
@@ -89,17 +61,16 @@ test.describe("Complex combine strategy — multi-edit via UI", () => {
       { timeout: 30_000 },
     );
 
+    // Both edits survive together: the param change did not revert the operator.
     await expect
       .poll(
         async () =>
-          (await nodeOf(await apiClient.get(astUrl), "interpro_kinases")).parameters?.[
+          (await leafBySearch(await apiClient.get(astUrl), "GenesByText")).parameters?.[
             "text_expression"
           ]?.value,
         { timeout: 30_000 },
       )
       .toBe("phosphatase");
-    expect((await nodeOf(await apiClient.get(astUrl), "interpro_or_go")).operator).toBe(
-      "INTERSECT",
-    );
+    expect((await combineNode(await apiClient.get(astUrl))).operator).toBe("INTERSECT");
   });
 });

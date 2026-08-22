@@ -50,7 +50,7 @@ async def sync_all_wdk_strategies(
     user_id: CurrentUser,
     background_tasks: BackgroundTasks,
 ) -> list[ConversationResponse]:
-    """Batch-sync all WDK strategies into the chats table and return the full list."""
+    """Batch-sync all WDK strategies into the conversations and return the list."""
     conversations = await sync_all_wdk_strategies_service(
         session,
         site_id=site_id,

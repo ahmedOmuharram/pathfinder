@@ -228,5 +228,5 @@ The engine (`diagnosis.py`) flags PathFinder's recurring failure modes:
 | `wdk_capture.py` | opt-in WDK httpx capture (`--capture-wdk`) |
 
 `RunCapture` implements the `ChatWriter` protocol
-(`ai/conversation/event_writer.py`) — the same surface as the production
+(`assistant_core/conversation/event_writer.py`) — the same surface as the production
 `ChatEventWriter`, so the CLI exercises the real turn pipeline.

@@ -35,6 +35,7 @@ Choices with a real alternative, where the reasoning is not recoverable from the
 - [Strict state, and the checkpoints flushed to allow it](no-checkpoint-truncation.md) - a permissive `extra` was a shim for a shape nothing writes
 - [A capability is not shipped until the model can find it](capability-must-be-reachable.md) - built, registered, and undiscoverable is not shipped
 - [A sub-agent's approval is answered inside that sub-agent](sub-agent-approvals-re-enter-the-sub-agent.md) - the inner tool call is forwarded as its own approval card and the answer re-enters the suspended run
+- [The Lead agent belongs to the turn that runs it](the-agent-belongs-to-the-turn.md) - the module singleton shared one `override`, and worker concurrency is about to rise
 
 ## Frontend
 
@@ -53,6 +54,12 @@ Choices with a real alternative, where the reasoning is not recoverable from the
 ## Transport
 
 - [NUL is rejected at the ASGI boundary](nul-rejected-at-the-asgi-boundary.md) - why not a validator, and why not an exception handler
+- [A write the caller reads back commits before its response](a-write-commits-before-its-response.md) - the session dependency commits after the response, and an in-process transport cannot see the race
+- [The API rewrite carries a long call](the-api-rewrite-carries-a-long-call.md) - Next's 30 s rewrite cap answered the data purge with its own bare 500
 - [A VEuPathDB bearer token is the user; a service token is the application](bearer-identity-and-service-tokens.md) - the ES512 JWKS protocol, and why `proxied-user-id` cannot serve a service that acts as the user
 - [A resource is owned by a user under one application](application-id-tenancy.md) - the scope key, isolated memories, a per-user cap with per-application attribution, and why not one user row or one database per application
+- [A conversation is a thread; its strategy is an attachment](conversation-thread-and-strategy-split.md) - the column partition, absent-row semantics, one eager loader, and why a nullable column is not an attachment
+- [Part kinds keep their names when the taxonomy opens](part-kinds-keep-their-names.md) - the kind is persisted in every stored chunk, so namespacing waits for the assistant that needs it
+- [The runtime takes the vocabulary as an argument; the wire keeps it](vocabulary-is-an-argument.md) - roles, guard tool sets and memory kinds became arguments; the published enums stay narrow until a client needs them open
+- [The assistant runtime is a package boundary, not a contract over scattered modules](assistant-core-is-a-package-boundary.md) - the modules moved into `assistant_core/` and contract 7 rejects indirect chains too, because a config-only boundary has to be rediscovered on every extraction
 - [A WDK-backed feature requires a registered VEuPathDB login](wdk-requires-registered-login.md) - one 401 code for the refusal, guest minting deleted, the service account confined to user-independent reads, and why not one shared identity for anonymous users

@@ -33,7 +33,11 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
     WDKStep,
 )
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import (
+    Conversation,
+    ConversationStrategy,
+    User,
+)
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.platform.errors import WDKError
 from pathfinder.services.strategies import (
@@ -270,11 +274,16 @@ async def _seed_conversation(
         user_id=user.id,
         site_id="plasmodb",
         name="Test strategy",
-        wdk_strategy_id=555,
-        strategy_ast=ast.model_dump(by_alias=True, exclude_none=True, mode="json"),
     )
     db_session.add(conv)
     await db_session.flush()
+    db_session.add(
+        ConversationStrategy(
+            conversation_id=conv.id,
+            wdk_strategy_id=555,
+            strategy_ast=ast.model_dump(by_alias=True, exclude_none=True, mode="json"),
+        ),
+    )
     await db_session.commit()
     return conv.id
 
@@ -347,7 +356,7 @@ async def test_delete_collapse_combine_drops_wdk_steps_and_persists_ast(
         repo = ConversationRepository(fresh)
         refetched = await repo.get_by_id(conv_id)
         assert refetched is not None
-        ast = StrategyAst.model_validate(refetched.strategy_ast)
+        ast = StrategyAst.model_validate(refetched.strategy_view.strategy_ast)
         assert ast.root.id == "step_b"
         assert ast.root.primary_input is None
         assert ast.root.secondary_input is None
@@ -390,8 +399,8 @@ async def test_deleting_the_whole_strategy_clears_the_persisted_ast(
         repo = ConversationRepository(fresh)
         refetched = await repo.get_by_id(conv_id)
         assert refetched is not None
-        assert not refetched.strategy_ast
-        assert refetched.step_count == 0
+        assert not refetched.strategy_view.strategy_ast
+        assert refetched.strategy_view.step_count == 0
 
 
 async def test_update_step_meta_persists_without_wdk_delete(
@@ -426,7 +435,7 @@ async def test_update_step_meta_persists_without_wdk_delete(
         repo = ConversationRepository(fresh)
         refetched = await repo.get_by_id(conv_id)
         assert refetched is not None
-        ast = StrategyAst.model_validate(refetched.strategy_ast)
+        ast = StrategyAst.model_validate(refetched.strategy_view.strategy_ast)
         assert ast.root.display_name == "Renamed step"
 
 
@@ -464,7 +473,7 @@ async def test_a_batch_of_operations_lands_in_one_commit(
     async with session_maker() as fresh:
         refetched = await ConversationRepository(fresh).get_by_id(conv_id)
         assert refetched is not None
-        ast = StrategyAst.model_validate(refetched.strategy_ast)
+        ast = StrategyAst.model_validate(refetched.strategy_view.strategy_ast)
         assert ast.root.display_name == "Renamed twice"
 
 
@@ -504,7 +513,7 @@ async def test_a_rejected_batch_changes_nothing(
     async with session_maker() as fresh:
         refetched = await ConversationRepository(fresh).get_by_id(conv_id)
         assert refetched is not None
-        ast = StrategyAst.model_validate(refetched.strategy_ast)
+        ast = StrategyAst.model_validate(refetched.strategy_view.strategy_ast)
         assert ast.root.display_name != "Applied first"
 
 
@@ -577,12 +586,12 @@ async def test_adding_a_second_root_step_is_persisted(
     async with session_maker() as fresh:
         refetched = await ConversationRepository(fresh).get_by_id(conv_id)
         assert refetched is not None
-        persisted = StrategyAst.model_validate(refetched.strategy_ast)
+        persisted = StrategyAst.model_validate(refetched.strategy_view.strategy_ast)
         ids = {node.id for node in walk_step_tree(persisted.root)}
         for detached in persisted.detached_roots:
             ids |= {node.id for node in walk_step_tree(detached)}
         assert ids == {"step_a", "step_b"}
-        assert refetched.step_count == 2
+        assert refetched.strategy_view.step_count == 2
 
 
 async def test_the_operation_response_reflects_the_operation(
@@ -615,7 +624,7 @@ async def test_the_operation_response_reflects_the_operation(
     db_session.expire_all()
     refreshed = await outer.get_by_id(conv_id)
     assert refreshed is not None
-    persisted = StrategyAst.model_validate(refreshed.strategy_ast)
+    persisted = StrategyAst.model_validate(refreshed.strategy_view.strategy_ast)
     ids = {node.id for node in walk_step_tree(persisted.root)}
     for detached in persisted.detached_roots:
         ids |= {node.id for node in walk_step_tree(detached)}
@@ -695,7 +704,7 @@ async def test_a_partial_push_leaves_every_store_agreeing(
     async with session_maker() as fresh:
         refetched = await ConversationRepository(fresh).get_by_id(conv_id)
         assert refetched is not None
-        ast = StrategyAst.model_validate(refetched.strategy_ast)
+        ast = StrategyAst.model_validate(refetched.strategy_view.strategy_ast)
         assert ast.root.display_name == "Renamed"
         # The rejection is durable and attributed to the step that caused it.
         assert (ast.wdk_push_errors or {}).get("step_a")

@@ -9,9 +9,9 @@ from pydantic_ai.messages import ToolReturn
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.graph.stream_events import scratchpad_updated_event
-from pathfinder.ai.memory.schemas import MemoryValue
-from pathfinder.ai.memory.store import MemoryStore
+from pathfinder.assistant_core.graph.stream_events import scratchpad_updated_event
+from pathfinder.assistant_core.memory.schemas import MemoryValue
+from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.domain.scratchpad.models import (
     Note,
     NoteCreate,

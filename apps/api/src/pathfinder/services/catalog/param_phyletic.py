@@ -18,7 +18,7 @@ from pathfinder.domain.parameters.wdk_vocab import (
     nearest_entries,
 )
 from pathfinder.domain.search import SearchContext
-from pathfinder.integrations.embeddings.semantic_index import get_embedding_model
+from pathfinder.integrations.embeddings.model import get_embedding_model
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )

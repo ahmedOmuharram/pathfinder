@@ -1,23 +1,45 @@
 """Canned FRAME specs for the deterministic test mock.
 
 The mock's FRAME sub-agent drives ``set_criterion`` twice per criterion (once
-with no ``params`` to read the sheet, once to propose them) + ``set_structure``
-to assemble an ``OperationalSpec``, then returns a ``FrameResult``.
-Every visible parameter is proposed here and validated against
-the real WDK vocabulary, so the canned criteria use one search whose sheet is
-one organism parameter (``GenesByTaxon``). The mock exercises the
-FRAME/BUILD/VERIFY mechanics, not real biology.
+with no ``params`` to read the parameter sheet, once to propose them) then
+``set_structure`` to assemble an ``OperationalSpec``, then returns a
+``FrameResult``. A proposal names only the parameters the sheet just listed, so
+a canned name that a site does not publish is never sent. Organisms are chosen
+per site, because a value outside the site's vocabulary binds nothing.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-from uuid import uuid4
 
-from pydantic_ai.messages import ToolCallPart
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic_ai.messages import ToolCallPart, ToolReturnPart
 
-_PF_3D7 = "Plasmodium falciparum 3D7"
+from pathfinder.assistant_core.models.scripted import scripted_call
+from pathfinder.domain.strategy.operational_spec import StructureNode
+from pathfinder.domain.strategy.ops import CombineOp
+
+# One organism per site, each an entry of that site's GenesByTaxon vocabulary.
+# The portal and any unlisted site take the plasmo organism.
+_DEFAULT_ORGANISM = "Plasmodium falciparum 3D7"
+_SITE_ORGANISMS = {
+    "plasmodb": _DEFAULT_ORGANISM,
+    "toxodb": "Toxoplasma gondii ME49",
+    "tritrypdb": "Leishmania major strain Friedlin",
+    "cryptodb": "Cryptosporidium parvum Iowa II",
+    "fungidb": "Aspergillus fumigatus Af293",
+}
+
+_KINASE_GO_TERM = "GO:0004672"
+
+
+def organism_for(site_id: str) -> str:
+    """The canned organism for a site. Unlisted sites take the plasmo organism."""
+    return _SITE_ORGANISMS.get(site_id, _DEFAULT_ORGANISM)
+
+
+ParamValues = dict[str, str | list[str] | None]
 
 
 @dataclass(frozen=True)
@@ -26,123 +48,200 @@ class CriterionSpec:
     text: str
     search_name: str
     role: str = "filter"
-    # A value or null for every visible parameter of the search.
-    params: tuple[tuple[str, str | list[str] | None], ...] = ()
+    # Values by parameter name. Only the names the sheet lists are proposed; a
+    # sheet name absent here is proposed as null, so the search default applies.
+    values: ParamValues = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class SpecPlan:
     title: str
     criteria: tuple[CriterionSpec, ...]
-    # The operator that combines the criteria, left to right. One criterion
-    # needs none.
-    operator: str | None = None
+    structure: StructureNode
 
 
-# Single GenesByTaxon leaf — organism resolves cleanly on plasmo sites.
-SINGLE_SPEC = SpecPlan(
-    title="Plasmodium falciparum genes (mock)",
-    criteria=(
-        CriterionSpec(
-            criterion_id="c1",
-            text=f"{_PF_3D7} genes",
-            search_name="GenesByTaxon",
-            role="seed",
-            params=(("organism", [_PF_3D7]),),
-        ),
-    ),
-)
+class CriterionReply(BaseModel):
+    """The part of a ``set_criterion`` reply the mock reads back.
 
-# Two GenesByTaxon leaves combined with UNION — a multi-node tree that still
-# resolves cleanly (both sides are organism-scoped taxon searches).
-COMBINED_SPEC = SpecPlan(
-    title="Combined Plasmodium genes (mock)",
-    criteria=(
-        CriterionSpec(
-            criterion_id="c1",
-            text=f"{_PF_3D7} genes",
-            search_name="GenesByTaxon",
-            role="seed",
-            params=(("organism", [_PF_3D7]),),
-        ),
-        CriterionSpec(
-            criterion_id="c2",
-            text="Plasmodium falciparum genes",
-            search_name="GenesByTaxon",
-            role="filter",
-            params=(("organism", ["Plasmodium falciparum"]),),
-        ),
-    ),
-    operator="UNION",
-)
+    The sheet reply carries ``params_template``; the binding reply carries
+    ``resolved_params``. A retry carries neither, so the mock re-issues the call
+    instead of marching on with an unbound criterion.
+    """
 
+    model_config = ConfigDict(
+        extra="ignore", populate_by_name=True, from_attributes=True
+    )
 
-def _call(name: str, args: dict[str, Any]) -> ToolCallPart:
-    return ToolCallPart(
-        tool_name=name,
-        args=args,
-        tool_call_id=f"mock_{name}_{uuid4().hex[:10]}",
+    criterion_id: str = Field(default="", alias="criterionId")
+    params_template: dict[str, str | None] = Field(
+        default_factory=dict, alias="paramsTemplate"
+    )
+    resolved_params: dict[str, Any] = Field(
+        default_factory=dict, alias="resolvedParams"
     )
 
 
-def set_criterion_args(crit: CriterionSpec, *, with_params: bool) -> dict[str, Any]:
-    """The sheet-reading call carries no ``params``; the proposal carries them."""
-    args: dict[str, Any] = {
+def _leaf(crit: CriterionSpec) -> StructureNode:
+    return StructureNode(kind="leaf", criterion_id=crit.criterion_id)
+
+
+def _combine(
+    operator: CombineOp, left: StructureNode, right: StructureNode
+) -> StructureNode:
+    return StructureNode(kind="combine", operator=operator, inputs=[left, right])
+
+
+def _taxon(organism: str, criterion_id: str = "taxon_genes") -> CriterionSpec:
+    return CriterionSpec(
+        criterion_id=criterion_id,
+        text=f"{organism} genes",
+        search_name="GenesByTaxon",
+        role="seed",
+        values={"organism": [organism]},
+    )
+
+
+def _text_kinases(organism: str) -> CriterionSpec:
+    return CriterionSpec(
+        criterion_id="text_kinases",
+        text=f"{organism} genes whose product mentions kinase",
+        search_name="GenesByText",
+        role="filter",
+        values={
+            "text_search_organism": [organism],
+            "text_expression": "kinase",
+            "text_fields": ["product"],
+        },
+    )
+
+
+def _go_kinases(organism: str) -> CriterionSpec:
+    # go_term stays unset: it is the free-text half of the criterion, and
+    # set_criterion refuses a proposal that fills both ORed halves.
+    return CriterionSpec(
+        criterion_id="go_kinase_genes",
+        text=f"{organism} genes annotated with protein kinase activity",
+        search_name="GenesByGoTerm",
+        role="filter",
+        values={
+            "organism": [organism],
+            "go_typeahead": [_KINASE_GO_TERM],
+            "go_term_evidence": ["Curated", "Computed"],
+            "go_term_slim": "No",
+        },
+    )
+
+
+def single_spec(organism: str) -> SpecPlan:
+    """One GenesByTaxon leaf. The smallest spec that still builds a strategy."""
+    taxon = _taxon(organism)
+    return SpecPlan(
+        title=f"{organism} genes (mock)",
+        criteria=(taxon,),
+        structure=_leaf(taxon),
+    )
+
+
+def go_spec(organism: str) -> SpecPlan:
+    """One GenesByGoTerm leaf, whose vocabulary depends on the organism."""
+    go = _go_kinases(organism)
+    return SpecPlan(
+        title=f"{organism} kinases by GO term (mock)",
+        criteria=(go,),
+        structure=_leaf(go),
+    )
+
+
+def interpro_spec(organism: str) -> SpecPlan:
+    """Two leaves under a UNION: a text search and a taxon search."""
+    text = _text_kinases(organism)
+    taxon = _taxon(organism)
+    return SpecPlan(
+        title=f"{organism} kinase candidates (mock)",
+        criteria=(text, taxon),
+        structure=_combine(CombineOp.UNION, _leaf(text), _leaf(taxon)),
+    )
+
+
+def combined_spec(organism: str) -> SpecPlan:
+    """Five nodes over three search types: (text UNION go) INTERSECT taxon."""
+    text = _text_kinases(organism)
+    go = _go_kinases(organism)
+    taxon = _taxon(organism)
+    return SpecPlan(
+        title=f"{organism} comprehensive kinases (mock)",
+        criteria=(text, go, taxon),
+        structure=_combine(
+            CombineOp.INTERSECT,
+            _combine(CombineOp.UNION, _leaf(text), _leaf(go)),
+            _leaf(taxon),
+        ),
+    )
+
+
+def sheet_call_args(crit: CriterionSpec) -> dict[str, Any]:
+    """The sheet-reading call. It carries no ``params``, so nothing is bound."""
+    return {
         "criterion_id": crit.criterion_id,
         "text": crit.text,
         "search_name": crit.search_name,
         "role": crit.role,
     }
-    if with_params:
-        args["params"] = dict(crit.params)
+
+
+def proposal_args(crit: CriterionSpec, sheet: dict[str, str | None]) -> dict[str, Any]:
+    """The binding call: one entry per sheet parameter, valued or null."""
+    args = sheet_call_args(crit)
+    args["params"] = {name: crit.values.get(name) for name in sheet}
     return args
 
 
-def _leaf(crit: CriterionSpec) -> dict[str, Any]:
-    return {"kind": "leaf", "criterionId": crit.criterion_id}
-
-
 def set_structure_args(spec: SpecPlan) -> dict[str, Any]:
-    """``set_structure`` takes a tree. One criterion is a leaf; several fold
-    left under the plan's operator."""
-    root = _leaf(spec.criteria[0])
-    for crit in spec.criteria[1:]:
-        root = {
-            "kind": "combine",
-            "operator": spec.operator,
-            "inputs": [root, _leaf(crit)],
-        }
-    return {"root": root}
+    return {"root": spec.structure.model_dump(mode="json", by_alias=True)}
 
 
-def _criterion_ids_called(
-    prior: list[ToolCallPart], *, with_params: bool
-) -> set[object]:
-    return {
-        c.args_as_dict().get("criterion_id")
-        for c in prior
-        if c.tool_name == "set_criterion"
-        and ("params" in c.args_as_dict()) is with_params
-    }
+def criterion_replies(parts: list[ToolReturnPart]) -> list[CriterionReply]:
+    """The ``set_criterion`` replies, in order. A retry reply parses to nothing."""
+    replies: list[CriterionReply] = []
+    for part in parts:
+        if part.tool_name != "set_criterion":
+            continue
+        try:
+            replies.append(CriterionReply.model_validate(part.content))
+        except ValidationError:
+            continue
+    return replies
 
 
 def frame_call(
-    spec: SpecPlan, already_called: list[ToolCallPart] | None = None
+    spec: SpecPlan,
+    already_called: list[ToolCallPart] | None = None,
+    replies: list[CriterionReply] | None = None,
 ) -> ToolCallPart:
-    """Next FRAME tool call: each criterion reads its sheet then proposes its
-    params, then ``set_structure``, then the ``FrameResult`` via ``final_result``."""
-    prior = already_called or []
-    called = {c.tool_name: c for c in prior}
-    read_sheet = _criterion_ids_called(prior, with_params=False)
-    proposed = _criterion_ids_called(prior, with_params=True)
+    """The next FRAME tool call.
+
+    ``list_searches`` runs first so every canned search name enters the
+    enum-guarded universe. Each criterion then reads its sheet and proposes
+    the sheet's parameters, then ``set_structure``, then the ``FrameResult``.
+    Progress follows the replies, not the calls, so a refused proposal is
+    retried rather than skipped.
+    """
+    if not any(c.tool_name == "list_searches" for c in already_called or []):
+        return scripted_call("list_searches", {"record_type": "transcript"})
+    sheets = {
+        r.criterion_id: r.params_template for r in replies or [] if r.params_template
+    }
+    bound = {r.criterion_id for r in replies or [] if r.resolved_params}
     for crit in spec.criteria:
-        if crit.criterion_id not in read_sheet:
-            return _call("set_criterion", set_criterion_args(crit, with_params=False))
-        if crit.criterion_id not in proposed:
-            return _call("set_criterion", set_criterion_args(crit, with_params=True))
-    if "set_structure" not in called:
-        return _call("set_structure", set_structure_args(spec))
-    return _call("final_result", frame_result(spec))
+        if crit.criterion_id in bound:
+            continue
+        sheet = sheets.get(crit.criterion_id)
+        if sheet is None:
+            return scripted_call("set_criterion", sheet_call_args(crit))
+        return scripted_call("set_criterion", proposal_args(crit, sheet))
+    if not any(c.tool_name == "set_structure" for c in already_called or []):
+        return scripted_call("set_structure", set_structure_args(spec))
+    return scripted_call("final_result", frame_result(spec))
 
 
 def frame_result(spec: SpecPlan) -> dict[str, Any]:
@@ -153,11 +252,11 @@ def frame_result(spec: SpecPlan) -> dict[str, Any]:
     }
 
 
-def verification_delta(*, success: bool) -> dict[str, Any]:
+def verification_delta(*, success: bool, prose: str) -> dict[str, Any]:
     return {
         "digest": {
             "disposition": "done" if success else "awaiting_user",
-            "prose": "[mock] verification digest.",
+            "prose": prose,
             "reason": "mock verification",
             "success": success,
         },

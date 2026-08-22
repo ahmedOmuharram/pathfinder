@@ -48,15 +48,7 @@ from pathfinder.ai.capabilities.error_classification import is_error_directive
 from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.graph.state import SubAgentApprovalCall, SubAgentApprovalPending
-from pathfinder.ai.graph.stream_events import (
-    SubAgentCallPayload,
-    SubAgentStepPayload,
-    ledger_update_event,
-    sub_agent_call_event,
-    sub_agent_step_event,
-    turn_status_event,
-)
+from pathfinder.ai.graph.stream_events import ledger_update_event
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_tools import (
     SUB_AGENT_BY_ROLE,
@@ -67,7 +59,21 @@ from pathfinder.ai.lead.sub_agent_tools import (
     phase_override_kwargs,
     phase_usage_limits,
 )
-from pathfinder.ai.models.mock import current_site_id, current_user_text
+from pathfinder.assistant_core.graph.stream_events import (
+    SubAgentCallPayload,
+    SubAgentStepPayload,
+    sub_agent_call_event,
+    sub_agent_step_event,
+    turn_status_event,
+)
+from pathfinder.assistant_core.graph.turn_state import (
+    SubAgentApprovalCall,
+    SubAgentApprovalPending,
+)
+from pathfinder.assistant_core.models.scripted import (
+    current_scope_id,
+    current_user_text,
+)
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -329,7 +335,7 @@ async def stream_sub_agent[OutputT: BaseModel](
     usage = RunUsage()
     # The mock model reads these to pick a site-valid search and branch its
     # canned plan.
-    current_site_id.set(deps.runtime.site_id)
+    current_scope_id.set(deps.runtime.site_id)
     current_user_text.set(deps.state.user_prompt)
     override_kwargs = phase_override_kwargs(deps.runtime, role)
     if "model" in override_kwargs:

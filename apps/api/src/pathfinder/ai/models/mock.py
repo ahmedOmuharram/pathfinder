@@ -1,41 +1,45 @@
-"""Deterministic scripted LLM mock for e2e + integration tests.
+"""PathFinder's script for the deterministic test model.
 
-A single ``FunctionModel`` serves the Lead agent and every sub-agent. It
-detects which agent it is serving from the available tool names and drives a
-scripted FRAME → BUILD → VERIFY flow. The Lead routes on the latest user
-message (plus consult-resume state); sub-agents emit their typed delta via
-``final_result``.
-
-Two context vars are set by the sub-agent runner before each sub-agent runs:
-``current_site_id`` (so canned criteria target a valid organism on the site)
-and ``current_user_text`` (so routing can branch on what the user asked for).
-The canned FRAME specs live in ``mock_specs``.
+The Lead routes on the latest user message (plus consult-resume state) and
+drives a scripted FRAME -> BUILD -> VERIFY flow; sub-agents emit their typed
+delta via ``final_result``. The canned FRAME specs live in ``mock_specs``; the
+machinery that runs this script lives in ``scripted``.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from contextvars import ContextVar
-from enum import StrEnum
 from typing import Any, Literal
-from uuid import uuid4
 
-from pydantic_ai.messages import (
-    ModelMessage,
-    ModelRequest,
-    ModelResponse,
-    ToolCallPart,
-    ToolReturnPart,
-    UserPromptPart,
-)
-from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
+from pydantic_ai.messages import ModelMessage, ToolCallPart
+from pydantic_ai.models.function import FunctionModel
 
 from pathfinder.ai.models.mock_specs import (
-    COMBINED_SPEC,
-    SINGLE_SPEC,
+    CriterionReply,
     SpecPlan,
+    combined_spec,
+    criterion_replies,
     frame_call,
+    go_spec,
+    interpro_spec,
+    organism_for,
+    single_spec,
     verification_delta,
+)
+from pathfinder.assistant_core.models.scripted import (
+    RoleMarkers,
+    RoleScript,
+    ScriptedModel,
+    called_tool_parts,
+    current_scope_id,
+    current_user_text,
+    deferred_tool_resolved,
+    has_any,
+    joined_user_text,
+    last_user_text,
+    next_unmade_call,
+    scripted_call,
+    terminal_call,
+    tool_return_parts,
 )
 
 LeadTurnState = Literal["await_user", "complete"]
@@ -54,6 +58,11 @@ _SUCCESS_PROSE = (
     "**Verified end-to-end.** The strategy framed, built, and verified "
     "cleanly — root size looks right and the leaves are non-empty."
 )
+_FEEDBACK_PROSE = (
+    "**Verification found a problem.** One leaf **returned 0** rows, so the "
+    "combined result is empty — that pattern is too narrow. Loosen it and I "
+    "will re-verify."
+)
 _IMPACT_PROSE = (
     "Switching the combine to INTERSECT makes the **operator** **stricter**: "
     "the result **drops** to genes supported by *both* signals. That tightens "
@@ -68,22 +77,19 @@ _CONTROLS_PROSE = (
     "search variants against them whenever you're ready."
 )
 
+LEAD = "lead"
+FRAME = "frame"
+VERIFICATION = "verification"
+EXECUTION = "execution"
 
-class _Role(StrEnum):
-    LEAD = "lead"
-    FRAME = "frame"
-    VERIFICATION = "verification"
-    EXECUTION = "execution"
-    UNKNOWN = "unknown"
-
-
-# Ordered (marker tools, role) — first whose markers intersect the agent's
-# tool names wins. Lead is first: its dispatch tools are unique to the Lead and
-# never appear on a sub-agent. (Do NOT key the Lead on consult_user — approval-
-# required deferred tools are excluded from AgentInfo.function_tools.)
-_ROLE_MARKERS: tuple[tuple[frozenset[str], _Role], ...] = (
-    (
-        frozenset(
+# Ordered — the first role whose markers intersect the agent's tool names wins.
+# Lead is first: its dispatch tools are unique to the Lead and never appear on a
+# sub-agent. (Do NOT key the Lead on consult_user — approval-required deferred
+# tools are excluded from AgentInfo.function_tools.)
+_ROLES: tuple[RoleMarkers, ...] = (
+    RoleMarkers(
+        role=LEAD,
+        markers=frozenset(
             {
                 "frame_problem",
                 "build_strategy",
@@ -91,84 +97,24 @@ _ROLE_MARKERS: tuple[tuple[frozenset[str], _Role], ...] = (
                 "read_ledger_section",
             }
         ),
-        _Role.LEAD,
     ),
-    (frozenset({"set_criterion", "set_structure"}), _Role.FRAME),
-    (frozenset({"run_control_tests_on_step"}), _Role.VERIFICATION),
-    (frozenset({"update_leaf_params", "replace_subtree"}), _Role.EXECUTION),
+    RoleMarkers(role=FRAME, markers=frozenset({"set_criterion", "set_structure"})),
+    RoleMarkers(role=VERIFICATION, markers=frozenset({"run_control_tests_on_step"})),
+    RoleMarkers(
+        role=EXECUTION, markers=frozenset({"update_leaf_params", "replace_subtree"})
+    ),
 )
-
-
-def _tool_names(info: AgentInfo) -> frozenset[str]:
-    return frozenset(t.name for t in info.function_tools)
-
-
-def _detect_role(info: AgentInfo) -> _Role:
-    names = _tool_names(info)
-    for markers, role in _ROLE_MARKERS:
-        if markers & names:
-            return role
-    return _Role.UNKNOWN
-
-
-def _last_user_text(messages: list[ModelMessage]) -> str:
-    text = ""
-    for msg in messages:
-        if isinstance(msg, ModelRequest):
-            for part in msg.parts:
-                if isinstance(part, UserPromptPart) and isinstance(part.content, str):
-                    text = part.content
-    return text
-
-
-def _joined_user_text(messages: list[ModelMessage]) -> str:
-    """All user-prompt text across the run, joined. An attached file rides as
-    its own text part, so the attachment block can land in a different part
-    from the typed message — scan them all."""
-    chunks = [
-        part.content
-        for msg in messages
-        if isinstance(msg, ModelRequest)
-        for part in msg.parts
-        if isinstance(part, UserPromptPart) and isinstance(part.content, str)
-    ]
-    return "\n".join(chunks)
-
-
-def _called_tool_parts(messages: list[ModelMessage]) -> list[ToolCallPart]:
-    return [
-        part
-        for msg in messages
-        if isinstance(msg, ModelResponse)
-        for part in msg.parts
-        if isinstance(part, ToolCallPart)
-    ]
-
-
-def _called_tools(messages: list[ModelMessage]) -> list[str]:
-    return [p.tool_name for p in _called_tool_parts(messages)]
-
-
-def _has_any(text: str, markers: tuple[str, ...]) -> bool:
-    return any(marker in text for marker in markers)
 
 
 # Markers are deliberately specific to the journeys' turn prompts so generic
 # biology prompts fall through to the plain echo.
 _FIX_MARKERS = ("loosen", "%mamm", "fix the phylogenetic", "fix the pattern")
 _IMPACT_MARKERS = ("switching the interpro", "switch the interpro", "interpro/go")
-_BUILD_MARKERS = (
-    "3d7",
-    "trophozoite",
-    "derisi",
-    "interpro",
-    "pf00069",
-    "ec 2.7",
-    "create step",
-    "create delegation",
-    "go term strategy",
-    "protein kinase go genes",
-)
+_BUILD_MARKERS = ("3d7", "trophozoite", "derisi", "create step", "create delegation")
+# A kinase-broadening request builds the two-leaf spec and fails verification,
+# so the turn carries the zero-result guidance the editor specs read.
+_FEEDBACK_MARKERS = ("interpro", "pf00069", "ec 2.7")
+_GO_MARKERS = ("go term strategy", "protein kinase go genes")
 _COMBINED_MARKERS = ("comprehensive kinase strategy", "all parameter types")
 _CLARIFY_MARKERS = ("human equivalent", "vary much")
 _VARIANT_MARKERS = ("compare two search variants", "compare search variants")
@@ -242,69 +188,56 @@ def _attachment_gene_ids(text: str) -> list[str]:
     return [token.strip() for token in line.split(",") if token.strip()]
 
 
-def _consult_resolved(messages: list[ModelMessage]) -> bool:
-    """True only for the FRESH consult resume — the deferred ``consult_user``
-    came back with answers and no later user message has superseded it."""
-    resolved = False
-    for msg in messages:
-        if not isinstance(msg, ModelRequest):
-            continue
-        parts = msg.parts
-        has_tool_return = any(isinstance(p, ToolReturnPart) for p in parts)
-        if any(
-            isinstance(p, ToolReturnPart) and p.tool_name == "consult_user"
-            for p in parts
-        ):
-            resolved = True
-        elif not has_tool_return and any(isinstance(p, UserPromptPart) for p in parts):
-            resolved = False
-    return resolved
+def spec_for(text: str, site_id: str) -> SpecPlan:
+    """The canned spec a request builds, on the vocabulary of its own site.
+
+    The Lead and the FRAME sub-agent both route through here, so the prose and
+    the criteria always describe the same strategy.
+    """
+    lowered = text.lower()
+    organism = organism_for(site_id)
+    if has_any(lowered, _FIX_MARKERS) or has_any(lowered, _FEEDBACK_MARKERS):
+        return interpro_spec(organism)
+    if has_any(lowered, _GO_MARKERS):
+        return go_spec(organism)
+    if has_any(lowered, _COMBINED_MARKERS):
+        return combined_spec(organism)
+    return single_spec(organism)
 
 
-# The current site + the user's latest message, set by the sub-agent runner
-# before each sub-agent runs so canned criteria target a valid organism.
-current_site_id: ContextVar[str] = ContextVar(
-    "mock_current_site_id", default="veupathdb"
-)
-current_user_text: ContextVar[str] = ContextVar("mock_current_user_text", default="")
+def verification_succeeds(text: str) -> bool:
+    """A broadening request fails verification until a fix request follows it."""
+    lowered = text.lower()
+    if has_any(lowered, _FIX_MARKERS):
+        return True
+    return not has_any(lowered, _FEEDBACK_MARKERS + _CLARIFY_MARKERS)
 
 
 def _active_spec() -> SpecPlan:
-    text = current_user_text.get().lower()
-    if _has_any(text, _COMBINED_MARKERS):
-        return COMBINED_SPEC
-    return SINGLE_SPEC
-
-
-def _call(name: str, args: dict[str, Any]) -> ToolCallPart:
-    return ToolCallPart(
-        tool_name=name,
-        args=args,
-        tool_call_id=f"mock_{name}_{uuid4().hex[:10]}",
-    )
+    return spec_for(current_user_text.get(), current_scope_id.get())
 
 
 def _lead_final(prose: str, next_state: LeadTurnState) -> ToolCallPart:
-    return _call("final_result", {"prose": prose, "nextState": next_state})
+    return terminal_call({"prose": prose, "nextState": next_state})
 
 
 def _build_sequence(prose: str, next_state: LeadTurnState) -> list[ToolCallPart]:
     return [
-        _call("frame_problem", {"reason": "mock frame"}),
-        _call("build_strategy", {}),
-        _call("verify_strategy", {"reason": "mock verification"}),
+        scripted_call("frame_problem", {"reason": "mock frame"}),
+        scripted_call("build_strategy", {}),
+        scripted_call("verify_strategy", {"reason": "mock verification"}),
         _lead_final(prose, next_state),
     ]
 
 
 def _lead_sequence(messages: list[ModelMessage]) -> list[ToolCallPart]:
-    if _consult_resolved(messages):
+    if deferred_tool_resolved(messages, "consult_user"):
         return _build_sequence(_SUCCESS_PROSE, "complete")
-    raw = _last_user_text(messages)
-    ids = _attachment_gene_ids(_joined_user_text(messages))
+    raw = last_user_text(messages)
+    ids = _attachment_gene_ids(joined_user_text(messages))
     if ids:
         return [
-            _call(
+            scripted_call(
                 "build_control_set",
                 {"name": "Uploaded controls", "positive_ids": ids},
             ),
@@ -315,80 +248,84 @@ def _lead_sequence(messages: list[ModelMessage]) -> list[ToolCallPart]:
 
 def _routed_sequence(raw: str) -> list[ToolCallPart]:
     lowered = raw.lower()
-    if _has_any(lowered, _VARIANT_MARKERS):
+    if has_any(lowered, _VARIANT_MARKERS):
         return [
-            _call("compare_search_variants", _variant_args()),
+            scripted_call("compare_search_variants", _variant_args()),
             _lead_final(_VARIANT_PROSE, "await_user"),
         ]
-    if _has_any(lowered, _CONSULT_MARKERS):
-        return [_call("consult_user", _consult_args())]
-    if _has_any(lowered, _IMPACT_MARKERS):
+    if has_any(lowered, _CONSULT_MARKERS):
+        return [scripted_call("consult_user", _consult_args())]
+    if has_any(lowered, _IMPACT_MARKERS):
         return [_lead_final(_IMPACT_PROSE, "await_user")]
-    if _has_any(lowered, _CLARIFY_MARKERS):
+    if has_any(lowered, _CLARIFY_MARKERS):
         return [_lead_final(_CLARIFY_PROSE, "await_user")]
-    build = _FIX_MARKERS + _BUILD_MARKERS + _COMBINED_MARKERS
-    if _has_any(lowered, build):
-        return _build_sequence(_SUCCESS_PROSE, "complete")
+    build = (
+        _FIX_MARKERS
+        + _FEEDBACK_MARKERS
+        + _GO_MARKERS
+        + _BUILD_MARKERS
+        + _COMBINED_MARKERS
+    )
+    if has_any(lowered, build):
+        return _build_branch(raw)
     return [_lead_final(f"[mock] {raw}", "await_user")]
 
 
-def _next_lead_call(messages: list[ModelMessage]) -> ToolCallPart:
-    seq = _lead_sequence(messages)
-    called = _called_tools(messages)
-    for step in seq:
-        if step.tool_name == "final_result":
-            return step
-        if step.tool_name not in called:
-            return step
-    return seq[-1]
+def _build_branch(raw: str) -> list[ToolCallPart]:
+    if verification_succeeds(raw):
+        return _build_sequence(_SUCCESS_PROSE, "complete")
+    return _build_sequence(_FEEDBACK_PROSE, "await_user")
 
 
-def _next_frame_call(messages: list[ModelMessage]) -> ToolCallPart:
-    return frame_call(_active_spec(), _called_tool_parts(messages))
+def _lead_script(messages: list[ModelMessage]) -> ToolCallPart:
+    return next_unmade_call(_lead_sequence(messages), messages)
 
 
-def _response_part(messages: list[ModelMessage], info: AgentInfo) -> ToolCallPart:
-    role = _detect_role(info)
-    if role is _Role.LEAD:
-        return _next_lead_call(messages)
-    if role is _Role.FRAME:
-        return _next_frame_call(messages)
-    if role is _Role.VERIFICATION:
-        text = current_user_text.get().lower()
-        success = not _has_any(text, _CLARIFY_MARKERS)
-        return _call("final_result", verification_delta(success=success))
-    if role is _Role.EXECUTION:
-        return _call(
-            "final_result",
-            {"actionsTaken": ["[mock] recovery"], "followUpNeeded": False},
-        )
-    return _call("final_result", {})
+def _criterion_replies(messages: list[ModelMessage]) -> list[CriterionReply]:
+    return criterion_replies(tool_return_parts(messages))
 
 
-def _mock_function(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-    return ModelResponse(parts=[_response_part(messages, info)])
-
-
-async def _mock_stream_function(
-    messages: list[ModelMessage],
-    info: AgentInfo,
-) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
-    part = _response_part(messages, info)
-    yield {
-        0: DeltaToolCall(
-            name=part.tool_name,
-            json_args=part.args_as_json_str(),
-            tool_call_id=part.tool_call_id,
-        ),
-    }
-
-
-def get_mock_model() -> FunctionModel:
-    return FunctionModel(
-        _mock_function,
-        stream_function=_mock_stream_function,
-        model_name="mock:deterministic",
+def _frame_script(messages: list[ModelMessage]) -> ToolCallPart:
+    return frame_call(
+        _active_spec(),
+        called_tool_parts(messages),
+        _criterion_replies(messages),
     )
 
 
-__all__ = ["current_site_id", "current_user_text", "get_mock_model"]
+def _verification_script(messages: list[ModelMessage]) -> ToolCallPart:
+    del messages
+    success = verification_succeeds(current_user_text.get())
+    prose = _SUCCESS_PROSE if success else _FEEDBACK_PROSE
+    return terminal_call(verification_delta(success=success, prose=prose))
+
+
+def _execution_script(messages: list[ModelMessage]) -> ToolCallPart:
+    del messages
+    return terminal_call({"actionsTaken": ["[mock] recovery"], "followUpNeeded": False})
+
+
+def _silent_script(messages: list[ModelMessage]) -> ToolCallPart:
+    del messages
+    return terminal_call({})
+
+
+_SCRIPTS: dict[str, RoleScript] = {
+    LEAD: _lead_script,
+    FRAME: _frame_script,
+    VERIFICATION: _verification_script,
+    EXECUTION: _execution_script,
+}
+
+PATHFINDER_SCRIPT = ScriptedModel(
+    roles=_ROLES,
+    scripts=_SCRIPTS,
+    unknown=_silent_script,
+)
+
+
+def get_mock_model() -> FunctionModel:
+    return PATHFINDER_SCRIPT.as_function_model()
+
+
+__all__ = ["PATHFINDER_SCRIPT", "get_mock_model"]

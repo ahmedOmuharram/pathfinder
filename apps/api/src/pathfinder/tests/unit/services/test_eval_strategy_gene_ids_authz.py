@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.platform.errors import NotFoundError
 from pathfinder.platform.principal import DEFAULT_APPLICATION_ID
 from pathfinder.services import eval as eval_service
@@ -25,7 +26,9 @@ def session() -> AsyncSession:
 @dataclass
 class _Conversation:
     user_id: UUID
-    wdk_strategy_id: int | None = None
+    strategy_view: ConversationStrategyView = field(
+        default_factory=ConversationStrategyView,
+    )
     application_id: str = DEFAULT_APPLICATION_ID
 
 
@@ -52,7 +55,13 @@ async def test_another_users_conversation_is_not_found(
     monkeypatch: pytest.MonkeyPatch,
     session: AsyncSession,
 ) -> None:
-    _wire(monkeypatch, _Conversation(user_id=_OWNER, wdk_strategy_id=4242))
+    _wire(
+        monkeypatch,
+        _Conversation(
+            user_id=_OWNER,
+            strategy_view=ConversationStrategyView(wdk_strategy_id=4242),
+        ),
+    )
 
     with pytest.raises(NotFoundError) as raised:
         await eval_service.get_strategy_gene_ids(
@@ -86,7 +95,7 @@ async def test_owner_without_a_wdk_link_keeps_the_wire_shape(
     monkeypatch: pytest.MonkeyPatch,
     session: AsyncSession,
 ) -> None:
-    _wire(monkeypatch, _Conversation(user_id=_OWNER, wdk_strategy_id=None))
+    _wire(monkeypatch, _Conversation(user_id=_OWNER))
 
     result = await eval_service.get_strategy_gene_ids(
         session,

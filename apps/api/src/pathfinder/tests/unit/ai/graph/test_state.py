@@ -12,6 +12,7 @@ from pathfinder.ai.graph.state import (
     PhaseDisposition,
     PhaseName,
     PipelineState,
+    StrategyDomainState,
     VerificationDigest,
 )
 from pathfinder.domain.strategy.operational_spec import Criterion, OperationalSpec
@@ -41,11 +42,11 @@ def test_state_minimum_construction(base_state: PipelineState) -> None:
     assert base_state.mode == "strategy"
     assert base_state.user_prompt == ""
     assert base_state.user_parts == []
-    assert base_state.discovered_searches == {}
-    assert base_state.operational_spec is None
-    assert base_state.verification_digest is None
-    assert base_state.last_build_outcome is None
-    assert base_state.user_intent is None
+    assert base_state.domain.discovered_searches == {}
+    assert base_state.domain.operational_spec is None
+    assert base_state.domain.verification_digest is None
+    assert base_state.domain.last_build_outcome is None
+    assert base_state.domain.user_intent is None
     # Cross-phase / cross-turn context now flows through typed fields, not
     # a raw model trace — drop the field so checkpoints stay small.
     assert not hasattr(base_state, "message_history")
@@ -67,12 +68,15 @@ def test_state_carries_verification_digest(
         success=True,
         key_findings=["1234 hits"],
     )
-    state = base_state.model_copy(update={"verification_digest": digest})
+    state = base_state.model_copy(
+        update={"domain": StrategyDomainState(verification_digest=digest)},
+    )
     rehydrated = PipelineState.model_validate(state.model_dump(mode="json"))
-    assert rehydrated.verification_digest is not None
-    assert rehydrated.verification_digest.disposition == PhaseDisposition.DONE
-    assert rehydrated.verification_digest.success is True
-    assert rehydrated.verification_digest.key_findings == ["1234 hits"]
+    digest_back = rehydrated.domain.verification_digest
+    assert digest_back is not None
+    assert digest_back.disposition == PhaseDisposition.DONE
+    assert digest_back.success is True
+    assert digest_back.key_findings == ["1234 hits"]
 
 
 def test_state_carries_operational_spec(base_state: PipelineState) -> None:
@@ -84,11 +88,14 @@ def test_state_carries_operational_spec(base_state: PipelineState) -> None:
             Criterion(id="c1", text="kinases", search_name="GenesByGoTerm"),
         ],
     )
-    state = base_state.model_copy(update={"operational_spec": spec})
+    state = base_state.model_copy(
+        update={"domain": StrategyDomainState(operational_spec=spec)},
+    )
     rehydrated = PipelineState.model_validate(state.model_dump(mode="json"))
-    assert rehydrated.operational_spec is not None
-    assert rehydrated.operational_spec.goal == "find drug targets"
-    assert rehydrated.operational_spec.criteria[0].search_name == "GenesByGoTerm"
+    spec_back = rehydrated.domain.operational_spec
+    assert spec_back is not None
+    assert spec_back.goal == "find drug targets"
+    assert spec_back.criteria[0].search_name == "GenesByGoTerm"
 
 
 def test_state_carries_discovered_searches(base_state: PipelineState) -> None:
@@ -101,14 +108,16 @@ def test_state_carries_discovered_searches(base_state: PipelineState) -> None:
         required_params=["dataset"],
     )
     state = base_state.model_copy(
-        update={"discovered_searches": {"GenesByExpression": overview}}
+        update={
+            "domain": StrategyDomainState(
+                discovered_searches={"GenesByExpression": overview},
+            ),
+        },
     )
     rehydrated = PipelineState.model_validate(state.model_dump(mode="json"))
-    assert "GenesByExpression" in rehydrated.discovered_searches
-    assert (
-        rehydrated.discovered_searches["GenesByExpression"].display_name
-        == "Genes by Expression"
-    )
+    searches = rehydrated.domain.discovered_searches
+    assert "GenesByExpression" in searches
+    assert searches["GenesByExpression"].display_name == "Genes by Expression"
 
 
 def test_state_rejects_negative_total_tokens() -> None:
@@ -186,4 +195,4 @@ class TestCheckpointsFromBeforeTheFbvFlip:
             }
         )
 
-        assert state.operational_spec is None
+        assert state.domain.operational_spec is None

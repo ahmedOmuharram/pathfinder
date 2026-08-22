@@ -7,7 +7,6 @@ from uuid import UUID
 from pydantic import JsonValue
 
 from pathfinder.ai.graph.runtime import Context
-from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.tools.standalone._optimization_models import (
     OptimizationControls,
     OptimizationSettings,
@@ -15,6 +14,7 @@ from pathfinder.ai.tools.standalone._optimization_models import (
     _attach_export,
     _parse_and_validate_inputs,
 )
+from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.domain.parameters.optimization import (
     SweepResult,
     VariantResult,

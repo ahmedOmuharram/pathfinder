@@ -568,7 +568,7 @@ export interface DataVerificationSummaryPayload {
   summary: string;
 }
 
-export type DataPartKind =
+export type KnownDataPartKind =
   | "data-sub-agent-call"
   | "data-sub-agent-step"
   | "data-ledger-update"
@@ -591,6 +591,12 @@ export type DataPartKind =
   | "data-turn-status"
   | "data-turn-stopped"
   | "data-lead-usage";
+
+/**
+ * Kinds this app renders, plus whatever another assistant registers. An
+ * unknown kind type-checks here and reaches the fallback renderer at runtime.
+ */
+export type DataPartKind = KnownDataPartKind | (string & {});
 
 export interface DataPartPayloadMap {
   "data-sub-agent-call": DataSubAgentCallPayload;
@@ -619,9 +625,9 @@ export interface DataPartPayloadMap {
 
 export type TypedDataPart<K extends DataPartKind = DataPartKind> = {
   kind: K;
-  data: DataPartPayloadMap[K];
+  data: K extends KnownDataPartKind ? DataPartPayloadMap[K] : unknown;
 };
 
 export type AnyTypedDataPart = {
-  [K in DataPartKind]: TypedDataPart<K>;
-}[DataPartKind];
+  [K in KnownDataPartKind]: TypedDataPart<K>;
+}[KnownDataPartKind];

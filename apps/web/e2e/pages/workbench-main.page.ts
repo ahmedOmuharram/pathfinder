@@ -1,4 +1,4 @@
-import { type Page, expect } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
 export class WorkbenchMainPage {
   constructor(private page: Page) {}
@@ -69,7 +69,14 @@ export class WorkbenchMainPage {
    * "genes analyzed" only appears when WDK returns a result count (not always).
    * Error states show "Analysis failed: ..." or "HTTP ...".
    */
-  async runEnrichmentAndVerifyResults(timeout = 120_000) {
+  // The enrich request is synchronous and bounded server-side: WDK analysis
+  // polling caps at 300 s per analysis, plus step creation and warmup, and
+  // concurrent specs queue on a process-wide batch semaphore. The ceiling
+  // covers the bound; a green run never waits it out.
+  async runEnrichmentAndVerifyResults(timeout = 360_000) {
+    // Only tests that run enrichment carry its ceiling; the project default
+    // stays tight for everything else.
+    test.setTimeout(test.info().timeout + timeout);
     // Expand if collapsed
     const collapsed = this.page
       .getByRole("button", { expanded: false })

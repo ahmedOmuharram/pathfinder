@@ -1,43 +1,20 @@
 import { test, expect } from "../fixtures/test";
-import type { APIRequestContext, APIResponse } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
 import { loginWdkAccount, wdkAccountCreds } from "../fixtures/wdk-account";
+import { astNodes, leafIdBySearch } from "../fixtures/ast";
+import type { ChatPage } from "../pages/chat.page";
+import type { SitePickerComponent } from "../pages/site-picker.page";
 
-interface AstNode {
-  id?: string;
-  searchName?: string | null;
-  expandedStrategyId?: number | null;
-  [k: string]: unknown;
-}
+/** The leaf of the two-leaf kinase spec that a saved strategy is combined with. */
+const TARGET_LEAF_SEARCH = "GenesByText";
 
-function collect(value: unknown, out: AstNode[]): void {
-  if (value === null || typeof value !== "object") return;
-  const node = value as AstNode;
-  if (typeof node.id === "string") out.push(node);
-  for (const child of Object.values(node)) collect(child, out);
-}
-
-async function astNodes(resp: APIResponse): Promise<AstNode[]> {
-  expect(resp.ok()).toBeTruthy();
-  const out: AstNode[] = [];
-  collect((await resp.json()) as unknown, out);
-  return out;
-}
-
-interface ChatPageLike {
-  goto: () => Promise<void>;
-  newChat: (s: string) => Promise<void>;
-  send: (s: string) => Promise<void>;
-  expectVerificationFeedback: () => Promise<void>;
-  expectAssistantMessage: (p: RegExp, o?: { timeout?: number }) => Promise<void>;
-  expectIdle: (timeout?: number) => Promise<void>;
-  lastStrategyId: string | null;
-}
-
-type SitePickerLike = { selectSite: (s: string) => Promise<void> };
-
+/**
+ * Build the two-leaf kinase strategy. Its verification reports a zero-result
+ * leaf, and the steps are pushed either way, so the strategy is insertable.
+ */
 async function buildInterpro(
-  chatPage: ChatPageLike,
-  sitePicker: SitePickerLike,
+  chatPage: ChatPage,
+  sitePicker: SitePickerComponent,
 ): Promise<string> {
   await chatPage.goto();
   await sitePicker.selectSite("plasmodb");
@@ -52,18 +29,29 @@ async function buildInterpro(
 }
 
 async function buildPlasmo(
-  chatPage: ChatPageLike,
-  sitePicker: SitePickerLike,
+  chatPage: ChatPage,
+  sitePicker: SitePickerComponent,
 ): Promise<string> {
   await chatPage.goto();
   await sitePicker.selectSite("plasmodb");
   await chatPage.newChat("plasmodb");
   await chatPage.send("create delegation");
-  await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
+  await chatPage.expectVerificationSuccess();
   await chatPage.expectIdle();
   const id = chatPage.lastStrategyId;
   expect(id).toBeTruthy();
   return id as string;
+}
+
+/** The id of the leaf a saved strategy is inserted next to. */
+async function targetLeafId(
+  api: APIRequestContext,
+  conversationId: string,
+): Promise<string> {
+  return leafIdBySearch(
+    await api.get(`/api/v1/conversations/${conversationId}/ast`),
+    TARGET_LEAF_SEARCH,
+  );
 }
 
 async function wdkStrategyIdOf(
@@ -82,13 +70,15 @@ test.describe("Insert saved sub-strategy", () => {
     apiClient,
   }) => {
     const targetConvId = await buildInterpro(chatPage, sitePicker);
+    // A real step id, so the 404 can only come from the saved strategy id.
+    const stepId = await targetLeafId(apiClient, targetConvId);
 
     const notFound = await apiClient.post(
       `/api/v1/conversations/${targetConvId}/insert-saved`,
       {
         params: { siteId: "plasmodb" },
         data: {
-          targetStepId: "interpro_kinases",
+          targetStepId: stepId,
           savedWdkStrategyId: 999_999_999,
           operator: "UNION",
         },
@@ -149,13 +139,14 @@ test.describe("Insert saved sub-strategy", () => {
       const before = (
         await astNodes(await ctx.get(`/api/v1/conversations/${targetConvId}/ast`))
       ).length;
+      const stepId = await targetLeafId(ctx, targetConvId);
 
       const inserted = await ctx.post(
         `/api/v1/conversations/${targetConvId}/insert-saved`,
         {
           params: { siteId: "plasmodb" },
           data: {
-            targetStepId: "interpro_kinases",
+            targetStepId: stepId,
             savedWdkStrategyId: savedWdkStrategyId as number,
             operator: "UNION",
           },

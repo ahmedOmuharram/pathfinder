@@ -62,7 +62,7 @@ def derive_ledger(
     """
     return InvestigationLedger(
         user_intent=intent,
-        frame=FrameSection(spec=state.operational_spec),
+        frame=FrameSection(spec=state.domain.operational_spec),
         build=_derive_build_section(state),
         verification=_derive_verification_section(state),
         constraints=_derive_constraint_section(state, intent),
@@ -72,7 +72,7 @@ def derive_ledger(
 def _derive_constraint_section(
     state: PipelineState, intent: UserIntent | None
 ) -> ConstraintSection:
-    spec = state.operational_spec
+    spec = state.domain.operational_spec
     provisional = list(spec.constraints) if spec else []
     explicit = intent.explicit_constraints if intent else []
     merged = merge_constraints(provisional, explicit)
@@ -92,16 +92,16 @@ def _derive_constraint_section(
 
 
 def _derive_build_section(state: PipelineState) -> BuildSection:
-    outcome = state.last_build_outcome
+    outcome = state.domain.last_build_outcome
     if outcome is None:
-        return BuildSection(stale_build=state.stale_build)
+        return BuildSection(stale_build=state.domain.stale_build)
     failed_count = len(outcome.failed_steps)
     skipped_count = len(outcome.skipped_step_ids)
     zero_steps = list(outcome.zero_step_ids)
     needs_recovery = bool(failed_count or skipped_count or zero_steps)
     return BuildSection(
         outcome=outcome,
-        stale_build=state.stale_build,
+        stale_build=state.domain.stale_build,
         pushed_count=len(outcome.pushed_step_ids),
         failed_count=failed_count,
         skipped_count=skipped_count,
@@ -138,4 +138,4 @@ def _classify_failure(failure: StepPushFailure) -> RecoveryKind:
 
 
 def _derive_verification_section(state: PipelineState) -> VerificationSection:
-    return VerificationSection(digest=state.verification_digest)
+    return VerificationSection(digest=state.domain.verification_digest)

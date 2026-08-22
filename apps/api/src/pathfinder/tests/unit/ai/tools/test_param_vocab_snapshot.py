@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pathfinder.ai.agents._instructions import pinned_discovered_searches
 from pathfinder.ai.agents.state import (
     AgentToolState,
     ParamVocabSnapshot,
     SearchOverview,
 )
+from pathfinder.ai.agents.strategy_instructions import pinned_discovered_searches
 from pathfinder.ai.tools.standalone import catalog_discovery
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.services.catalog.param_formatting import ParameterInfo

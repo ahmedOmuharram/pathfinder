@@ -23,7 +23,10 @@ export class ChatPage {
 
   async goto() {
     await this.page.goto("/");
-    await expect(this.composer).toBeVisible();
+    // The app holds a "Starting up..." gate until the readiness probe
+    // answers, and that probe lags while the API serves long enrichment
+    // calls from concurrently running specs.
+    await expect(this.composer).toBeVisible({ timeout: 60_000 });
   }
 
   /** The strategy ID created by the last `newChat()` call. */

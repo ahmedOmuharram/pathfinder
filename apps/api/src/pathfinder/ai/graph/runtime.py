@@ -1,70 +1,41 @@
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
-from typing import Any, Literal
-from uuid import UUID
+from dataclasses import dataclass
 
-from langgraph.store.postgres.aio import AsyncPostgresStore
-from pydantic import BaseModel, ConfigDict, Field, SkipValidation
+from pydantic import Field, SkipValidation
 
-from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.capabilities.repetition_guard import ToolRepetitionGuard
+from pathfinder.ai.agents.tool_vocabulary import build_tool_repetition_guard
 from pathfinder.ai.capabilities.service_outage import ServiceOutageMemory
 from pathfinder.ai.graph.state import PipelineState
-from pathfinder.ai.memory.schemas import MemoryValue
+from pathfinder.assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
+from pathfinder.assistant_core.graph.runtime import AssistantDeps, TurnContext
+from pathfinder.assistant_core.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.platform.db import DBSessionFactory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 from pathfinder.services.strategies.context import StrategyMutationContext
 
-ReasoningEffort = Literal["none", "low", "medium", "high"]
 
-
-@dataclass(frozen=True)
-class Context:
-    # Non-serializable per-turn resources passed via
-    # ``graph.astream(..., context=ctx)``; never checkpointed.
-
-    site_id: str
-    user_id: UUID
+@dataclass(frozen=True, kw_only=True)
+class Context(TurnContext):
     strategy_session: StrategySession
-    db_session_factory: DBSessionFactory
     web_search_service: WebSearchService
     literature_search_service: LiteratureSearchService
-    cancel_event: asyncio.Event
-    memory_store: AsyncPostgresStore | None = None
     experiment_id: str | None = None
-    phase_models: dict[PhaseRole, str] = field(default_factory=dict)
-    phase_reasoning: dict[PhaseRole, ReasoningEffort] = field(default_factory=dict)
 
 
-class AgentDeps(BaseModel):
-    # Service fields use ``SkipValidation`` so tests can inject mock
-    # instances without tripping Pydantic's isinstance check.
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    site_id: str
-    user_id: UUID | None = None
+class AgentDeps(AssistantDeps):
+    tool_repetition_guard: ToolRepetitionGuard = Field(
+        default_factory=build_tool_repetition_guard,
+    )
     strategy_session: SkipValidation[StrategySession]
     web_search_service: SkipValidation[WebSearchService] | None = None
     literature_search_service: SkipValidation[LiteratureSearchService] | None = None
     agent_state: AgentToolState = Field(default_factory=AgentToolState)
     ledger_summary: str = ""
     service_outage: ServiceOutageMemory = Field(default_factory=ServiceOutageMemory)
-    tool_repetition_guard: ToolRepetitionGuard = Field(
-        default_factory=ToolRepetitionGuard,
-    )
     experiment_id: str | None = None
-    cancel_event: SkipValidation[asyncio.Event] | None = None
-    memory_store: SkipValidation[AsyncPostgresStore] | None = None
-    retrieved_memories: list[MemoryValue] = Field(default_factory=list)
-    conversation_id: UUID | None = None
-    db_session_factory: SkipValidation[DBSessionFactory] | None = None
-    writer: SkipValidation[Any] = None
 
     def to_strategy_context(self) -> StrategyMutationContext:
         """Narrow this container down to what strategy-mutation services need."""
@@ -83,7 +54,7 @@ def build_node_deps(
     memories: list[MemoryValue] | None = None,
 ) -> AgentDeps:
     agent_state = AgentToolState(
-        discovered_searches=dict(state.discovered_searches),
+        discovered_searches=dict(state.domain.discovered_searches),
     )
     return AgentDeps(
         site_id=context.site_id,

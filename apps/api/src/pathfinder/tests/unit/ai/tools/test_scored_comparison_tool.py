@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 from pydantic_ai.exceptions import ModelRetry
 
-from pathfinder.ai.lead.lead_agent import lead_agent
+from pathfinder.ai.lead.lead_agent import build_lead_agent
 from pathfinder.ai.tools.standalone import scored_comparison as tool_mod
 from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_scored
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
@@ -101,7 +101,7 @@ class TestTheLeadCanReachControlScoring:
     test of the tool itself keeps passing."""
 
     def _lead_tool_names(self) -> list[str]:
-        return sorted(lead_agent._function_toolset.tools)
+        return sorted(build_lead_agent()._function_toolset.tools)
 
     def test_the_scored_comparison_tool_is_registered(self) -> None:
         assert "compare_variants_scored" in self._lead_tool_names()

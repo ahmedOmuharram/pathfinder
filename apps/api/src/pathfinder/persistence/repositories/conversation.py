@@ -1,89 +1,26 @@
-"""Data access for chat conversations: identity, strategy metadata, and the
+"""Data access for chat conversations: identity, strategy projection, and the
 conversation sidebar."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 from shared_py.defaults import DEFAULT_STREAM_NAME
 from sqlalchemy import delete, select, text, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.models import Conversation, ConversationStrategy
+from pathfinder.persistence.repositories.conversation_update import (
+    ConversationUpdate,
+    collect_strategy_values,
+)
 from pathfinder.platform.context import calling_application
 
-
-@dataclass
-class ConversationUpdate:
-    """Partial update payload for a ``Conversation``.
-
-    Only non-None fields are written. A ``*_set=True`` flag writes its field
-    even when the value is ``None``.
-    """
-
-    name: str | None = None
-    record_type: str | None = None
-    wdk_strategy_id: int | None = None
-    wdk_strategy_id_set: bool = False
-    is_saved: bool | None = None
-    is_saved_set: bool = False
-    strategy_ast: StrategyAst | None = None
-    strategy_ast_set: bool = False
-    step_count: int | None = None
-    estimated_size: int | None = None
-    estimated_size_set: bool = False
-    gene_set_id: str | None = None
-    gene_set_id_set: bool = False
-    gene_set_auto_imported: bool | None = None
-    imported_saved_strategy_ids: list[int] | None = None
-    touch_updated_at: bool = True
-
-
-_SIMPLE_FIELDS: tuple[str, ...] = (
-    "record_type",
-    "step_count",
-    "gene_set_auto_imported",
-)
-
-_FLAGGED_FIELDS: tuple[tuple[str, str], ...] = (
-    ("wdk_strategy_id_set", "wdk_strategy_id"),
-    ("estimated_size_set", "estimated_size"),
-    ("gene_set_id_set", "gene_set_id"),
-    ("is_saved_set", "is_saved"),
-)
-
-
-def _collect_chat_values(upd: ConversationUpdate) -> dict[str, Any]:
-    """Build the column-value dict from non-None and flagged fields."""
-    values: dict[str, Any] = {}
-    if upd.touch_updated_at:
-        values["updated_at"] = datetime.now(UTC)
-
-    for attr in _SIMPLE_FIELDS:
-        val = getattr(upd, attr)
-        if val is not None:
-            values[attr] = val
-
-    if upd.strategy_ast is not None:
-        values["strategy_ast"] = upd.strategy_ast.model_dump(
-            by_alias=True, exclude_none=True, mode="json"
-        )
-    elif upd.strategy_ast_set:
-        # An explicit clear writes NULL, which removes the stored strategy.
-        values["strategy_ast"] = None
-
-    if upd.imported_saved_strategy_ids is not None:
-        values["imported_saved_strategy_ids"] = list(upd.imported_saved_strategy_ids)
-
-    for flag, attr in _FLAGGED_FIELDS:
-        if getattr(upd, flag):
-            values[attr] = getattr(upd, attr)
-
-    return values
+_STRATEGY_LOADER = selectinload(Conversation.strategy)
 
 
 class ConversationRepository:
@@ -150,7 +87,10 @@ class ConversationRepository:
 
     async def get_by_id(self, conversation_id: UUID) -> Conversation | None:
         result = await self.session.execute(
-            select(Conversation).where(Conversation.id == conversation_id)
+            select(Conversation)
+            .where(Conversation.id == conversation_id)
+            .options(_STRATEGY_LOADER)
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -163,10 +103,7 @@ class ConversationRepository:
             text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
             {"k": f"strategy:{conversation_id}"},
         )
-        result = await self.session.execute(
-            select(Conversation).where(Conversation.id == conversation_id)
-        )
-        return result.scalar_one_or_none()
+        return await self.get_by_id(conversation_id)
 
     async def delete(
         self,
@@ -224,6 +161,8 @@ class ConversationRepository:
             .where(Conversation.user_id == user_id)
             .where(Conversation.application_id == calling_application())
             .where(Conversation.dismissed_at.is_(None))
+            .options(_STRATEGY_LOADER)
+            .execution_options(populate_existing=True)
             .order_by(Conversation.updated_at.desc())
             .limit(limit)
         )
@@ -243,6 +182,8 @@ class ConversationRepository:
             .where(Conversation.user_id == user_id)
             .where(Conversation.application_id == calling_application())
             .where(Conversation.dismissed_at.is_not(None))
+            .options(_STRATEGY_LOADER)
+            .execution_options(populate_existing=True)
             .order_by(Conversation.dismissed_at.desc())
             .limit(limit)
         )
@@ -255,11 +196,18 @@ class ConversationRepository:
         self, user_id: UUID, wdk_strategy_id: int
     ) -> Conversation | None:
         result = await self.session.execute(
-            select(Conversation).where(
+            select(Conversation)
+            .join(
+                ConversationStrategy,
+                ConversationStrategy.conversation_id == Conversation.id,
+            )
+            .where(
                 Conversation.user_id == user_id,
                 Conversation.application_id == calling_application(),
-                Conversation.wdk_strategy_id == wdk_strategy_id,
+                ConversationStrategy.wdk_strategy_id == wdk_strategy_id,
             )
+            .options(_STRATEGY_LOADER)
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -270,7 +218,12 @@ class ConversationRepository:
     ) -> dict[int, int]:
         """Return the consumer count for each saved WDK strategy id."""
         result = await self.session.execute(
-            select(Conversation.imported_saved_strategy_ids).where(
+            select(ConversationStrategy.imported_saved_strategy_ids)
+            .join(
+                Conversation,
+                Conversation.id == ConversationStrategy.conversation_id,
+            )
+            .where(
                 Conversation.user_id == user_id,
                 Conversation.application_id == calling_application(),
                 Conversation.site_id == site_id,
@@ -293,10 +246,19 @@ class ConversationRepository:
     ) -> list[Conversation]:
         """Return conversations that import the given saved WDK strategy. A
         strategy with consumers cannot be hard-deleted."""
-        stmt = select(Conversation).where(
-            Conversation.user_id == user_id,
-            Conversation.application_id == calling_application(),
-            Conversation.imported_saved_strategy_ids.contains([wdk_strategy_id]),
+        stmt = (
+            select(Conversation)
+            .join(
+                ConversationStrategy,
+                ConversationStrategy.conversation_id == Conversation.id,
+            )
+            .where(
+                Conversation.user_id == user_id,
+                Conversation.application_id == calling_application(),
+                ConversationStrategy.imported_saved_strategy_ids.contains(
+                    [wdk_strategy_id],
+                ),
+            )
         )
         if exclude_conversation_id is not None:
             stmt = stmt.where(Conversation.id != exclude_conversation_id)
@@ -307,25 +269,76 @@ class ConversationRepository:
         self, conversation_id: UUID, upd: ConversationUpdate
     ) -> None:
         """Update chat metadata from the fields present in the payload."""
-        values = _collect_chat_values(upd)
+        thread_values: dict[str, Any] = {}
+        if upd.touch_updated_at:
+            thread_values["updated_at"] = datetime.now(UTC)
         if upd.name is not None:
-            conversation = await self.get_by_id(conversation_id)
-            if conversation:
+            owner = (
+                await self.session.execute(
+                    select(Conversation.user_id, Conversation.site_id).where(
+                        Conversation.id == conversation_id,
+                    ),
+                )
+            ).one_or_none()
+            if owner is not None:
                 upd.name = await self._deduplicate_name(
-                    conversation.user_id,
-                    conversation.site_id,
+                    owner.user_id,
+                    owner.site_id,
                     upd.name,
                     exclude_conversation_id=conversation_id,
                 )
-            values["name"] = upd.name
+            thread_values["name"] = upd.name
 
+        if thread_values:
+            await self.session.execute(
+                update(Conversation)
+                .where(Conversation.id == conversation_id)
+                .values(**thread_values)
+            )
+
+        await self._write_strategy(conversation_id, collect_strategy_values(upd))
+        await self.session.flush()
+
+    async def _write_strategy(
+        self,
+        conversation_id: UUID,
+        values: dict[str, Any],
+    ) -> None:
+        """Create or update the strategy projection of an existing thread.
+
+        A thread that is already gone takes no strategy row, so a write that
+        lost a race with a delete is dropped instead of failing the caller.
+        """
         if not values:
             return
+        thread = await self.session.scalar(
+            select(Conversation.id).where(Conversation.id == conversation_id),
+        )
+        if thread is None:
+            return
+        await self.session.execute(
+            insert(ConversationStrategy)
+            .values(conversation_id=conversation_id, **values)
+            .on_conflict_do_update(
+                index_elements=[ConversationStrategy.conversation_id],
+                set_=values,
+            ),
+        )
 
+    async def clear_strategy(self, conversation_id: UUID) -> None:
+        """Blank the built strategy, keeping the thread's other links.
+
+        A thread that never had a strategy has nothing to clear.
+        """
         await self.session.execute(
             update(Conversation)
             .where(Conversation.id == conversation_id)
-            .values(**values)
+            .values(updated_at=datetime.now(UTC))
+        )
+        await self.session.execute(
+            update(ConversationStrategy)
+            .where(ConversationStrategy.conversation_id == conversation_id)
+            .values(strategy_ast={}, wdk_strategy_id=None, step_count=0)
         )
         await self.session.flush()
 
@@ -343,7 +356,12 @@ class ConversationRepository:
         await self.session.execute(
             update(Conversation)
             .where(Conversation.id == conversation_id)
-            .values(dismissed_at=None, strategy_ast={})
+            .values(dismissed_at=None)
+        )
+        await self.session.execute(
+            update(ConversationStrategy)
+            .where(ConversationStrategy.conversation_id == conversation_id)
+            .values(strategy_ast={})
         )
         await self.session.flush()
 
@@ -355,12 +373,19 @@ class ConversationRepository:
     ) -> int:
         """Delete chats whose WDK strategy id is not in the live set and
         return how many are deleted."""
-        stmt = select(Conversation.id, Conversation.wdk_strategy_id).where(
-            Conversation.user_id == user_id,
-            Conversation.application_id == calling_application(),
-            Conversation.site_id == site_id,
-            Conversation.wdk_strategy_id.is_not(None),
-            Conversation.dismissed_at.is_(None),
+        stmt = (
+            select(Conversation.id, ConversationStrategy.wdk_strategy_id)
+            .join(
+                ConversationStrategy,
+                ConversationStrategy.conversation_id == Conversation.id,
+            )
+            .where(
+                Conversation.user_id == user_id,
+                Conversation.application_id == calling_application(),
+                Conversation.site_id == site_id,
+                ConversationStrategy.wdk_strategy_id.is_not(None),
+                Conversation.dismissed_at.is_(None),
+            )
         )
         result = await self.session.execute(stmt)
         rows = result.all()

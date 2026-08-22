@@ -1,18 +1,17 @@
 """LangGraph node that runs the Lead Agent for a single chat turn.
 
 The Lead is the only LLM in the dispatcher; sub-agents run as tools the
-Lead invokes inside its single ``run_stream_events`` call. This module
-owns the turn driver (``_drive_lead_stream``) and the node entrypoint
-(``lead_node``); run accounting lives in ``_lead_capture``, sub-agent
-event rendering in ``_lead_events``, and approval resolution plus turn
-persistence in ``_lead_turn``.
+Lead invokes inside its single ``run_stream_events`` call. This module owns
+the turn driver (``_drive_lead_stream``) and ``make_lead_node``, which binds
+the driver to the hooks the graph was built with; run accounting lives in
+``_lead_capture``, sub-agent event rendering in ``_lead_events``, and
+approval resolution plus turn persistence in ``_lead_turn``.
 """
 
 from __future__ import annotations
 
-import contextlib
-from collections.abc import AsyncGenerator
-from typing import Any, Literal
+from collections.abc import AsyncGenerator, Awaitable
+from typing import Any, Literal, Protocol
 from uuid import UUID, uuid4
 
 from langgraph.config import get_stream_writer
@@ -26,21 +25,15 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
 )
-from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-from pathfinder.ai.conversation.vercel_adapter import (
-    DeferredToolHint,
-    PhaseStreamEmitter,
-)
 from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph._lead_capture import (
     _charge_token_delta,
     _emit_chunk,
     _emit_residual_prose,
     _LeadRunCapture,
-    _model_id,
     _persist_residual_quota,
     emit_lead_usage,
     emit_turn_usage,
@@ -56,25 +49,29 @@ from pathfinder.ai.graph._lead_turn import (
 )
 from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import Context
-from pathfinder.ai.graph.state import PendingApproval, PipelineState
-from pathfinder.ai.graph.stream_events import (
-    ledger_update_event,
+from pathfinder.ai.graph.state import PipelineState, StrategyDomainState
+from pathfinder.ai.graph.stream_events import ledger_update_event
+from pathfinder.ai.lead.derive import derive_ledger
+from pathfinder.ai.lead.lead_agent import LeadAgent, LeadResponse
+from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
+from pathfinder.ai.models.mock import get_mock_model
+from pathfinder.ai.models.settings import baked_model_id, build_model_settings
+from pathfinder.ai.models.tiers import resolve_phase_tier_config
+from pathfinder.assistant_core.conversation.vercel_adapter import (
+    DeferredToolHint,
+    PhaseStreamEmitter,
+)
+from pathfinder.assistant_core.graph.pre_turn import PreTurnHook
+from pathfinder.assistant_core.graph.stream_events import (
     memory_retrieved_event,
     turn_status_event,
 )
-from pathfinder.ai.lead.derive import derive_ledger
-from pathfinder.ai.lead.lead_agent import LeadResponse, lead_agent
-from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
-from pathfinder.ai.memory.schemas import MemoryValue
-from pathfinder.ai.models.mock import get_mock_model
-from pathfinder.ai.models.settings import build_model_settings
-from pathfinder.ai.models.tiers import resolve_phase_tier_config
-from pathfinder.domain.strategy.staleness import detect_build_staleness
-from pathfinder.integrations.veupathdb.factory import get_strategy_api
+from pathfinder.assistant_core.graph.turn_agent import TurnAgentFactory
+from pathfinder.assistant_core.graph.turn_state import PendingApproval
+from pathfinder.assistant_core.memory.schemas import MemoryValue
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import ReasoningEffort
-from pathfinder.services.strategies.live_counts import read_wdk_step_counts
 
 logger = get_logger(__name__)
 
@@ -85,6 +82,17 @@ LEAD_USAGE_LIMITS: UsageLimits = UsageLimits(
 )
 
 _FINALIZE: Literal["finalize_turn"] = "finalize_turn"
+
+
+class LeadNode(Protocol):
+    """The call shape LangGraph invokes the turn node with."""
+
+    def __call__(
+        self,
+        state: PipelineState,
+        *,
+        runtime: Runtime[Context],
+    ) -> Awaitable[Command[Literal["finalize_turn"]]]: ...
 
 
 def _resume_user_prompt(state: PipelineState) -> str | None:
@@ -146,27 +154,26 @@ def _deferred_hint(pending: PendingApproval | None) -> DeferredToolHint | None:
 
 
 def _resolve_lead_model_context(
+    agent: LeadAgent,
     *,
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
 ) -> tuple[Any, str]:
     """Swap in the mock for the mock provider, otherwise honor per-request overrides."""
     if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
-        if isinstance(lead_agent.model, FunctionModel):
-            return contextlib.nullcontext(), "mock:lead"
-        return lead_agent.override(model=get_mock_model()), "mock:lead"
+        return agent.override(model=get_mock_model()), "mock:lead"
 
     settings = get_settings()
     tier_cfg = resolve_phase_tier_config(
         settings.default_provider, settings.default_tier, "lead"
     )
     tier_model = tier_cfg.model_id if tier_cfg is not None else None
-    effective_model = model_override or tier_model or _model_id(lead_agent)
+    effective_model = model_override or tier_model or baked_model_id(agent)
     effort = reasoning_effort or (
         tier_cfg.reasoning_effort if tier_cfg is not None else None
     )
     return (
-        lead_agent.override(
+        agent.override(
             model=maybe_wrap_model(effective_model, "lead"),
             model_settings=build_model_settings(effective_model, thinking=effort),
         ),
@@ -177,7 +184,7 @@ def _resolve_lead_model_context(
 async def _drive_lead_stream(
     *,
     state: PipelineState,
-    runtime: Runtime[Context],
+    agent: LeadAgent,
     deps: LeadDeps,
     capture: _LeadRunCapture,
     writer: Any,
@@ -200,8 +207,9 @@ async def _drive_lead_stream(
     resume_history = _resume_message_history(state)
     usage_acc = RunUsage()
     override_ctx, agent_model = _resolve_lead_model_context(
-        model_override=runtime.context.phase_models.get("lead"),
-        reasoning_effort=runtime.context.phase_reasoning.get("lead"),
+        agent,
+        model_override=deps.runtime.phase_models.get("lead"),
+        reasoning_effort=deps.runtime.phase_reasoning.get("lead"),
     )
     capture.lead_model = agent_model
     sub_agent_tool_calls: dict[str, str] = {}
@@ -213,7 +221,7 @@ async def _drive_lead_stream(
     async def _agent_events() -> AsyncGenerator[
         AgentStreamEvent | AgentRunResultEvent[Any]
     ]:
-        async with lead_agent.run_stream_events(
+        async with agent.run_stream_events(
             resume_prompt,
             deps=deps,
             message_history=resume_history,
@@ -233,7 +241,7 @@ async def _drive_lead_stream(
                         capture.sub_agent_usage_by_call,
                     )
                 await _charge_token_delta(
-                    runtime.context,
+                    deps.runtime,
                     state,
                     capture,
                     usage_acc,
@@ -275,6 +283,28 @@ async def _drive_lead_stream(
         raise
 
 
+def _domain_delta(
+    *,
+    deps: LeadDeps,
+    capture: _LeadRunCapture,
+) -> StrategyDomainState:
+    domain = deps.state.domain
+    next_state = (
+        capture.response.next_state
+        if capture.response is not None
+        else domain.lead_next_state
+    )
+    return domain.model_copy(
+        update={
+            "user_intent": deps.intent,
+            "discovered_searches": dict(domain.discovered_searches),
+            "lead_next_state": next_state,
+            # Staleness is measured against the live strategy every turn.
+            "stale_build": None,
+        },
+    )
+
+
 def _build_state_delta(
     *,
     state: PipelineState,
@@ -289,11 +319,7 @@ def _build_state_delta(
         state.turn_total_cost_usd + capture.cost_usd + capture.sub_agent_cost
     )
     delta: dict[str, Any] = {
-        "user_intent": deps.intent,
-        "operational_spec": deps.state.operational_spec,
-        "discovered_searches": dict(deps.state.discovered_searches),
-        "verification_digest": deps.state.verification_digest,
-        "last_build_outcome": deps.state.last_build_outcome,
+        "domain": _domain_delta(deps=deps, capture=capture),
         "retrieved_memories": memories,
         "turn_total_tokens": cumulative_tokens,
         "turn_total_cost_usd": cumulative_cost,
@@ -302,14 +328,15 @@ def _build_state_delta(
         delta["pending_approval"] = capture.pending_approval
     elif capture.approval_consumed:
         delta["pending_approval"] = None
-    if capture.response is not None:
-        delta["lead_next_state"] = capture.response.next_state
     return delta
 
 
-async def lead_node(
+async def _run_lead_turn(
     state: PipelineState,
     runtime: Runtime[Context],
+    *,
+    pre_turn: PreTurnHook[PipelineState, Context],
+    build_agent: TurnAgentFactory[LeadAgent],
 ) -> Command[Literal["finalize_turn"]]:
     writer = get_stream_writer()
     if state.pending_approval is not None:
@@ -338,21 +365,10 @@ async def lead_node(
         total_tokens, cost_usd = capture.live_totals(state)
         emit_turn_usage(writer, total_tokens, cost_usd)
 
-    working_state = state.model_copy(deep=True)
-    # The user can edit the strategy between turns, in the graph editor or on
-    # the site. WDK owns it, so only WDK can say what it holds now.
-    sync_state = runtime.context.strategy_session.sync_state
-    working_state.stale_build = detect_build_staleness(
-        working_state.last_build_outcome,
-        await read_wdk_step_counts(
-            sync_state, get_strategy_api(runtime.context.site_id)
-        )
-        if sync_state is not None
-        else {},
-    )
+    working_state = await pre_turn(state, runtime.context)
     deps = LeadDeps(
         state=working_state,
-        intent=state.user_intent,
+        intent=state.domain.user_intent,
         runtime=runtime.context,
         retrieved_memories=memories,
         record_sub_agent_usage=_record_sub_agent_usage,
@@ -360,7 +376,7 @@ async def lead_node(
 
     await _drive_lead_stream(
         state=state,
-        runtime=runtime,
+        agent=build_agent(),
         deps=deps,
         capture=capture,
         writer=writer,
@@ -394,3 +410,24 @@ async def lead_node(
         memories=memories,
     )
     return Command(goto=_FINALIZE, update=delta)
+
+
+def make_lead_node(
+    *,
+    pre_turn: PreTurnHook[PipelineState, Context],
+    build_agent: TurnAgentFactory[LeadAgent],
+) -> LeadNode:
+    """Bind the turn driver to the hooks the product wired at build time."""
+
+    async def lead_node(
+        state: PipelineState,
+        runtime: Runtime[Context],
+    ) -> Command[Literal["finalize_turn"]]:
+        return await _run_lead_turn(
+            state,
+            runtime,
+            pre_turn=pre_turn,
+            build_agent=build_agent,
+        )
+
+    return lead_node

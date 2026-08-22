@@ -18,11 +18,12 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import pathfinder.platform.db as session_module
-from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.persistence.models import (
     Conversation,
     ConversationEvent,
+    ConversationStrategy,
     Message,
     User,
 )
@@ -1620,6 +1621,12 @@ async def _seed_conversation_with_ast(
             user_id=user_id,
             site_id="plasmodb",
             name="root",
+        ),
+    )
+    await session.flush()
+    session.add(
+        ConversationStrategy(
+            conversation_id=conversation_id,
             record_type="transcript",
             strategy_ast=ast,
             step_count=3,
@@ -1670,9 +1677,7 @@ async def test_fork_copies_ast_as_independent_deep_structure(
         fork_id = fork.id
 
     async with session_module.async_session_factory() as session:
-        forked = await session.scalar(
-            select(Conversation).where(Conversation.id == fork_id),
-        )
+        forked = await session.get(ConversationStrategy, fork_id)
         assert forked is not None
         fork_view = _AstView.model_validate(forked.strategy_ast)
         assert fork_view.root.id == "step_combine"
@@ -1698,11 +1703,9 @@ async def test_fork_copies_ast_as_independent_deep_structure(
         await session.commit()
 
     async with session_module.async_session_factory() as session:
-        parent = await session.scalar(
-            select(Conversation).where(Conversation.id == source_id),
-        )
+        parent = await ConversationRepository(session).get_by_id(source_id)
         assert parent is not None
-        parent_view = _AstView.model_validate(parent.strategy_ast)
+        parent_view = _AstView.model_validate(parent.strategy_view.strategy_ast)
         assert parent_view.root.operator == "INTERSECT", (
             "fork mutation leaked into the parent strategy AST — shallow "
             "copy aliased the nested root subtree"
@@ -1754,20 +1757,16 @@ async def test_fork_imported_saved_strategy_ids_is_independent_list(
         fork_id = fork.id
 
     async with session_module.async_session_factory() as session:
-        forked = await session.scalar(
-            select(Conversation).where(Conversation.id == fork_id),
-        )
+        forked = await session.get(ConversationStrategy, fork_id)
         assert forked is not None
         assert forked.imported_saved_strategy_ids == [5001, 5002]
         forked.imported_saved_strategy_ids = [*forked.imported_saved_strategy_ids, 5003]
         await session.commit()
 
     async with session_module.async_session_factory() as session:
-        parent = await session.scalar(
-            select(Conversation).where(Conversation.id == source_id),
-        )
+        parent = await ConversationRepository(session).get_by_id(source_id)
         assert parent is not None
-        assert parent.imported_saved_strategy_ids == [5001, 5002], (
+        assert parent.strategy_view.imported_saved_strategy_ids == [5001, 5002], (
             "fork's consumer-id append leaked into the parent conversation"
         )
 

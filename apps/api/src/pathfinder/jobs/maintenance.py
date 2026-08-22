@@ -14,7 +14,7 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 )
 from sqlalchemy import select
 
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.persistence.models import ConversationEvent

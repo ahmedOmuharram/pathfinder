@@ -1,9 +1,10 @@
 """Models endpoint — exposes available LLM models and their status."""
 
 from fastapi import APIRouter
-from pydantic import ConfigDict
+from pydantic import ConfigDict, TypeAdapter
 
-from pathfinder.ai.agents.registry import PhaseRole, phase_defaults
+from pathfinder.ai.agents.registry import phase_defaults
+from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.models.catalog import ModelEntry, get_model_catalog
 from pathfinder.ai.pricing import lookup_per_mtok_prices
 from pathfinder.platform.config import get_settings
@@ -29,6 +30,10 @@ class ModelListResponse(CamelModel):
 
 
 router = APIRouter(prefix="/api/v1", tags=["models"])
+
+# The registry keys its defaults by whatever role names the product declared;
+# the wire contract only carries the ones this product supports.
+_PHASE_DEFAULTS: TypeAdapter[dict[PhaseRole, str]] = TypeAdapter(dict[PhaseRole, str])
 
 
 def _provider_enabled(provider: ModelProvider) -> bool:
@@ -84,5 +89,5 @@ async def list_models() -> ModelListResponse:
         models=models,
         default_provider=settings.default_provider,
         default_tier=settings.default_tier,
-        phase_defaults=phase_defaults(),
+        phase_defaults=_PHASE_DEFAULTS.validate_python(phase_defaults()),
     )

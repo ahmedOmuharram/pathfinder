@@ -26,7 +26,11 @@ from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
     StrategyAst,
 )
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import (
+    Conversation,
+    ConversationStrategy,
+    User,
+)
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.sync_state import WDKSyncState
@@ -63,11 +67,12 @@ async def _seed(db_session: AsyncSession, user: User) -> Any:
     conv_id = uuid4()
     ast = StrategyAst(record_type="transcript", root=_leaf("step_a"))
     db_session.add(
-        Conversation(
-            id=conv_id,
-            user_id=user.id,
-            site_id="plasmodb",
-            name="c",
+        Conversation(id=conv_id, user_id=user.id, site_id="plasmodb", name="c")
+    )
+    await db_session.flush()
+    db_session.add(
+        ConversationStrategy(
+            conversation_id=conv_id,
             strategy_ast=ast.model_dump(by_alias=True, exclude_none=True, mode="json"),
             wdk_strategy_id=555,
             step_count=1,
@@ -117,9 +122,10 @@ async def test_clearing_wipes_the_persisted_strategy(
     async with session_maker() as fresh:
         refetched = await ConversationRepository(fresh).get_by_id(conv_id)
         assert refetched is not None
-        assert not refetched.strategy_ast
-        assert refetched.step_count == 0
-        assert refetched.wdk_strategy_id is None
+        strategy = refetched.strategy_view
+        assert not strategy.strategy_ast
+        assert strategy.step_count == 0
+        assert strategy.wdk_strategy_id is None
 
 
 async def test_refusing_without_confirmation_leaves_the_row_alone(
@@ -136,5 +142,5 @@ async def test_refusing_without_confirmation_leaves_the_row_alone(
     async with session_maker() as fresh:
         refetched = await ConversationRepository(fresh).get_by_id(conv_id)
         assert refetched is not None
-        assert refetched.strategy_ast
-        assert refetched.wdk_strategy_id == 555
+        assert refetched.strategy_view.strategy_ast
+        assert refetched.strategy_view.wdk_strategy_id == 555

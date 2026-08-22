@@ -316,3 +316,20 @@ forbidden_modules = [
     "pathfinder.integrations",
 ]
 
+# This contract also rejects indirect chains, unlike the six above: a runtime
+# that reaches the science through one hop is not a runtime a second assistant
+# can take.
+[[tool.importlinter.contracts]]
+name = "The assistant runtime never imports the science, directly or indirectly"
+type = "forbidden"
+source_modules = ["pathfinder.assistant_core"]
+forbidden_modules = [
+    "pathfinder.ai",
+    "pathfinder.domain",
+    "pathfinder.integrations.veupathdb",
+    "pathfinder.services",
+    "pathfinder.transport",
+    "pathfinder.jobs",
+    "pathfinder.devtools",
+]
+

@@ -7,6 +7,7 @@ from uuid import uuid4
 from pathfinder.ai.graph.state import (
     PhaseDisposition,
     PipelineState,
+    StrategyDomainState,
     VerificationDigest,
 )
 from pathfinder.ai.lead.derive import derive_ledger
@@ -24,15 +25,14 @@ from pathfinder.domain.strategy.operational_spec import (
 )
 
 
-def _state(**kwargs: object) -> PipelineState:
-    base: dict[str, object] = {
-        "conversation_id": uuid4(),
-        "user_id": uuid4(),
-        "site_id": "plasmodb",
-        "mode": "strategy",
-    }
-    base.update(kwargs)
-    return PipelineState(**base)  # type: ignore[arg-type]
+def _state(**domain: object) -> PipelineState:
+    return PipelineState(
+        conversation_id=uuid4(),
+        user_id=uuid4(),
+        site_id="plasmodb",
+        mode="strategy",
+        domain=StrategyDomainState.model_validate(domain),
+    )
 
 
 def _bound_spec() -> OperationalSpec:

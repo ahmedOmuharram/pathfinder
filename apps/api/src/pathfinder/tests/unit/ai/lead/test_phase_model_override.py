@@ -8,7 +8,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.agents.roles import PhaseRole
-from pathfinder.ai.conversation.request_body import ReasoningEffort
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.lead.sub_agent_tools import (
     phase_default_model_id,
@@ -16,6 +15,7 @@ from pathfinder.ai.lead.sub_agent_tools import (
 )
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.types import ReasoningEffort
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 

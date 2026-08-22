@@ -7,13 +7,16 @@ from pathfinder.ai.agents._history_processor import (
     PHASE_HISTORY_PROCESSORS,
 )
 from pathfinder.ai.agents._instructions import (
+    pinned_scratchpad,
+    pinned_user_memories,
+)
+from pathfinder.ai.agents.strategy_instructions import (
     base_system_prompt,
     pinned_discovered_searches,
     pinned_graph_state,
     pinned_ledger,
-    pinned_scratchpad,
-    pinned_user_memories,
 )
+from pathfinder.ai.agents.tool_vocabulary import SEARCH_LOOKUP_TOOLS
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.deltas import VerificationDelta
@@ -151,7 +154,7 @@ verification_agent: Agent[
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset(), build_scratchpad_toolset()],
     capabilities=[
-        ToolResilience(),
+        ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS),
         Thinking(effort="high"),
         *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
     ],

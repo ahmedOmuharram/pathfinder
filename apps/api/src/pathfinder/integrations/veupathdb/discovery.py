@@ -95,7 +95,7 @@ class SearchCatalog:
         self._search_category_labels = onto.search_category_labels
         self._available_categories = onto.available_categories
 
-        self._build_semantic_index()
+        await self._build_semantic_index()
         save_catalog_cache(self.site_id, self._to_snapshot())
 
     async def load(self, client: VEuPathDBClient) -> None:
@@ -111,7 +111,7 @@ class SearchCatalog:
 
             if snapshot is not None:
                 self._restore_from_snapshot(snapshot)
-                self._build_semantic_index()
+                await self._build_semantic_index()
                 self._loaded = True
 
                 if snapshot.is_stale:
@@ -166,11 +166,11 @@ class SearchCatalog:
                 exc_info=True,
             )
 
-    def _build_semantic_index(self) -> None:
+    async def _build_semantic_index(self) -> None:
         """Build the semantic search index from the cached searches."""
         try:
             index = SemanticSearchIndex(site_id=self.site_id)
-            index.build(
+            await index.build(
                 self._searches,
                 category_labels=self._search_category_labels,
             )

@@ -114,7 +114,7 @@ async def sync_all_wdk_strategies(
     site_id: str,
     user_id: UUID,
 ) -> list[ConversationResponse]:
-    """Batch-sync all WDK strategies into the chats table; return the full list."""
+    """Batch-sync all WDK strategies into the conversations; return the full list."""
     conv_repo = ConversationRepository(session)
     site = get_site(site_id)
     try:

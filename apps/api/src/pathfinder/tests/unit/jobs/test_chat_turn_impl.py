@@ -54,7 +54,7 @@ async def _fake_memory_ctx(*args: object, **kwargs: object) -> AsyncIterator[Non
     yield None
 
 
-def _fake_build_graph(*args: object, **kwargs: object) -> _FakeGraph:
+def _fake_build_pathfinder_graph(*args: object, **kwargs: object) -> _FakeGraph:
     del args, kwargs
     return _FakeGraph()
 
@@ -108,7 +108,9 @@ async def test_run_chat_turn_sets_ctxvar_from_payload(
         "lifespan_memory_store",
         _fake_memory_ctx,
     )
-    monkeypatch.setattr(chat_turn_impl_mod, "build_graph", _fake_build_graph)
+    monkeypatch.setattr(
+        chat_turn_impl_mod, "build_pathfinder_graph", _fake_build_pathfinder_graph
+    )
 
     payload = ChatTurnPayload(
         body=_body(),
@@ -141,7 +143,9 @@ async def test_run_chat_turn_resets_ctxvar_after_run(
         "lifespan_memory_store",
         _fake_memory_ctx,
     )
-    monkeypatch.setattr(chat_turn_impl_mod, "build_graph", _fake_build_graph)
+    monkeypatch.setattr(
+        chat_turn_impl_mod, "build_pathfinder_graph", _fake_build_pathfinder_graph
+    )
 
     assert veupathdb_auth_token_ctx.get() is None
     payload = ChatTurnPayload(
@@ -172,7 +176,9 @@ async def test_run_chat_turn_tolerates_missing_token(
         "lifespan_memory_store",
         _fake_memory_ctx,
     )
-    monkeypatch.setattr(chat_turn_impl_mod, "build_graph", _fake_build_graph)
+    monkeypatch.setattr(
+        chat_turn_impl_mod, "build_pathfinder_graph", _fake_build_pathfinder_graph
+    )
 
     payload = ChatTurnPayload(
         body=_body(),

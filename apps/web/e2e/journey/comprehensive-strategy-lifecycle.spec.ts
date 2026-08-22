@@ -1,35 +1,12 @@
 import { test, expect } from "../fixtures/test";
-import type { APIResponse } from "@playwright/test";
 import { wdkAccountCreds, loginWdkAccount } from "../fixtures/wdk-account";
-
-interface ParamValue {
-  value?: unknown;
-  values?: unknown[];
-}
-
-interface AstNode {
-  id?: string;
-  searchName?: string | null;
-  operator?: string | null;
-  parameters?: Record<string, ParamValue> | null;
-  primaryInput?: AstNode | null;
-  secondaryInput?: AstNode | null;
-  [k: string]: unknown;
-}
-
-function collect(value: unknown, out: AstNode[]): void {
-  if (value === null || typeof value !== "object") return;
-  const node = value as AstNode;
-  if (typeof node.id === "string") out.push(node);
-  for (const child of Object.values(node)) collect(child, out);
-}
-
-async function astById(resp: APIResponse): Promise<Record<string, AstNode>> {
-  expect(resp.status()).toBe(200);
-  const out: AstNode[] = [];
-  collect((await resp.json()) as unknown, out);
-  return Object.fromEntries(out.map((n) => [n.id as string, n]));
-}
+import {
+  COMBINE_SEARCH_NAME,
+  astNodes,
+  combineOperators,
+  leafBySearch,
+  leafIdBySearch,
+} from "../fixtures/ast";
 
 test.describe("Comprehensive multi-param strategy lifecycle", () => {
   test.use({ viewport: { width: 1680, height: 900 } });
@@ -63,29 +40,47 @@ test.describe("Comprehensive multi-param strategy lifecycle", () => {
     const conversationId = chatPage.lastStrategyId as string;
     const astUrl = `/api/v1/conversations/${conversationId}/ast`;
 
-    const built = await astById(await page.request.get(astUrl));
-    expect(Object.keys(built).sort()).toEqual([
-      "go_kinase_genes",
-      "narrowed",
-      "pf_taxon",
-      "text_kinases",
-      "text_or_go",
+    const built = await astNodes(await page.request.get(astUrl));
+    expect(built).toHaveLength(5);
+    expect(built.map((n) => n.searchName).sort()).toEqual([
+      "GenesByGoTerm",
+      "GenesByTaxon",
+      "GenesByText",
+      COMBINE_SEARCH_NAME,
+      COMBINE_SEARCH_NAME,
     ]);
-    expect(built["text_kinases"]?.searchName).toBe("GenesByText");
-    expect(built["go_kinase_genes"]?.searchName).toBe("GenesByGoTerm");
-    expect(built["pf_taxon"]?.searchName).toBe("GenesByTaxon");
-    expect(built["text_or_go"]?.operator).toBe("UNION");
-    expect(built["narrowed"]?.operator).toBe("INTERSECT");
-    expect(built["go_kinase_genes"]?.parameters?.["go_term_evidence"]?.values).toEqual([
+    expect(await combineOperators(await page.request.get(astUrl))).toEqual([
+      "INTERSECT",
+      "UNION",
+    ]);
+    const goLeaf = await leafBySearch(await page.request.get(astUrl), "GenesByGoTerm");
+    expect(goLeaf.parameters?.["go_term_evidence"]?.values).toEqual([
       "Curated",
       "Computed",
     ]);
+    const textLeafId = await leafIdBySearch(
+      await page.request.get(astUrl),
+      "GenesByText",
+    );
+    const taxonLeafId = await leafIdBySearch(
+      await page.request.get(astUrl),
+      "GenesByTaxon",
+    );
+    const goLeafId = goLeaf.id as string;
+    // The UNION branch feeds the INTERSECT, rather than chaining left to right.
+    const union = built.find(
+      (n) => n.searchName === COMBINE_SEARCH_NAME && n.operator === "UNION",
+    );
+    expect([union?.primaryInput?.id, union?.secondaryInput?.id].sort()).toEqual(
+      [textLeafId, goLeafId].sort(),
+    );
+    const unionId = union?.id as string;
 
     await graphPage.goToStrategy("plasmodb", conversationId);
     await graphPage.expectStrategyTopbar();
     await graphPage.expectNodeCount(5);
 
-    await graphPage.clickNode("text_kinases");
+    await graphPage.clickNode(textLeafId);
     await graphPage.expectEditorSheetOpen();
     const textInput = graphPage.editorSheet.locator('input[name="text_expression"]');
     await expect(textInput).toHaveValue("kinase");
@@ -94,14 +89,13 @@ test.describe("Comprehensive multi-param strategy lifecycle", () => {
     await expect
       .poll(
         async () =>
-          (await astById(await page.request.get(astUrl)))["text_kinases"]?.parameters?.[
-            "text_expression"
-          ]?.value,
+          (await leafBySearch(await page.request.get(astUrl), "GenesByText"))
+            .parameters?.["text_expression"]?.value,
         { timeout: 30_000 },
       )
       .toBe("phosphatase");
 
-    await graphPage.clickNode("go_kinase_genes");
+    await graphPage.clickNode(goLeafId);
     await graphPage.expectEditorSheetOpen();
     await graphPage.expandEditorAdvanced();
     await graphPage.toggleEditorCheckbox("Computed");
@@ -109,13 +103,13 @@ test.describe("Comprehensive multi-param strategy lifecycle", () => {
     await expect
       .poll(
         async () =>
-          (await astById(await page.request.get(astUrl)))["go_kinase_genes"]
-            ?.parameters?.["go_term_evidence"]?.values,
+          (await leafBySearch(await page.request.get(astUrl), "GenesByGoTerm"))
+            .parameters?.["go_term_evidence"]?.values,
         { timeout: 30_000 },
       )
       .toEqual(["Curated"]);
 
-    await graphPage.changeOperator("text_or_go", "INTERSECT");
+    await graphPage.changeOperator(unionId, "INTERSECT");
     await expect(graphPage.strategyPageSyncState).toHaveAttribute(
       "data-sync-state",
       "idle",
@@ -123,13 +117,15 @@ test.describe("Comprehensive multi-param strategy lifecycle", () => {
     );
     await expect
       .poll(
-        async () =>
-          (await astById(await page.request.get(astUrl)))["text_or_go"]?.operator,
+        async () => {
+          const all = await astNodes(await page.request.get(astUrl));
+          return all.find((n) => n.id === unionId)?.operator;
+        },
         { timeout: 30_000 },
       )
       .toBe("INTERSECT");
 
-    await graphPage.deleteStep("pf_taxon");
+    await graphPage.deleteStep(taxonLeafId);
     await graphPage.expectNodeCount(3);
     await expect(graphPage.strategyPageSyncState).toHaveAttribute(
       "data-sync-state",
@@ -138,10 +134,11 @@ test.describe("Comprehensive multi-param strategy lifecycle", () => {
     );
     await expect
       .poll(
-        async () => Object.keys(await astById(await page.request.get(astUrl))).sort(),
+        async () =>
+          (await astNodes(await page.request.get(astUrl))).map((n) => n.id).sort(),
         { timeout: 30_000 },
       )
-      .toEqual(["go_kinase_genes", "text_kinases", "text_or_go"]);
+      .toEqual([goLeafId, textLeafId, unionId].sort());
 
     await page.goto(`/plasmodb/conversation/${conversationId}`);
     await graphPage.expectOnChatRoute(conversationId);

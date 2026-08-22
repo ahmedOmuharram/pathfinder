@@ -1,25 +1,25 @@
 """Semantic search index over enriched WDK search descriptions.
 
-Embeddings are cached to disk per site and are re-encoded only when the search
-catalog changes.
+Embeddings are cached to disk per site, one row per entry keyed by the content
+that produced it, so a catalog change re-encodes only the entries that changed.
 """
 
 from __future__ import annotations
 
+import asyncio
 import gc
 import hashlib
-import json
 import os
 import re
-import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from zipfile import BadZipFile
 
 import numpy as np
-from fastembed import TextEmbedding
 from numpy.typing import NDArray
 
+from pathfinder.integrations.embeddings.model import MODEL_NAME, get_embedding_model
 from pathfinder.integrations.embeddings.prefixes import (
     SEARCH_DOCUMENT_PREFIX,
     SEARCH_QUERY_PREFIX,
@@ -29,7 +29,7 @@ from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-_MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
+_STORE_NDIM = 2
 
 # Pre-computed embeddings shipped with the repo.
 _BUNDLED_CACHE_DIR = (
@@ -46,41 +46,10 @@ class _CacheConfig:
 _cache_config = _CacheConfig()
 
 
-class _ModelState:
-    """Thread-safe singleton holder for the fastembed model."""
-
-    _instance: TextEmbedding | None = None
-    _lock: threading.Lock = threading.Lock()
-
-    @classmethod
-    def get(cls) -> TextEmbedding:
-        """Return the singleton model, loading it on first call."""
-        if cls._instance is not None:
-            return cls._instance
-        with cls._lock:
-            if cls._instance is not None:
-                return cls._instance
-            logger.info("Loading fastembed model", model=_MODEL_NAME)
-            cache_dir = os.getenv("FASTEMBED_CACHE_DIR") or None
-            cls._instance = TextEmbedding(model_name=_MODEL_NAME, cache_dir=cache_dir)
-            logger.info("Fastembed model loaded")
-            return cls._instance
-
-
 def set_cache_dir(path: Path) -> None:
     """Set the runtime cache directory."""
     _cache_config.dir = path
     _cache_config.dir.mkdir(parents=True, exist_ok=True)
-
-
-def get_embedding_model() -> TextEmbedding:
-    """Return the lazy-loaded fastembed model singleton."""
-    return _ModelState.get()
-
-
-def warm_up_model() -> None:
-    """Load the embedding model before the first request."""
-    get_embedding_model()
 
 
 def _strip_html(text: str) -> str:
@@ -95,45 +64,73 @@ def _format_param_names(param_names: list[str]) -> str:
     return " ".join(name.replace("_", " ") for name in param_names)
 
 
-def _catalog_hash(entries: list[SearchIndexEntry]) -> str:
-    """Return a stable hash of the catalog entries."""
-    key = json.dumps(
-        [(e.search_name, e.record_type) for e in entries],
-        sort_keys=True,
-    )
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
-
-
-def _cache_path(site_id: str) -> Path:
+def _cache_path(cache_dir: Path, site_id: str) -> Path:
     """Path to the cached embeddings file for a site."""
-    return _cache_config.dir / f"{site_id}.npz"
+    return cache_dir / f"{site_id}.npz"
 
 
-def _try_load_cache(site_id: str, catalog_hash: str) -> NDArray[Any] | None:
-    """Load cached embeddings from the runtime or the bundled directory."""
-    for cache_dir in (_cache_config.dir, _BUNDLED_CACHE_DIR):
-        path = cache_dir / f"{site_id}.npz"
+def _load_cached_rows(site_id: str) -> dict[str, NDArray[Any]]:
+    """Map cache key to stored row, reading the runtime then the bundled file.
+
+    A file without a ``keys`` array, or with rows of a second width, is ignored.
+    """
+    rows: dict[str, NDArray[Any]] = {}
+    width: int | None = None
+    for cache_dir in dict.fromkeys((_cache_config.dir, _BUNDLED_CACHE_DIR)):
+        path = _cache_path(cache_dir, site_id)
         if not path.exists():
             continue
         try:
-            data = np.load(path)
-            stored_hash = data.get("hash", None)
-            if stored_hash is not None and str(stored_hash) == catalog_hash:
-                result: NDArray[Any] = data["embeddings"]
-                return result
-        except OSError, ValueError, KeyError:
+            with np.load(path) as data:
+                if "keys" not in data or "embeddings" not in data:
+                    continue
+                keys = data["keys"]
+                embeddings: NDArray[Any] = data["embeddings"]
+            if embeddings.ndim != _STORE_NDIM or len(keys) != embeddings.shape[0]:
+                continue
+            if width is None:
+                width = int(embeddings.shape[1])
+            if int(embeddings.shape[1]) != width:
+                continue
+            for i, key in enumerate(keys):
+                rows.setdefault(str(key), embeddings[i])
+        except OSError, ValueError, KeyError, BadZipFile:
             logger.debug("Cache load failed", path=str(path))
-    return None
+    return rows
 
 
-def _save_cache(site_id: str, catalog_hash: str, embeddings: NDArray[Any]) -> None:
-    """Save embeddings to the runtime cache directory."""
+def _save_cache(site_id: str, rows: dict[str, NDArray[Any]]) -> None:
+    """Replace the site's cache file with exactly the given rows."""
     _cache_config.dir.mkdir(parents=True, exist_ok=True)
-    path = _cache_path(site_id)
+    path = _cache_path(_cache_config.dir, site_id)
+    # Processes share the cache directory, so a reader never sees a partial file.
+    staged = path.with_name(f"{path.stem}.{os.getpid()}.staged.npz")
     try:
-        np.savez_compressed(path, embeddings=embeddings, hash=np.array(catalog_hash))
+        np.savez_compressed(
+            staged,
+            keys=np.array(list(rows)),
+            embeddings=np.array(list(rows.values())),
+        )
+        staged.replace(path)
     except OSError:
         logger.warning("Failed to save embedding cache", path=str(path), exc_info=True)
+        staged.unlink(missing_ok=True)
+
+
+def _embed(texts: list[str]) -> list[NDArray[Any]]:
+    """Encode texts with the fastembed model."""
+    model = get_embedding_model()
+    rows = list(model.embed(texts, batch_size=8))
+    gc.collect()
+    return rows
+
+
+async def _encode(entries: list[SearchIndexEntry]) -> list[NDArray[Any]]:
+    """Encode entry texts in a worker thread so the event loop stays free."""
+    if not entries:
+        return []
+    texts = [f"{SEARCH_DOCUMENT_PREFIX}{e.enriched_text}" for e in entries]
+    return await asyncio.to_thread(_embed, texts)
 
 
 @dataclass
@@ -144,6 +141,15 @@ class SearchIndexEntry:
     record_type: str
     enriched_text: str
 
+    @property
+    def cache_key(self) -> str:
+        """Content address of this entry's row.
+
+        The model, the document prefix, and the text all decide the vector.
+        """
+        payload = "\n".join((MODEL_NAME, SEARCH_DOCUMENT_PREFIX, self.enriched_text))
+        return hashlib.sha256(payload.encode()).hexdigest()
+
 
 @dataclass
 class SemanticSearchIndex:
@@ -153,14 +159,15 @@ class SemanticSearchIndex:
     entries: list[SearchIndexEntry] = field(default_factory=list)
     embeddings: NDArray[Any] | None = None
 
-    def build(
+    async def build(
         self,
         searches_by_rt: dict[str, list[WDKSearch]],
         category_labels: dict[str, str] | None = None,
     ) -> None:
         """Build the index from search catalog data.
 
-        The model runs only when the disk cache is missing or stale.
+        The model runs only for entries whose text has no cached row, and it
+        runs in a worker thread so the event loop stays free.
         """
         cats = category_labels or {}
         self.entries = []
@@ -179,32 +186,48 @@ class SemanticSearchIndex:
         if not self.entries:
             return
 
-        h = _catalog_hash(self.entries)
+        # Canonical order: one catalog content gives one entry sequence and one
+        # stored file, whatever order the fetch returned.
+        self.entries.sort(key=lambda e: (e.record_type, e.search_name))
 
-        cached = _try_load_cache(self.site_id, h)
-        if cached is not None and cached.shape[0] == len(self.entries):
-            self.embeddings = cached
-            logger.info(
-                "Loaded embeddings from cache",
-                site_id=self.site_id,
-                num_entries=len(self.entries),
-            )
-            return
+        cached = _load_cached_rows(self.site_id)
+        stored_keys = set(cached)
+        pending = [e for e in self.entries if e.cache_key not in cached]
+        fresh = await _encode(pending)
 
-        model = get_embedding_model()
-        texts = [f"{SEARCH_DOCUMENT_PREFIX}{e.enriched_text}" for e in self.entries]
-        self.embeddings = np.array(list(model.embed(texts, batch_size=8)))
-        _save_cache(self.site_id, h, self.embeddings)
-        # Release the encoding intermediates before the next site.
-        del texts
-        gc.collect()
+        if fresh and cached:
+            model_width = int(fresh[0].shape[0])
+            cached_width = int(next(iter(cached.values())).shape[0])
+            if model_width != cached_width:
+                logger.info(
+                    "Cached rows do not match the model width, re-encoding the site",
+                    site_id=self.site_id,
+                    cached_width=cached_width,
+                    model_width=model_width,
+                )
+                cached = {}
+                pending = list(self.entries)
+                fresh = await _encode(pending)
+
+        fresh_rows = iter(fresh)
+        store: dict[str, NDArray[Any]] = {}
+        rows: list[NDArray[Any]] = []
+        for entry in self.entries:
+            key = entry.cache_key
+            row = cached[key] if key in cached else next(fresh_rows)
+            rows.append(row)
+            store[key] = row
+        self.embeddings = np.array(rows)
+
+        if pending or stored_keys != set(store):
+            _save_cache(self.site_id, store)
+
         logger.info(
-            "Semantic search index built and cached",
+            "Semantic search index ready",
             site_id=self.site_id,
             num_entries=len(self.entries),
-            embedding_dim=self.embeddings.shape[1]
-            if self.embeddings is not None
-            else 0,
+            encoded=len(pending),
+            embedding_dim=int(self.embeddings.shape[1]),
         )
 
     def query(self, query_text: str, top_k: int = 20) -> list[tuple[str, str, float]]:

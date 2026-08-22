@@ -10,10 +10,14 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.ai.conversation.event_stream import iter_sse
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
-from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.assistant_core.conversation.event_stream import iter_sse
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
+from pathfinder.assistant_core.conversation.ui_message_reducer import user_message_chunk
+from pathfinder.persistence.models import (
+    Conversation,
+    ConversationStrategy,
+    User,
+)
 from pathfinder.platform.security import create_user_token
 from pathfinder.tests._support.chunk_log import reduce_chunks_to_messages
 
@@ -46,13 +50,13 @@ async def conversation(
         id=uuid4(),
         user_id=seed_user.id,
         site_id="plasmodb",
-        record_type="transcript",
         name="snapshot-fixture",
-        step_count=0,
-        strategy_ast={},
     )
     db_session.add(conv)
     await db_session.flush()
+    db_session.add(
+        ConversationStrategy(conversation_id=conv.id, record_type="transcript"),
+    )
     await db_session.commit()
     return conv
 

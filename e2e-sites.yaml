@@ -1,0 +1,42 @@
+# E2E site set: the portal plus the five component sites the suite drives.
+# Entries copied from the bundled sites.yaml; base URLs must stay identical.
+
+sites:
+  veupathdb:
+    name: VEuPathDB
+    display_name: VEuPathDB Portal (All organisms)
+    base_url: https://veupathdb.org/veupathdb/service
+    project_id: EuPathDB
+    is_portal: true
+  plasmodb:
+    name: PlasmoDB
+    display_name: PlasmoDB (Plasmodium)
+    base_url: https://plasmodb.org/plasmo/service
+    project_id: PlasmoDB
+    is_portal: false
+  toxodb:
+    name: ToxoDB
+    display_name: ToxoDB (Toxoplasma)
+    base_url: https://toxodb.org/toxo/service
+    project_id: ToxoDB
+    is_portal: false
+  cryptodb:
+    name: CryptoDB
+    display_name: CryptoDB (Cryptosporidium)
+    base_url: https://cryptodb.org/cryptodb/service
+    project_id: CryptoDB
+    is_portal: false
+  tritrypdb:
+    name: TriTrypDB
+    display_name: TriTrypDB (Kinetoplastids)
+    base_url: https://tritrypdb.org/tritrypdb/service
+    project_id: TriTrypDB
+    is_portal: false
+  fungidb:
+    name: FungiDB
+    display_name: FungiDB (Fungi)
+    base_url: https://fungidb.org/fungidb/service
+    project_id: FungiDB
+    is_portal: false
+
+default_site: veupathdb

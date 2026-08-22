@@ -13,6 +13,7 @@ from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 
+from pathfinder.ai.agents.tool_vocabulary import SEARCH_LOOKUP_TOOLS
 from pathfinder.ai.capabilities.error_classification import (
     ErrorCategory,
     build_error_directive,
@@ -438,7 +439,7 @@ class TestOnToolExecuteError:
 
     @pytest.mark.asyncio
     async def test_wdk_404_returns_directive_string(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         error = WDKError("search not found", status=404)
         result: Any = await capability.on_tool_execute_error(
@@ -455,7 +456,7 @@ class TestOnToolExecuteError:
 
     @pytest.mark.asyncio
     async def test_wdk_500_raises_model_retry(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         error = WDKError("server error", status=500)
         with pytest.raises(ModelRetry):
@@ -469,7 +470,7 @@ class TestOnToolExecuteError:
 
     @pytest.mark.asyncio
     async def test_timeout_raises_model_retry(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         error = httpx.TimeoutException("connection timed out")
         with pytest.raises(ModelRetry):
@@ -483,7 +484,7 @@ class TestOnToolExecuteError:
 
     @pytest.mark.asyncio
     async def test_unknown_error_returns_generic_directive(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         error = KeyError("missing key")
         result: Any = await capability.on_tool_execute_error(
@@ -499,7 +500,7 @@ class TestOnToolExecuteError:
 
     @pytest.mark.asyncio
     async def test_persistent_5xx_on_same_search_gives_up_after_threshold(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         ctx.deps.service_outage = ServiceOutageMemory()
         error = WDKError("server error", status=500)
@@ -525,7 +526,7 @@ class TestOnToolExecuteError:
 
     @pytest.mark.asyncio
     async def test_persistent_5xx_tracks_searches_independently(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         ctx.deps.service_outage = ServiceOutageMemory()
         error = WDKError("server error", status=500)
@@ -541,7 +542,7 @@ class TestOnToolExecuteError:
 
     @pytest.mark.asyncio
     async def test_transient_without_search_name_still_retries(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         ctx.deps.service_outage = ServiceOutageMemory()
         error = WDKError("server error", status=500)
@@ -557,7 +558,7 @@ class TestOnToolExecuteError:
 
     @pytest.mark.asyncio
     async def test_permanent_error_returns_service_unavailable(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         error = RuntimeError("Web search service not configured")
         result: Any = await capability.on_tool_execute_error(
@@ -576,7 +577,7 @@ class TestPrepareTools:
 
     @pytest.mark.asyncio
     async def test_removes_tool_after_threshold(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         ctx.retries = {"get_record_types": 3}
         tool_defs = [
@@ -590,7 +591,7 @@ class TestPrepareTools:
 
     @pytest.mark.asyncio
     async def test_keeps_tools_below_threshold(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         ctx.retries = {"get_record_types": 2}
         tool_defs = [
@@ -604,7 +605,7 @@ class TestPrepareTools:
 
     @pytest.mark.asyncio
     async def test_no_retries_keeps_all_tools(self) -> None:
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         ctx.retries = {}
         tool_defs = [
@@ -634,7 +635,7 @@ class TestOnToolValidateError:
         except PydanticValidationError as exc:
             error = exc
 
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         with pytest.raises(ModelRetry) as excinfo:
             await capability.on_tool_validate_error(
@@ -661,7 +662,7 @@ class TestOnToolValidateError:
         except PydanticValidationError as exc:
             error = exc
 
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         with pytest.raises(PydanticValidationError):
             await capability.on_tool_validate_error(
@@ -683,7 +684,7 @@ class TestOnToolValidateError:
         except PydanticValidationError as exc:
             error = exc
 
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         with pytest.raises(PydanticValidationError):
             await capability.on_tool_validate_error(
@@ -713,7 +714,7 @@ class TestOnToolValidateError:
         except PydanticValidationError as exc:
             error = exc
 
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         with pytest.raises(ModelRetry) as excinfo:
             await capability.on_tool_validate_error(
@@ -744,7 +745,7 @@ class TestOnToolValidateError:
         except PydanticValidationError as exc:
             error = exc
 
-        capability = ToolResilience()
+        capability = ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS)
         ctx = _make_ctx()
         with pytest.raises(ModelRetry) as excinfo:
             await capability.on_tool_validate_error(

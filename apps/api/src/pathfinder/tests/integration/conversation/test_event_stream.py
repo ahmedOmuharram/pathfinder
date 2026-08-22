@@ -6,8 +6,8 @@ from uuid import UUID, uuid4
 import pytest
 
 import pathfinder.platform.db as session_module
-from pathfinder.ai.conversation.event_stream import replay_and_tail
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.assistant_core.conversation.event_stream import replay_and_tail
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
 from pathfinder.persistence.models import Conversation, User
 
 

@@ -3,11 +3,12 @@ import warnings
 
 from pydantic_ai import PydanticAIDeprecationWarning
 
+from pathfinder.ai.lead.lead_agent import build_lead_agent
+
 _AGENT_MODULES = (
     "pathfinder.ai.agents.frame",
     "pathfinder.ai.agents.execution",
     "pathfinder.ai.agents.verification",
-    "pathfinder.ai.lead.lead_agent",
 )
 
 
@@ -21,6 +22,7 @@ def test_phase_and_lead_agents_construct_without_pydantic_ai_deprecation() -> No
         warnings.simplefilter("always")
         for name in _AGENT_MODULES:
             importlib.reload(importlib.import_module(name))
+        build_lead_agent()
 
     offenders = [
         str(w.message)

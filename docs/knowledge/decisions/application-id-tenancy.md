@@ -32,7 +32,7 @@ helper raises it.
 
 **Memories move under the application.** The namespace is
 `("app", <application>, "user", <user>, <kind>)`, built in one function
-(`ai/memory/store.py::memory_namespace`), so a memory written by one assistant
+(`assistant_core/memory/store.py::memory_namespace`), so a memory written by one assistant
 is invisible to another and a tombstone blocks re-writing only in the
 application that wrote it.
 
@@ -67,7 +67,10 @@ dismisses or deletes the conversations, gene sets, experiments and control sets
 of the calling application, and leaves the same user's data under every other
 application untouched, because a caller that cannot read a resource must not be
 able to destroy it. `deleteWdk=true` deletes on VEuPathDB only the strategies
-those conversations built (`wdk_strategy_id`), never a saved strategy a chat
+those conversations built (each thread's `wdk_strategy_id`, which now lives on
+its strategy attachment, see
+[the thread/strategy split](conversation-thread-and-strategy-split.md)),
+never a saved strategy a chat
 merely imported: nothing records whether such a strategy came from PathFinder
 or from the user's own work on the website, and another conversation may still
 consume it. A person who wants everything erased across every assistant

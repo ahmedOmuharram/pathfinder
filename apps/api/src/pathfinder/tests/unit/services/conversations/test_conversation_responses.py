@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from pathfinder.domain.strategy.revision import strategy_revision
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.models import Conversation, ConversationStrategy
 from pathfinder.services.conversations.responses import (
     build_conversation_response,
     build_conversation_summary,
@@ -38,23 +38,28 @@ def _ast(fold_change: str = "1", description: str | None = None) -> StrategyAst:
 
 def _conversation(ast: StrategyAst | None) -> Conversation:
     now = datetime.now(UTC)
-    return Conversation(
+    conversation = Conversation(
         id=uuid4(),
         user_id=uuid4(),
         site_id="plasmodb",
         name="Gametocyte markers",
+        created_at=now,
+        updated_at=now,
+    )
+    conversation.strategy = ConversationStrategy(
+        conversation_id=conversation.id,
         is_saved=True,
         step_count=1,
         gene_set_auto_imported=False,
         imported_saved_strategy_ids=[],
+        estimated_size=None,
         strategy_ast=(
             ast.model_dump(by_alias=True, exclude_none=True, mode="json")
             if ast is not None
             else {}
         ),
-        created_at=now,
-        updated_at=now,
     )
+    return conversation
 
 
 def test_summary_surfaces_the_saved_strategy_description() -> None:

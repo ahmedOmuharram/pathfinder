@@ -32,12 +32,12 @@ from pathfinder.ai.graph._lead_turn import (
 )
 from pathfinder.ai.graph.lead_node import _absorb_run_result
 from pathfinder.ai.graph.runtime import Context
-from pathfinder.ai.graph.state import (
-    PipelineState,
+from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.assistant_core.graph.turn_state import (
     SubAgentApprovalCall,
     SubAgentApprovalPending,
 )
-from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService

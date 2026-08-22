@@ -11,8 +11,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from pathfinder.persistence.models import Conversation
-from pathfinder.persistence.repositories.conversation import ConversationUpdate
+from pathfinder.persistence.models import Conversation, ConversationStrategy
+from pathfinder.persistence.repositories.conversation_update import (
+    ConversationUpdate,
+)
 from pathfinder.services.gene_sets.operations import EmptyGeneSetError
 from pathfinder.services.gene_sets.types import GeneSet
 from pathfinder.services.gene_sets.wdk_helpers import GeneSetWdkContext
@@ -73,20 +75,25 @@ class _StubGeneSetService:
 
 def _conversation() -> Conversation:
     now = datetime.now(UTC)
-    return Conversation(
+    conversation = Conversation(
         id=uuid4(),
         user_id=uuid4(),
         site_id="plasmodb",
         name="Gametocyte markers",
+        created_at=now,
+        updated_at=now,
+    )
+    conversation.strategy = ConversationStrategy(
+        conversation_id=conversation.id,
         wdk_strategy_id=330517023,
         gene_set_id=None,
         gene_set_auto_imported=False,
         is_saved=False,
         step_count=1,
+        strategy_ast={},
         imported_saved_strategy_ids=[],
-        created_at=now,
-        updated_at=now,
     )
+    return conversation
 
 
 async def _run(

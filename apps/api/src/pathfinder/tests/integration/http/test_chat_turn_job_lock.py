@@ -65,7 +65,6 @@ async def _make_conversation(session: AsyncSession, owner_id: UUID, name: str) -
         user_id=owner_id,
         site_id="plasmodb",
         name=name,
-        experiment_id=None,
     )
     session.add(conversation)
     await session.flush()

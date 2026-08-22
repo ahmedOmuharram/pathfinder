@@ -45,7 +45,7 @@ def _unconvertible() -> OperationalSpec:
 
 def _ctx(spec: OperationalSpec) -> Any:
     ctx = MagicMock()
-    ctx.deps.state.operational_spec = spec
+    ctx.deps.state.domain.operational_spec = spec
     ctx.deps.runtime.user_id = uuid4()
     return ctx
 

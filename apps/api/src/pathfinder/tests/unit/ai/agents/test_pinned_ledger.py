@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-from pathfinder.ai.agents._instructions import pinned_ledger
+from pathfinder.ai.agents.strategy_instructions import pinned_ledger
 
 
 def _ctx(ledger_summary: str) -> Any:

@@ -25,9 +25,13 @@ from uuid import UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.persistence.models import Conversation, ExperimentRow
-from pathfinder.persistence.repositories.conversation import (
-    ConversationRepository,
+from pathfinder.persistence.models import (
+    Conversation,
+    ConversationStrategy,
+    ExperimentRow,
+)
+from pathfinder.persistence.repositories.conversation import ConversationRepository
+from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
 from pathfinder.platform.context import calling_application
@@ -79,7 +83,6 @@ async def begin_conversation(
             application_id=application_id,
             site_id=site_id,
             name=DEFAULT_NEW_CONVERSATION_NAME,
-            experiment_id=experiment_id,
         )
         .on_conflict_do_nothing(index_elements=["id"])
         .returning(Conversation.id)
@@ -93,6 +96,15 @@ async def begin_conversation(
     if not is_new:
         existing = await get_owned_or_404(repo, conversation_id, user_id)
         return BeginResult(conversation=existing, is_new=False)
+
+    if experiment_id is not None:
+        session.add(
+            ConversationStrategy(
+                conversation_id=conversation_id,
+                experiment_id=experiment_id,
+            ),
+        )
+        await session.flush()
 
     conversation = await repo.get_by_id(conversation_id)
     if conversation is None:

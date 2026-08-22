@@ -6,12 +6,12 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from fastapi.responses import Response, StreamingResponse
 
-from pathfinder.ai.conversation.event_stream import (
+from pathfinder.assistant_core.conversation.event_stream import (
     fetch_snapshot_chunks,
     iter_sse,
     latest_event,
 )
-from pathfinder.ai.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
+from pathfinder.assistant_core.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.conversations.authz import assert_owner
 from pathfinder.services.tasks.background import has_active_task

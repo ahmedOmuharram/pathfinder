@@ -25,9 +25,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.runtime import Context
-from pathfinder.ai.graph.state import PendingApproval, PipelineState
-from pathfinder.ai.graph.stream_events import lead_usage_event, turn_usage_event
+from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.lead_agent import LeadResponse
+from pathfinder.assistant_core.graph.stream_events import (
+    lead_usage_event,
+    turn_usage_event,
+)
+from pathfinder.assistant_core.graph.turn_state import PendingApproval
 from pathfinder.platform.logging import get_logger
 from pathfinder.services import quota as quota_service
 
@@ -119,16 +123,6 @@ def _emit_residual_prose(
     _emit_chunk(writer, TextStartChunk(id=chunk_id))
     _emit_chunk(writer, TextDeltaChunk(id=chunk_id, delta=response.prose))
     _emit_chunk(writer, TextEndChunk(id=chunk_id))
-
-
-def _model_id(agent: Any) -> str:
-    model = agent.model
-    if model is None:
-        return ""
-    if isinstance(model, str):
-        return model
-    raw: Any = model.model_id
-    return str(raw)
 
 
 def _split_agent_model(agent_model: str) -> tuple[str | None, str | None]:

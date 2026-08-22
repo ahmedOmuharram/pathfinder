@@ -5,9 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from langgraph.store.postgres.aio import AsyncPostgresStore
 
-from pathfinder.ai.memory.schemas import MemoryKind
-from pathfinder.ai.memory.store import MemoryStore, StoredMemory
-from pathfinder.ai.memory.tombstones import TombstoneRepository
+from pathfinder.assistant_core.memory.schemas import MemoryKind
+from pathfinder.assistant_core.memory.store import MemoryStore, StoredMemory
+from pathfinder.assistant_core.memory.tombstones import TombstoneRepository
 from pathfinder.platform.db import async_session_factory
 from pathfinder.transport.http.deps import CurrentUser
 from pathfinder.transport.http.schemas.memories import (

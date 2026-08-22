@@ -1,30 +1,7 @@
 import { test, expect } from "../fixtures/test";
-import type { APIResponse } from "@playwright/test";
-
-interface AstNode {
-  id?: string;
-  searchName?: string | null;
-  operator?: string | null;
-  primaryInput?: AstNode | null;
-  secondaryInput?: AstNode | null;
-  [k: string]: unknown;
-}
-
-function collect(value: unknown, out: AstNode[]): void {
-  if (value === null || typeof value !== "object") return;
-  const node = value as AstNode;
-  if (typeof node.id === "string") out.push(node);
-  for (const child of Object.values(node)) collect(child, out);
-}
+import { COMBINE_SEARCH_NAME, astNodes, combineNode } from "../fixtures/ast";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-async function astNodes(resp: APIResponse): Promise<AstNode[]> {
-  expect(resp.status()).toBe(200);
-  const out: AstNode[] = [];
-  collect((await resp.json()) as unknown, out);
-  return out;
-}
 
 test.describe("Execution phase (build strategy through the UI)", () => {
   test.beforeEach(async ({ chatPage, sitePicker }) => {
@@ -39,7 +16,7 @@ test.describe("Execution phase (build strategy through the UI)", () => {
     apiClient,
   }) => {
     await chatPage.send("create delegation");
-    await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     const conversationId = chatPage.lastStrategyId as string;
@@ -76,23 +53,31 @@ test.describe("Execution phase (build strategy through the UI)", () => {
 
     const conversationId = chatPage.lastStrategyId as string;
     expect(conversationId).toMatch(UUID_RE);
-    const nodes = await astNodes(
-      await apiClient.get(`/api/v1/conversations/${conversationId}/ast`),
-    );
-    expect(nodes.map((n) => n.id).sort()).toEqual([
-      "ec_kinases",
-      "interpro_kinases",
-      "interpro_or_go",
+    const astUrl = `/api/v1/conversations/${conversationId}/ast`;
+
+    const nodes = await astNodes(await apiClient.get(astUrl));
+    expect(nodes).toHaveLength(3);
+    expect(nodes.map((n) => n.searchName).sort()).toEqual([
+      "GenesByTaxon",
+      "GenesByText",
+      COMBINE_SEARCH_NAME,
     ]);
-    const combine = nodes.find((n) => n.id === "interpro_or_go");
-    expect(combine?.operator).toBe("UNION");
+    const combine = await combineNode(await apiClient.get(astUrl));
+    expect(combine.operator).toBe("UNION");
+    // Both leaves feed the combine, rather than one hanging unattached.
+    expect([combine.primaryInput?.id, combine.secondaryInput?.id].sort()).toEqual(
+      nodes
+        .filter((n) => n.searchName !== COMBINE_SEARCH_NAME)
+        .map((n) => n.id)
+        .sort(),
+    );
 
     await graphPage.goToStrategy("plasmodb", conversationId);
     await graphPage.expectStrategyTopbar();
     await graphPage.expectNodeCount(3);
-    await graphPage.expectNodeVisible("interpro_kinases");
-    await graphPage.expectNodeVisible("ec_kinases");
-    await graphPage.expectNodeVisible("interpro_or_go");
+    for (const node of nodes) {
+      await graphPage.expectNodeVisible(node.id as string);
+    }
     await expect(graphPage.strategyPageStepCount).toContainText("3");
     await expect(graphPage.strategyPageSyncState).toHaveAttribute(
       "data-sync-state",

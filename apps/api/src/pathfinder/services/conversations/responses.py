@@ -98,7 +98,7 @@ def extract_root_step_id(
     return fallback_root_step_id
 
 
-def _parse_strategy_ast(plan_raw: JSONObject) -> StrategyAst | None:
+def _parse_strategy_ast(plan_raw: JSONObject | None) -> StrategyAst | None:
     if not plan_raw or "root" not in plan_raw:
         return None
     try:
@@ -112,7 +112,9 @@ def conversation_strategy_revision(conversation: Conversation | None) -> str:
     """Fingerprint the conversation's persisted strategy; ``""`` when absent."""
     if conversation is None:
         return ""
-    return strategy_revision(_parse_strategy_ast(conversation.strategy_ast))
+    return strategy_revision(
+        _parse_strategy_ast(conversation.strategy_view.strategy_ast),
+    )
 
 
 def build_conversation_response(
@@ -122,9 +124,10 @@ def build_conversation_response(
     total_cost_usd: Decimal | None = None,
 ) -> ConversationResponse:
     """Build a detail-view ``ConversationResponse`` from a ``Conversation``."""
-    payload = _parse_strategy_ast(conversation.strategy_ast)
+    strategy = conversation.strategy_view
+    payload = _parse_strategy_ast(strategy.strategy_ast)
     root_step_id = extract_root_step_id(payload)
-    wdk_url = _compute_wdk_url(conversation.site_id, conversation.wdk_strategy_id)
+    wdk_url = _compute_wdk_url(conversation.site_id, strategy.wdk_strategy_id)
 
     return ConversationResponse(
         id=conversation.id,
@@ -132,14 +135,14 @@ def build_conversation_response(
         title=conversation.name,
         description=extract_strategy_description(payload),
         site_id=conversation.site_id,
-        record_type=conversation.record_type,
+        record_type=strategy.record_type,
         steps=derive_steps_from_strategy_ast(payload),
         root_step_id=root_step_id,
-        wdk_strategy_id=conversation.wdk_strategy_id,
+        wdk_strategy_id=strategy.wdk_strategy_id,
         wdk_url=wdk_url,
-        gene_set_id=conversation.gene_set_id,
-        experiment_id=conversation.experiment_id,
-        is_saved=conversation.is_saved,
+        gene_set_id=strategy.gene_set_id,
+        experiment_id=strategy.experiment_id,
+        is_saved=strategy.is_saved,
         created_at=conversation.created_at or datetime.now(UTC),
         updated_at=conversation.updated_at or datetime.now(UTC),
         dismissed_at=conversation.dismissed_at,
@@ -157,9 +160,10 @@ def build_conversation_summary(
     site_id: str = "",
 ) -> ConversationResponse:
     """Build a list-view ``ConversationResponse`` (steps=[]) from a ``Conversation``."""
+    strategy = conversation.strategy_view
     effective_site_id = site_id or conversation.site_id
-    wdk_url = _compute_wdk_url(effective_site_id, conversation.wdk_strategy_id)
-    payload = _parse_strategy_ast(conversation.strategy_ast)
+    wdk_url = _compute_wdk_url(effective_site_id, strategy.wdk_strategy_id)
+    payload = _parse_strategy_ast(strategy.strategy_ast)
 
     return ConversationResponse(
         id=conversation.id,
@@ -167,14 +171,14 @@ def build_conversation_summary(
         title=conversation.name,
         description=extract_strategy_description(payload),
         site_id=effective_site_id,
-        record_type=conversation.record_type,
-        wdk_strategy_id=conversation.wdk_strategy_id,
+        record_type=strategy.record_type,
+        wdk_strategy_id=strategy.wdk_strategy_id,
         wdk_url=wdk_url,
-        gene_set_id=conversation.gene_set_id,
-        experiment_id=conversation.experiment_id,
-        is_saved=conversation.is_saved,
-        step_count=conversation.step_count,
-        estimated_size=conversation.estimated_size,
+        gene_set_id=strategy.gene_set_id,
+        experiment_id=strategy.experiment_id,
+        is_saved=strategy.is_saved,
+        step_count=strategy.step_count,
+        estimated_size=strategy.estimated_size,
         created_at=conversation.created_at or datetime.now(UTC),
         updated_at=conversation.updated_at or datetime.now(UTC),
         dismissed_at=conversation.dismissed_at,

@@ -70,7 +70,6 @@ async def test_chat_rejects_a_conversation_owned_by_another_user(
         user_id=owner.id,
         site_id="plasmodb",
         name="Owner kinases",
-        experiment_id=None,
     )
     db_session.add(conversation)
     await db_session.flush()

@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 
 import pathfinder.platform.db as session_module
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.persistence.models import Conversation
 from pathfinder.platform.security import create_user_token

@@ -7,15 +7,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.capabilities.security import scan_user_input
-from pathfinder.ai.conversation.event_stream import (
+from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.assistant_core.conversation.event_stream import (
     iter_sse,
     latest_turn_boundary,
 )
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
-from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
-from pathfinder.ai.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
-from pathfinder.ai.graph.stream_events import turn_status_event
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
+from pathfinder.assistant_core.conversation.ui_message_reducer import user_message_chunk
+from pathfinder.assistant_core.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
+from pathfinder.assistant_core.graph.stream_events import turn_status_event
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
 from pathfinder.persistence.models import ConversationEvent

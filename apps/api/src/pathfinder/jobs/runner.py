@@ -26,12 +26,15 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 )
 
 from pathfinder.ai.conversation._turn_helpers import _interrupt_chunks
-from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.ai.conversation.event_writer import ChatEventWriter, ChatWriter
 from pathfinder.ai.graph._llm_capture import capture_llm
-from pathfinder.ai.graph.builder import build_graph
-from pathfinder.ai.memory.lifespan import lifespan_memory_store
-from pathfinder.ai.memory.store import MemoryStore
+from pathfinder.ai.graph.composition import build_pathfinder_graph
+from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.assistant_core.conversation.event_writer import (
+    ChatEventWriter,
+    ChatWriter,
+)
+from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
+from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.jobs.auth_context import (
     attach_conversation_application,
     attach_user_id,
@@ -278,7 +281,7 @@ async def _resume_graph(
         lifespan_checkpointer(settings.database_url) as saver,
         lifespan_memory_store(settings.database_url) as raw_memory,
     ):
-        graph = build_graph(checkpointer=saver)
+        graph = build_pathfinder_graph(checkpointer=saver)
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         snapshot = await graph.aget_state(config)
         if not snapshot.next:

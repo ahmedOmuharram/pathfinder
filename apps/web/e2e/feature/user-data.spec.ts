@@ -68,6 +68,22 @@ test.describe("User Data Purge", () => {
     apiClient,
     sitePicker,
   }) => {
+    // The shared WDK account carries strategies this test did not create.
+    // Import them first so the purge dismisses their projections; the
+    // invariant under test is that a dismissed projection is not resurrected.
+    const knownWdkIds = new Set<number>();
+    for (const siteId of ["plasmodb", "toxodb"]) {
+      const preSync = await apiClient.post(
+        `/api/v1/conversations/sync-wdk?siteId=${siteId}`,
+      );
+      if (preSync.ok()) {
+        const imported = (await preSync.json()) as { wdkStrategyId?: number }[];
+        for (const conv of imported) {
+          if (conv.wdkStrategyId) knownWdkIds.add(conv.wdkStrategyId);
+        }
+      }
+    }
+
     // Create data on two different sites
     await chatPage.goto();
 
@@ -100,18 +116,22 @@ test.describe("User Data Purge", () => {
     const afterToxo = await apiClient.get("/api/v1/conversations?siteId=toxodb");
     expect((await afterToxo.json()).length).toBe(0);
 
-    // Sync-wdk should NOT re-import dismissed strategies into the active list.
-    // WDK strategies still exist (deleteWdk=false), but dismissed projections
-    // must be skipped by the sync — no new active strategies should appear.
+    // Sync-wdk must NOT re-import dismissed strategies into the active list.
+    // The WDK strategies still exist (deleteWdk=false), so the check is on
+    // identity, not count: no strategy imported before the purge may come
+    // back. Strategies another worker creates concurrently are not ours.
     for (const siteId of ["plasmodb", "toxodb"]) {
       const syncResp = await apiClient.post(
         `/api/v1/conversations/sync-wdk?siteId=${siteId}`,
       );
       if (syncResp.ok()) {
-        const synced = (await syncResp.json()) as unknown[];
+        const synced = (await syncResp.json()) as { wdkStrategyId?: number }[];
+        const resurrected = synced.filter(
+          (conv) => conv.wdkStrategyId && knownWdkIds.has(conv.wdkStrategyId),
+        );
         expect(
-          synced.length,
-          `sync-wdk re-imported ${synced.length} active strategies on ${siteId} after dismiss purge`,
+          resurrected.length,
+          `sync-wdk resurrected ${resurrected.length} dismissed strategies on ${siteId} after purge`,
         ).toBe(0);
       }
     }
@@ -135,11 +155,20 @@ test.describe("User Data Purge", () => {
     const seedBody = await seedResp.text();
     expect(seedBody).toContain("seed_complete");
 
-    // Verify: strategies exist
+    // Verify: strategies exist. Their WDK ids are the purge's target set:
+    // the shared account also holds strategies this run did not create, and
+    // the purge must not touch those.
     const beforeStrategies = await apiClient.get("/api/v1/conversations");
-    const beforeList = (await beforeStrategies.json()) as unknown[];
+    const beforeList = (await beforeStrategies.json()) as {
+      wdkStrategyId?: number;
+    }[];
     expect(beforeList.length).toBeGreaterThan(0);
     const strategiesBefore = beforeList.length;
+    const ourWdkIds = new Set<number>();
+    for (const conv of beforeList) {
+      if (conv.wdkStrategyId) ourWdkIds.add(conv.wdkStrategyId);
+    }
+    expect(ourWdkIds.size).toBeGreaterThan(0);
 
     // Verify: gene sets exist
     const beforeGs = await apiClient.get("/api/v1/gene-sets");
@@ -191,28 +220,36 @@ test.describe("User Data Purge", () => {
       expect(((await afterDismissed.json()) as unknown[]).length).toBe(0);
     }
 
-    // CRITICAL: sync-wdk on EVERY site (including portal) must return zero.
-    // This catches strategies surviving on WDK after purge.
+    // CRITICAL: sync-wdk on EVERY site (including portal) must not bring back
+    // any strategy this run created. The check is on identity, not count: the
+    // shared account holds other strategies, and those may import freely.
     for (const siteId of allSiteIds) {
       const syncResp = await apiClient.post(
         `/api/v1/conversations/sync-wdk?siteId=${siteId}`,
       );
       if (syncResp.ok()) {
-        const synced = (await syncResp.json()) as unknown[];
+        const synced = (await syncResp.json()) as { wdkStrategyId?: number }[];
+        const survivors = synced.filter(
+          (conv) => conv.wdkStrategyId && ourWdkIds.has(conv.wdkStrategyId),
+        );
         expect(
-          synced.length,
-          `sync-wdk re-imported ${synced.length} strategies from ${siteId} after purge — WDK deletion failed for this site`,
+          survivors.length,
+          `${survivors.length} purged strategies survived on WDK for ${siteId} — WDK deletion failed for this site`,
         ).toBe(0);
       }
     }
 
-    // Verify per-site: no strategies on any individual site
+    // Verify per-site: none of the purged strategies is listed anywhere.
     for (const siteId of allSiteIds) {
       const resp = await apiClient.get(`/api/v1/conversations?siteId=${siteId}`);
       if (resp.ok()) {
+        const listed = (await resp.json()) as { wdkStrategyId?: number }[];
+        const survivors = listed.filter(
+          (conv) => conv.wdkStrategyId && ourWdkIds.has(conv.wdkStrategyId),
+        );
         expect(
-          ((await resp.json()) as unknown[]).length,
-          `strategies still exist on ${siteId} after purge`,
+          survivors.length,
+          `purged strategies still listed on ${siteId} after purge`,
         ).toBe(0);
       }
     }
@@ -225,8 +262,9 @@ test.describe("User Data Purge", () => {
     // Seed: create a strategy with auto-build (real WDK strategy + gene set)
     await chatPage.goto();
     await chatPage.newChat();
+    // A build prompt ends on the verification digest, not the plain echo.
     await chatPage.send(MOCK_PLAN_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/i);
+    await chatPage.expectVerificationSuccess();
     await chatPage.expectIdle();
 
     // Verify auto-build created real data

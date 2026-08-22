@@ -27,13 +27,9 @@ VALID_REASONING_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high"})
 
 
 def _phase_cfg(preset: TierPreset, phase: str) -> PhaseTierConfig:
-    by_phase: dict[str, PhaseTierConfig] = {
-        "lead": preset.lead,
-        "frame": preset.frame,
-        "execution": preset.execution,
-        "verification": preset.verification,
-    }
-    return by_phase[phase]
+    cfg = preset.for_role(phase)
+    assert cfg is not None, f"preset does not cover phase {phase!r}"
+    return cfg
 
 
 async def _list_tiers() -> TierListResponse:

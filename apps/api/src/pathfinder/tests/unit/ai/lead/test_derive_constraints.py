@@ -6,6 +6,7 @@ from pathfinder.ai.graph.state import (
     ConstraintCheck,
     PhaseDisposition,
     PipelineState,
+    StrategyDomainState,
     VerificationDigest,
 )
 from pathfinder.ai.lead.derive import derive_ledger
@@ -59,7 +60,7 @@ def _state_with_constraint(source: ConstraintSource) -> PipelineState:
         user_id=uuid4(),
         site_id="vectorbase",
         mode="strategy",
-        operational_spec=spec,
+        domain=StrategyDomainState(operational_spec=spec),
     )
 
 
@@ -113,7 +114,7 @@ def test_explicit_turn_constraint_overrides_assumed_spec_and_blocks() -> None:
         user_id=uuid4(),
         site_id="vectorbase",
         mode="strategy",
-        operational_spec=spec,
+        domain=StrategyDomainState(operational_spec=spec),
     )
     ledger = derive_ledger(state, intent)
     assert ledger.constraints.blocking is True

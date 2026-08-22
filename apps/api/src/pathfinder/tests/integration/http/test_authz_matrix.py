@@ -15,8 +15,8 @@ from procrastinate.testing import InMemoryConnector
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.ai.memory.store import MemoryStore
+from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.platform.config import get_settings
 from pathfinder.tests._support.wdk_credentials import (
     NO_CREDENTIALS_REASON,

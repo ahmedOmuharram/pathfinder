@@ -31,4 +31,6 @@ Before shipping, prefer the loud failure. A permissive default that lets a dead 
 
 # Anchor
 
-`ConfigDict(extra="forbid")` on `PipelineState` and migration `2026_08_09_0001`. Guarded by `TestCheckpointsFromBeforeTheFbvFlip` in `tests/unit/ai/graph/test_state.py`, which asserts a pre-flip payload and a typo'd field name both raise.
+`ConfigDict(extra="forbid")` on `TurnState` and `StrategyDomainState`, which `PipelineState` inherits and composes, plus migrations `2026_08_09_0001` and `2026_08_21_0001`. Guarded by `TestCheckpointsFromBeforeTheFbvFlip` in `tests/unit/ai/graph/test_state.py`, which asserts a pre-flip payload and a typo'd field name both raise.
+
+Every state shape change since carries its own flush for the same reason: `2026_08_21_0001` truncates the checkpoint tables because the strategy fields moved under `domain`.

@@ -55,11 +55,12 @@ class InsertSavedParams:
 
 
 def _persisted_graph(conversation: Conversation) -> PersistedStrategyGraph:
+    strategy = conversation.strategy_view
     return PersistedStrategyGraph(
         id=str(conversation.id),
         name=conversation.name,
-        strategy_ast=StrategyAst.model_validate(conversation.strategy_ast),
-        wdk_strategy_id=conversation.wdk_strategy_id,
+        strategy_ast=StrategyAst.model_validate(strategy.strategy_ast),
+        wdk_strategy_id=strategy.wdk_strategy_id,
     )
 
 
@@ -69,12 +70,13 @@ async def get_ast(
     user_id: UUID,
 ) -> JSONObject:
     conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if not conversation.strategy_ast:
+    strategy_ast = conversation.strategy_view.strategy_ast
+    if not strategy_ast:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="Strategy has no plan AST",
         )
-    return conversation.strategy_ast
+    return strategy_ast
 
 
 async def restore(
@@ -113,7 +115,7 @@ async def apply_operation(
     op: GraphOperation,
 ) -> ConversationResponse:
     conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if not conversation.strategy_ast:
+    if not conversation.strategy_view.strategy_ast:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="Strategy AST missing",
@@ -128,10 +130,6 @@ async def apply_operation(
         db_session_factory=_get_session_factory(),
     )
     await apply_and_commit(deps=ctx, op=op)
-    # The commit ran in its own session, so this one still holds the
-    # pre-operation row in its identity map and would hand it straight back -
-    # making the response undo the edit the user just made.
-    repo.session.expire_all()
     refreshed = await repo.get_by_id(conversation_id)
     if refreshed is None:
         raise NotFoundError(
@@ -148,7 +146,7 @@ async def save_substrategy(
     params: SaveSubstrategyParams,
 ) -> SavedSubstrategyResult:
     conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if not conversation.strategy_ast:
+    if not conversation.strategy_view.strategy_ast:
         raise ValidationError(
             title="conversation has no strategy",
             detail="cannot save substrategy from an empty conversation",
@@ -190,7 +188,7 @@ async def insert_saved(
     params: InsertSavedParams,
 ) -> InsertSavedResult:
     conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if not conversation.strategy_ast:
+    if not conversation.strategy_view.strategy_ast:
         raise ValidationError(
             title="conversation has no strategy",
             detail="cannot insert into an empty conversation",

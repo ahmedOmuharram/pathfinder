@@ -69,7 +69,7 @@ Two things were already right and one was not.
 `UsageLimitExceeded`, logs it as a budget rather
 than a failure, and returns `None`; and `_apply_agent_state` runs after every
 inner tool result, so the draft the sub-agent has been writing is already in
-`deps.state.operational_spec` when the ceiling fires. The criteria were never
+`deps.state.domain.operational_spec` when the ceiling fires. The criteria were never
 actually lost.
 
 What was lost was the report. `frame_problem` turned that `None` into

@@ -6,12 +6,20 @@ test.describe("VEuPathDB login gate", () => {
   test("a session with no VEuPathDB login gets the sign-in prompt instead of the app", async ({
     browser,
   }) => {
-    const context = await browser.newContext();
+    // Playwright merges the project's context options into `browser.newContext()`
+    // for every key the caller omits. Naming an empty jar is what keeps this
+    // context free of the worker's signed-in cookies.
+    const context = await browser.newContext({
+      storageState: { cookies: [], origins: [] },
+    });
     const page = await context.newPage();
     await page.goto(`${BASE_URL}/veupathdb/conversation`);
 
-    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("Sign in to VEuPathDB")).toBeVisible();
+    // The prompt replaces the app, so it is undismissable and has no composer.
+    const prompt = page.getByRole("dialog", { name: "Sign in to VEuPathDB" });
+    await expect(prompt).toBeVisible({ timeout: 20_000 });
+    await expect(prompt).toContainText("Sign in with your VEuPathDB account");
+    await expect(prompt.getByRole("button", { name: "Close" })).toHaveCount(0);
     await expect(page.getByTestId("message-composer")).toHaveCount(0);
 
     await context.close();

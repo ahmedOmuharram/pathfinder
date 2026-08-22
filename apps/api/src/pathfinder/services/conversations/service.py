@@ -16,6 +16,7 @@ from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import (
     StrategyAst,
 )
+from pathfinder.persistence.models import ConversationStrategy
 from pathfinder.persistence.repositories import (
     ConversationRepository,
     ConversationUpdate,
@@ -187,7 +188,7 @@ class ConversationService:
                 code=ErrorCode.STRATEGY_NOT_FOUND,
                 title="Strategy not found",
             )
-        if patch.is_saved_set and updated.wdk_strategy_id:
+        if patch.is_saved_set and updated.strategy_view.wdk_strategy_id:
             await sync_is_saved_to_wdk(conversation=updated)
         return build_conversation_response(updated)
 
@@ -211,7 +212,13 @@ class ConversationService:
                 title=str(exc),
             ) from exc
         await self._session.commit()
-        return build_conversation_summary(fork, site_id=fork.site_id)
+        refreshed = await self._repo.get_by_id(fork.id)
+        if refreshed is None:
+            raise NotFoundError(
+                code=ErrorCode.STRATEGY_NOT_FOUND,
+                title="Strategy not found",
+            )
+        return build_conversation_summary(refreshed, site_id=refreshed.site_id)
 
     async def delete(
         self,
@@ -226,7 +233,7 @@ class ConversationService:
             conversation_id,
             user_id,
         )
-        wdk_id = conversation.wdk_strategy_id
+        wdk_id = conversation.strategy_view.wdk_strategy_id
         is_wdk_linked = wdk_id is not None
 
         if is_wdk_linked and delete_from_wdk and wdk_id is not None:
@@ -247,6 +254,7 @@ class ConversationService:
 
         if is_wdk_linked and not delete_from_wdk:
             await self._repo.dismiss(conversation_id)
+            await self._session.commit()
             return
 
         if delete_from_wdk and wdk_id and conversation.site_id:
@@ -260,6 +268,7 @@ class ConversationService:
                     error=str(e),
                 )
         await self._repo.delete(conversation_id, cascade=cascade)
+        await self._session.commit()
 
     async def get_ast(self, conversation_id: UUID, user_id: UUID) -> JSONObject:
         return await strategy_ops.get_ast(self._repo, conversation_id, user_id)
@@ -267,7 +276,9 @@ class ConversationService:
     async def restore(
         self, conversation_id: UUID, user_id: UUID
     ) -> ConversationResponse:
-        return await strategy_ops.restore(self._repo, conversation_id, user_id)
+        restored = await strategy_ops.restore(self._repo, conversation_id, user_id)
+        await self._session.commit()
+        return restored
 
     async def apply_operation(
         self,
@@ -358,10 +369,16 @@ class ConversationService:
         # Carry the strategy over (topology + params). WDK step ids are dropped
         # so the copy re-syncs as its own fresh WDK strategy instead of sharing
         # the source's steps; wdk_strategy_id stays None for the same reason.
-        copied_ast = dict(source.strategy_ast or {})
+        copied_ast = dict(source.strategy_view.strategy_ast)
         copied_ast.pop("wdkStepIds", None)
         copied_ast.pop("wdk_step_ids", None)
-        new_conv.strategy_ast = copied_ast
+        if copied_ast:
+            self._session.add(
+                ConversationStrategy(
+                    conversation_id=new_conv.id,
+                    strategy_ast=copied_ast,
+                ),
+            )
         for row in await msg_repo.list_messages_for_conversation(conversation_id):
             await msg_repo.insert_message(
                 message_id=uuid4(),

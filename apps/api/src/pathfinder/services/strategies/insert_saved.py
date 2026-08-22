@@ -23,8 +23,8 @@ from pathfinder.domain.strategy.graph_model import (
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
-from pathfinder.persistence.repositories.conversation import (
-    ConversationRepository,
+from pathfinder.persistence.repositories.conversation import ConversationRepository
+from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
 from pathfinder.platform.db import DBSessionFactory
@@ -203,7 +203,7 @@ async def _record_consumer(
         conv = await repo.get_by_id(conversation_id)
         if conv is None:
             return
-        existing = list(conv.imported_saved_strategy_ids or [])
+        existing = list(conv.strategy_view.imported_saved_strategy_ids)
         if wdk_strategy_id in existing:
             return
         existing.append(wdk_strategy_id)

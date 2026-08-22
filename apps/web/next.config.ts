@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "2mb",
     },
+    // The API is reached through the `/api/:path*` rewrite below. Next's 30 s
+    // default ends a slower call with its own bare 500, which hides the API's
+    // answer; a purge that also deletes WDK strategies runs longer than that.
+    proxyTimeout: 300_000,
   },
   async rewrites() {
     const apiBase = getConfiguredServerApiBaseUrl();

@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from pathfinder.ai.memory.embedding import embed_text
+from pathfinder.assistant_core.memory.embedding import embed_text
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.impls import register_all_tools
 from pathfinder.jobs.logging_filters import install_procrastinate_redaction

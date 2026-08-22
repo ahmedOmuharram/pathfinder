@@ -7,10 +7,15 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import asc, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import WDKStepTree
-from pathfinder.persistence.models import Conversation, Message
+from pathfinder.persistence.models import (
+    Conversation,
+    ConversationStrategy,
+    Message,
+)
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
@@ -299,7 +304,9 @@ async def fork_conversation(
 ) -> Conversation:
     """Create a fork. ``from_message_id`` is the last message copied over."""
     source = await session.scalar(
-        select(Conversation).where(Conversation.id == source_conversation_id),
+        select(Conversation)
+        .where(Conversation.id == source_conversation_id)
+        .options(selectinload(Conversation.strategy)),
     )
     if source is None or not owned_by_caller(source, user_id):
         msg = "Source conversation not found"
@@ -335,12 +342,13 @@ async def fork_conversation(
         .limit(1),
     )
 
-    forked_ast = dict(source.strategy_ast or {})
+    source_strategy = source.strategy_view
+    forked_ast = dict(source_strategy.strategy_ast)
     new_wdk_strategy_id: int | None = None
-    if source.wdk_strategy_id is not None:
+    if source_strategy.wdk_strategy_id is not None:
         new_wdk_strategy_id = await _duplicate_wdk_strategy(
             site_id=source.site_id,
-            source_wdk_strategy_id=source.wdk_strategy_id,
+            source_wdk_strategy_id=source_strategy.wdk_strategy_id,
             forked_ast=forked_ast,
         )
     if new_wdk_strategy_id is None:
@@ -353,20 +361,30 @@ async def fork_conversation(
         user_id=user_id,
         site_id=source.site_id,
         name=new_name or f"{source.name} (branch)",
-        record_type=source.record_type,
         parent_conversation_id=source_conversation_id,
         parent_message_id=from_message_id,
-        strategy_ast=forked_ast,
-        step_count=source.step_count,
-        gene_set_id=source.gene_set_id,
-        gene_set_auto_imported=source.gene_set_auto_imported,
-        experiment_id=source.experiment_id,
-        wdk_strategy_id=new_wdk_strategy_id,
-        # The fork still embeds the imported subtrees, so it keeps the references.
-        imported_saved_strategy_ids=list(source.imported_saved_strategy_ids or []),
     )
     session.add(fork)
     await session.flush()
+    if source.strategy is not None:
+        session.add(
+            ConversationStrategy(
+                conversation_id=new_conv_id,
+                record_type=source_strategy.record_type,
+                strategy_ast=forked_ast,
+                step_count=source_strategy.step_count,
+                gene_set_id=source_strategy.gene_set_id,
+                gene_set_auto_imported=source_strategy.gene_set_auto_imported,
+                experiment_id=source_strategy.experiment_id,
+                wdk_strategy_id=new_wdk_strategy_id,
+                # The fork still embeds the imported subtrees, so it keeps
+                # the references.
+                imported_saved_strategy_ids=list(
+                    source_strategy.imported_saved_strategy_ids,
+                ),
+            ),
+        )
+        await session.flush()
 
     # Notes copy first so the id map is ready when the chunk copy rewrites
     # tool-call payloads. Checkpoint blobs keep the source note ids.

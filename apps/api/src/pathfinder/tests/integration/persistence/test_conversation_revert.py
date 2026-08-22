@@ -8,8 +8,8 @@ import pytest
 from sqlalchemy import func, select, text
 
 import pathfinder.platform.db as session_module
-from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
+from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.assistant_core.conversation.ui_message_reducer import user_message_chunk
 from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.persistence.models import (
     Conversation,
@@ -63,7 +63,6 @@ async def _seed_conversation(user_id: UUID) -> Conversation:
             user_id=user_id,
             site_id="plasmodb",
             name="",
-            experiment_id=None,
         )
         session.add(row)
         await session.commit()

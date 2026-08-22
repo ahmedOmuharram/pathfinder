@@ -1,37 +1,13 @@
 import { test, expect } from "../fixtures/test";
-import type { APIResponse } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { astNodes, combineOperators, leafIdBySearch } from "../fixtures/ast";
+import type { ChatPage } from "../pages/chat.page";
+import type { SitePickerComponent } from "../pages/site-picker.page";
 
-interface AstNode {
-  id?: string;
-  displayName?: string | null;
-  operator?: string | null;
-  searchName?: string | null;
-  [k: string]: unknown;
-}
-
-function collect(value: unknown, out: AstNode[]): void {
-  if (value === null || typeof value !== "object") return;
-  const node = value as AstNode;
-  if (typeof node.id === "string") out.push(node);
-  for (const child of Object.values(node)) collect(child, out);
-}
-
-async function nodes(resp: APIResponse): Promise<AstNode[]> {
-  expect(resp.ok()).toBeTruthy();
-  const out: AstNode[] = [];
-  collect((await resp.json()) as unknown, out);
-  return out;
-}
-
-async function buildInterpro(
-  chatPage: {
-    goto: () => Promise<void>;
-    newChat: (s: string) => Promise<void>;
-    send: (s: string) => Promise<void>;
-    expectVerificationFeedback: () => Promise<void>;
-    lastStrategyId: string | null;
-  },
-  sitePicker: { selectSite: (s: string) => Promise<void> },
+/** Build the two-leaf kinase strategy and return its conversation id. */
+async function buildTwoLeafStrategy(
+  chatPage: ChatPage,
+  sitePicker: SitePickerComponent,
 ): Promise<string> {
   await chatPage.goto();
   await sitePicker.selectSite("plasmodb");
@@ -53,19 +29,17 @@ test.describe("Duplicate + rename step from UI", () => {
     sitePicker,
     apiClient,
   }) => {
-    const conversationId = await buildInterpro(chatPage, sitePicker);
+    const conversationId = await buildTwoLeafStrategy(chatPage, sitePicker);
     const astUrl = `/api/v1/conversations/${conversationId}/ast`;
 
-    const before = (await nodes(await apiClient.get(astUrl))).length;
-    expect(before).toBe(3);
+    expect((await astNodes(await apiClient.get(astUrl))).length).toBe(3);
+    const leafId = await leafIdBySearch(await apiClient.get(astUrl), "GenesByText");
 
     await graphPage.goToStrategy("plasmodb", conversationId);
     await graphPage.expectStrategyTopbar();
-    await graphPage.expectNodeVisible("interpro_kinases");
+    await graphPage.expectNodeVisible(leafId);
 
-    await page.getByTestId("rf-node-interpro_kinases").hover();
-    await page.getByTestId("rf-more-interpro_kinases").click();
-    await page.getByRole("menuitem", { name: /duplicate step/i }).click();
+    await duplicateNode(page, leafId);
 
     await expect(graphPage.strategyPageSyncState).toHaveAttribute(
       "data-sync-state",
@@ -73,19 +47,19 @@ test.describe("Duplicate + rename step from UI", () => {
       { timeout: 45_000 },
     );
 
+    // The copy arrives with its own combine, so the tree grows by two nodes.
     await expect
-      .poll(async () => (await nodes(await apiClient.get(astUrl))).length, {
+      .poll(async () => (await astNodes(await apiClient.get(astUrl))).length, {
         timeout: 30_000,
       })
       .toBe(5);
 
-    const all = await nodes(await apiClient.get(astUrl));
-    const operators = all
-      .filter((n) => n.searchName === "__combine__")
-      .map((n) => n.operator)
-      .sort();
-    expect(operators).toEqual(["INTERSECT", "UNION"]);
-    expect(all.map((n) => n.id)).toContain("interpro_kinases");
+    expect(await combineOperators(await apiClient.get(astUrl))).toEqual([
+      "INTERSECT",
+      "UNION",
+    ]);
+    const ids = (await astNodes(await apiClient.get(astUrl))).map((n) => n.id);
+    expect(ids).toContain(leafId);
   });
 
   test("renaming a leaf via the editor persists displayName to the AST", async ({
@@ -94,14 +68,15 @@ test.describe("Duplicate + rename step from UI", () => {
     sitePicker,
     apiClient,
   }) => {
-    const conversationId = await buildInterpro(chatPage, sitePicker);
+    const conversationId = await buildTwoLeafStrategy(chatPage, sitePicker);
     const astUrl = `/api/v1/conversations/${conversationId}/ast`;
+    const leafId = await leafIdBySearch(await apiClient.get(astUrl), "GenesByText");
 
     await graphPage.goToStrategy("plasmodb", conversationId);
     await graphPage.expectStrategyTopbar();
-    await graphPage.expectNodeVisible("interpro_kinases");
+    await graphPage.expectNodeVisible(leafId);
 
-    await graphPage.clickNode("interpro_kinases");
+    await graphPage.clickNode(leafId);
     await expect(graphPage.editorSheet).toBeVisible({ timeout: 20_000 });
     const nameInput = graphPage.editorStepNameInput;
     await nameInput.fill("Renamed kinase leaf");
@@ -120,11 +95,17 @@ test.describe("Duplicate + rename step from UI", () => {
     await expect
       .poll(
         async () => {
-          const all = await nodes(await apiClient.get(astUrl));
-          return all.find((n) => n.id === "interpro_kinases")?.displayName;
+          const all = await astNodes(await apiClient.get(astUrl));
+          return all.find((n) => n.id === leafId)?.displayName;
         },
         { timeout: 30_000 },
       )
       .toBe("Renamed kinase leaf");
   });
 });
+
+async function duplicateNode(page: Page, stepId: string): Promise<void> {
+  await page.getByTestId(`rf-node-${stepId}`).hover();
+  await page.getByTestId(`rf-more-${stepId}`).click();
+  await page.getByRole("menuitem", { name: /duplicate step/i }).click();
+}

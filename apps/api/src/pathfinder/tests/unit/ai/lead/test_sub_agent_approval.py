@@ -28,7 +28,7 @@ from pathfinder.ai.agents.execution import execution_agent
 from pathfinder.ai.agents.frame import frame_agent
 from pathfinder.ai.agents.verification import verification_agent
 from pathfinder.ai.graph.runtime import AgentDeps, Context
-from pathfinder.ai.graph.state import PendingApproval, PipelineState
+from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead import sub_agent_stream, sub_agent_tools
 from pathfinder.ai.lead.deltas import FrameResult, RecoveryDelta
 from pathfinder.ai.lead.sub_agent_dispatch import (
@@ -40,6 +40,7 @@ from pathfinder.ai.lead.sub_agent_dispatch import (
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
 from pathfinder.ai.tools.toolsets import execution, verification
+from pathfinder.assistant_core.graph.turn_state import PendingApproval
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
@@ -156,7 +157,7 @@ def _deps(usage_log: list[SubAgentRunUsage] | None = None) -> LeadDeps:
         mode="strategy",
         user_prompt="Tune the RNA-Seq fold change against my controls.",
     )
-    state.last_build_outcome = BuildOutcome(
+    state.domain.last_build_outcome = BuildOutcome(
         pushed_step_ids=["s1", "s2"],
         failed_steps=[],
         root_count=0,

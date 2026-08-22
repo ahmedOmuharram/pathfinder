@@ -1,5 +1,5 @@
 import { test as base } from "@playwright/test";
-import { type ApiClient, createApiClient } from "./api-client";
+import { type ApiClient, CSRF_HEADERS, createApiClient } from "./api-client";
 import { type SeedData, fetchSeedData } from "./seed";
 import { ChatPage } from "../pages/chat.page";
 import { SidebarPage } from "../pages/sidebar.page";
@@ -66,7 +66,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       const resp = await page
         .context()
         .request.post(`${BASE_URL}/api/v1/dev/login?user_id=worker-${id}`, {
-          headers: { "X-Requested-With": "XMLHttpRequest" },
+          headers: CSRF_HEADERS,
         });
       if (!resp.ok()) {
         throw new Error(`dev-login failed for worker-${id}: ${resp.status()}`);
@@ -79,7 +79,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         const strategies = (await strategiesResp.json()) as { id: string }[];
         await Promise.all(
           strategies.map((s) =>
-            req.delete(`${BASE_URL}/api/v1/conversations/${s.id}?deleteFromWdk=true`),
+            req.delete(`${BASE_URL}/api/v1/conversations/${s.id}?deleteFromWdk=true`, {
+              headers: CSRF_HEADERS,
+            }),
           ),
         );
       }
@@ -89,7 +91,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         const dismissed = (await dismissedResp.json()) as { id: string }[];
         await Promise.all(
           dismissed.map((d) =>
-            req.delete(`${BASE_URL}/api/v1/conversations/${d.id}?deleteFromWdk=true`),
+            req.delete(`${BASE_URL}/api/v1/conversations/${d.id}?deleteFromWdk=true`, {
+              headers: CSRF_HEADERS,
+            }),
           ),
         );
       }
@@ -112,7 +116,11 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           if (resp.ok()) {
             const geneSets = (await resp.json()) as { id: string }[];
             await Promise.all(
-              geneSets.map((gs) => req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`)),
+              geneSets.map((gs) =>
+                req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`, {
+                  headers: CSRF_HEADERS,
+                }),
+              ),
             );
           }
         }),
@@ -165,7 +173,11 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           if (resp.ok()) {
             const geneSets = (await resp.json()) as { id: string }[];
             await Promise.all(
-              geneSets.map((gs) => req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`)),
+              geneSets.map((gs) =>
+                req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`, {
+                  headers: CSRF_HEADERS,
+                }),
+              ),
             );
           }
         }),
@@ -177,7 +189,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         const strategies = (await strategiesResp.json()) as { id: string }[];
         await Promise.all(
           strategies.map((s) =>
-            req.delete(`${BASE_URL}/api/v1/conversations/${s.id}?deleteFromWdk=true`),
+            req.delete(`${BASE_URL}/api/v1/conversations/${s.id}?deleteFromWdk=true`, {
+              headers: CSRF_HEADERS,
+            }),
           ),
         );
       }
@@ -187,7 +201,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         const dismissed = (await dismissedResp.json()) as { id: string }[];
         await Promise.all(
           dismissed.map((d) =>
-            req.delete(`${BASE_URL}/api/v1/conversations/${d.id}?deleteFromWdk=true`),
+            req.delete(`${BASE_URL}/api/v1/conversations/${d.id}?deleteFromWdk=true`, {
+              headers: CSRF_HEADERS,
+            }),
           ),
         );
       }

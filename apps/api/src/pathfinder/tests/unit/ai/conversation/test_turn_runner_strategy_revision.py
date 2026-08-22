@@ -19,7 +19,7 @@ from pathfinder.ai.conversation import turn_runner
 from pathfinder.ai.graph.stream_events import strategy_revision_event
 from pathfinder.domain.strategy.revision import strategy_revision
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.models import Conversation, ConversationStrategy
 
 
 @dataclass
@@ -49,23 +49,28 @@ def _ast(fold_change: str = "1") -> StrategyAst:
 
 def _conversation(ast: StrategyAst | None) -> Conversation:
     now = datetime.now(UTC)
-    return Conversation(
+    conversation = Conversation(
         id=uuid4(),
         user_id=uuid4(),
         site_id="plasmodb",
         name="Gametocyte markers",
+        created_at=now,
+        updated_at=now,
+    )
+    conversation.strategy = ConversationStrategy(
+        conversation_id=conversation.id,
         is_saved=False,
         step_count=1,
         gene_set_auto_imported=False,
         imported_saved_strategy_ids=[],
+        estimated_size=None,
         strategy_ast=(
             ast.model_dump(by_alias=True, exclude_none=True, mode="json")
             if ast is not None
             else {}
         ),
-        created_at=now,
-        updated_at=now,
     )
+    return conversation
 
 
 def _install_conversation(

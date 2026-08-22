@@ -123,8 +123,8 @@ const UnknownDataPartError: DataMessagePartComponent<unknown> = ({ name }) => {
     reportedUnknownDataKinds.add(name);
     toast.error(`Unknown data part: data-${name}`, {
       description:
-        "No renderer registered for this kind. Add one in " +
-        "content/contentComponents.ts or stop emitting it from the backend.",
+        "No renderer registered for this kind. Add one in content/coreDataParts.ts " +
+        "or content/strategyDataParts.ts, or stop emitting it from the backend.",
     });
   }
   return null;

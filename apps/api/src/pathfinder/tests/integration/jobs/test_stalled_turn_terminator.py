@@ -13,8 +13,8 @@ from uuid import UUID, uuid4
 from procrastinate.testing import InMemoryConnector
 from sqlalchemy import select
 
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
 from pathfinder.jobs.maintenance import release_stalled_jobs
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job

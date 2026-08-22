@@ -10,11 +10,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from pathfinder.ai.graph._lead_turn import write_turn_message
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
-from pathfinder.ai.graph.stream_events import scratchpad_updated_event
-from pathfinder.ai.memory.autowrite import auto_write_memories
-from pathfinder.ai.memory.store import MemoryStore
-from pathfinder.ai.memory.tombstones import TombstoneRepository
+from pathfinder.ai.lead.memory_candidates import collect_turn_memory_candidates
 from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
+from pathfinder.assistant_core.graph.stream_events import scratchpad_updated_event
+from pathfinder.assistant_core.memory.autowrite import auto_write_memories
+from pathfinder.assistant_core.memory.store import MemoryStore
+from pathfinder.assistant_core.memory.tombstones import TombstoneRepository
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -39,8 +40,8 @@ async def finalize_turn_node(
 
     if (
         runtime.context is not None
-        and state.verification_digest is not None
-        and state.verification_digest.success
+        and state.domain.verification_digest is not None
+        and state.domain.verification_digest.success
         and runtime.context.memory_store is not None
     ):
         mem_store = MemoryStore(store=runtime.context.memory_store)
@@ -51,12 +52,13 @@ async def finalize_turn_node(
             await auto_write_memories(
                 store=mem_store,
                 tombstones=tombstones,
-                state=state,
+                user_id=state.user_id,
+                candidates=await collect_turn_memory_candidates(state),
             )
         except (RuntimeError, ValueError, OSError, SQLAlchemyError) as exc:
             logger.warning("auto-write memories failed: %s", exc)
 
-    if runtime.context is not None and state.verification_digest is not None:
+    if runtime.context is not None and state.domain.verification_digest is not None:
         try:
             compaction_run = await maybe_compact_scratchpad(
                 conversation_id=state.conversation_id,

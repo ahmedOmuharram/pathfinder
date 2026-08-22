@@ -21,12 +21,12 @@ from pathfinder.ai.conversation._turn_helpers import (
     _interrupt_chunks,
     resolve_site_id,
 )
-from pathfinder.ai.conversation.event_writer import ChatWriter
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
-from pathfinder.ai.graph.stream_events import (
+from pathfinder.ai.graph.stream_events import strategy_revision_event
+from pathfinder.assistant_core.conversation.event_writer import ChatWriter
+from pathfinder.assistant_core.graph.stream_events import (
     conversation_title_event,
-    strategy_revision_event,
     turn_status_event,
     turn_stopped_event,
 )
@@ -34,7 +34,9 @@ from pathfinder.persistence.repositories import (
     ChatTurnCancellationRepository,
     ConversationRepository,
 )
-from pathfinder.persistence.repositories.conversation import ConversationUpdate
+from pathfinder.persistence.repositories.conversation_update import (
+    ConversationUpdate,
+)
 from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.conversations.responses import (
@@ -124,8 +126,8 @@ async def run_turn(
         site_id=effective_site_id,
         user_id=user_id,
         memory_store=memory_store,
-        phase_models=body.phase_models,
-        phase_reasoning=body.phase_reasoning,
+        phase_models=body.runtime_phase_models,
+        phase_reasoning=body.runtime_phase_reasoning,
     )
 
     turn_message_id = writer.turn_id

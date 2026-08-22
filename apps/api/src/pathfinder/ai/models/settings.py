@@ -9,6 +9,8 @@ caching + reasoning effort), composed so caching is never clobbered by the
 per-request thinking effort.
 """
 
+from typing import Any
+
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 from pydantic_ai.settings import ModelSettings
@@ -23,6 +25,20 @@ def model_provider(model_id: str) -> str:
         msg = f"Model id {model_id!r} is not in 'provider:model' form"
         raise ValueError(msg)
     return provider
+
+
+def baked_model_id(agent: Any) -> str:
+    """The stable ``provider:model`` id an agent was constructed with.
+
+    Empty when the agent defers its model to the run.
+    """
+    model = agent.model
+    if model is None:
+        return ""
+    if isinstance(model, str):
+        return model
+    raw: Any = model.model_id
+    return str(raw)
 
 
 def build_model_settings(

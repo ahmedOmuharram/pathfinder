@@ -10,7 +10,12 @@ from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.persistence.models import Conversation, GeneSetRow, User
+from pathfinder.persistence.models import (
+    Conversation,
+    ConversationStrategy,
+    GeneSetRow,
+    User,
+)
 from pathfinder.platform.security import create_user_token
 from pathfinder.services import user_data as user_data_service
 from pathfinder.services.gene_sets.operations import GeneSetService
@@ -114,10 +119,17 @@ async def _add_conv(
         application_id=application_id,
         site_id=site_id,
         name="c",
-        wdk_strategy_id=wdk_strategy_id,
     )
     session.add(conv)
     await session.flush()
+    if wdk_strategy_id is not None:
+        session.add(
+            ConversationStrategy(
+                conversation_id=conv.id,
+                wdk_strategy_id=wdk_strategy_id,
+            ),
+        )
+        await session.flush()
     await session.commit()
     return conv.id
 

@@ -8,12 +8,12 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic_ai.exceptions import ModelRetry
 
-from pathfinder.ai.agents._instructions import pinned_discovered_searches
 from pathfinder.ai.agents.state import (
     AgentToolState,
     ParamVocabSnapshot,
     SearchOverview,
 )
+from pathfinder.ai.agents.strategy_instructions import pinned_discovered_searches
 from pathfinder.ai.tools.standalone.catalog_selection import (
     update_search_decision,
 )

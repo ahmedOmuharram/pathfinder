@@ -45,6 +45,9 @@ services:
       # Devtools chat-debugger run artifacts (pathfinder.devtools.chat) land on
       # the host so they can be inspected outside the container.
       - ./apps/api/.pf-runs:/data/pf-runs
+      # Per-site embedding index cache. Shared with the worker and kept across
+      # recreates, so only a changed catalog is re-encoded.
+      - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
 
   worker:
     build:
@@ -86,6 +89,7 @@ services:
       WORKER_STALLED_JOB_TIMEOUT_SECONDS: ${WORKER_STALLED_JOB_TIMEOUT_SECONDS:-3600}
     volumes:
       - ./apps/api/.pf-runs:/data/pf-runs
+      - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
 
   web:
     build:
@@ -119,3 +123,4 @@ services:
 
 volumes:
   postgres_data:
+  embeddings_cache:

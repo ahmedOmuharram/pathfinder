@@ -40,9 +40,10 @@ def plan_needs_detail_fetch(conversation: Conversation) -> bool:
     """Reports whether a chat still needs its full detail from WDK. A chat with a WDK
     strategy id and no plan data holds summary data only. A local chat never needs it.
     """
-    if conversation.wdk_strategy_id is None:
+    strategy = conversation.strategy_view
+    if strategy.wdk_strategy_id is None:
         return False
-    ast = conversation.strategy_ast
+    ast = strategy.strategy_ast
     if not ast:
         return True
     return "root" not in ast
@@ -222,7 +223,7 @@ async def lazy_fetch_wdk_detail(
     fetch fails.
     """
     site_id = conversation.site_id
-    wdk_id = conversation.wdk_strategy_id
+    wdk_id = conversation.strategy_view.wdk_strategy_id
     if not plan_needs_detail_fetch(conversation) or not site_id or wdk_id is None:
         return conversation
 
@@ -257,7 +258,8 @@ async def lazy_fetch_wdk_detail(
 async def sync_is_saved_to_wdk(*, conversation: Conversation) -> None:
     """Sends the isSaved flag from a chat to WDK. A chat with no WDK strategy id or
     site id is skipped, and a failure is logged only."""
-    wdk_id = conversation.wdk_strategy_id
+    strategy = conversation.strategy_view
+    wdk_id = strategy.wdk_strategy_id
     if not wdk_id:
         return
 
@@ -267,7 +269,7 @@ async def sync_is_saved_to_wdk(*, conversation: Conversation) -> None:
 
     try:
         api = get_strategy_api(site_id)
-        await api.set_saved(wdk_id, is_saved=conversation.is_saved)
+        await api.set_saved(wdk_id, is_saved=strategy.is_saved)
     except AppError as exc:
         logger.warning(
             "Failed to sync isSaved to WDK",

@@ -10,7 +10,6 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from langgraph.runtime import Runtime
 from pydantic_ai import RunContext, Tool
 from pydantic_ai.messages import (
     ModelMessage,
@@ -34,6 +33,7 @@ from pathfinder.ai.graph.lead_node import _drive_lead_stream
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead import sub_agent_stream, sub_agent_tools
+from pathfinder.ai.lead.lead_agent import build_lead_agent
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.toolsets import verification
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
@@ -201,7 +201,7 @@ def _state() -> PipelineState:
         user_prompt="Tune the RNA-Seq fold change against my controls.",
         user_message_id=uuid4(),
     )
-    state.last_build_outcome = BuildOutcome(
+    state.domain.last_build_outcome = BuildOutcome(
         pushed_step_ids=["s1", "s2"],
         failed_steps=[],
         root_count=0,
@@ -236,7 +236,7 @@ async def _drive(
     capture = _LeadRunCapture()
     await _drive_lead_stream(
         state=state,
-        runtime=Runtime(context=deps.runtime),
+        agent=build_lead_agent(),
         deps=deps,
         capture=capture,
         writer=writer,

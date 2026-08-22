@@ -57,7 +57,7 @@ from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
 import pathfinder.platform.db as session_module
-from pathfinder.ai.conversation.checkpointer import to_psycopg_url
+from pathfinder.assistant_core.conversation.checkpointer import to_psycopg_url
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.tasks import ensure_registered
@@ -406,10 +406,10 @@ async def app_memory_store(
     The test transport skips the lifespan that normally opens them.
     """
     del patch_app_db_engine, db_cleaner
-    from pathfinder.ai.memory.lifespan import (  # noqa: PLC0415
+    from pathfinder.assistant_core.memory.lifespan import (  # noqa: PLC0415
         lifespan_memory_store,
     )
-    from pathfinder.ai.memory.store import MemoryStore  # noqa: PLC0415
+    from pathfinder.assistant_core.memory.store import MemoryStore  # noqa: PLC0415
     from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
         lifespan_notify_dispatcher,
     )

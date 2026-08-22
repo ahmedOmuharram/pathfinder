@@ -33,7 +33,7 @@ normal request) surfacing as a wall of validator text.
 
 **Why it happens.** Two layers. `ai/lead/intent.py:UserIntent.differential_sides` has
 `max_length=2`, so a three-sided comparison always fails once before the model retries
-with two sides. `ai/conversation/_chunk_state.py:_provider_metadata_key` writes
+with two sides. `assistant_core/conversation/_chunk_state.py:_provider_metadata_key` writes
 `resultProviderMetadata` on output-available and output-error parts (as the AI SDK v6
 client does, `ai/dist/index.mjs`), but pydantic-ai 1.104's
 `ui/vercel_ai/request_types.py` defines only `call_provider_metadata` on every tool part

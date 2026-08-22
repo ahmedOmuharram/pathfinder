@@ -13,14 +13,14 @@ from starlette.exceptions import HTTPException
 
 from pathfinder import __version__
 from pathfinder.ai.capabilities.piguard import warm_up_piguard
-from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.ai.graph.builder import build_graph
-from pathfinder.ai.memory.lifespan import lifespan_memory_store
+from pathfinder.ai.graph.composition import build_pathfinder_graph
 from pathfinder.ai.orchestration.observability import (
     setup_observability,
     shutdown_observability,
 )
-from pathfinder.integrations.embeddings.semantic_index import warm_up_model
+from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
+from pathfinder.integrations.embeddings.model import warm_up_model
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
@@ -153,7 +153,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         procrastinate_app.open_async(),
         lifespan_notify_dispatcher(settings.database_url) as notify_dispatcher,
     ):
-        app.state.compiled_graph = build_graph(checkpointer=checkpointer)
+        app.state.compiled_graph = build_pathfinder_graph(checkpointer=checkpointer)
         app.state.memory_store = memory_store
         app.state.notify_dispatcher = notify_dispatcher
         readiness.mark_ready("graph_checkpointer")

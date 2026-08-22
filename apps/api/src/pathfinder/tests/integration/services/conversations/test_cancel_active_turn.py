@@ -8,9 +8,9 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.ai.conversation.event_writer import ChatEventWriter
-from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
-from pathfinder.ai.graph.stream_events import turn_status_event
+from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
+from pathfinder.assistant_core.conversation.ui_message_reducer import user_message_chunk
+from pathfinder.assistant_core.graph.stream_events import turn_status_event
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories import ChatTurnCancellationRepository
 from pathfinder.platform.db import async_session_factory

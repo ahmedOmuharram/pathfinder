@@ -16,6 +16,23 @@ function uiMessageStreamHeaders(): Record<string, string> {
   };
 }
 
+/**
+ * The per-task channel is not the chat dialect. It frames every chunk as
+ * `custom` and names the payload in `kind`, and it ends with a `done` event.
+ */
+function taskEventFrame(kind: string, data: unknown): string {
+  return `event: stream\ndata: ${JSON.stringify({ type: "custom", kind, data })}\n\n`;
+}
+
+const TASK_DONE_FRAME = `event: stream\ndata: ${JSON.stringify({
+  type: "done",
+  reason: "completed",
+})}\n\n`;
+
+function taskStreamHeaders(): Record<string, string> {
+  return { "content-type": "text/event-stream", "cache-control": "no-cache" };
+}
+
 interface OpenStrategyResponse {
   conversationId?: string;
   strategyId?: string;
@@ -81,11 +98,12 @@ test.describe("Durable task live progress", () => {
     });
 
     const taskStream = [
-      sseFrame({
-        type: "data-task-progress",
-        data: { taskId: TASK_ID, percent: 0.6, message: "Comparing controls" },
+      taskEventFrame("data-task-progress", {
+        taskId: TASK_ID,
+        percent: 0.6,
+        message: "Comparing controls",
       }),
-      "data: [DONE]\n\n",
+      TASK_DONE_FRAME,
     ].join("");
 
     let taskEventsRequested = false;
@@ -95,7 +113,7 @@ test.describe("Durable task live progress", () => {
         taskEventsRequested = true;
         await route.fulfill({
           status: 200,
-          headers: uiMessageStreamHeaders(),
+          headers: taskStreamHeaders(),
           body: taskStream,
         });
       },
@@ -162,32 +180,26 @@ test.describe("Durable task live progress", () => {
     });
 
     const taskStream = [
-      sseFrame({
-        type: "data-task-progress",
-        data: {
-          taskId: TASK_ID,
-          percent: 0.3,
-          message: "Variant A trial 1",
-          toolSpecific: { variantId: "variant-A" },
-        },
+      taskEventFrame("data-task-progress", {
+        taskId: TASK_ID,
+        percent: 0.3,
+        message: "Variant A trial 1",
+        toolSpecific: { variantId: "variant-A" },
       }),
-      sseFrame({
-        type: "data-task-progress",
-        data: {
-          taskId: TASK_ID,
-          percent: 0.5,
-          message: "Variant B trial 1",
-          toolSpecific: { variantId: "variant-B" },
-        },
+      taskEventFrame("data-task-progress", {
+        taskId: TASK_ID,
+        percent: 0.5,
+        message: "Variant B trial 1",
+        toolSpecific: { variantId: "variant-B" },
       }),
-      "data: [DONE]\n\n",
+      TASK_DONE_FRAME,
     ].join("");
     await page.route(
       `**/api/v1/conversations/*/tasks/${TASK_ID}/events*`,
       async (route) => {
         await route.fulfill({
           status: 200,
-          headers: uiMessageStreamHeaders(),
+          headers: taskStreamHeaders(),
           body: taskStream,
         });
       },

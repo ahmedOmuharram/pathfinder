@@ -6,14 +6,13 @@ appropriate model + reasoning effort pairings. The frontend fetches these via
 ``resolve_phase_model`` applies the configured tier at runtime as the fallback
 beneath an explicit per-phase user pick.
 
-Phases are the real runtime roles (``lead``, ``frame``, ``execution``,
-``verification``) defined in :mod:`pathfinder.ai.agents.roles`; a tier that
-omits a role falls back to that agent's compile-time model.
+A preset names the roles it covers; the lookup below takes a role as a plain
+string, so a role the preset omits falls back to that agent's compile-time
+model.
 """
 
 from pydantic import ConfigDict
 
-from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import ModelProvider, ReasoningEffort, TierName
 
@@ -38,12 +37,26 @@ class PhaseTierConfig(CamelModel):
 class TierPreset(CamelModel):
     """Per-phase configuration for every pipeline phase."""
 
+    # The field names are the product's role names, so this model is the one
+    # place that binds a role to its configuration.
+
     model_config = ConfigDict(frozen=True)
 
     lead: PhaseTierConfig
     frame: PhaseTierConfig
     execution: PhaseTierConfig
     verification: PhaseTierConfig
+
+    def for_role(self, role: str) -> PhaseTierConfig | None:
+        """The config this preset carries for ``role``, or ``None`` when the
+        preset does not cover it."""
+        by_role: dict[str, PhaseTierConfig] = {
+            "lead": self.lead,
+            "frame": self.frame,
+            "execution": self.execution,
+            "verification": self.verification,
+        }
+        return by_role.get(role)
 
 
 def _uniform(model_id: str, effort: ReasoningEffort) -> TierPreset:
@@ -142,17 +155,12 @@ def get_tier_preset(provider: ModelProvider, tier: TierName) -> TierPreset | Non
 def resolve_phase_tier_config(
     provider: ModelProvider,
     tier: TierName,
-    role: PhaseRole,
+    role: str,
 ) -> PhaseTierConfig | None:
     """The configured model + effort for one phase, or ``None`` when the tier
-    does not cover this provider (caller falls back to the agent's own model)."""
+    does not cover this provider or this role (caller falls back to the
+    agent's own model)."""
     preset = get_tier_preset(provider, tier)
     if preset is None:
         return None
-    by_role: dict[PhaseRole, PhaseTierConfig] = {
-        "lead": preset.lead,
-        "frame": preset.frame,
-        "execution": preset.execution,
-        "verification": preset.verification,
-    }
-    return by_role[role]
+    return preset.for_role(role)

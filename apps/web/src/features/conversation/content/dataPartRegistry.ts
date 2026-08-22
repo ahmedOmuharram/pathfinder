@@ -1,5 +1,5 @@
 import type { DataMessagePartComponent } from "@assistant-ui/react";
-import type { DataPartKind } from "@pathfinder/shared";
+import type { KnownDataPartKind } from "@pathfinder/shared";
 import { createElement } from "react";
 
 import { USER_QUESTION_ANSWERS_PART_TYPE } from "../rail/consultActions";
@@ -10,7 +10,7 @@ const DATA_PREFIX = "data-" as const;
 
 const registry: Record<string, DataMessagePartComponent<unknown>> = {};
 for (const kind of Object.keys(dataPartComponents)) {
-  const kindTyped = kind as DataPartKind;
+  const kindTyped = kind as KnownDataPartKind;
   const shortName = kindTyped.startsWith(DATA_PREFIX)
     ? kindTyped.slice(DATA_PREFIX.length)
     : kindTyped;
