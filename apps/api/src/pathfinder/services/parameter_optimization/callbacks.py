@@ -8,10 +8,10 @@ SSE envelope (``{"type": "optimization_progress", "data": ...}``).
 
 from typing import Literal
 
+from assistant_core.platform.pydantic_base import CamelModel, RoundedFloat2
+from assistant_core.platform.types import JSONArray, JSONObject
 from pydantic import ConfigDict, Field, computed_field
 
-from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat2
-from pathfinder.platform.types import JSONArray, JSONObject
 from pathfinder.services.parameter_optimization.config import (
     ProgressCallback,
     TrialResult,

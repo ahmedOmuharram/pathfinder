@@ -21,7 +21,6 @@ __all__ = ["build_pathfinder_graph"]
 
 
 def build_pathfinder_graph(
-    *,
     checkpointer: BaseCheckpointSaver[Any],
 ) -> CompiledStateGraph[PipelineState, Context, PipelineState, PipelineState]:
     return build_graph(

@@ -2,9 +2,10 @@
 
 import asyncio
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.helpers import (
     ControlsContext,
     ProgressCallback,

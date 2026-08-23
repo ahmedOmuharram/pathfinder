@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 
+from assistant_core.platform.logging import get_logger
 from sqlalchemy import CursorResult, and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +16,6 @@ from pathfinder.domain.scratchpad.models import (
     NoteUpdate,
 )
 from pathfinder.persistence.models import ScratchpadCompaction, ScratchpadNote
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -1,5 +1,7 @@
 """Service-layer strategy DTOs shared across services, AI, and transport."""
 
+from assistant_core.platform.pydantic_base import CamelModel
+
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import (
     StepAnalysis,
@@ -15,7 +17,6 @@ from pathfinder.domain.strategy.graph_model import (
 from pathfinder.domain.strategy.ops import ColocationParams
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.validation import StepValidation
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class StepResponse(CamelModel):

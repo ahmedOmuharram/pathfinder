@@ -61,6 +61,8 @@ import type {
   OptimizationSpecResponse,
   OptimizationTrialData,
   ParamSpecResponse,
+  PrivacySettings,
+  PrivacyUpdate,
   ParameterSensitivityResponse,
   ParameterSweepPointResponse,
   VariantComparison,
@@ -383,6 +385,8 @@ export type StepContributionVerdict = "essential" | "helpful" | "neutral" | "har
 
 export type MemoryKind = MemoryValue["kind"];
 export type { MemoryValue, MemoryItem, MemoryListResponse, MemorySearchResponse, MemoryEditRequest };
+
+export type { PrivacySettings, PrivacyUpdate };
 
 export type { TaskListItem, TaskListResponse, TaskProgressEvent, TaskStatusResponse };
 

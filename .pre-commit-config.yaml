@@ -13,6 +13,53 @@ repos:
         files: ^apps/api/
   - repo: local
     hooks:
+      - id: ruff-assistant-core
+        name: ruff (assistant-core)
+        entry: bash -c "cd packages/assistant-core && $HOME/.local/bin/uv run ruff check src tests && $HOME/.local/bin/uv run ruff format --check src tests"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^packages/assistant-core/
+      - id: mypy-assistant-core
+        name: mypy (assistant-core)
+        entry: bash -c "cd packages/assistant-core && $HOME/.local/bin/uv run mypy --strict src"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^packages/assistant-core/
+      - id: pytest-assistant-core
+        name: pytest (assistant-core, no pathfinder installed)
+        entry: bash -c "cd packages/assistant-core && $HOME/.local/bin/uv run pytest"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^packages/assistant-core/
+        stages: [pre-push]
+      - id: typecheck-assistant-client
+        name: tsc --noEmit (assistant-client)
+        entry: bash -c "cd packages/assistant-client-ts && yarn typecheck"
+        language: system
+        pass_filenames: false
+        files: ^(packages/assistant-client-ts/|packages/assistant-core/PROTOCOL\.md)
+      - id: prettier-assistant-client
+        name: prettier (assistant-client)
+        entry: bash -c "cd packages/assistant-client-ts && yarn format"
+        language: system
+        pass_filenames: false
+        files: ^packages/assistant-client-ts/
+      - id: eslint-assistant-client
+        name: eslint (assistant-client)
+        entry: bash -c "cd packages/assistant-client-ts && yarn lint"
+        language: system
+        pass_filenames: false
+        files: ^packages/assistant-client-ts/
+      - id: vitest-assistant-client
+        name: vitest (assistant-client, protocol conformance)
+        entry: bash -c "cd packages/assistant-client-ts && yarn test"
+        language: system
+        pass_filenames: false
+        files: ^(packages/assistant-client-ts/|packages/assistant-core/PROTOCOL\.md)
+        stages: [pre-push]
       - id: mypy-api
         name: mypy (api)
         entry: bash -c "cd apps/api && $HOME/.local/bin/uv run --project . mypy src"
@@ -24,25 +71,25 @@ repos:
         entry: bash -c "cd apps/web && yarn format"
         language: system
         pass_filenames: false
-        files: ^(apps/web/|packages/shared-ts/).*
+        files: ^(apps/web/|packages/shared-ts/|packages/assistant-client-ts/).*
       - id: eslint-web
         name: eslint (web)
         entry: bash -c "cd apps/web && yarn lint"
         language: system
         pass_filenames: false
-        files: ^(apps/web/|packages/shared-ts/).*
+        files: ^(apps/web/|packages/shared-ts/|packages/assistant-client-ts/).*
       - id: typecheck-web
         name: tsc --noEmit (web)
         entry: bash -c "cd apps/web && yarn typecheck"
         language: system
         pass_filenames: false
-        files: ^(apps/web/|packages/shared-ts/).*
+        files: ^(apps/web/|packages/shared-ts/|packages/assistant-client-ts/).*
       - id: boundaries-web
         name: check boundaries (web)
         entry: bash -c "cd apps/web && yarn check:boundaries"
         language: system
         pass_filenames: false
-        files: ^(apps/web/|packages/shared-ts/).*
+        files: ^(apps/web/|packages/shared-ts/|packages/assistant-client-ts/).*
       - id: knowledge-okf
         name: check knowledge bundle (OKF v0.2)
         entry: bash -c "node scripts/check-knowledge.mjs && node --test scripts/check-knowledge.test.mjs"
@@ -60,7 +107,7 @@ repos:
         entry: bash -c "cd apps/web && yarn vitest run"
         language: system
         pass_filenames: false
-        files: ^(apps/web/|packages/shared-ts/).*
+        files: ^(apps/web/|packages/shared-ts/|packages/assistant-client-ts/).*
         stages: [pre-push]
       - id: pytest-api
         name: pytest (api)
@@ -75,7 +122,7 @@ repos:
         entry: bash -c "cd apps/web && NEXT_PUBLIC_API_URL='http://localhost:8000' yarn build"
         language: system
         pass_filenames: false
-        files: ^(apps/web/|packages/shared-ts/).*
+        files: ^(apps/web/|packages/shared-ts/|packages/assistant-client-ts/).*
         stages: [pre-push]
       - id: openapi-generate-api
         name: openapi spec regenerate (api)

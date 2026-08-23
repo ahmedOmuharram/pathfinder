@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 import structlog
 
+from pathfinder.assistants.site_help.mock import SITES_REPLY
 from pathfinder.devtools.chat import (
     MissingCredentialsError,
     RunArgs,
@@ -175,6 +176,42 @@ async def test_respond_finds_gate_from_checkpoint_not_run_dir(tmp_path: Path) ->
     assert derived.tool == "consult_user"
     assert derived.tool_call_id == gate["toolCallId"]
     assert {q.id for q in derived.consult_questions} == {"q1", "q2"}
+
+
+@pytest.mark.usefixtures("patch_app_db_engine", "db_cleaner")
+async def test_a_site_help_run_answers_in_process_with_no_wdk_login(
+    tmp_path: Path,
+) -> None:
+    """The second assistant runs through the same debugger, and needs no login."""
+    run_dir = tmp_path / "run"
+    args = parse_run_args(
+        [
+            "which sites can I search",
+            "--site",
+            "plasmodb",
+            "--mock",
+            "--assistant",
+            "site_help",
+            "--quiet",
+            "--run-dir",
+            str(run_dir),
+        ]
+    )
+
+    code = await run_once(args)
+
+    assert code == 0
+    events = [
+        json.loads(line)
+        for line in (run_dir / "events.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    called = [e["toolName"] for e in events if e["type"] == "tool-input-available"]
+    assert called == ["list_veupathdb_sites"]
+    text = "".join(e["delta"] for e in events if e["type"] == "text-delta")
+    assert text == SITES_REPLY
+    summary = json.loads((run_dir / "summary.json").read_text())
+    assert summary["status"] == "ok"
 
 
 @pytest.mark.usefixtures("patch_app_db_engine", "db_cleaner")

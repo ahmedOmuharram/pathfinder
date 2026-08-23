@@ -4,11 +4,11 @@ from functools import lru_cache
 from typing import Any
 
 import yaml
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import ModelProvider
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from pathfinder.platform.config import _REPO_ROOT
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import ModelProvider
 
 __all__ = [
     "ModelEntry",

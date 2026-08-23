@@ -1,13 +1,13 @@
 """Catalog metadata helpers: dataset summaries, ontology categories, record type processing."""
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import ConfigDict, Field
 
 from pathfinder.integrations.veupathdb.client import VEuPathDBClient
 from pathfinder.integrations.veupathdb.disk_cache import DatasetReport
 from pathfinder.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.pydantic_base import CamelModel
 
 logger = get_logger(__name__)
 

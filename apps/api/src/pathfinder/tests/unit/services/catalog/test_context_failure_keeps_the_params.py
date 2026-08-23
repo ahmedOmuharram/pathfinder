@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import cast
 
 import pytest
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.values import ParamValue, SinglePickValue
@@ -21,7 +22,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKEnumParam, WDKParameter
 from pathfinder.platform.errors import WDKError
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog import param_resolution as pr
 
 _CTX = SearchContext(
@@ -72,7 +72,7 @@ def _response() -> WDKSearchResponse:
             param_names=list(_PARAMS),
             parameters=parameters,
         ),
-        validation=StepValidation(),
+        validation=StepValidation(level="NONE", is_valid=False),
     )
 
 

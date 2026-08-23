@@ -1,100 +1,83 @@
 ---
 type: Backlog Item
-title: Whether the other 181 hidden required defaults return rows is unmeasured
-description: The one hidden default known to return nothing is no longer filled - GenesByOrthologPattern derives its pattern from the two species lists. Nothing has measured the other 181 searches whose hidden required parameters are still filled from initialDisplayValue.
+title: 219 of the 237 hidden required defaults are still unmeasured, because a visible parameter blocks the search first
+description: The sweep now exists and runs nightly. One search whose published defaults all resolve returns zero rows. The rest are blocked by a visible parameter whose own default WDK refuses, or by a 500.
 tags: [wdk-alignment, parameters, silent-zero, site-model, measurement]
 generated: { by: claude-code/opus-5, at: 2026-08-14T00:00:00Z }
-verified: { by: claude-code/fable-5, at: 2026-08-17T00:00:00Z }
+verified: { by: claude-code/opus-5, at: 2026-08-22T00:00:00Z }
 status: stable
 ---
 
-# What closed
+# What the sweep measured
 
-`apps/api/src/pathfinder/domain/parameters/specs.py:fill_hidden_required_defaults`
-supplies any parameter that is not visible, is not `allowEmptyValue`, is absent from the
-caller's values, and has an `initialDisplayValue`. The premise is sound and unchanged: a
-hidden parameter stays required and stays default-filled
-([WDK-PARAM-011](../wdk/rules/parameters-and-vocabularies.md)), and something must supply
-these values.
+`apps/api/src/pathfinder/tests/live/test_wdk_hidden_defaults.py` runs every transcript
+search that carries a hidden required parameter with a published default, binding **every**
+required parameter from its own `initialDisplayValue`, and reads `totalCount`. It is part
+of the nightly lane, it is resumable, and it writes `wdk-hidden-defaults.json`.
 
-**The one search where the filled value was known to be wrong no longer reaches the
-fill.** `GenesByOrthologPattern.profile_pattern` is derived from the two species lists the
-model proposes and written together with them
-([the two lists are the proposal](../decisions/phyletic-lists-are-the-proposal.md),
-[WDK-SITE-006](../wdk/rules/site-model-params.md)). Live on plasmodb.org on 2026-08-17
-with `organism` at *P. falciparum* 3D7, the derived `%hsap:N%pfal:Y%` returns **3,347**
-genes where the published default `hsap=1T` returns **0**. On the gold corpus the same
-change moved the propose arm from 285 exact / 18 wrong to **288 exact / 15 wrong** over
-332 parameters, and both gold `GenesByOrthologPattern` steps now score exact on the pattern
-and on both lists.
+Run against plasmodb.org on 2026-08-22:
 
-The reporting half closed earlier and stays. `specs.filled_hidden_defaults` names the
-parameters a fill supplies, `validate_parameters` merges them into
-`ValidatedParams.substituted`, and `frame_spec` folds them into the criterion's `defaulted`
-list, so a filled hidden value is one the model is told it did not choose, on the same
-footing as a value WDK substituted
-([WDK-PARAM-008](../wdk/rules/parameters-and-vocabularies.md)).
-
-# What is left, and why it is still worth carrying
-
-**The enumeration, measured on plasmodb.org on 2026-08-14.** Every transcript search:
-**182 of 325 carry at least one hidden required parameter** with a published default. The
-parameters, by how many searches ask for them:
-
-| count | parameter |
+| | count |
 |---|---|
-| 73 | `channel` |
-| 54 | `dataset_url` |
-| 19 | `hard_floor` |
-| 5 each | `metadata_datasets`, `protein_coding_only` |
-| 4 each | `phenotypeScoreDataset`, `ProfileScaleFactor`, `ProfileMinPoints` |
-| 1 | `profile_pattern` |
+| transcript searches listed | **359** (325 on 2026-08-10) |
+| carrying at least one hidden required default | **237** (182 on 2026-08-14) |
+| answered 200 | 19 |
+| **answered 200 with zero rows** | **1** |
+| refused 422 at `RUNNABLE` | 158 |
+| answered 500 | 58 |
+| never answered (read timeout) | 1 |
+| unmeasurable - a required parameter publishes no default | 1 |
 
-One of those 182 searches is now supplied by the caller. **Nothing has measured whether the
-defaults on the other 181 return rows.** Nothing at any layer promises they do: the
-declared default is stored by a setter whose javadoc promises validation and whose body
-assigns, and valid has never meant "returns rows"
-([WDK-PARAM-010](../wdk/rules/parameters-and-vocabularies.md)).
+The one search whose published defaults all resolve and which returns nothing is
+`GenesByRNASeqpfal3D7_Lee_Gambian_ebi_rnaSeq_RSRCWGCNAModules`, whose hidden required
+parameters are `eda_dataset_id` and `wgcnaDataset`. The other 18 returned between 14 and
+several thousand genes.
 
-**The cheap proxy has already been run and does not settle it.** The tell on
-`profile_pattern` was that its default is quoted verbatim in its own `<help>`, which reads
-`Example: 'hsap=1T'` and nothing else. Searching every hidden required parameter for a
-default that appears in its own help text finds four:
+**Not one of the 158 refusals names a hidden parameter.** Every parameter WDK named in
+`byKey` is visible: `samples_percentile_generic` (77), `samples_fc_ref_generic` (75),
+`samples_fc_comp_generic` (75), `ismTypes` (3), `text_search_organism` (2), `organism` (1).
+The refusals are the visible half of
+[WDK-PARAM-010](../wdk/rules/parameters-and-vocabularies.md): a published default is an
+example and is not itself a valid value. No hidden default was refused by WDK.
 
-| parameter | searches | default | help |
-|---|---|---|---|
-| `channel` | 73 | `Channel 1` | prose describing two-channel experiments |
-| `hard_floor` | 16 | `0` | prose describing the read floor |
-| `ReadFrequencyPercent` | 1 | `0%` | prose describing isolate reads |
-| **`profile_pattern`** | **1** | `hsap=1T` | **`Example: 'hsap=1T'`** |
+The parameters, by what the sweep could say about them:
 
-The first three mention their default while describing what it means, which is a parameter
-documenting itself rather than an example standing in for a value. That is a reading of
-prose, not a measurement, and a parameter can be a poor default without being an example.
+| outcome | parameters |
+|---|---|
+| cleared - a search using it returned rows | `eda_dataset_id` (6), `ProfileScaleFactor` (4), `ProfileMinPoints` (4), `geneListDataset` (4), `eda_sample_table_suffix` (2), `profileset_generic` (1), `WebServicesPath` (1), `protein_coding_only` (1) |
+| returned zero | `eda_dataset_id` (1), `wgcnaDataset` (1) |
+| still unmeasured | `channel` (75), `eda_dataset_id` (57), `dataset_url` (56), `hard_floor` (19), `protein_coding_only` (4), `long_read_datasets` (3), `document_type` (2), `profileset_generic` (2), `eda_sample_table_suffix` (1), `profile_pattern` (1), `BlastRecordClass` (1) |
 
-**One consequence is written into the code as a belief.**
-`services/catalog/param_dag.py:_is_free_text_query` excludes hidden parameters from the
-free-text guard, with the comment "Hidden params and numeric bounds carry real defaults and
-are excluded." The numeric half is settled
-([numeric-default-is-not-an-example](../decisions/numeric-default-is-not-an-example.md)).
-The hidden half now has no known counterexample and no evidence either, which is exactly
-the state this item records.
+The enumeration itself has drifted since 2026-08-14: `eda_dataset_id` (64) and four other
+parameters are new, and `metadata_datasets` and `phenotypeScoreDataset` are gone. The
+nightly lane now records the count on every run, so the next drift is dated rather than
+rediscovered.
 
-# The check that settles it
+# What is left
 
-For each of the 182 searches, run it with only its visible required parameters bound and
-read `totalCount`. A zero is a candidate; a non-zero clears that parameter. Most of these
-searches need a real organism or dataset before they run at all, so this is a per-search
-job rather than one sweep, which is why it has not been done.
+**The two biggest parameters are still unmeasured**, and for the same reason: `channel`
+(75 searches) and `dataset_url` (56) sit on microarray and RNA-seq searches whose visible
+`samples_*` parameters have no usable default. Measuring them needs a plausible value per
+search rather than a published one, which is a per-search job the sweep deliberately does
+not guess at.
+
+Two smaller questions the run raised:
+
+- **58 searches answer 500** when every published default is bound. That is a WDK failure
+  rather than an empty result, and nothing here distinguishes "the defaults are bad" from
+  "this search is broken today". The nightly artifact names them.
+- `profile_pattern` remains unmeasured by this sweep and does not need to be:
+  `GenesByOrthologPattern` derives its pattern from the two species lists
+  ([the two lists are the proposal](../decisions/phyletic-lists-are-the-proposal.md)), so
+  the fill never reaches it.
 
 # Anchor
 
 `domain/parameters/specs.py:fill_hidden_required_defaults`, its two call sites in
-`services/catalog/param_validation.py`, and `services/catalog/param_dag.py:_is_free_text_query`.
-Coverage is `tests/unit/domain/parameters/test_hidden_required_defaults.py`, which asserts
-the fill happens, and `tests/unit/domain/parameters/test_hidden_fill_is_reported.py`, which
-asserts it is reported. Neither can assert that a filled value returns rows; only the live
-sweep above can.
+`services/catalog/param_validation.py`, and
+`services/catalog/param_dag.py:_is_free_text_query`. The sweep is
+`tests/live/test_wdk_hidden_defaults.py`; run it with `yarn wdk:live`.
 
-Done when the searches whose hidden defaults return nothing are named, or the sweep is
-judged not worth its cost and this item is closed by that ruling.
+Done when the searches carrying `channel` and `dataset_url` are measured with values a
+researcher would use, or that measurement is judged not worth its cost and this item is
+closed by that ruling.

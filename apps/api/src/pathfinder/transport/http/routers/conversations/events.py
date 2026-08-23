@@ -3,16 +3,16 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
-from fastapi.responses import Response, StreamingResponse
-
-from pathfinder.assistant_core.conversation.event_stream import (
+from assistant_core.conversation.event_stream import (
     fetch_snapshot_chunks,
     iter_sse,
     latest_event,
 )
-from pathfinder.assistant_core.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
-from pathfinder.platform.pydantic_base import CamelModel
+from assistant_core.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
+from assistant_core.platform.pydantic_base import CamelModel
+from fastapi import APIRouter, Query, status
+from fastapi.responses import Response, StreamingResponse
+
 from pathfinder.services.conversations.authz import assert_owner
 from pathfinder.services.tasks.background import has_active_task
 from pathfinder.transport.http.deps import CurrentUser, DBSession

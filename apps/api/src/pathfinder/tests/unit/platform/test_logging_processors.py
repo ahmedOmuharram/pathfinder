@@ -4,13 +4,13 @@ import logging
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from pathfinder.platform.context import (
+from assistant_core.platform.context import (
     operation_id_ctx,
     site_id_ctx,
     stream_id_ctx,
     user_id_ctx,
 )
-from pathfinder.platform.logging import add_app_context, add_otel_context
+from assistant_core.platform.logging import add_app_context, add_otel_context
 
 
 def test_add_app_context_injects_all_vars():
@@ -60,7 +60,7 @@ def test_add_otel_context_with_active_span():
     mock_span.get_span_context.return_value = mock_ctx
 
     with patch(
-        "pathfinder.platform.logging.trace.get_current_span", return_value=mock_span
+        "assistant_core.platform.logging.trace.get_current_span", return_value=mock_span
     ):
         event_dict: dict[str, object] = {"event": "test"}
         result = add_otel_context(logging.getLogger(), "", event_dict)

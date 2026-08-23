@@ -3,10 +3,11 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
+from assistant_core.persistence.models import Conversation
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.domain.scratchpad.models import NoteCreate, NoteUpdate
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 
 

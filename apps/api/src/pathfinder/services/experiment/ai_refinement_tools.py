@@ -7,6 +7,7 @@ and re-evaluate control metrics after refinement.
 
 from typing import cast
 
+from assistant_core.platform.types import JSONObject
 from pydantic_ai import RunContext
 
 from pathfinder.domain.strategy.ops import (
@@ -20,7 +21,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKDatasetIdListContent,
     WDKSearchConfig,
 )
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_tests import resolve_controls_param_type
 from pathfinder.services.experiment.ai_analysis_helpers import (
     collect_all_result_ids,

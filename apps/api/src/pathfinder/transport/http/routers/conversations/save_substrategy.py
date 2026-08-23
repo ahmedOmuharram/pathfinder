@@ -3,9 +3,9 @@
 from typing import Annotated
 from uuid import UUID
 
+from assistant_core.platform.pydantic_base import CamelModel
 from fastapi import APIRouter, Depends, Query
 
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.conversations.service import ConversationService
 from pathfinder.transport.http.deps import (
     CurrentUser,

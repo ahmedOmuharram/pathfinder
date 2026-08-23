@@ -4268,6 +4268,59 @@ paths:
       - APIKeyCookie: []
       - HTTPBearer: []
       - APIKeyHeader: []
+  /api/v1/me/privacy:
+    get:
+      tags:
+      - me
+      summary: Get My Privacy
+      description: Return the eval-data decision, and whether the notice was shown.
+      operationId: get_my_privacy_api_v1_me_privacy_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacySettings'
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+    patch:
+      tags:
+      - me
+      summary: Patch My Privacy
+      description: 'Change the eval-data decision, the notice marker, or both.
+
+
+        Turning consent off also clears the user''s staged candidates.'
+      operationId: patch_my_privacy_api_v1_me_privacy_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrivacyUpdate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacySettings'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
   /api/v1/conversations/{conversation_id}/tasks:
     get:
       tags:
@@ -4708,6 +4761,12 @@ components:
             maxLength: 4000
           - type: 'null'
           title: Seedtext
+        assistantId:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Assistantid
       type: object
       required:
       - siteId
@@ -4876,6 +4935,11 @@ components:
           type: string
           format: uuid
           title: Conversationid
+        assistantId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assistantid
         siteId:
           type: string
           title: Siteid
@@ -5464,6 +5528,10 @@ components:
           - type: string
           - type: 'null'
           title: Description
+        assistantId:
+          type: string
+          title: Assistantid
+          default: pathfinder
         siteId:
           type: string
           title: Siteid
@@ -9950,6 +10018,35 @@ components:
       - credential
       title: Principal
       description: The identity a request is served under.
+    PrivacySettings:
+      properties:
+        evalDataConsent:
+          type: boolean
+          title: Evaldataconsent
+        noticeSeen:
+          type: boolean
+          title: Noticeseen
+      type: object
+      required:
+      - evalDataConsent
+      - noticeSeen
+      title: PrivacySettings
+      description: What the user has decided about eval data, and whether they were told.
+    PrivacyUpdate:
+      properties:
+        evalDataConsent:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Evaldataconsent
+        noticeSeen:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Noticeseen
+      type: object
+      title: PrivacyUpdate
+      description: A change to one or both of the two flags. An unset field is unchanged.
     ProductActionRequest:
       properties:
         action:
@@ -11387,18 +11484,24 @@ components:
         level:
           type: string
           title: Level
-          default: NONE
         isValid:
           type: boolean
           title: Isvalid
-          default: true
         errors:
           anyOf:
           - $ref: '#/components/schemas/StepValidationErrors'
           - type: 'null'
       type: object
+      required:
+      - level
+      - isValid
       title: StepValidation
-      description: A validity claim, and the level the claim was made at.
+      description: 'A validity claim, and the level the claim was made at.
+
+
+        Both keys are required: a default would turn a missing key into a claim
+
+        nobody made.'
     StepValidationErrors:
       properties:
         general:
@@ -13739,6 +13842,8 @@ components:
       - EXTERNAL_SERVICE_ERROR
       - DATA_PARSING_ERROR
       - CONVERSATION_NOT_FOUND
+      - ASSISTANT_NOT_FOUND
+      - ASSISTANT_MISMATCH
       - SPECIALIST_PRECONDITION_FAILED
       - SESSION_CONFLICT
       title: ErrorCode

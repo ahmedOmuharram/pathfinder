@@ -10,14 +10,8 @@ from __future__ import annotations
 from types import ModuleType
 
 import pytest
-from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
-from pydantic_ai.models import ModelRequestParameters
-from pydantic_ai.models.function import AgentInfo
-from pydantic_ai.tools import ToolDefinition
-
-from pathfinder.ai.models.mock import PATHFINDER_SCRIPT, get_mock_model
-from pathfinder.assistant_core.models import scripted
-from pathfinder.assistant_core.models.scripted import (
+from assistant_core.models import scripted
+from assistant_core.models.scripted import (
     RoleMarkers,
     RoleScript,
     ScriptedModel,
@@ -25,6 +19,12 @@ from pathfinder.assistant_core.models.scripted import (
     next_unmade_call,
     scripted_call,
 )
+from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
+from pydantic_ai.models import ModelRequestParameters
+from pydantic_ai.models.function import AgentInfo
+from pydantic_ai.tools import ToolDefinition
+
+from pathfinder.ai.models.mock import PATHFINDER_SCRIPT, get_mock_model
 
 PRODUCT_PACKAGES = (
     "pathfinder.ai.models.mock",

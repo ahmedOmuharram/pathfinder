@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from assistant_core.memory.store import MemoryStore
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.tests.integration.http._authz_matrix_owned import create_owned
 from pathfinder.tests.integration.http._authz_matrix_support import Owned
 from pathfinder.tests.integration.http.conftest import (

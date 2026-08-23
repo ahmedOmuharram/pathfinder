@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 
-from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
-from pathfinder.assistant_core.memory.reembed import reembed_all_memories
-from pathfinder.assistant_core.memory.store import MemoryStore
+from assistant_core.memory.lifespan import lifespan_memory_store
+from assistant_core.memory.reembed import reembed_all_memories
+from assistant_core.memory.store import MemoryStore
+
 from pathfinder.platform.config import get_settings
 
 

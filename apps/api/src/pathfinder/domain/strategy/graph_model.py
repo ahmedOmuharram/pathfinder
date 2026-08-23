@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.parameters.values import ParamValue
@@ -20,7 +21,6 @@ from pathfinder.domain.strategy.ast import (
 )
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
 from pathfinder.domain.strategy.validation import StepValidation
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class StepStatus(StrEnum):
@@ -263,6 +263,6 @@ def step_status(
         return StepStatus.DRAFT
     if wdk_step_id is None:
         return StepStatus.READY
-    if validation is not None and not validation.is_valid:
+    if validation is not None and validation.rejects():
         return StepStatus.INVALID
     return StepStatus.BUILT

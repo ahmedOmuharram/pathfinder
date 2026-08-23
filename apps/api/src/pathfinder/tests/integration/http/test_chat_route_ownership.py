@@ -6,12 +6,12 @@ import asyncio
 from uuid import UUID
 
 import httpx
+from assistant_core.persistence.models import Conversation, Message
 from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.persistence.models import Conversation, Message
 from pathfinder.tests.integration.http.conftest import (
     chat_body,
     chat_jobs,

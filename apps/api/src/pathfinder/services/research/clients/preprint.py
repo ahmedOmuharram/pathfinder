@@ -5,6 +5,7 @@ import re
 from typing import Literal
 
 import httpx
+from assistant_core.platform.logging import get_logger
 from pydantic import JsonValue, ValidationError
 
 from pathfinder.domain.research.citations import (
@@ -14,7 +15,6 @@ from pathfinder.domain.research.citations import (
 )
 from pathfinder.domain.research.papers import ParsedPaper, PreprintRawResult
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.research.clients._base import (
     BaseClient,
     SearchResponse,

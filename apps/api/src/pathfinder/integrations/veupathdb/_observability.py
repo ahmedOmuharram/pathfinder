@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
+from assistant_core.platform.logging import get_logger
 from tenacity import RetryCallState
 
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.metrics import site_search_request_retries, wdk_request_retries
 
 logger = get_logger(__name__)

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import cast
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONArray, JSONObject
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -48,9 +50,7 @@ from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
 from pathfinder.domain.strategy.revision import strategy_revision
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import ErrorCode, ValidationError
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONArray, JSONObject
 from pathfinder.services.catalog.param_validation import (
     ValidationCallbacks,
     validate_parameters,

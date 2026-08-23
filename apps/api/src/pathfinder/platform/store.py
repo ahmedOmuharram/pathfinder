@@ -17,6 +17,8 @@ boilerplate that was previously duplicated across every concrete store.
 from collections.abc import Callable
 from typing import Any, Protocol, cast
 
+from assistant_core.platform.db import async_session_factory
+from assistant_core.platform.logging import get_logger
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from tenacity import (
@@ -26,8 +28,6 @@ from tenacity import (
     wait_exponential,
 )
 
-from pathfinder.platform.db import async_session_factory
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tasks import spawn
 
 logger = get_logger(__name__)

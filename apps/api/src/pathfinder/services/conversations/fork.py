@@ -5,20 +5,19 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from assistant_core.persistence.models import Conversation, Message
+from assistant_core.platform.logging import get_logger
 from sqlalchemy import asc, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import WDKStepTree
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationStrategy,
-    Message,
+from pathfinder.persistence.models import ConversationStrategy
+from pathfinder.persistence.repositories.conversation_strategy import (
+    strategy_view_of,
 )
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.conversations.authz import owned_by_caller
 
 logger = get_logger(__name__)
@@ -304,13 +303,15 @@ async def fork_conversation(
 ) -> Conversation:
     """Create a fork. ``from_message_id`` is the last message copied over."""
     source = await session.scalar(
-        select(Conversation)
-        .where(Conversation.id == source_conversation_id)
-        .options(selectinload(Conversation.strategy)),
+        select(Conversation).where(Conversation.id == source_conversation_id),
     )
     if source is None or not owned_by_caller(source, user_id):
         msg = "Source conversation not found"
         raise ForkError(msg)
+    source_strategy_row = await session.get(
+        ConversationStrategy,
+        source_conversation_id,
+    )
 
     anchor = await session.scalar(
         select(Message).where(
@@ -342,7 +343,7 @@ async def fork_conversation(
         .limit(1),
     )
 
-    source_strategy = source.strategy_view
+    source_strategy = strategy_view_of(source_strategy_row)
     forked_ast = dict(source_strategy.strategy_ast)
     new_wdk_strategy_id: int | None = None
     if source_strategy.wdk_strategy_id is not None:
@@ -366,7 +367,7 @@ async def fork_conversation(
     )
     session.add(fork)
     await session.flush()
-    if source.strategy is not None:
+    if source_strategy_row is not None:
         session.add(
             ConversationStrategy(
                 conversation_id=new_conv_id,

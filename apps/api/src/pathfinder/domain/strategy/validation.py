@@ -15,9 +15,8 @@ without importing from the integration layer, eliminating the isinstance
 narrowing that was required at every read site.
 """
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import ConfigDict, Field
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class StepValidationErrors(CamelModel):
@@ -33,12 +32,16 @@ _UNCHECKED = "NONE"
 
 
 class StepValidation(CamelModel):
-    """A validity claim, and the level the claim was made at."""
+    """A validity claim, and the level the claim was made at.
+
+    Both keys are required: a default would turn a missing key into a claim
+    nobody made.
+    """
 
     model_config = ConfigDict(frozen=True, extra="ignore")
 
-    level: str = _UNCHECKED
-    is_valid: bool = True
+    level: str
+    is_valid: bool
     errors: StepValidationErrors | None = None
 
     def was_checked(self) -> bool:

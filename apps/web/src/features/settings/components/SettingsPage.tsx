@@ -7,11 +7,13 @@ import { AdvancedSettings } from "./settings/AdvancedSettings";
 import { SeedingSettings } from "./settings/SeedingSettings";
 import { MemorySettings } from "./settings/MemorySettings";
 import { ModelSettings } from "./settings/ModelSettings";
+import { PrivacySettings } from "./settings/PrivacySettings";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "model", label: "Model" },
   { id: "data", label: "Data" },
   { id: "memory", label: "Memory" },
+  { id: "privacy", label: "Privacy" },
   { id: "advanced", label: "Advanced" },
   { id: "seeding", label: "Seeding" },
 ];
@@ -62,6 +64,7 @@ export function SettingsPage({
         {tab === "model" && <ModelSettings />}
         {tab === "data" && <DataSettings siteId={siteId} />}
         {tab === "memory" && <MemorySettings />}
+        {tab === "privacy" && <PrivacySettings />}
         {tab === "advanced" && <AdvancedSettings />}
         {tab === "seeding" && <SeedingSettings />}
       </div>

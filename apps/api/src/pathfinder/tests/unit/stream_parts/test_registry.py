@@ -1,18 +1,18 @@
 """Tests for the stream-part registry behind the generated schema index."""
 
 import pytest
-from pydantic import BaseModel
-from pydantic.alias_generators import to_camel
-
-from pathfinder.ai.strategy_stream_parts import register_strategy_stream_parts
-from pathfinder.assistant_core.conversation.stream_parts.core_parts import (
+from assistant_core.conversation.stream_parts.core_parts import (
     register_core_stream_parts,
 )
-from pathfinder.assistant_core.conversation.stream_parts.registry import (
+from assistant_core.conversation.stream_parts.registry import (
     DuplicateStreamPartError,
     InvalidStreamPartNameError,
     StreamPartRegistry,
 )
+from pydantic import BaseModel
+from pydantic.alias_generators import to_camel
+
+from pathfinder.ai.strategy_stream_parts import register_strategy_stream_parts
 from pathfinder.main import create_app
 
 # The set the schema index carried before the registry existed. A registration

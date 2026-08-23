@@ -4,13 +4,13 @@ import json
 import time
 from pathlib import Path
 
+from assistant_core.platform.logging import get_logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordType,
     WDKSearch,
 )
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

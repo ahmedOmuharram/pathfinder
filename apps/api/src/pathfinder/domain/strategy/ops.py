@@ -3,9 +3,8 @@
 from enum import StrEnum
 from typing import Annotated, Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import AfterValidator, Field
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class CombineOp(StrEnum):

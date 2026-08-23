@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Annotated, Literal, Self
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, TypeAdapter, ValidationError, model_validator
 
 from pathfinder.domain.parameters.phyletic import PHYLETIC_MAP_PARAMS
@@ -17,7 +18,6 @@ from pathfinder.domain.parameters.wdk_vocab import (
 )
 from pathfinder.integrations.veupathdb.phyletic_tree import phyletic_tree_of
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.vocab_rendering import (
     _MAX_VOCAB_ENTRIES,
     allowed_values,

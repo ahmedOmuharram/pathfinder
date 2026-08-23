@@ -2,10 +2,10 @@
 
 from uuid import UUID
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class StepCountsRequest(CamelModel):
@@ -31,6 +31,9 @@ class BeginConversationRequest(CamelModel):
     site_id: str = Field(min_length=1, max_length=50)
     experiment_id: str | None = None
     seed_text: str | None = Field(default=None, max_length=4000)
+    # Names the assistant a NEW conversation is created under. An existing
+    # conversation keeps its own, and a request naming another one is refused.
+    assistant_id: str | None = Field(default=None, max_length=64)
 
 
 class BeginConversationResponse(CamelModel):

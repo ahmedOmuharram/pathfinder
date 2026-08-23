@@ -10,8 +10,9 @@ from __future__ import annotations
 from typing import Any, cast, get_args
 from uuid import UUID
 
+from assistant_core.memory.store import MemoryStore
+
 from pathfinder.ai.graph.runtime import Context
-from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.services.enrichment.types import EnrichmentAnalysisType
 from pathfinder.services.gene_sets.enrichment import run_enrichment_for_gene_set

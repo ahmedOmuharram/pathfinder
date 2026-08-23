@@ -2,25 +2,27 @@
 from WDK."""
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, delete, select, update
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.logging import get_logger
+from sqlalchemy import CursorResult, Row, Select, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.persistence.models import (
     ControlSet,
-    Conversation,
+    ConversationStrategy,
     ExperimentRow,
     GeneSetRow,
 )
-from pathfinder.platform.context import calling_application
+from pathfinder.persistence.repositories.eval_staging import delete_staged_for_user
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.gene_sets.store import get_gene_set_store
 
 logger = get_logger(__name__)
@@ -36,6 +38,7 @@ class PurgeResult:
     gene_sets: int
     experiments: int
     control_sets: int
+    staged_eval_cases: int
 
 
 async def purge_user_data(
@@ -54,18 +57,24 @@ async def purge_user_data(
     so the same user's data under another application is untouched.
     """
     application_id = calling_application()
-    conversation_query = (
-        select(Conversation)
-        .where(
-            Conversation.user_id == user_id,
-            Conversation.application_id == application_id,
-        )
-        .options(selectinload(Conversation.strategy))
+    # The outer join makes the strategy row nullable, which the select type
+    # of the three entities does not express.
+    selected: Select[tuple[UUID, str, ConversationStrategy | None]] = select(
+        Conversation.id,
+        Conversation.site_id,
+        ConversationStrategy,
+    )
+    conversation_query = selected.outerjoin(
+        ConversationStrategy,
+        ConversationStrategy.conversation_id == Conversation.id,
+    ).where(
+        Conversation.user_id == user_id,
+        Conversation.application_id == application_id,
     )
     if site_id:
         conversation_query = conversation_query.where(Conversation.site_id == site_id)
-    conversations = list((await session.execute(conversation_query)).scalars().all())
-    conversation_ids = [str(c.id) for c in conversations]
+    conversations = list((await session.execute(conversation_query)).all())
+    conversation_ids = [str(row.id) for row in conversations]
 
     wdk_deleted = await _purge_wdk_strategies(
         _strategies_built_by(conversations),
@@ -96,6 +105,9 @@ async def purge_user_data(
     pg_gene_sets, pg_experiments, pg_control_sets = await _purge_related_data(
         session, user_id, site_id
     )
+    # A staged eval candidate is still the user's; a promoted case names
+    # nobody and is out of reach here.
+    staged_eval_cases = await delete_staged_for_user(session, user_id=user_id)
 
     await session.commit()
 
@@ -112,6 +124,7 @@ async def purge_user_data(
         gene_sets=pg_gene_sets,
         experiments=pg_experiments,
         control_sets=pg_control_sets,
+        staged_eval_cases=staged_eval_cases,
     )
 
     return PurgeResult(
@@ -121,21 +134,23 @@ async def purge_user_data(
         gene_sets=pg_gene_sets,
         experiments=pg_experiments,
         control_sets=pg_control_sets,
+        staged_eval_cases=staged_eval_cases,
     )
 
 
-def _strategies_built_by(conversations: list[Conversation]) -> dict[str, set[int]]:
+def _strategies_built_by(
+    conversations: Sequence[Row[tuple[UUID, str, ConversationStrategy | None]]],
+) -> dict[str, set[int]]:
     """Group by site the WDK strategies these conversations built.
 
     A saved strategy a conversation only imported is left out: the user can
     have made it on the website, and another conversation can still consume it.
     """
     by_site: dict[str, set[int]] = {}
-    for conversation in conversations:
-        wdk_strategy_id = conversation.strategy_view.wdk_strategy_id
-        if wdk_strategy_id is None:
+    for _id, row_site_id, strategy in conversations:
+        if strategy is None or strategy.wdk_strategy_id is None:
             continue
-        by_site.setdefault(conversation.site_id, set()).add(wdk_strategy_id)
+        by_site.setdefault(row_site_id, set()).add(strategy.wdk_strategy_id)
     return by_site
 
 

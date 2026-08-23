@@ -8,8 +8,9 @@ and extraction of default parameter values from typed WDK parameters.
 import json
 from collections.abc import Sequence
 
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
-from pathfinder.platform.types import JSONObject
 
 # WDK ``EnumParamFormatter.getParamType()`` emits these JSON type strings
 # for params extending ``AbstractEnumParam`` (``EnumParam``, ``FlatVocabParam``).

@@ -44,6 +44,8 @@ def _round_trip(name: str, value: ParamValue, kind: ParamKind) -> ParamValue:
 
 _TEXT = st.text(min_size=1, max_size=40)
 _TERM = st.text(min_size=1, max_size=30)
+# A range bound is an ISO date or WDK cannot parse it (WDK-PARAM-006).
+_ISO_DATE = st.dates().map(lambda d: d.isoformat())
 
 
 class TestScalarsRoundTrip:
@@ -129,7 +131,7 @@ class TestRangesRoundTrip:
             assert float(restored.max or 0) == float(high)
 
     @settings(max_examples=100)
-    @given(st.one_of(st.none(), _TERM), st.one_of(st.none(), _TERM))
+    @given(st.one_of(st.none(), _ISO_DATE), st.one_of(st.none(), _ISO_DATE))
     def test_date_range(self, low: str | None, high: str | None) -> None:
         assume(low is not None or high is not None)
         restored = _round_trip("p", DateRangeValue(min=low, max=high), "date-range")

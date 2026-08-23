@@ -11,10 +11,10 @@ from typing import Any
 
 import numpy as np
 import pytest
+from assistant_core.embeddings.prefixes import SEARCH_DOCUMENT_PREFIX
 from numpy.typing import NDArray
 
 from pathfinder.integrations.embeddings import semantic_index
-from pathfinder.integrations.embeddings.prefixes import SEARCH_DOCUMENT_PREFIX
 from pathfinder.integrations.embeddings.semantic_index import (
     SemanticSearchIndex,
     set_cache_dir,

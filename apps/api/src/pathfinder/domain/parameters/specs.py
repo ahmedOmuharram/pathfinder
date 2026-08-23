@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.domain.parameters.values import (
     ParamValue,
     as_param_kind,
     from_decoded,
 )
 from pathfinder.domain.parameters.wdk_vocab import WDKVocabulary, vocab_keys
-from pathfinder.platform.types import JSONObject
 
 
 @dataclass(frozen=True)

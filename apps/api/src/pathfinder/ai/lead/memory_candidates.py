@@ -10,16 +10,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+from assistant_core.memory.autowrite import MemoryCandidate
+from assistant_core.memory.schemas import MemoryEntryDraft, MemoryValue
+from assistant_core.memory.tombstones import SessionFactory
+from assistant_core.persistence.models import Conversation, Message
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph.state import PipelineState
-from pathfinder.assistant_core.memory.autowrite import MemoryCandidate
-from pathfinder.assistant_core.memory.schemas import MemoryEntryDraft, MemoryValue
-from pathfinder.assistant_core.memory.tombstones import SessionFactory
-from pathfinder.persistence.models import Conversation, Message
-from pathfinder.platform.context import calling_application
-from pathfinder.platform.db import async_session_factory
 
 __all__ = [
     "PRODUCT_MEMORY_KINDS",

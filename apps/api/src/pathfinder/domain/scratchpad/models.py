@@ -5,9 +5,8 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, field_validator
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 def _normalize_tags(raw: list[str]) -> list[str]:

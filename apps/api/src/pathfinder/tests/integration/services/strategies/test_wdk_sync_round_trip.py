@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from assistant_core.platform.db import async_session_factory
+
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
 from pathfinder.persistence.repositories.conversation import ConversationRepository
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.strategies.wdk_sync import (
     WdkChatSpec,
     plan_needs_detail_fetch,
@@ -54,13 +55,13 @@ async def test_importing_a_wdk_strategy_creates_the_side_row(
         )
 
     assert found is not None
-    assert found.id == conversation_id
-    strategy = found.strategy_view
+    conversation, strategy = found
+    assert conversation.id == conversation_id
     assert strategy.wdk_strategy_id == WDK_ID
     assert strategy.record_type == "transcript"
     assert strategy.is_saved is True
     assert strategy.step_count == 1
-    assert plan_needs_detail_fetch(found) is False
+    assert plan_needs_detail_fetch(strategy) is False
 
 
 async def test_a_second_import_updates_the_same_thread(authed_user_id: UUID) -> None:
@@ -87,8 +88,9 @@ async def test_a_second_import_updates_the_same_thread(authed_user_id: UUID) -> 
 
         assert second.id == first_id
         assert second.name == "renamed upstream"
-        assert second.strategy_view.wdk_strategy_id == WDK_ID
-        assert second.strategy_view.step_count == 6
+        second_strategy = await repo.get_strategy(second.id)
+        assert second_strategy.wdk_strategy_id == WDK_ID
+        assert second_strategy.step_count == 6
 
 
 async def test_a_summary_import_leaves_the_plan_unfetched(
@@ -115,12 +117,13 @@ async def test_a_summary_import_leaves_the_plan_unfetched(
         await session.commit()
 
     assert conversation is not None
-    strategy = conversation.strategy_view
+    async with async_session_factory() as session:
+        strategy = await ConversationRepository(session).get_strategy(conversation.id)
     assert strategy.wdk_strategy_id == WDK_ID
     assert strategy.estimated_size == 137
     assert strategy.step_count == 3
     assert strategy.strategy_ast == {}
-    assert plan_needs_detail_fetch(conversation) is True
+    assert plan_needs_detail_fetch(strategy) is True
 
 
 async def test_pruning_drops_a_thread_whose_wdk_strategy_is_gone(

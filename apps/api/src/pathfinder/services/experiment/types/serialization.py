@@ -7,7 +7,8 @@ call-site API and add the summary projection logic.
 
 from typing import cast
 
-from pathfinder.platform.types import JSONObject
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.services.experiment.types.experiment import Experiment
 
 

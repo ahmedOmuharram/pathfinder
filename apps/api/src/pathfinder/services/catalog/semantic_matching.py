@@ -6,11 +6,12 @@ index, and injects high-similarity searches that keyword scoring missed.
 
 import asyncio
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.embeddings.semantic_index import SemanticSearchIndex
 from pathfinder.integrations.veupathdb.discovery_service import DiscoveryService
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.models import SearchMatch
 from pathfinder.services.catalog.scoring import resolve_returns
 

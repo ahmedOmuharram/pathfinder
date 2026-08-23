@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from assistant_core.graph.emit import emit_chunk
+from assistant_core.graph.stream_events import (
+    SubAgentCallPayload,
+    sub_agent_call_event,
+)
 from pydantic import BaseModel
 from pydantic_ai.messages import (
     AgentStreamEvent,
@@ -24,14 +29,9 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     ToolOutputErrorChunk,
 )
 
-from pathfinder.ai.graph._lead_capture import _emit_chunk
 from pathfinder.ai.graph.stream_events import ledger_update_event
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, sub_agent_model_id
-from pathfinder.assistant_core.graph.stream_events import (
-    SubAgentCallPayload,
-    sub_agent_call_event,
-)
 
 _SUB_AGENT_TOOL_TO_PHASE: dict[str, str] = {
     "frame_problem": "frame",
@@ -176,7 +176,7 @@ def handle_sub_agent_event(
         if tool_name not in _SUB_AGENT_TOOL_NAMES:
             return
         sub_agent_tool_calls[event.tool_call_id] = tool_name
-        _emit_chunk(
+        emit_chunk(
             writer,
             sub_agent_call_event(
                 SubAgentCallPayload(
@@ -206,7 +206,7 @@ def handle_sub_agent_event(
             summary = _summarize_sub_agent_result(result)
         failed = sub_agent_result_failed(result)
         tokens, cost_usd = sub_agent_usage.get(event.tool_call_id, (0, "0"))
-        _emit_chunk(
+        emit_chunk(
             writer,
             sub_agent_call_event(
                 SubAgentCallPayload(
@@ -223,4 +223,4 @@ def handle_sub_agent_event(
             ),
         )
         ledger = derive_ledger(deps.state, deps.intent)
-        _emit_chunk(writer, ledger_update_event(ledger=ledger))
+        emit_chunk(writer, ledger_update_event(ledger=ledger))

@@ -8,18 +8,23 @@ mutation, distinct from plain conversation CRUD.
 from dataclasses import dataclass
 from uuid import UUID
 
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.domain.strategy.operations import GraphOperation
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
     StrategyAst,
 )
-from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.persistence.repositories import ConversationRepository
-from pathfinder.platform.db import _get_session_factory, async_session_factory
 from pathfinder.platform.errors import ErrorCode, NotFoundError, ValidationError
-from pathfinder.platform.types import JSONObject
-from pathfinder.services.conversations.authz import get_owned_conversation_or_404
+from pathfinder.services.conversations.authz import (
+    get_owned_conversation_or_404,
+    get_owned_thread_or_404,
+)
 from pathfinder.services.conversations.responses import (
     ConversationResponse,
     build_conversation_response,
@@ -54,8 +59,10 @@ class InsertSavedParams:
     operator: CombineOp
 
 
-def _persisted_graph(conversation: Conversation) -> PersistedStrategyGraph:
-    strategy = conversation.strategy_view
+def _persisted_graph(
+    conversation: Conversation,
+    strategy: ConversationStrategyView,
+) -> PersistedStrategyGraph:
     return PersistedStrategyGraph(
         id=str(conversation.id),
         name=conversation.name,
@@ -69,8 +76,10 @@ async def get_ast(
     conversation_id: UUID,
     user_id: UUID,
 ) -> JSONObject:
-    conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    strategy_ast = conversation.strategy_view.strategy_ast
+    _conversation, strategy = await get_owned_thread_or_404(
+        repo, conversation_id, user_id
+    )
+    strategy_ast = strategy.strategy_ast
     if not strategy_ast:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
@@ -97,13 +106,13 @@ async def restore(
             ],
         )
     await repo.restore(conversation_id)
-    updated = await repo.get_by_id(conversation_id)
+    updated = await repo.get_with_strategy(conversation_id)
     if not updated:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="Strategy not found",
         )
-    return build_conversation_summary(updated)
+    return build_conversation_summary(*updated)
 
 
 async def apply_operation(
@@ -114,8 +123,10 @@ async def apply_operation(
     site_id: str,
     op: GraphOperation,
 ) -> ConversationResponse:
-    conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if not conversation.strategy_view.strategy_ast:
+    conversation, strategy = await get_owned_thread_or_404(
+        repo, conversation_id, user_id
+    )
+    if not strategy.strategy_ast:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="Strategy AST missing",
@@ -124,19 +135,19 @@ async def apply_operation(
         site_id=site_id,
         strategy_session=build_strategy_session(
             site_id=site_id,
-            strategy_graph=_persisted_graph(conversation),
+            strategy_graph=_persisted_graph(conversation, strategy),
         ),
         conversation_id=conversation_id,
-        db_session_factory=_get_session_factory(),
+        db_session_factory=async_session_factory,
     )
     await apply_and_commit(deps=ctx, op=op)
-    refreshed = await repo.get_by_id(conversation_id)
+    refreshed = await repo.get_with_strategy(conversation_id)
     if refreshed is None:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="Strategy not found after commit",
         )
-    return build_conversation_response(refreshed)
+    return build_conversation_response(*refreshed)
 
 
 async def save_substrategy(
@@ -145,15 +156,17 @@ async def save_substrategy(
     user_id: UUID,
     params: SaveSubstrategyParams,
 ) -> SavedSubstrategyResult:
-    conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if not conversation.strategy_view.strategy_ast:
+    conversation, strategy = await get_owned_thread_or_404(
+        repo, conversation_id, user_id
+    )
+    if not strategy.strategy_ast:
         raise ValidationError(
             title="conversation has no strategy",
             detail="cannot save substrategy from an empty conversation",
         )
     session = build_strategy_session(
         site_id=params.site_id,
-        strategy_graph=_persisted_graph(conversation),
+        strategy_graph=_persisted_graph(conversation, strategy),
     )
     graph = session.get_graph(None)
     if graph is None or params.step_id not in graph.steps:
@@ -187,15 +200,17 @@ async def insert_saved(
     user_id: UUID,
     params: InsertSavedParams,
 ) -> InsertSavedResult:
-    conversation = await get_owned_conversation_or_404(repo, conversation_id, user_id)
-    if not conversation.strategy_view.strategy_ast:
+    conversation, strategy = await get_owned_thread_or_404(
+        repo, conversation_id, user_id
+    )
+    if not strategy.strategy_ast:
         raise ValidationError(
             title="conversation has no strategy",
             detail="cannot insert into an empty conversation",
         )
     session = build_strategy_session(
         site_id=params.site_id,
-        strategy_graph=_persisted_graph(conversation),
+        strategy_graph=_persisted_graph(conversation, strategy),
     )
     return await insert_saved_into_conversation(
         session=session,

@@ -7,11 +7,11 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.platform.context import application_id_ctx
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 
 from pathfinder.persistence.models import MonthlyUsage, User
-from pathfinder.platform.context import application_id_ctx
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services import quota as quota_service
 
 HOME = "pathfinder"

@@ -3,8 +3,8 @@
 import warnings
 
 import optuna
+from assistant_core.platform.logging import get_logger
 
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.parameter_optimization.config import (
     OptimizationConfig,
     ParameterSpec,

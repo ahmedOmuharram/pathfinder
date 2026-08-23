@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
+from assistant_core.memory.schemas import MemoryKind
+from assistant_core.memory.store import MemoryStore, StoredMemory
+from assistant_core.memory.tombstones import TombstoneRepository
+from assistant_core.platform.db import async_session_factory
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from langgraph.store.postgres.aio import AsyncPostgresStore
 
-from pathfinder.assistant_core.memory.schemas import MemoryKind
-from pathfinder.assistant_core.memory.store import MemoryStore, StoredMemory
-from pathfinder.assistant_core.memory.tombstones import TombstoneRepository
-from pathfinder.platform.db import async_session_factory
 from pathfinder.transport.http.deps import CurrentUser
 from pathfinder.transport.http.schemas.memories import (
     MemoryEditRequest,
@@ -19,7 +19,14 @@ from pathfinder.transport.http.schemas.memories import (
 
 router = APIRouter(prefix="/api/v1/memories", tags=["memories"])
 
-_KINDS: tuple[MemoryKind, ...] = ("gene_set", "strategy", "preference", "knowledge")
+# The order the response fields are filled in; the set is pinned against the
+# assistant's declared kinds.
+MEMORY_ROUTE_KINDS: tuple[MemoryKind, ...] = (
+    "gene_set",
+    "strategy",
+    "preference",
+    "knowledge",
+)
 
 _MAX_PAGE_LIMIT: int = 200
 _DEFAULT_PAGE_LIMIT: int = 50
@@ -51,7 +58,7 @@ async def list_memories(
     store = _store(request)
     buckets: dict[MemoryKind, list[MemoryItem]] = {}
     any_full_page = False
-    for kind in _KINDS:
+    for kind in MEMORY_ROUTE_KINDS:
         stored = await store.list_all(
             user_id=user_id,
             kind=kind,
@@ -82,7 +89,7 @@ async def search_memories(
 ) -> MemorySearchResponse:
     store = _store(request)
     hits: list[MemoryItem] = []
-    for kind in _KINDS:
+    for kind in MEMORY_ROUTE_KINDS:
         stored = await store.semantic_search(
             user_id=user_id,
             kind=kind,

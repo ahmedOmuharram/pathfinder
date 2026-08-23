@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: A conversation is a thread; its strategy is an attachment
-description: The WDK strategy projection moved off conversations into a 1:1 conversation_strategies side table keyed and cascaded by conversation_id, with no owner column of its own, absent-row-means-never-built semantics and one explicit eager loader; keeping one table with nullable strategy columns was rejected.
+description: The WDK strategy projection moved off conversations into a 1:1 conversation_strategies side table keyed and cascaded by conversation_id, with no owner column of its own, absent-row-means-never-built semantics and one join the caller asks for; keeping one table with nullable strategy columns was rejected.
 tags: [persistence, tenancy, assistant-core, wdk, migration]
 generated: { by: claude-code/opus-5, at: 2026-08-21T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-21T00:00:00Z }
@@ -46,21 +46,22 @@ answer to who owns the row.
 
 **No row means the strategy was never built.** A thread starts with no side
 row; the first strategy write creates one. Readers never branch on the row
-being absent: `Conversation.strategy_view` returns a frozen
-`ConversationStrategyView` whose field defaults *are* the absent-row semantics
-(`wdk_strategy_id=None`, `is_saved=False`, `step_count=0`, `strategy_ast={}`),
-so every caller reads the same shape it read from the old columns. The typed
-row itself (`Conversation.strategy`, a `ConversationStrategy | None`) stays
-available for the writers that must tell "absent" from "empty", and the fork
-path is the one that does.
+being absent: `strategy_view_of` returns a frozen `ConversationStrategyView`
+whose field defaults *are* the absent-row semantics (`wdk_strategy_id=None`,
+`is_saved=False`, `step_count=0`, `strategy_ast={}`), so every caller reads
+the same shape it read from the old columns. The typed row itself
+(`ConversationStrategy | None`) stays available for the writers that must tell
+"absent" from "empty", and the fork path is the one that does.
 
-**One eager loader, and a loud failure otherwise.** The relationship is
-`lazy="raise"`, and the repository reads that need the strategy say
-`selectinload(Conversation.strategy)` (with `populate_existing`, because the
-strategy is written by Core statements that do not synchronize a loaded
-relationship). `list_consumers_of_saved_strategy` does not load it, because
-its caller reads names. An unplanned access raises instead of emitting a query
-inside async code.
+**One join, asked for by name.** `conversations` belongs to the runtime
+package ([the runtime is a package](the-runtime-is-a-package.md)), so the
+thread declares no relationship to the science. A caller that wants both says
+so: `ConversationRepository.get_with_strategy` and the two listings select the
+thread beside its projection through one outer join (with `populate_existing`,
+because the strategy is written by Core statements that do not synchronize a
+loaded instance), and `get_strategy` reads the projection alone.
+`list_consumers_of_saved_strategy` joins without selecting it, because its
+caller reads names. Nothing loads behind the caller's back.
 
 **Clearing is not writing.** `ConversationRepository.clear_strategy` blanks
 `strategy_ast`, `wdk_strategy_id` and `step_count` with an `UPDATE`, so a
@@ -89,8 +90,8 @@ disagree with the first.
 
 `apps/api/src/pathfinder/tests/unit/persistence/test_conversation_strategy_seam.py`
 fails the moment a strategy column returns to `Conversation`, an owner column
-appears on `ConversationStrategy`, or the relationship stops raising on an
-unplanned load.
+appears on `ConversationStrategy`, or the thread declares a relationship to
+the science again.
 `.../tests/integration/persistence/test_conversation_strategy_rows.py` and
 `.../test_conversation_strategy_migration.py` fail if the absent-row read, the
 first-write insert, the cascade, the unique index, or either direction of

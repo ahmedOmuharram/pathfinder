@@ -3,6 +3,8 @@
 import asyncio
 import threading
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery import SearchCatalog
 from pathfinder.integrations.veupathdb.site_router import get_site_router
@@ -12,7 +14,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchResponse,
 )
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.readiness import get_readiness
 
 logger = get_logger(__name__)

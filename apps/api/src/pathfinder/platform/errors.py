@@ -3,9 +3,8 @@
 from enum import StrEnum
 
 import pydantic
+from assistant_core.platform.types import JSONArray
 from pydantic import BaseModel
-
-from pathfinder.platform.types import JSONArray
 
 
 class ErrorCode(StrEnum):
@@ -40,6 +39,8 @@ class ErrorCode(StrEnum):
 
     # Conversation
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
+    ASSISTANT_NOT_FOUND = "ASSISTANT_NOT_FOUND"
+    ASSISTANT_MISMATCH = "ASSISTANT_MISMATCH"
 
     # Specialists / launchers
     SPECIALIST_PRECONDITION_FAILED = "SPECIALIST_PRECONDITION_FAILED"
@@ -149,14 +150,24 @@ class ValidationError(AppError):
 
 
 class WDKError(AppError):
-    """Error from VEuPathDB WDK service."""
+    """Error from VEuPathDB WDK service.
 
-    def __init__(self, detail: str, status: int = 502) -> None:
+    ``errors`` carries the per-parameter messages a refusal named, when it
+    named any.
+    """
+
+    def __init__(
+        self,
+        detail: str,
+        status: int = 502,
+        errors: JSONArray | None = None,
+    ) -> None:
         super().__init__(
             code=ErrorCode.WDK_ERROR,
             title="VEuPathDB service error",
             status=status,
             detail=detail,
+            errors=errors,
         )
 
 
@@ -173,6 +184,40 @@ class WDKLoginRequiredError(AppError):
             title="VEuPathDB login required",
             status=401,
             detail="Sign in to VEuPathDB to use searches, strategies and gene sets.",
+        )
+
+
+class AssistantNotFoundError(AppError):
+    """A request names an assistant this deployment does not serve."""
+
+    def __init__(self, assistant_id: str, known: tuple[str, ...]) -> None:
+        super().__init__(
+            code=ErrorCode.ASSISTANT_NOT_FOUND,
+            title="Assistant not found",
+            status=404,
+            detail=(
+                f"No assistant {assistant_id!r} is installed. "
+                f"Installed: {', '.join(known)}."
+            ),
+        )
+
+
+class AssistantMismatchError(AppError):
+    """A request names a different assistant than the conversation was created with.
+
+    A thread keeps one assistant for its whole life, so the caller is acting
+    on a conversation it does not know the shape of.
+    """
+
+    def __init__(self, *, requested: str, existing: str) -> None:
+        super().__init__(
+            code=ErrorCode.ASSISTANT_MISMATCH,
+            title="Assistant mismatch",
+            status=409,
+            detail=(
+                f"This conversation is answered by {existing!r}; "
+                f"the request names {requested!r}."
+            ),
         )
 
 

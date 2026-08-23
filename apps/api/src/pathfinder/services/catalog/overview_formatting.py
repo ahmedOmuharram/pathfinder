@@ -1,9 +1,9 @@
 """Formats WDK search parameters into a required/optional overview."""
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_formatting import (
     FilterFieldInfo,
     ParameterInfo,

@@ -2,6 +2,9 @@
 
 from dataclasses import dataclass, field
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONArray, JSONObject
+
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -14,8 +17,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
     WDKStepTree,
 )
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONArray, JSONObject
 from pathfinder.services.control_helpers import delete_temp_strategy
 from pathfinder.services.control_tests import (
     _extract_intersection_data,

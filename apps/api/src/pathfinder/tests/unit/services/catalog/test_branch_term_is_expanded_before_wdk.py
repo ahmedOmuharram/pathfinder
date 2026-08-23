@@ -10,6 +10,7 @@ import json
 from typing import Any, cast
 
 import pytest
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.values import MultiPickValue, ParamValue
@@ -21,7 +22,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKEnumParam, WDKParameter
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog import param_validation as pv
 
 _CTX = SearchContext(

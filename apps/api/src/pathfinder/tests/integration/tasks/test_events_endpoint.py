@@ -7,19 +7,15 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select, text
 
 from pathfinder.jobs.progress import TaskProgressEmitter
-from pathfinder.persistence.models import (
-    BackgroundTask,
-    Conversation,
-    TaskProgress,
-    User,
-)
+from pathfinder.persistence.models import BackgroundTask, TaskProgress, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.platform.db import async_session_factory
 
 
 async def _seed_chat_and_task(

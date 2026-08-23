@@ -12,11 +12,11 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from assistant_core.persistence.models import Conversation
 from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.persistence.models import Conversation
 from pathfinder.tests.integration.http.conftest import (
     chat_body,
     chat_jobs,

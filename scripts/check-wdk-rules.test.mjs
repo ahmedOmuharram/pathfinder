@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { collect } from "./check-wdk-rules.mjs";
+import { Coverage, collect } from "./check-wdk-rules.mjs";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "__fixtures__/wdk-rules");
 const errorsFor = (name) => collect(join(FIXTURES, name));
@@ -192,4 +192,27 @@ test("the SITE namespace is admitted and a near-miss is still rejected", () => {
   const errors = errorsFor("site-namespace");
   assert.equal(errors.length, 1);
   assert.match(errors[0], /malformed rule id "WDK-SITES-001"$/);
+});
+
+// An unenforced rule is admissible only while it says why. Without the reason
+// the column fills with silence, which is the state this gate exists to end.
+test("an unenforced rule with no reason is rejected", () => {
+  const errors = errorsFor("unenforced-without-reason");
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /is UNENFORCED and gives no reason/);
+});
+
+test("the run reports what the bundle claims about itself", () => {
+  const coverage = new Coverage();
+  assert.deepEqual(collect(join(FIXTURES, "clean"), join(FIXTURES, "clean"), coverage), []);
+  assert.equal(coverage.total, 1);
+  assert.equal(coverage.unenforced.length, 1);
+  assert.equal(coverage.unenforced[0].id, "WDK-STEP-001");
+});
+
+test("an enforced rule is counted as enforced rather than as a gap", () => {
+  const coverage = new Coverage();
+  collect(join(FIXTURES, "vitest-status"), join(FIXTURES, "vitest-status"), coverage);
+  assert.equal(coverage.unenforced.length, 0);
+  assert.ok(coverage.enforced > 0);
 });

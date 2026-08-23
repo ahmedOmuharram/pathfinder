@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import re
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.parameters.wdk_vocab import (
     VocabOption,
     leading_accession_token,
 )
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_formatting import FilterFieldInfo, ParameterInfo
 
 # Below this, the whole vocabulary is cheap enough to send and ranking can only

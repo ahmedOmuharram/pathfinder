@@ -1,0 +1,118 @@
+{
+  "version": "1.0.0",
+  "chunkKinds": [
+    "start",
+    "start-step",
+    "text-start",
+    "text-delta",
+    "text-end",
+    "reasoning-start",
+    "reasoning-delta",
+    "reasoning-end",
+    "tool-input-start",
+    "tool-input-delta",
+    "tool-input-available",
+    "tool-input-error",
+    "tool-approval-request",
+    "tool-output-available",
+    "tool-output-error",
+    "tool-output-denied",
+    "file",
+    "source-url",
+    "source-document",
+    "message-metadata",
+    "finish-step",
+    "error",
+    "abort",
+    "finish",
+    "done"
+  ],
+  "dataPartKinds": [
+    "data-turn-status",
+    "data-turn-usage",
+    "data-turn-stopped",
+    "data-lead-usage",
+    "data-sub-agent-call",
+    "data-sub-agent-step",
+    "data-conversation-title",
+    "data-background-task-started",
+    "data-task-progress",
+    "data-task-completed"
+  ],
+  "envelopeKinds": ["user-message", "system-message", "assistant-message"],
+  "finishReasons": ["stop", "error", "other"],
+  "examples": [
+    {
+      "kind": "data-turn-status",
+      "json": "{\n  \"type\": \"data-turn-status\",\n  \"data\": {\n    \"label\": \"Preparing context\",\n    \"waitingOnLlm\": false\n  }\n}"
+    },
+    {
+      "kind": "data-turn-stopped",
+      "json": "{\n  \"type\": \"data-turn-stopped\",\n  \"data\": {}\n}"
+    },
+    {
+      "kind": "data-turn-usage",
+      "json": "{\n  \"type\": \"data-turn-usage\",\n  \"data\": {\n    \"costUsd\": \"0\",\n    \"totalTokens\": 57\n  },\n  \"transient\": true\n}"
+    },
+    {
+      "kind": "done",
+      "json": "\"[DONE]\""
+    },
+    {
+      "kind": "error",
+      "json": "{\n  \"type\": \"error\",\n  \"errorText\": \"A deferred tool call was present, but `DeferredToolRequests` is not among output types. To resolve this, add `DeferredToolRequests` to the list of output types for this agent, or use a `HandleDeferredToolCalls` capability to handle deferred tool calls inline.\"\n}"
+    },
+    {
+      "kind": "finish",
+      "json": "{\n  \"type\": \"finish\",\n  \"finishReason\": \"stop\"\n}"
+    },
+    {
+      "kind": "finish-step",
+      "json": "{\n  \"type\": \"finish-step\"\n}"
+    },
+    {
+      "kind": "message-metadata",
+      "json": "{\n  \"type\": \"message-metadata\",\n  \"messageMetadata\": {\n    \"pydantic_ai\": {\n      \"timestamp\": \"2026-01-01T00:00:00Z\"\n    }\n  }\n}"
+    },
+    {
+      "kind": "start",
+      "json": "{\n  \"type\": \"start\",\n  \"messageId\": \"00000000-0000-0000-0000-000000000000\"\n}"
+    },
+    {
+      "kind": "start-step",
+      "json": "{\n  \"type\": \"start-step\"\n}"
+    },
+    {
+      "kind": "text-delta",
+      "json": "{\n  \"type\": \"text-delta\",\n  \"delta\": \"You said: which sites do you serve\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\"\n}"
+    },
+    {
+      "kind": "text-end",
+      "json": "{\n  \"type\": \"text-end\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\"\n}"
+    },
+    {
+      "kind": "text-start",
+      "json": "{\n  \"type\": \"text-start\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\"\n}"
+    },
+    {
+      "kind": "tool-input-available",
+      "json": "{\n  \"type\": \"tool-input-available\",\n  \"toolCallId\": \"call_add\",\n  \"toolName\": \"add\",\n  \"input\": {\n    \"a\": 2,\n    \"b\": 3\n  }\n}"
+    },
+    {
+      "kind": "tool-input-delta",
+      "json": "{\n  \"type\": \"tool-input-delta\",\n  \"toolCallId\": \"call_add\",\n  \"inputTextDelta\": \"{\\\"a\\\":2,\\\"b\\\":3}\"\n}"
+    },
+    {
+      "kind": "tool-input-start",
+      "json": "{\n  \"type\": \"tool-input-start\",\n  \"toolCallId\": \"call_add\",\n  \"toolName\": \"add\"\n}"
+    },
+    {
+      "kind": "tool-output-available",
+      "json": "{\n  \"type\": \"tool-output-available\",\n  \"toolCallId\": \"call_add\",\n  \"output\": 5\n}"
+    },
+    {
+      "kind": "tool-output-error",
+      "json": "{\n  \"type\": \"tool-output-error\",\n  \"toolCallId\": \"call_wipe\",\n  \"errorText\": \"Tool execution was interrupted by an error.\"\n}"
+    }
+  ]
+}

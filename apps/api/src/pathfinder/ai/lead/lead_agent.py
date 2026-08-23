@@ -8,6 +8,11 @@ from __future__ import annotations
 
 from typing import Literal
 
+from assistant_core.graph.turn_state import (
+    ConsultQuestion,
+    UserQuestionAnswer,
+)
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 from pydantic_ai import Agent, DeferredToolRequests, RunContext, Tool
 from pydantic_ai.capabilities import ProcessHistory, Thinking
@@ -35,11 +40,6 @@ from pathfinder.ai.tools.standalone.control_sets import (
 )
 from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_scored
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
-from pathfinder.assistant_core.graph.turn_state import (
-    ConsultQuestion,
-    UserQuestionAnswer,
-)
-from pathfinder.platform.pydantic_base import CamelModel
 
 LeadTurnState = Literal["await_user", "complete"]
 LedgerSectionName = Literal[

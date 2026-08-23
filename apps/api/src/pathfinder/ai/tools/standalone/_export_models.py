@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathfinder.platform.pydantic_base import CamelModel
+from assistant_core.platform.pydantic_base import CamelModel
 
 
 class ExportResultResponse(CamelModel):

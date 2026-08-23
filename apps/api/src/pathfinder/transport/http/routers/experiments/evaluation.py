@@ -1,9 +1,9 @@
 """Evaluation endpoints: re-evaluate, threshold-sweep, export."""
 
+from assistant_core.platform.types import JSONObject
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.evaluation import re_evaluate
 from pathfinder.services.experiment.report import generate_experiment_report
 from pathfinder.services.experiment.sweep_service import (

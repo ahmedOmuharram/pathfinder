@@ -17,15 +17,15 @@ from typing import Any
 from zipfile import BadZipFile
 
 import numpy as np
-from numpy.typing import NDArray
-
-from pathfinder.integrations.embeddings.model import MODEL_NAME, get_embedding_model
-from pathfinder.integrations.embeddings.prefixes import (
+from assistant_core.embeddings.model import MODEL_NAME, get_embedding_model
+from assistant_core.embeddings.prefixes import (
     SEARCH_DOCUMENT_PREFIX,
     SEARCH_QUERY_PREFIX,
 )
+from assistant_core.platform.logging import get_logger
+from numpy.typing import NDArray
+
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

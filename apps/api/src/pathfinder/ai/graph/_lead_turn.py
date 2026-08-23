@@ -1,16 +1,16 @@
 """Turn-level helpers for the Lead node.
 
-Memory retrieval at turn start, resolution of the approval the user answered,
-and the assistant-message write at turn end.
+Memory retrieval at turn start and resolution of the approval the user
+answered.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
-from typing import Any
-from uuid import UUID
 
+from assistant_core.graph.turn_state import PendingApproval
+from assistant_core.memory.retrieval import retrieve_relevant_memories
+from assistant_core.memory.store import MemoryStore, StoredMemory
 from langgraph.runtime import Runtime
 from pydantic_ai.messages import (
     ModelMessage,
@@ -34,35 +34,8 @@ from pathfinder.ai.lead.memory_candidates import PRODUCT_MEMORY_KINDS
 from pathfinder.ai.lead.sub_agent_dispatch import resume_sub_agent
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
 from pathfinder.ai.lead.sub_agent_tools import SUB_AGENT_APPROVAL_PHASE, LeadDeps
-from pathfinder.assistant_core.conversation.event_stream import fetch_chunks_after
-from pathfinder.assistant_core.conversation.ui_message_reducer import reduce_chunks
-from pathfinder.assistant_core.graph.turn_state import PendingApproval
-from pathfinder.assistant_core.memory.retrieval import retrieve_relevant_memories
-from pathfinder.assistant_core.memory.store import MemoryStore, StoredMemory
-from pathfinder.persistence.repositories import MessagesRepository
-from pathfinder.persistence.repositories._message_metadata import MessageMetadata
 
 _DENIED_BY_REPLY = "The user replied instead of answering the approval."
-
-
-def _build_metadata(
-    *,
-    state: PipelineState,
-    total_tokens: int,
-    cost_usd: Decimal,
-) -> dict[str, Any]:
-    return MessageMetadata.model_validate(
-        {
-            "traceId": state.turn_trace_id,
-            "createdAt": state.turn_created_at,
-            "siteId": state.site_id,
-            "mode": state.mode,
-            "usage": {
-                "totalTokens": total_tokens,
-                "costUsd": str(cost_usd),
-            },
-        },
-    ).model_dump(by_alias=True, exclude_none=True)
 
 
 async def retrieve_memories(
@@ -311,37 +284,3 @@ async def resolve_pending_approval(
         ),
         user_prompt=prompt,
     )
-
-
-async def write_turn_message(
-    *,
-    context: Context,
-    state: PipelineState,
-) -> UUID | None:
-    """Persist the assistant message after the Lead's run completes."""
-    _, chunks = await fetch_chunks_after(
-        state.conversation_id,
-        state.turn_start_event_id,
-    )
-    if not chunks:
-        return None
-    msg = reduce_chunks(chunks, default_message_id=str(state.turn_message_id))
-    parts = msg["parts"]
-    if not parts:
-        return None
-    raw_id = msg.get("id") or str(state.turn_message_id)
-    message_id = UUID(raw_id)
-    metadata = _build_metadata(
-        state=state,
-        total_tokens=state.turn_total_tokens,
-        cost_usd=state.turn_total_cost_usd,
-    )
-    async with context.db_session_factory() as session:
-        await MessagesRepository(session).upsert_message(
-            message_id=message_id,
-            conversation_id=state.conversation_id,
-            role="assistant",
-            metadata=metadata,
-        )
-        await session.commit()
-    return message_id

@@ -6,6 +6,8 @@ directly.
 
 from uuid import UUID
 
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,9 +16,7 @@ from pathfinder.persistence.repositories.control_set import (
     ControlSetCreate,
     ControlSetRepository,
 )
-from pathfinder.platform.context import calling_application
 from pathfinder.platform.errors import NotFoundError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.uuid_utils import format_uuid
 
 

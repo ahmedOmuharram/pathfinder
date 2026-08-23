@@ -7,10 +7,10 @@ import json
 from collections.abc import Awaitable, Callable, Iterable
 from pathlib import Path
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel, Field
 
 from pathfinder.ai.tools.standalone.frame_spec import ParamProposals
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_sheet import SheetEntry
 
 _COMBINE_MARKER = "boolean_question"

@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID, uuid4
 
+from assistant_core.graph.turn_state import UserQuestionAnswer
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import ConfigDict, Field
 from pydantic_ai.ui.vercel_ai.request_types import (
     DataUIPart,
@@ -14,8 +16,6 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.assistant_core.graph.turn_state import UserQuestionAnswer
-from pathfinder.platform.pydantic_base import CamelModel
 
 _USER_QUESTION_ANSWERS_TYPE = "data-user-question-answers"
 

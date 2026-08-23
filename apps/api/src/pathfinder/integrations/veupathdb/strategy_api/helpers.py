@@ -53,9 +53,8 @@ def strip_internal_wdk_strategy_name(name: str) -> str:
 async def resolve_wdk_user_id(client: VEuPathDBClient) -> str | None:
     """Resolve the concrete WDK user ID from a ``/users/current`` call.
 
-    Some WDK deployments reject mutations on ``/users/current/...``.
-    This helper resolves the actual numeric user ID once so callers
-    can use ``/users/{userId}/...`` for all subsequent requests.
+    This is the one call that may name the alias. Every later request carries
+    the numeric id, which an ownership check can refuse.
 
     :returns: Resolved user ID string, or ``None`` if resolution failed.
     """

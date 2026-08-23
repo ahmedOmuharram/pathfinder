@@ -1,94 +1,23 @@
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Iterator
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from langgraph.store.postgres.aio import AsyncPostgresStore
+from assistant_core.graph.stream_events import background_task_started_event
+from assistant_core.graph.turn_state import UserQuestionAnswer
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.spec import TurnStart
 from langgraph.types import Interrupt
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.ui.vercel_ai._utils import iter_tool_approval_responses
 from pydantic_ai.ui.vercel_ai.request_types import (
     DataUIPart,
-    TextUIPart,
     ToolApprovalResponded,
 )
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.ai.graph.runtime import Context
-from pathfinder.assistant_core.graph.stream_events import background_task_started_event
-from pathfinder.assistant_core.graph.turn_state import UserQuestionAnswer
-from pathfinder.domain.research.citations import (
-    LiteratureFilters,
-    LiteratureOutputOptions,
-    LiteratureSort,
-    LiteratureSource,
-)
-from pathfinder.domain.strategy.strategy_ast import (
-    PersistedStrategyGraph,
-    StrategyAst,
-)
-from pathfinder.persistence.models import Conversation
-from pathfinder.platform.config import get_settings
-from pathfinder.platform.db import async_session_factory
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import ReasoningEffort
-from pathfinder.services.research.literature_search import LiteratureSearchService
-from pathfinder.services.research.processing import LiteratureSearchResponse
-from pathfinder.services.research.web_search import (
-    SearchDiagnostics,
-    WebSearchResponse,
-    WebSearchService,
-)
-from pathfinder.services.strategies.session_factory import build_strategy_session
-
-
-class _StubLiteratureSearchService(LiteratureSearchService):
-    async def search(
-        self,
-        query: str,
-        *,
-        source: LiteratureSource = "all",
-        limit: int = 5,
-        sort: LiteratureSort = "relevance",
-        options: LiteratureOutputOptions | None = None,
-        filters: LiteratureFilters | None = None,
-    ) -> LiteratureSearchResponse:
-        del limit, options
-        return LiteratureSearchResponse(
-            query=query,
-            source=source,
-            sort=sort,
-            include_abstract=False,
-            abstract_max_chars=500,
-            max_authors=2,
-            filters=filters or LiteratureFilters(),
-            results=[],
-            citations=[],
-        )
-
-
-class _StubWebSearchService(WebSearchService):
-    async def search(
-        self,
-        query: str,
-        limit: int = 5,
-        *,
-        include_summary: bool = False,
-        summary_max_chars: int = 600,
-    ) -> WebSearchResponse:
-        del limit, include_summary, summary_max_chars
-        return WebSearchResponse(
-            query=query,
-            effective_query=query,
-            search_adjusted=False,
-            search_diagnostics=SearchDiagnostics(),
-            results=[],
-            citations=[],
-        )
 
 
 def resolve_site_id(
@@ -106,55 +35,6 @@ def resolve_site_id(
         f"conversation.site_id={chat_site_id!r}, body.site_id={body_site_id!r}"
     )
     raise ValueError(msg)
-
-
-def _build_runtime_context(
-    *,
-    conversation: Conversation | None,
-    site_id: str,
-    user_id: UUID,
-    memory_store: AsyncPostgresStore | None,
-    phase_models: dict[str, str] | None = None,
-    phase_reasoning: dict[str, ReasoningEffort] | None = None,
-) -> Context:
-    persisted: PersistedStrategyGraph | None = None
-    experiment_id: str | None = None
-    if conversation is not None:
-        strategy = conversation.strategy_view
-        plan_payload: StrategyAst | None = None
-        if strategy.strategy_ast and "root" in strategy.strategy_ast:
-            try:
-                plan_payload = StrategyAst.model_validate(strategy.strategy_ast)
-            except ValueError, KeyError, TypeError:
-                plan_payload = None
-        persisted = PersistedStrategyGraph(
-            id=str(conversation.id),
-            name=conversation.name,
-            strategy_ast=plan_payload,
-            wdk_strategy_id=strategy.wdk_strategy_id,
-        )
-        experiment_id = strategy.experiment_id
-
-    strategy_session = build_strategy_session(
-        site_id=site_id,
-        strategy_graph=persisted,
-    )
-    is_mock = get_settings().pathfinder_chat_provider.strip().lower() == "mock"
-    return Context(
-        site_id=site_id,
-        user_id=user_id,
-        strategy_session=strategy_session,
-        db_session_factory=async_session_factory,
-        web_search_service=_StubWebSearchService() if is_mock else WebSearchService(),
-        literature_search_service=(
-            _StubLiteratureSearchService() if is_mock else LiteratureSearchService()
-        ),
-        cancel_event=asyncio.Event(),
-        memory_store=memory_store,
-        experiment_id=experiment_id,
-        phase_models=dict(phase_models or {}),
-        phase_reasoning=dict(phase_reasoning or {}),
-    )
 
 
 def _extract_approval_responses(
@@ -204,36 +84,30 @@ def _extract_user_question_answers(
     return out
 
 
-def _build_turn_input(
+def build_turn_start(
     incoming: ChatRequestBody,
     user_id: UUID,
     *,
     turn_message_id: UUID,
     turn_start_event_id: int,
-) -> dict[str, Any]:
-    base: dict[str, Any] = {
-        "conversation_id": incoming.conversation_id,
-        "user_id": user_id,
-        "site_id": incoming.site_id,
-        "mode": incoming.mode,
-        "approval_responses": _extract_approval_responses(incoming),
-        "user_question_answers": _extract_user_question_answers(incoming),
-        "turn_trace_id": str(uuid4()),
-        "turn_created_at": datetime.now(UTC).isoformat(),
-        "turn_message_id": turn_message_id,
-        "turn_start_event_id": turn_start_event_id,
-        "turn_total_tokens": 0,
-        "turn_total_cost_usd": Decimal(0),
-        "retrieved_memories": [],
-    }
-    if incoming.is_approval_resume:
-        return base
-    return {
-        **base,
-        "user_message_id": incoming.last_user_message_id,
-        "user_prompt": incoming.last_user_text,
-        "user_parts": [TextUIPart(text=incoming.last_user_text, state="done")],
-    }
+) -> TurnStart:
+    """The turn's inputs, for the assistant's state factory to shape."""
+    resume = incoming.is_approval_resume
+    return TurnStart(
+        conversation_id=incoming.conversation_id,
+        user_id=user_id,
+        site_id=incoming.site_id,
+        mode=incoming.mode,
+        turn_message_id=turn_message_id,
+        turn_start_event_id=turn_start_event_id,
+        turn_trace_id=str(uuid4()),
+        turn_created_at=datetime.now(UTC).isoformat(),
+        is_resume=resume,
+        user_message_id=None if resume else incoming.last_user_message_id,
+        user_prompt="" if resume else incoming.last_user_text,
+        approval_responses=_extract_approval_responses(incoming),
+        user_question_answers=_extract_user_question_answers(incoming),
+    )
 
 
 class _ChunkEnvelope(BaseModel):

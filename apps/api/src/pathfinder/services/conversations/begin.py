@@ -22,22 +22,19 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import UUID
 
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.db import async_session_factory
+from assistant_core.platform.logging import get_logger
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationStrategy,
-    ExperimentRow,
-)
+from pathfinder.persistence.models import ConversationStrategy, ExperimentRow
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
-from pathfinder.platform.context import calling_application
-from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.errors import NotFoundError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.conversations.authz import get_owned_or_404
 
 logger = get_logger(__name__)
@@ -61,6 +58,7 @@ async def begin_conversation(
     conversation_id: UUID,
     user_id: UUID,
     site_id: str,
+    assistant_id: str,
     experiment_id: str | None = None,
 ) -> BeginResult:
     application_id = calling_application()
@@ -81,6 +79,7 @@ async def begin_conversation(
             id=conversation_id,
             user_id=user_id,
             application_id=application_id,
+            assistant_id=assistant_id,
             site_id=site_id,
             name=DEFAULT_NEW_CONVERSATION_NAME,
         )

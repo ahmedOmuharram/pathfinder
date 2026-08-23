@@ -33,14 +33,16 @@ dependencies = [
     "tokenizers>=0.21.0",
     "rapidfuzz>=3.14.0",
     "optuna>=4.8.0",
-    "pyjwt>=2.13.0",  # PYSEC-2026-175/177/178/179
+    "pyjwt>=2.13.0", # PYSEC-2026-175/177/178/179
     "slowapi>=0.1.9",
     "pathfinder-shared",
+    "assistant-core",
     "cachetools>=7.0.5",
     "fastembed>=0.8.0",
     "procrastinate>=3.8.1",
     "ddgs>=9.14.1",
     "markdown>=3.10.0",
+    "pydantic-evals>=2.22.0,<3",
 ]
 
 [tool.uv]
@@ -51,6 +53,7 @@ constraint-dependencies = [
 
 [tool.uv.sources]
 pathfinder-shared = { path = "../../packages/shared-py", editable = true }
+assistant-core = { path = "../../packages/assistant-core", editable = true }
 
 [build-system]
 requires = ["hatchling"]
@@ -316,20 +319,23 @@ forbidden_modules = [
     "pathfinder.integrations",
 ]
 
-# This contract also rejects indirect chains, unlike the six above: a runtime
-# that reaches the science through one hop is not a runtime a second assistant
-# can take.
+# The runtime is the `assistant-core` distribution, so no contract here can
+# reach it. Its own suite walks its modules; its pyproject names no dependency
+# on this application. What stays enforceable here is the direction of the
+# assembly: an assistant is built FROM the science, never the other way, so a
+# science module that reaches the composition root has inverted the wiring.
+# Direct-only, like the six above: the chat dispatcher still reaches the
+# registry through the job runner, which is the turn-pipeline seam WS3 named.
 [[tool.importlinter.contracts]]
-name = "The assistant runtime never imports the science, directly or indirectly"
+name = "The science never imports an assistant's composition root"
 type = "forbidden"
-source_modules = ["pathfinder.assistant_core"]
-forbidden_modules = [
+allow_indirect_imports = true
+source_modules = [
     "pathfinder.ai",
     "pathfinder.domain",
-    "pathfinder.integrations.veupathdb",
+    "pathfinder.integrations",
+    "pathfinder.persistence",
     "pathfinder.services",
-    "pathfinder.transport",
-    "pathfinder.jobs",
-    "pathfinder.devtools",
 ]
+forbidden_modules = ["pathfinder.assistants"]
 

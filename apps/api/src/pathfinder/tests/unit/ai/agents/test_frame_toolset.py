@@ -762,7 +762,7 @@ def _serve_search_details(monkeypatch: pytest.MonkeyPatch) -> list[str]:
                 description="Search gene text.",
                 parameters=_genes_by_text_wdk(),
             ),
-            validation=StepValidation(),
+            validation=StepValidation(level="NONE", is_valid=False),
         )
 
     client = MagicMock()
@@ -1045,7 +1045,8 @@ def _serve_bare_definition(monkeypatch: pytest.MonkeyPatch) -> None:
         record_type: str, name: str, *, expand_params: bool = True
     ) -> WDKSearchResponse:
         return WDKSearchResponse(
-            searchData=WDKSearch(urlSegment=name), validation=StepValidation()
+            searchData=WDKSearch(urlSegment=name),
+            validation=StepValidation(level="NONE", is_valid=False),
         )
 
     client = MagicMock()
@@ -1731,7 +1732,7 @@ def _serve_catalog_details(
                     parameters=params,
                     properties=properties or {},
                 ),
-                validation=StepValidation(),
+                validation=StepValidation(level="NONE", is_valid=False),
             ),
             ctx.record_type,
         )

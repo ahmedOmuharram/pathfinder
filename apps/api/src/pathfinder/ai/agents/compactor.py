@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 from pydantic_ai import Agent, RunContext
 
@@ -10,7 +11,6 @@ from pathfinder.ai.agents._model_resolution import (
 )
 from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.domain.scratchpad.models import NoteCreate
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class CompactionResult(CamelModel):

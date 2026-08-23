@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from assistant_core.memory.retrieval import rerank_by_hybrid_score
+from assistant_core.memory.schemas import MemoryKind, MemoryValue
+from assistant_core.memory.store import MemoryStore, StoredMemory
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.memory_candidates import PRODUCT_MEMORY_KINDS
-from pathfinder.assistant_core.memory.retrieval import rerank_by_hybrid_score
-from pathfinder.assistant_core.memory.schemas import MemoryKind, MemoryValue
-from pathfinder.assistant_core.memory.store import MemoryStore, StoredMemory
 
 
 async def search_memory(

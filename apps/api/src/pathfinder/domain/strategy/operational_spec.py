@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.constraints import Constraint
 from pathfinder.domain.strategy.ops import CombineOp
-from pathfinder.platform.pydantic_base import CamelModel
 
 CriterionRole = Literal["seed", "filter", "transform", "exclude"]
 _MIN_COMBINE_INPUTS = 2

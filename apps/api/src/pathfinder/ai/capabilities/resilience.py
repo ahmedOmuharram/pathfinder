@@ -6,6 +6,7 @@ import traceback
 from dataclasses import dataclass
 from typing import Any
 
+from assistant_core.platform.logging import get_logger
 from langgraph.errors import GraphInterrupt
 from pydantic import BaseModel, ConfigDict
 from pydantic import ValidationError as PydanticValidationError
@@ -22,7 +23,6 @@ from pathfinder.ai.capabilities.error_classification import (
 from pathfinder.ai.capabilities.service_outage import OUTAGE_GIVE_UP_THRESHOLD
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.platform.errors import WDKError
-from pathfinder.platform.logging import get_logger
 
 _WDK_STATUS_NOT_FOUND = 404
 _WDK_STATUS_UNPROCESSABLE = 422

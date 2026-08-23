@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Literal
 
 import langfuse.api
+from assistant_core.platform.logging import get_logger
 from langfuse.api.commons import errors as langfuse_errors
 
 from pathfinder.platform.langfuse.client import get_langfuse
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

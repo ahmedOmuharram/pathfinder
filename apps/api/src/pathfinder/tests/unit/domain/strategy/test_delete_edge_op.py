@@ -3,6 +3,7 @@
 from collections.abc import Iterable
 
 import pytest
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import TypeAdapter, ValidationError
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
@@ -15,7 +16,6 @@ from pathfinder.domain.strategy.operations import (
 from pathfinder.domain.strategy.operations.apply import ApplyError, apply_operation
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class _Request(CamelModel):

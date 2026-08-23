@@ -5,12 +5,12 @@ from collections.abc import AsyncGenerator
 from uuid import uuid4
 
 import pytest
+from assistant_core.memory.lifespan import lifespan_memory_store
+from assistant_core.platform.db import DBSessionFactory
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
 from pathfinder.persistence.models import User
-from pathfinder.platform.db import DBSessionFactory
 
 
 @pytest.fixture

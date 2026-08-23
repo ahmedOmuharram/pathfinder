@@ -1,6 +1,9 @@
 """Shared service for browsing WDK step results: attributes, records,
 distributions, and step analyses."""
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.integrations.veupathdb.factory import get_site
 from pathfinder.integrations.veupathdb.strategy_api.api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -11,8 +14,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.parser import (
     is_enrichment_analysis,
     parse_enrichment_from_raw,

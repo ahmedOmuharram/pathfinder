@@ -6,13 +6,12 @@ is a leaf — it imports only from ``platform.pydantic_base``.
 
 from typing import Literal
 
-from pydantic import ConfigDict, Field
-
-from pathfinder.platform.pydantic_base import (
+from assistant_core.platform.pydantic_base import (
     CamelModel,
     NonFiniteToNone,
     NonFiniteToNoneRounded,
 )
+from pydantic import ConfigDict, Field
 
 EnrichmentAnalysisType = Literal[
     "go_function", "go_component", "go_process", "pathway", "word"

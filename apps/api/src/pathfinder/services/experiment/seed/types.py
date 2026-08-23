@@ -8,9 +8,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 @dataclass

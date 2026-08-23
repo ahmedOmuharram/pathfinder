@@ -7,12 +7,12 @@ from difflib import SequenceMatcher
 from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
+from assistant_core.platform.logging import get_logger
 from pydantic import JsonValue
 from rapidfuzz import fuzz
 
 from pathfinder.domain.research.citations import LiteratureFilters
 from pathfinder.domain.research.papers import ParsedPaper
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

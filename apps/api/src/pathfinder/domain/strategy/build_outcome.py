@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from pathfinder.platform.pydantic_base import CamelModel
+from assistant_core.platform.pydantic_base import CamelModel
 
 NodeStatus = Literal["ok", "zero", "failed"]
 

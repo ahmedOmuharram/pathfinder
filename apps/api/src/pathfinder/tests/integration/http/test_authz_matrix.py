@@ -10,13 +10,13 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 
 import pytest
+from assistant_core.conversation.checkpointer import lifespan_checkpointer
+from assistant_core.memory.store import MemoryStore
 from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.platform.config import get_settings
 from pathfinder.tests._support.wdk_credentials import (
     NO_CREDENTIALS_REASON,

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from assistant_core.platform.logging import get_logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
@@ -20,7 +21,6 @@ from pathfinder.persistence.repositories.control_set import (
     ControlSetRepository,
 )
 from pathfinder.platform.errors import sanitize_error_for_client
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.materialization import (
     _materialize_step_tree,
 )

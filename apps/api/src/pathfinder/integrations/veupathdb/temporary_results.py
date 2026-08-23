@@ -1,11 +1,12 @@
 """VEuPathDB /temporary-results helpers for downloads."""
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKTemporaryResult,
 )
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

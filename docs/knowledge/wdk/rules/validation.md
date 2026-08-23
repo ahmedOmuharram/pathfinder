@@ -15,7 +15,7 @@ status: stable
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/ValidationFormatter.java#L10-L22
 - anchor: apps/api/src/pathfinder/domain/strategy/validation.py:StepValidationErrors
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/strategy/test_wdk_validation_bundle.py::test_wdk_valid_001_a_bundle_without_is_valid_is_refused
 
 `getValidationBundleJson` puts `level` and `isValid` unconditionally and adds
 `errors` inside `if (!isValid)`. `errors` is exactly
@@ -154,7 +154,7 @@ clean - which is exactly the pairing measured above.
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AnswerParam.java#L110-L159
 - anchor: apps/api/src/pathfinder/domain/strategy/graph_model.py:step_status
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/strategy/test_wdk_input_validity_at_runnable.py::test_wdk_valid_004_a_runnable_refusal_makes_the_consumer_invalid
 
 `AnswerParam.validateValue` does two different jobs. Below `RUNNABLE` it checks
 that the stable value is an integer or the empty string and returns valid
@@ -347,7 +347,7 @@ captured in - the whole rule is that they look alike.
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/ValidationFormatter.java#L24-L31
 - anchor: apps/api/src/pathfinder/platform/errors.py:WDKError
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_error_contract.py::test_wdk_valid_006_by_key_names_the_parameter
 
 A validation bundle is not only a field on a resource. It is also what the
 write endpoints return in the body of a 422, served as `text/plain` like every
@@ -394,7 +394,7 @@ was pulled with.
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/user/StepAnalysisFormService.java#L108-L130
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKStepAnalysisTypeResponse
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_filter_and_level_contract.py::test_wdk_valid_007_a_displayable_bundle_parses
 
 [The schema include](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/doc/schema/wdk/includes/validation-bundle.json#L5-L47)
 enumerates five levels and `DISPLAYABLE` is not among them.

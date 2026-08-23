@@ -3,15 +3,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+from assistant_core.graph.stream_events import scratchpad_updated_event
+from assistant_core.memory.schemas import MemoryValue
+from assistant_core.memory.store import MemoryStore
+from assistant_core.platform.db import DBSessionFactory
+from assistant_core.platform.logging import get_logger
 from pydantic import ValidationError
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.assistant_core.graph.stream_events import scratchpad_updated_event
-from pathfinder.assistant_core.memory.schemas import MemoryValue
-from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.domain.scratchpad.models import (
     Note,
     NoteCreate,
@@ -20,8 +22,6 @@ from pathfinder.domain.scratchpad.models import (
     NoteUpdate,
 )
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
-from pathfinder.platform.db import DBSessionFactory
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

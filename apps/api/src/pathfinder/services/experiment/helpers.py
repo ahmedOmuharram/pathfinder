@@ -3,9 +3,10 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.types import (
     ControlSetData,
     ControlTestResult,

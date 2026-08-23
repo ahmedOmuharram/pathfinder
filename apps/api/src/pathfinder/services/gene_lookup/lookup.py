@@ -3,8 +3,9 @@
 import asyncio
 from dataclasses import dataclass, field
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.search_rerank import (
     QueryIntent,
     ScoredResult,

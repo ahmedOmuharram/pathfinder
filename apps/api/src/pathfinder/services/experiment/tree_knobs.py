@@ -9,12 +9,12 @@ import time
 from dataclasses import dataclass
 
 import optuna
+from assistant_core.platform.logging import get_logger
 
 from pathfinder.domain.parameters.values import NumberValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.tree import walk_plan_tree
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.helpers import ControlsContext
 from pathfinder.services.experiment.metrics import (
     compute_confusion_matrix,

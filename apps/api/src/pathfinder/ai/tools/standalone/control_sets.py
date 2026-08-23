@@ -7,12 +7,12 @@ plus list and pull from existing control sets / saved gene sets / strategies.
 
 from __future__ import annotations
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.standalone._id_arguments import parse_id_argument
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.control_sets import ControlSetService, NewControlSet
 from pathfinder.services.experiment.control_sourcing import (
     control_ids_from_saved_gene_set,

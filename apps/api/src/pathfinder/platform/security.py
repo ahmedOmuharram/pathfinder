@@ -8,6 +8,11 @@ from typing import Annotated
 from uuid import UUID
 
 import jwt
+from assistant_core.platform.context import (
+    DEFAULT_APPLICATION_ID,
+    application_id_ctx,
+    user_id_ctx,
+)
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import APIKeyCookie, APIKeyHeader, HTTPBearer
@@ -18,18 +23,10 @@ from slowapi.util import get_remote_address
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.context import (
-    application_id_ctx,
-    user_id_ctx,
-    veupathdb_auth_token_ctx,
-)
+from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.error_handlers import problem_response
 from pathfinder.platform.errors import ErrorCode, UnauthorizedError
-from pathfinder.platform.principal import (
-    DEFAULT_APPLICATION_ID,
-    SERVICE_AUTH_HEADER,
-    Principal,
-)
+from pathfinder.platform.principal import SERVICE_AUTH_HEADER, Principal
 from pathfinder.services.wdk_identity import resolve_veupathdb_bearer
 
 _JWT_ALGORITHM = "HS256"

@@ -104,7 +104,7 @@ class TestBuilt:
             step_status(
                 _leaf(),
                 wdk_step_id=100,
-                validation=StepValidation(is_valid=True),
+                validation=StepValidation(level="SEMANTIC", is_valid=True),
                 has_open_params=False,
             )
             is StepStatus.BUILT
@@ -117,7 +117,7 @@ class TestInvalid:
             step_status(
                 _leaf(),
                 wdk_step_id=100,
-                validation=StepValidation(is_valid=False),
+                validation=StepValidation(level="SEMANTIC", is_valid=False),
                 has_open_params=False,
             )
             is StepStatus.INVALID
@@ -129,7 +129,7 @@ class TestInvalid:
             step_status(
                 _leaf(),
                 wdk_step_id=None,
-                validation=StepValidation(is_valid=False),
+                validation=StepValidation(level="SEMANTIC", is_valid=False),
                 has_open_params=False,
             )
             is StepStatus.READY

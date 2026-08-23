@@ -2,13 +2,13 @@
 
 from uuid import uuid4
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import Field, JsonValue, ValidationError, model_validator
 from pydantic_core import PydanticCustomError
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 
 # Sentinel search names for non-search nodes in the step graph.
 COMBINE_SEARCH_NAME = "__combine__"

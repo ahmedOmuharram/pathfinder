@@ -15,12 +15,12 @@ import asyncio
 from itertools import combinations
 
 import httpx
+from assistant_core.platform.pydantic_base import CamelModel
 
 from pathfinder.domain.parameters.values import ParamValue, wire_map
 from pathfinder.integrations.veupathdb.factory import get_wdk_client
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchConfig
 from pathfinder.platform.errors import WDKError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.wdk.helpers import extract_record_ids
 
 _CONCURRENCY = 4

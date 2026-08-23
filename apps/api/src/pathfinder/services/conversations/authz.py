@@ -6,13 +6,16 @@ before a caller reaches it.
 
 from uuid import UUID
 
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.repositories import ConversationRepository
-from pathfinder.platform.context import calling_application
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.repositories.conversation_strategy import (
+    ConversationWithStrategy,
+)
 from pathfinder.platform.errors import ErrorCode, ForbiddenError, NotFoundError
 
 
@@ -48,6 +51,23 @@ async def get_owned_conversation_or_404(
     return conversation
 
 
+async def get_owned_thread_or_404(
+    conv_repo: ConversationRepository,
+    conversation_id: UUID,
+    user_id: UUID,
+) -> ConversationWithStrategy:
+    """The conversation and its strategy projection, in one read."""
+    found = await conv_repo.get_with_strategy(conversation_id)
+    if found is None:
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND,
+            title="Strategy not found",
+        )
+    if not owned_by_caller(found[0], user_id):
+        raise ForbiddenError
+    return found
+
+
 async def get_owned_or_404(
     conv_repo: ConversationRepository,
     conversation_id: UUID,
@@ -79,6 +99,21 @@ async def assert_owner(
         conversation_id,
         user_id,
     )
+
+
+async def conversation_assistant_id(conversation_id: UUID) -> str | None:
+    """Return the assistant that answers a conversation, or None if it is gone.
+
+    The row is the source of truth: a thread never changes assistant, so a
+    later turn resolves the same architecture the first one ran.
+    """
+    async with async_session_factory() as session:
+        assistant_id: str | None = await session.scalar(
+            select(Conversation.assistant_id).where(
+                Conversation.id == conversation_id,
+            ),
+        )
+    return assistant_id
 
 
 async def conversation_application_id(conversation_id: UUID) -> str | None:

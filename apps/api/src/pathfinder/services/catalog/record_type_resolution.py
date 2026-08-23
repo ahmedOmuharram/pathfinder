@@ -8,8 +8,9 @@ lookup before giving up.
 
 from __future__ import annotations
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.wdk import SearchCatalog, get_discovery_service
 from pathfinder.services.wdk.record_types import resolve_record_type
 

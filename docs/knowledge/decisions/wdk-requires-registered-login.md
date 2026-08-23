@@ -41,6 +41,16 @@ table is pinned by
 `tests/unit/transport/test_wdk_gate_route_table.py`, which also carries the
 reason for every ungated route that can still reach WDK.
 
+**Chat asks its assistant, and PathFinder's answer is this gate.** `POST
+/api/v1/chat` carries no fixed dependency: `resolve_chat_assistant` resolves
+the turn's assistant and runs the `identity_gate` that assistant declares, and
+PathFinder's spec declares `require_registered_wdk_login`, so the refusal on
+that route is the same 401 with the same code, title and detail. An assistant
+that declares no requirement is served without one; the application's own
+session auth is unchanged, because that is the runtime's, not the assistant's.
+Recorded in
+[the orchestration belongs to the assistant](the-orchestration-is-the-assistants.md).
+
 **The dependency is where the check lives, not the call site.**
 `transport/http/deps.py::require_registered_wdk_identity` reads the token the
 request resolver put on `veupathdb_auth_token_ctx` (bearer, `X-VEUPATHDB-AUTH`,

@@ -9,8 +9,9 @@ This is the controls-based counterpart to the no-controls exploratory
 
 from __future__ import annotations
 
+from assistant_core.platform.pydantic_base import CamelModel
+
 from pathfinder.platform.errors import WDKError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.experiment.service import run_experiment
 from pathfinder.services.experiment.types.experiment import ExperimentConfig
 from pathfinder.services.experiment.variant_comparison import VariantSpec

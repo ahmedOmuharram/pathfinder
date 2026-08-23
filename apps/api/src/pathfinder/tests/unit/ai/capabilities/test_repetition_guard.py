@@ -10,10 +10,11 @@ intervening state change) on agents that still go through the LLM
 
 from __future__ import annotations
 
-from pathfinder.ai.agents.tool_vocabulary import build_tool_repetition_guard
-from pathfinder.assistant_core.capabilities.repetition_guard import (
+from assistant_core.capabilities.repetition_guard import (
     DEFAULT_REPETITION_THRESHOLD,
 )
+
+from pathfinder.ai.agents.tool_vocabulary import build_tool_repetition_guard
 
 
 def test_first_call_proceeds() -> None:

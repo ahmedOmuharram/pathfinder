@@ -3,17 +3,22 @@
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
-from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.persistence.repositories import (
     ConversationRepository,
     ConversationUpdate,
 )
+from pathfinder.persistence.repositories.conversation_strategy import (
+    ConversationWithStrategy,
+)
 from pathfinder.platform.errors import AppError, InternalError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.wdk import get_strategy_api
 
 from .wdk_conversion import (
@@ -36,11 +41,10 @@ class WdkChatSpec:
     step_count: int = field(default=0)
 
 
-def plan_needs_detail_fetch(conversation: Conversation) -> bool:
+def plan_needs_detail_fetch(strategy: ConversationStrategyView) -> bool:
     """Reports whether a chat still needs its full detail from WDK. A chat with a WDK
     strategy id and no plan data holds summary data only. A local chat never needs it.
     """
-    strategy = conversation.strategy_view
     if strategy.wdk_strategy_id is None:
         return False
     ast = strategy.strategy_ast
@@ -106,7 +110,8 @@ async def upsert_chat(
     spec: WdkChatSpec,
 ) -> Conversation:
     """Creates or updates the local record for a WDK strategy."""
-    existing = await conv_repo.get_by_wdk_strategy_id(user_id, spec.wdk_id)
+    found = await conv_repo.get_by_wdk_strategy_id(user_id, spec.wdk_id)
+    existing = None if found is None else found[0]
     if existing:
         await conv_repo.update_conversation(
             existing.id,
@@ -169,7 +174,8 @@ async def upsert_summary_chat(
     estimated_size = wdk_item.estimated_size
     step_count = wdk_item.leaf_and_transform_step_count
 
-    existing = await conv_repo.get_by_wdk_strategy_id(user_id, wdk_id)
+    found = await conv_repo.get_by_wdk_strategy_id(user_id, wdk_id)
+    existing = None if found is None else found[0]
     if existing and existing.dismissed_at is not None:
         # A dismissed strategy is neither re-imported nor updated.
         return existing
@@ -215,17 +221,18 @@ async def upsert_summary_chat(
 async def lazy_fetch_wdk_detail(
     *,
     conversation: Conversation,
+    strategy: ConversationStrategyView,
     conv_repo: ConversationRepository,
-) -> Conversation:
+) -> ConversationWithStrategy:
     """Fetches the full WDK detail for a chat that holds summary data only.
 
     Returns the updated chat, or the original one when no fetch is needed or the
     fetch fails.
     """
     site_id = conversation.site_id
-    wdk_id = conversation.strategy_view.wdk_strategy_id
-    if not plan_needs_detail_fetch(conversation) or not site_id or wdk_id is None:
-        return conversation
+    wdk_id = strategy.wdk_strategy_id
+    if not plan_needs_detail_fetch(strategy) or not site_id or wdk_id is None:
+        return conversation, strategy
 
     try:
         api = get_strategy_api(site_id)
@@ -241,7 +248,7 @@ async def lazy_fetch_wdk_detail(
                 touch_updated_at=False,
             ),
         )
-        updated = await conv_repo.get_by_id(conversation.id)
+        updated = await conv_repo.get_with_strategy(conversation.id)
         if updated is not None:
             return updated
     except (AppError, RuntimeError) as exc:
@@ -252,13 +259,16 @@ async def lazy_fetch_wdk_detail(
             error=str(exc),
         )
 
-    return conversation
+    return conversation, strategy
 
 
-async def sync_is_saved_to_wdk(*, conversation: Conversation) -> None:
+async def sync_is_saved_to_wdk(
+    *,
+    conversation: Conversation,
+    strategy: ConversationStrategyView,
+) -> None:
     """Sends the isSaved flag from a chat to WDK. A chat with no WDK strategy id or
     site id is skipped, and a failure is logged only."""
-    strategy = conversation.strategy_view
     wdk_id = strategy.wdk_strategy_id
     if not wdk_id:
         return

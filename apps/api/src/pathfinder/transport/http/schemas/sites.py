@@ -1,10 +1,10 @@
 """Sites request/response DTOs."""
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONArray, JSONObject
 from pydantic import ConfigDict, Field, RootModel
 
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONArray, JSONObject
 
 
 class SiteResponse(CamelModel):

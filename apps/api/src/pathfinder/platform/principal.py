@@ -4,9 +4,9 @@ import hmac
 from typing import Literal, Self
 from uuid import UUID
 
+from assistant_core.platform.context import DEFAULT_APPLICATION_ID
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 CredentialKind = Literal[
     "pathfinder-cookie",
@@ -14,7 +14,6 @@ CredentialKind = Literal[
     "veupathdb-bearer",
 ]
 
-DEFAULT_APPLICATION_ID = "pathfinder"
 SERVICE_AUTH_HEADER = "X-PathFinder-Service-Token"
 
 _MIN_SERVICE_SECRET_LENGTH = 32

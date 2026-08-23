@@ -2,10 +2,10 @@
 
 from typing import cast
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.service import EnrichmentService
 from pathfinder.services.enrichment.types import EnrichmentAnalysisType
 from pathfinder.services.export import get_export_service

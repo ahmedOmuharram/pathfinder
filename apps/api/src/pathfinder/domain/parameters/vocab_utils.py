@@ -3,11 +3,11 @@
 import math
 from typing import cast
 
+from assistant_core.platform.logging import get_logger
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.wdk_vocab import WDKVocabulary, flatten_vocab
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

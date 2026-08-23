@@ -6,11 +6,11 @@ from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.platform.context import DEFAULT_APPLICATION_ID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.platform.errors import NotFoundError
-from pathfinder.platform.principal import DEFAULT_APPLICATION_ID
 from pathfinder.services import eval as eval_service
 
 _OWNER = UUID(int=1)
@@ -26,9 +26,7 @@ def session() -> AsyncSession:
 @dataclass
 class _Conversation:
     user_id: UUID
-    strategy_view: ConversationStrategyView = field(
-        default_factory=ConversationStrategyView,
-    )
+    id: UUID = field(default_factory=uuid4)
     application_id: str = DEFAULT_APPLICATION_ID
 
 
@@ -37,6 +35,9 @@ class _Repo:
     """Stands in for the conversation repository."""
 
     conversation: _Conversation | None
+    strategy: ConversationStrategyView = field(
+        default_factory=ConversationStrategyView,
+    )
 
     def __call__(self, session: AsyncSession) -> _Repo:
         del session
@@ -46,9 +47,18 @@ class _Repo:
         del conversation_id
         return self.conversation
 
+    async def get_strategy(self, conversation_id: UUID) -> ConversationStrategyView:
+        del conversation_id
+        return self.strategy
 
-def _wire(monkeypatch: pytest.MonkeyPatch, conversation: _Conversation | None) -> None:
-    monkeypatch.setattr(eval_service, "ConversationRepository", _Repo(conversation))
+
+def _wire(
+    monkeypatch: pytest.MonkeyPatch,
+    conversation: _Conversation | None,
+    strategy: ConversationStrategyView | None = None,
+) -> None:
+    repo = _Repo(conversation, strategy or ConversationStrategyView())
+    monkeypatch.setattr(eval_service, "ConversationRepository", repo)
 
 
 async def test_another_users_conversation_is_not_found(
@@ -57,10 +67,8 @@ async def test_another_users_conversation_is_not_found(
 ) -> None:
     _wire(
         monkeypatch,
-        _Conversation(
-            user_id=_OWNER,
-            strategy_view=ConversationStrategyView(wdk_strategy_id=4242),
-        ),
+        _Conversation(user_id=_OWNER),
+        ConversationStrategyView(wdk_strategy_id=4242),
     )
 
     with pytest.raises(NotFoundError) as raised:

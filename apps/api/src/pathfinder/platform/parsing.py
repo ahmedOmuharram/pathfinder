@@ -3,8 +3,8 @@
 import ast
 import json
 
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONArray, JSONObject
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONArray, JSONObject
 
 logger = get_logger(__name__)
 

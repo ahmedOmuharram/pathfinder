@@ -56,7 +56,8 @@ async def _bind(monkeypatch: pytest.MonkeyPatch, state: AgentToolState):
         record_type: str, name: str, *, expand_params: bool = True
     ) -> WDKSearchResponse:
         return WDKSearchResponse(
-            searchData=WDKSearch(urlSegment=name), validation=StepValidation()
+            searchData=WDKSearch(urlSegment=name),
+            validation=StepValidation(level="NONE", is_valid=False),
         )
 
     async def _catalog_details(
@@ -65,7 +66,7 @@ async def _bind(monkeypatch: pytest.MonkeyPatch, state: AgentToolState):
         return (
             WDKSearchResponse(
                 searchData=WDKSearch(urlSegment=ctx.search_name),
-                validation=StepValidation(),
+                validation=StepValidation(level="NONE", is_valid=False),
             ),
             ctx.record_type,
         )

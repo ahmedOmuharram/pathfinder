@@ -1,11 +1,11 @@
 """Helpers for hydrating in-memory strategy session context for agents."""
 
+from assistant_core.platform.logging import get_logger
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
 from pathfinder.domain.strategy.graph_model import flatten_tree
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)

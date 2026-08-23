@@ -4,6 +4,12 @@ from fastapi import APIRouter
 
 from pathfinder.platform.principal import Principal
 from pathfinder.services import quota as quota_service
+from pathfinder.services.eval_data.consent import (
+    PrivacySettings,
+    PrivacyUpdate,
+    read_privacy,
+    update_privacy,
+)
 from pathfinder.transport.http.deps import CurrentPrincipal, CurrentUser, DBSession
 from pathfinder.transport.http.schemas.me import QuotaResponse
 
@@ -26,3 +32,25 @@ async def get_my_quota(session: DBSession, user_id: CurrentUser) -> QuotaRespons
         percent=q.percent,
         resets_at=q.resets_at,
     )
+
+
+@router.get("/privacy", response_model=PrivacySettings)
+async def get_my_privacy(
+    session: DBSession,
+    user_id: CurrentUser,
+) -> PrivacySettings:
+    """Return the eval-data decision, and whether the notice was shown."""
+    return await read_privacy(session, user_id)
+
+
+@router.patch("/privacy", response_model=PrivacySettings)
+async def patch_my_privacy(
+    session: DBSession,
+    user_id: CurrentUser,
+    update: PrivacyUpdate,
+) -> PrivacySettings:
+    """Change the eval-data decision, the notice marker, or both.
+
+    Turning consent off also clears the user's staged candidates.
+    """
+    return await update_privacy(session, user_id, update)

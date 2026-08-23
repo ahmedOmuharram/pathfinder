@@ -4,11 +4,12 @@ Utility functions for extracting WDK record data, classifying genes,
 searching records, and fetching result IDs.
 """
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.integrations.veupathdb.factory import get_site
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.wdk.helpers import extract_pk
 
 logger = get_logger(__name__)

@@ -12,13 +12,10 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationStrategy,
-    User,
-)
+from pathfinder.persistence.models import ConversationStrategy, User
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.services.conversations.service import ConversationService
 

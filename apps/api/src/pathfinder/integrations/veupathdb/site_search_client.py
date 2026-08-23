@@ -9,6 +9,8 @@ import time
 from dataclasses import dataclass
 
 import httpx
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, field_validator
 from tenacity import (
     RetryError,
@@ -23,12 +25,10 @@ from pathfinder.integrations.veupathdb._observability import (
     log_site_search_retry,
 )
 from pathfinder.platform.errors import AppError, ErrorCode
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.metrics import (
     site_search_request_duration_s,
     site_search_requests,
 )
-from pathfinder.platform.pydantic_base import CamelModel
 
 logger = get_logger(__name__)
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from assistant_core.platform.types import JSONObject
 
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.plan_validation import validate_plan_or_raise
 
 

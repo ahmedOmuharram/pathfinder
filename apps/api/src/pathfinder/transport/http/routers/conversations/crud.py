@@ -1,12 +1,15 @@
 """Strategy CRUD endpoints. Thin transport over ``ConversationService``."""
 
+from functools import partial
 from typing import Annotated
 from uuid import UUID
 
+from assistant_core.platform.types import JSONObject
 from fastapi import APIRouter, Depends, Query, Response
 
+from pathfinder.ai.conversation.assistant_routing import resolve_turn_assistant
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
-from pathfinder.platform.types import JSONObject
+from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.services.conversations.begin import start_title_generation
 from pathfinder.services.conversations.responses import ConversationResponse
 from pathfinder.services.conversations.service import (
@@ -162,17 +165,26 @@ async def begin_strategy(
     user_id: CurrentUser,
 ) -> BeginConversationResponse:
     """Idempotent first-action setup for a conversation."""
+    spec = await resolve_turn_assistant(
+        registry=get_assistant_registry(),
+        conversation_id=conversation_id,
+        requested_id=body.assistant_id,
+    )
     begun = await ConversationService(session).begin(
         conversation_id=conversation_id,
         user_id=user_id,
         site_id=body.site_id,
+        assistant_id=spec.assistant_id,
         experiment_id=body.experiment_id,
     )
     if begun.is_new and body.seed_text:
         start_title_generation(
             conversation_id=conversation_id,
             seed_text=body.seed_text,
-            title_generator=generate_conversation_title,
+            title_generator=partial(
+                generate_conversation_title,
+                mock_model=spec.build_mock_model,
+            ),
         )
     return BeginConversationResponse(
         conversation_id=begun.conversation_id,

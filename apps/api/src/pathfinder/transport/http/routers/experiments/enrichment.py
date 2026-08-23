@@ -1,10 +1,10 @@
 """Enrichment analysis endpoints for experiments."""
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from fastapi import APIRouter, Depends
 
 from pathfinder.platform.errors import InternalError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.custom import (
     CustomEnrichmentResult,
     run_custom_enrichment,

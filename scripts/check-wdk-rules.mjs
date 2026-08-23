@@ -89,7 +89,7 @@ function trimUrl(url) {
   return url.replace(/[.,;:]+$/, "");
 }
 
-export function collect(root, bundle = root) {
+export function collect(root, bundle = root, tally = null) {
   const errors = [];
   const defined = new Set();
   const withdrawn = new Map();
@@ -134,6 +134,15 @@ export function collect(root, bundle = root) {
       if (statusMatch === null) {
         errors.push(`${rel}: ${id} has a malformed status -> "${status}"`);
       }
+
+      // An unenforced rule is admissible, and only while it says why no test
+      // can hold it. Without that, the column fills with silence.
+      if (status === "UNENFORCED" && (fields.reason ?? "") === "") {
+        errors.push(
+          `${rel}: ${id} is UNENFORCED and gives no reason; add "- reason: ..."`,
+        );
+      }
+      tally?.count(id, rel, fields.class ?? "", status, fields.reason ?? "");
 
       // A withdrawn rule is exempt from class, upstream and anchor: the code it
       // cited is gone, which is why it was withdrawn. It is not added to
@@ -220,14 +229,44 @@ export function collect(root, bundle = root) {
   return errors;
 }
 
+/** Counts what the bundle claims about itself, so a run reports its coverage. */
+export class Coverage {
+  constructor() {
+    this.enforced = 0;
+    this.partial = 0;
+    this.withdrawn = 0;
+    this.unenforced = [];
+  }
+
+  count(id, file, ruleClass, status, reason) {
+    if (status.startsWith("WITHDRAWN")) this.withdrawn += 1;
+    else if (status.startsWith("ENFORCED")) this.enforced += 1;
+    else if (status.startsWith("PARTIAL")) this.partial += 1;
+    else this.unenforced.push({ id, file, ruleClass, reason });
+  }
+
+  get total() {
+    return this.enforced + this.partial + this.withdrawn + this.unenforced.length;
+  }
+}
+
 const invokedDirectly = process.argv[1]?.endsWith("check-wdk-rules.mjs");
 if (invokedDirectly) {
   const repoRoot = resolve(process.argv[2] ?? ".");
-  const errors = collect(repoRoot, join(repoRoot, "docs/knowledge/wdk"));
+  const coverage = new Coverage();
+  const errors = collect(repoRoot, join(repoRoot, "docs/knowledge/wdk"), coverage);
   if (errors.length > 0) {
     console.error("check-wdk-rules: FAILED");
     for (const error of errors) console.error(`  ${error}`);
     process.exit(1);
   }
   console.log("check-wdk-rules: all rules conform (0 violations)");
+  console.log(
+    `  ${coverage.total} rules: ${coverage.enforced} enforced, ` +
+      `${coverage.partial} partial, ${coverage.unenforced.length} unenforced, ` +
+      `${coverage.withdrawn} withdrawn`,
+  );
+  for (const rule of coverage.unenforced) {
+    console.log(`  UNENFORCED ${rule.id} (${rule.ruleClass}): ${rule.reason}`);
+  }
 }

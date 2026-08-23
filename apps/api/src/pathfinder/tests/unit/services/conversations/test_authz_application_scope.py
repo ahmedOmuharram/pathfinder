@@ -5,10 +5,10 @@ from __future__ import annotations
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.context import application_id_ctx
 
-from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.repositories import ConversationRepository
-from pathfinder.platform.context import application_id_ctx
 from pathfinder.platform.errors import ForbiddenError, NotFoundError
 from pathfinder.services.conversations.authz import (
     get_owned_conversation_or_404,

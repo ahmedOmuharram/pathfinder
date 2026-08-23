@@ -2,6 +2,7 @@
 
 from uuid import UUID
 
+from assistant_core.platform.logging import get_logger
 from shared_py.defaults import DEFAULT_STREAM_NAME
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,14 +14,13 @@ from pathfinder.platform.errors import (
     ValidationError,
     WDKError,
 )
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.control_helpers import (
     cleanup_internal_control_test_strategies,
 )
 from pathfinder.services.conversations.authz import owned_by_caller
 from pathfinder.services.conversations.responses import (
     ConversationResponse,
-    build_conversation_summary,
+    build_conversation_summaries,
 )
 from pathfinder.services.strategies.wdk_sync import (
     sync_to_chat,
@@ -172,4 +172,4 @@ async def sync_all_wdk_strategies(
     # session — prevents deadlock between the prune DELETE and the import's
     # concurrent SELECT/UPDATE on the same tables.
     await conv_repo.session.commit()
-    return [build_conversation_summary(c, site_id=site_id) for c in conversations]
+    return build_conversation_summaries(conversations, site_id=site_id)

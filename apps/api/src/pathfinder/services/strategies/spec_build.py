@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import (
@@ -22,7 +24,6 @@ from pathfinder.domain.strategy.graph_model import (
 )
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import AppError, ValidationError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.param_validation import validate_parameters
 from pathfinder.services.catalog.validation_callbacks import (
     make_validation_callbacks,

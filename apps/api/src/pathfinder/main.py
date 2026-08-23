@@ -5,6 +5,12 @@ from contextlib import asynccontextmanager
 from typing import cast
 from uuid import uuid4
 
+from assistant_core.conversation.checkpointer import lifespan_checkpointer
+from assistant_core.embeddings.model import warm_up_model
+from assistant_core.memory.lifespan import lifespan_memory_store
+from assistant_core.platform.context import request_id_ctx
+from assistant_core.platform.db import close_db, get_engine
+from assistant_core.platform.logging import get_logger, setup_logging
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,29 +19,17 @@ from starlette.exceptions import HTTPException
 
 from pathfinder import __version__
 from pathfinder.ai.capabilities.piguard import warm_up_piguard
-from pathfinder.ai.graph.composition import build_pathfinder_graph
 from pathfinder.ai.orchestration.observability import (
     setup_observability,
     shutdown_observability,
 )
-from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
-from pathfinder.integrations.embeddings.model import warm_up_model
+from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
 from pathfinder.integrations.veupathdb.factory import close_all_clients
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.context import (
-    request_base_url_ctx,
-    request_id_ctx,
-    veupathdb_auth_token_ctx,
-)
-from pathfinder.platform.db import (
-    close_db,
-    get_engine,
-    init_db,
-)
+from pathfinder.platform.context import request_base_url_ctx, veupathdb_auth_token_ctx
 from pathfinder.platform.error_handlers import (
     app_error_handler,
     http_exception_handler,
@@ -43,7 +37,7 @@ from pathfinder.platform.error_handlers import (
     request_validation_handler,
 )
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger, setup_logging
+from pathfinder.platform.migrations import init_db
 from pathfinder.platform.principal import SERVICE_AUTH_HEADER
 from pathfinder.platform.readiness import get_readiness, reset_readiness
 from pathfinder.platform.security import (
@@ -147,13 +141,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         lifespan_notify_dispatcher,
     )
 
+    # The API process never runs a turn; it opens the checkpointer so the
+    # tables exist before the worker writes them.
     async with (
-        lifespan_checkpointer(settings.database_url) as checkpointer,
+        lifespan_checkpointer(
+            settings.database_url,
+            checkpoint_types=get_assistant_registry().checkpoint_types(),
+        ),
         lifespan_memory_store(settings.database_url) as memory_store,
         procrastinate_app.open_async(),
         lifespan_notify_dispatcher(settings.database_url) as notify_dispatcher,
     ):
-        app.state.compiled_graph = build_pathfinder_graph(checkpointer=checkpointer)
         app.state.memory_store = memory_store
         app.state.notify_dispatcher = notify_dispatcher
         readiness.mark_ready("graph_checkpointer")
@@ -210,8 +208,12 @@ def _register_routers(app: FastAPI) -> None:
         app.include_router(router)
 
 
-def create_app() -> FastAPI:
-    """Create and configure the FastAPI application."""
+def create_app(*, include_dev_routes: bool | None = None) -> FastAPI:
+    """Create and configure the FastAPI application.
+
+    ``include_dev_routes=None`` follows the process settings; ``False`` pins
+    the production route set, whatever the environment.
+    """
     settings = get_settings()
 
     app = FastAPI(
@@ -286,7 +288,9 @@ def create_app() -> FastAPI:
     _register_routers(app)
 
     # The dev routes mount under the mock chat provider only.
-    if settings.pathfinder_chat_provider.strip().lower() == "mock":
+    if include_dev_routes is None:
+        include_dev_routes = settings.pathfinder_chat_provider.strip().lower() == "mock"
+    if include_dev_routes:
         app.include_router(dev.router)
 
     install_problem_responses(app)

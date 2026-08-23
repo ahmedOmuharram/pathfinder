@@ -9,11 +9,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import Select, select
 
-from pathfinder.persistence.models import BackgroundTask, Conversation, TaskProgress
-from pathfinder.platform.context import calling_application
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.models import BackgroundTask, TaskProgress
 from pathfinder.platform.errors import NotFoundError
 
 _TERMINAL_TASK_STATUSES: frozenset[str] = frozenset({"complete", "failed"})

@@ -5,9 +5,8 @@ from uuid import UUID
 
 import httpx
 import pytest
-
-from pathfinder.assistant_core.memory.schemas import MemoryValue
-from pathfinder.assistant_core.memory.store import MemoryStore
+from assistant_core.memory.schemas import MemoryValue
+from assistant_core.memory.store import MemoryStore
 
 
 @pytest.mark.asyncio

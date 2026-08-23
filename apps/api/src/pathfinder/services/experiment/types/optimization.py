@@ -1,12 +1,12 @@
 """Optimization-related types for the Experiment Lab."""
 
-from pydantic import ConfigDict, Field
-
-from pathfinder.platform.pydantic_base import (
+from assistant_core.platform.pydantic_base import (
     CamelModel,
     RoundedFloat,
     RoundedFloat2,
 )
+from pydantic import ConfigDict, Field
+
 from pathfinder.services.experiment.types.core import ParameterType
 from pathfinder.services.experiment.types.rank import RankMetrics
 

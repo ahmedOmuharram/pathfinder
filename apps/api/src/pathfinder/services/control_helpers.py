@@ -2,6 +2,8 @@
 
 import json
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.veupathdb.strategy_api import (
     StrategyAPI,
     is_internal_wdk_strategy_name,
@@ -9,7 +11,6 @@ from pathfinder.integrations.veupathdb.strategy_api import (
 )
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.types import ControlValueFormat
 
 logger = get_logger(__name__)

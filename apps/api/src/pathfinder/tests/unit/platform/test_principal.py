@@ -1,13 +1,10 @@
 """Principal value objects and service-token matching."""
 
 import pytest
+from assistant_core.platform.context import DEFAULT_APPLICATION_ID
 from pydantic import ValidationError
 
-from pathfinder.platform.principal import (
-    DEFAULT_APPLICATION_ID,
-    Principal,
-    ServiceTokenRegistry,
-)
+from pathfinder.platform.principal import Principal, ServiceTokenRegistry
 
 USER_ID = "11111111-2222-3333-4444-555555555555"
 SECRET = "analytics-secret-0123456789abcdefgh"

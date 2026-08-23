@@ -4,6 +4,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
 
 from pathfinder.domain.parameters.optimization import VariantSpec
 from pathfinder.jobs.impls import optimize_params_impl, register_all_tools
@@ -12,11 +14,10 @@ from pathfinder.jobs.impls.optimize_params_impl import (
 )
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runner import run_durable_task
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.platform.db import async_session_factory
 
 
 async def _fake_attach_export(result_json: dict[str, Any], search_name: str) -> None:

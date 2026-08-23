@@ -4,7 +4,8 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from pathfinder.platform.logging import get_logger
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,

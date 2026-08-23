@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai import ModelRetry, RunContext
@@ -33,7 +34,6 @@ from pathfinder.domain.strategy.operational_spec import (
     StructureNode,
 )
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_dag import (
     ParamFetcher,
     ResolvedParams,

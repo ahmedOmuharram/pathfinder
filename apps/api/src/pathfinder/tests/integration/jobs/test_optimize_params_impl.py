@@ -8,18 +8,14 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 
 from pathfinder.jobs.impls import optimize_params_impl
 from pathfinder.jobs.impls.optimize_params_impl import VariantSpec
 from pathfinder.jobs.progress import TaskProgressEmitter
-from pathfinder.persistence.models import (
-    BackgroundTask,
-    Conversation,
-    TaskProgress,
-    User,
-)
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.models import BackgroundTask, TaskProgress, User
 
 
 @dataclass(frozen=True)

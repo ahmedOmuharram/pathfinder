@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import JsonValue
 
 from pathfinder.domain.wdk_values import (
@@ -9,7 +10,6 @@ from pathfinder.domain.wdk_values import (
     WDKHistogramStatistics,
     WDKRecordIdPart,
 )
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class ClassifiedRecord(CamelModel):

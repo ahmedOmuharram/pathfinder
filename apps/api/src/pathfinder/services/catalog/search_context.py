@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.veupathdb.client import VEuPathDBClient
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

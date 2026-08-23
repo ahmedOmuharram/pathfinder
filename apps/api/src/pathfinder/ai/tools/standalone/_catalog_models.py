@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.domain.search import SearchContext
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.searches import find_record_type_for_search
 from pathfinder.services.wdk import WDKParameter, WDKSearch, get_wdk_client
 

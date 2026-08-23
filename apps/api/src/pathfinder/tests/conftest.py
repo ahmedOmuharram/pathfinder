@@ -39,11 +39,15 @@ os.environ.setdefault("OPENAI_API_KEY", "")
 os.environ.setdefault("ANTHROPIC_API_KEY", "")
 os.environ.setdefault("GEMINI_API_KEY", "")
 
+import assistant_core.platform.db as session_module
 import httpx
 import procrastinate
 import psycopg
 import pydantic_ai.models
 import pytest
+from assistant_core.conversation.checkpointer import to_psycopg_url
+from assistant_core.persistence.models import Base
+from assistant_core.spec import AssistantSpec
 from fastapi import Depends, FastAPI
 from procrastinate.testing import InMemoryConnector
 from sqlalchemy.engine import make_url
@@ -56,13 +60,14 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
-import pathfinder.platform.db as session_module
-from pathfinder.assistant_core.conversation.checkpointer import to_psycopg_url
+from pathfinder.ai.conversation.assistant_routing import resolve_turn_assistant
+from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.tasks import ensure_registered
 from pathfinder.main import create_app
-from pathfinder.persistence.models import Base, User
+from pathfinder.persistence.models import User
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.security import create_user_token, limiter
 from pathfinder.tests._support.wdk_credentials import (
@@ -73,6 +78,7 @@ from pathfinder.transport.http.deps import (
     get_current_user_with_db_row,
     require_registered_wdk_identity,
 )
+from pathfinder.transport.http.routers.chat import resolve_chat_assistant
 
 # A test must never send a request to a real model.
 pydantic_ai.models.ALLOW_MODEL_REQUESTS = False
@@ -349,7 +355,9 @@ def signed_in_to_veupathdb(app: FastAPI) -> Generator[None]:
     """Let the WDK-backed routes run as a user who holds a VEuPathDB session.
 
     The gate itself is covered by ``test_wdk_login_required``; a suite about
-    what a route does once past it states that it is past it.
+    what a route does once past it states that it is past it. Chat resolves
+    its gate from the assistant, so that route drops the requirement instead
+    of the dependency, and still routes and refuses as it does in production.
     """
 
     async def _identity(
@@ -357,9 +365,18 @@ def signed_in_to_veupathdb(app: FastAPI) -> Generator[None]:
     ) -> UUID:
         return user_id
 
+    async def _assistant_without_identity(body: ChatRequestBody) -> AssistantSpec:
+        return await resolve_turn_assistant(
+            registry=get_assistant_registry(),
+            conversation_id=body.conversation_id,
+            requested_id=body.assistant_id,
+        )
+
     app.dependency_overrides[require_registered_wdk_identity] = _identity
+    app.dependency_overrides[resolve_chat_assistant] = _assistant_without_identity
     yield
     app.dependency_overrides.pop(require_registered_wdk_identity, None)
+    app.dependency_overrides.pop(resolve_chat_assistant, None)
 
 
 @pytest.fixture
@@ -406,10 +423,11 @@ async def app_memory_store(
     The test transport skips the lifespan that normally opens them.
     """
     del patch_app_db_engine, db_cleaner
-    from pathfinder.assistant_core.memory.lifespan import (  # noqa: PLC0415
+    from assistant_core.memory.lifespan import (  # noqa: PLC0415
         lifespan_memory_store,
     )
-    from pathfinder.assistant_core.memory.store import MemoryStore  # noqa: PLC0415
+    from assistant_core.memory.store import MemoryStore  # noqa: PLC0415
+
     from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
         lifespan_notify_dispatcher,
     )

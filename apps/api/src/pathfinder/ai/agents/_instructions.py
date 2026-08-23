@@ -3,10 +3,10 @@ and the notes it kept for this conversation."""
 
 from __future__ import annotations
 
+from assistant_core.graph.runtime import AssistantDeps
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.scratchpad.rendering import render_scratchpad_for_phase
-from pathfinder.assistant_core.graph.runtime import AssistantDeps
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 
 

@@ -3,16 +3,11 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation, ConversationEvent
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 
-from pathfinder.persistence.models import (
-    BackgroundTask,
-    Conversation,
-    ConversationEvent,
-    TaskProgress,
-    User,
-)
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.models import BackgroundTask, TaskProgress, User
 
 
 @pytest.mark.asyncio

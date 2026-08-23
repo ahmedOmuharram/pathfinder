@@ -7,9 +7,8 @@ from __future__ import annotations
 import contextlib
 import re
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class ParsedPaper(CamelModel):

@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
+from assistant_core.platform.types import JSONObject
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -19,7 +20,6 @@ from pathfinder.ai.tools.standalone._export_models import (
     ExportResultResponse,
     GeneSetSummaryItem,
 )
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.export import get_export_service
 from pathfinder.services.gene_sets.store import get_gene_set_store
 

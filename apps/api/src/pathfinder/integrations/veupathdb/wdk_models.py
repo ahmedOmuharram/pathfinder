@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import ConfigDict, Discriminator, Field, JsonValue, field_validator
 from pydantic.alias_generators import to_camel
 
@@ -20,8 +22,6 @@ from pathfinder.domain.wdk_values import (
     WDKRecordIdPart,
 )
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 
 
 def encode_wdk_params(params: dict[str, ParamValue] | None) -> dict[str, str]:
@@ -97,7 +97,7 @@ class WDKStep(WDKModel):
     search_name: str
     search_config: WDKSearchConfig
     record_class_name: str | None = None
-    validation: StepValidation = Field(default_factory=StepValidation)
+    validation: StepValidation | None = None
     estimated_size: int | None = None
     strategy_id: int | None = None
 
@@ -150,7 +150,6 @@ class WDKStrategyDetails(WDKStrategySummary):
 
     step_tree: WDKStepTree
     steps: dict[str, WDKStep] = Field(default_factory=dict)
-    validation: StepValidation | None = Field(default_factory=StepValidation)
 
 
 class WDKIdentifier(WDKModel):

@@ -7,6 +7,7 @@ import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import (
     ConfigDict,
     Field,
@@ -26,7 +27,6 @@ from pathfinder.domain.parameters.wdk_vocab import VocabOption, match_exact_opti
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.operational_spec import OpenSlot
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_formatting import (
     FilterFieldInfo,
     ParameterInfo,

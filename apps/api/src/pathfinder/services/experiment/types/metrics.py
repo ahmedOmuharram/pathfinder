@@ -1,8 +1,7 @@
 """Classification metrics for the Experiment Lab."""
 
+from assistant_core.platform.pydantic_base import CamelModel, RoundedFloat
 from pydantic import ConfigDict, Field
-
-from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat
 
 
 class ConfusionMatrix(CamelModel):

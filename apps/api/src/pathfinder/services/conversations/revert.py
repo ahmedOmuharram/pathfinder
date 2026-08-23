@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
+from assistant_core.persistence.models import Conversation, ConversationEvent, Message
+from assistant_core.platform.logging import get_logger
 from sqlalchemy import (
     CursorResult,
     DateTime,
@@ -15,14 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.persistence.models import (
-    BackgroundTask,
-    Conversation,
-    ConversationEvent,
-    Message,
-    ScratchpadNote,
-)
-from pathfinder.platform.logging import get_logger
+from pathfinder.persistence.models import BackgroundTask, ScratchpadNote
 from pathfinder.services.conversations.authz import owned_by_caller
 
 logger = get_logger(__name__)

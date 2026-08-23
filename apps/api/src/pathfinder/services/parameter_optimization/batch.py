@@ -4,9 +4,9 @@ import time
 from dataclasses import dataclass
 
 import optuna
+from assistant_core.platform.logging import get_logger
 
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.control_tests import IntersectionConfig
 from pathfinder.services.experiment.types import ControlTestResult
 from pathfinder.services.parameter_optimization.builders import (

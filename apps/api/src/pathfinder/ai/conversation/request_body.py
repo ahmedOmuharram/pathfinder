@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import ReasoningEffort
 from pydantic import ConfigDict, Field, field_validator
 from pydantic_ai.ui.vercel_ai._utils import iter_tool_approval_responses
 from pydantic_ai.ui.vercel_ai.request_types import (
@@ -12,8 +14,6 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.models.catalog import get_model_entry
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import ReasoningEffort
 
 
 class ChatRequestBody(CamelModel):
@@ -35,6 +35,9 @@ class ChatRequestBody(CamelModel):
     messages: list[UIMessage] = Field(default_factory=list)
 
     conversation_id: UUID
+    # Which assistant answers. Read only when the conversation is created; an
+    # existing thread keeps the assistant it was created with.
+    assistant_id: str | None = None
     site_id: str = ""
     mode: str = "strategy"
     experiment_id: str | None = None

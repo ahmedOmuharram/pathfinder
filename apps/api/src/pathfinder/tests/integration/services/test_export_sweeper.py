@@ -4,10 +4,10 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import func, select
 
 from pathfinder.persistence.models import Export, User
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.export.sweeper import sweep_expired_exports
 
 

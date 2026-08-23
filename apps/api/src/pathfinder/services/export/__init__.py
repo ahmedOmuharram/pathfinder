@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from pathfinder.platform.db import async_session_factory
+from assistant_core.platform.db import async_session_factory
+
 from pathfinder.services.export.service import (
     ExportResult,
     ExportService,

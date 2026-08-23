@@ -7,8 +7,8 @@ the FDR the analysis already reports is what the count must read.
 from __future__ import annotations
 
 import pytest
+from assistant_core.platform.types import as_json_array, as_json_object
 
-from pathfinder.platform.types import as_json_array, as_json_object
 from pathfinder.services.enrichment.types import (
     EnrichmentAnalysisType,
     EnrichmentResult,

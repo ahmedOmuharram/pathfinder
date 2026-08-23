@@ -5,8 +5,9 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from assistant_core.platform.context import calling_application
+
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.platform.context import calling_application
 from pathfinder.services.enrichment.types import EnrichmentResult
 
 GeneSetSource = Literal["strategy", "paste", "upload", "derived", "saved"]

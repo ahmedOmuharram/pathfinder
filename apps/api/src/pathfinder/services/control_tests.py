@@ -6,6 +6,8 @@ positive controls are returned and known negative controls are excluded.
 
 from dataclasses import dataclass
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.values import ParamValue, StringValue
@@ -24,8 +26,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.searches import find_record_type_for_search
 from pathfinder.services.control_helpers import (
     _encode_id_list,

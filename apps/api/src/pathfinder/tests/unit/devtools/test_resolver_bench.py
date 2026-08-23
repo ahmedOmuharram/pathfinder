@@ -263,7 +263,7 @@ def _patch_definition(
                     parameters=params,
                     properties=properties or {},
                 ),
-                validation=StepValidation(),
+                validation=StepValidation(level="NONE", is_valid=False),
             ),
             ctx.record_type,
         )

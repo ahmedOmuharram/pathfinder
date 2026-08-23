@@ -16,9 +16,10 @@ from __future__ import annotations
 import hashlib
 import json
 
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.platform.types import JSONObject
 
 __all__ = ["strategy_revision"]
 

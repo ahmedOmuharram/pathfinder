@@ -1,8 +1,7 @@
 """Optimization event/response models shared by chat and SSE schemas."""
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, JsonValue
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class OptimizationTrialData(CamelModel):

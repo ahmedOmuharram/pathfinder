@@ -2,6 +2,7 @@
 
 from typing import cast
 
+from assistant_core.platform.types import JSONObject
 from pydantic_ai import RunContext
 
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -10,7 +11,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSortSpec,
 )
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.ai_analysis_helpers import (
     build_primary_key,
     classify_gene,

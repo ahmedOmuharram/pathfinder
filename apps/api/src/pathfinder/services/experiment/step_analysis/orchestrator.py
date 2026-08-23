@@ -3,8 +3,9 @@
 from collections.abc import Callable
 from typing import Any
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.ast import StrategyStepNode
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.helpers import (
     ControlsContext,
     ProgressCallback,

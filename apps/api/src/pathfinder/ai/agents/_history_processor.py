@@ -4,6 +4,7 @@ import dataclasses
 import json
 from collections.abc import Sequence
 
+from assistant_core.platform.logging import get_logger
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -13,8 +14,6 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
-
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

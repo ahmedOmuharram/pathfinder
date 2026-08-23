@@ -4,16 +4,18 @@ These models aren't used by any real endpoint - this module only exists
 so they appear under components/schemas for type generation on the frontend.
 Transitive types (GraphNode, GraphEdge) are auto-included via $ref from
 their parent schemas and do not need explicit entries.
-The registry is the list; a product joins the schema by registering here.
+Every installed assistant registers its parts, so the spec carries the union.
 """
 
+from assistant_core.conversation.stream_parts import STREAM_PARTS
+from assistant_core.platform.pydantic_base import CamelModel
 from fastapi import APIRouter
 
-from pathfinder.ai.strategy_stream_parts import register_strategy_stream_parts
-from pathfinder.assistant_core.conversation.stream_parts import STREAM_PARTS
-from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.assistants.registry import get_assistant_registry
 
-register_strategy_stream_parts(STREAM_PARTS)
+for _spec in get_assistant_registry().specs():
+    if _spec.register_stream_parts is not None:
+        _spec.register_stream_parts(STREAM_PARTS)
 
 StreamPartsSchemaIndex = STREAM_PARTS.schema_index_model()
 

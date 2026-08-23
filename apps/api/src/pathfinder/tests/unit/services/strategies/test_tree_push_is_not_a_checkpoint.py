@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import pytest
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
@@ -21,7 +22,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStepTree,
     WDKStrategyDetails,
 )
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.sync import sync_strategy
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
@@ -194,4 +194,4 @@ class TestTheReadIsWhatReportsValidity:
         assert "Not a number." in " ".join(sync_state.step_validations["A"].messages())
 
     def test_a_validation_that_was_never_checked_does_not_claim_validity(self) -> None:
-        assert StepValidation().was_checked() is False
+        assert StepValidation(level="NONE", is_valid=False).was_checked() is False

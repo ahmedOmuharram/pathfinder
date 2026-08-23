@@ -2,11 +2,11 @@
 
 from collections.abc import AsyncIterator
 
+from assistant_core.platform.logging import get_logger
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from pathfinder.platform.errors import sanitize_error_for_client
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.security import limiter
 from pathfinder.services.experiment.seed import run_seed
 from pathfinder.services.experiment.seed.types import SeedComplete, SeedEvent

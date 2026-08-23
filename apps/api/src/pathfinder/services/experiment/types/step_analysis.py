@@ -1,8 +1,8 @@
 """Step analysis types for multi-step experiment decomposition."""
 
+from assistant_core.platform.pydantic_base import CamelModel, RoundedFloat
 from pydantic import ConfigDict, Field
 
-from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat
 from pathfinder.services.experiment.types.core import StepContributionVerdict
 
 

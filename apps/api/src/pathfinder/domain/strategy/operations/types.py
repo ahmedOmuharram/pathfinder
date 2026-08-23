@@ -3,12 +3,12 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Discriminator, Field
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class DeleteResolution(StrEnum):

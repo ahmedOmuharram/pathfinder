@@ -2,28 +2,28 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+from assistant_core.conversation.event_stream import (
+    iter_sse,
+    latest_turn_boundary,
+)
+from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.conversation.ui_message_reducer import user_message_chunk
+from assistant_core.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
+from assistant_core.graph.stream_events import turn_status_event
+from assistant_core.persistence.models import ConversationEvent
+from assistant_core.persistence.repositories.message import MessagesRepository
+from assistant_core.platform.db import async_session_factory
+from assistant_core.spec import AssistantSpec
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.capabilities.security import scan_user_input
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.assistant_core.conversation.event_stream import (
-    iter_sse,
-    latest_turn_boundary,
-)
-from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
-from pathfinder.assistant_core.conversation.ui_message_reducer import user_message_chunk
-from pathfinder.assistant_core.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
-from pathfinder.assistant_core.graph.stream_events import turn_status_event
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
-from pathfinder.persistence.models import ConversationEvent
-from pathfinder.persistence.repositories import (
-    ChatTurnCancellationRepository,
-    MessagesRepository,
-)
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.repositories import ChatTurnCancellationRepository
+from pathfinder.platform.errors import AssistantMismatchError
 from pathfinder.services.conversations.begin import begin_conversation
 
 
@@ -56,6 +56,7 @@ async def dispatch(
     body: ChatRequestBody,
     session: AsyncSession,
     user_id: UUID,
+    spec: AssistantSpec,
 ) -> Response:
     """Scan user input, persist it, enqueue a turn job, tail the event stream.
 
@@ -67,13 +68,21 @@ async def dispatch(
       ``state.approval_responses`` from the request body and resumes the
       deferred tool.
     """
-    await begin_conversation(
+    begun = await begin_conversation(
         session=session,
         conversation_id=body.conversation_id,
         user_id=user_id,
         site_id=body.site_id,
+        assistant_id=spec.assistant_id,
         experiment_id=body.experiment_id,
     )
+    # The row is the authority. A concurrent first turn can create the thread
+    # under another assistant between the resolve and the insert.
+    if begun.conversation.assistant_id != spec.assistant_id:
+        raise AssistantMismatchError(
+            requested=spec.assistant_id,
+            existing=begun.conversation.assistant_id,
+        )
 
     if not body.is_approval_resume:
         await _cancel_in_flight_prior_turn(body.conversation_id)
@@ -104,6 +113,7 @@ async def dispatch(
         body=body,
         user_id=user_id,
         turn_id=turn_id,
+        assistant_id=spec.assistant_id,
     )
     # The status is persisted before the job exists, so it can never land after
     # the worker's first chunk.

@@ -9,15 +9,16 @@ from collections.abc import AsyncGenerator
 from uuid import uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import User
 from pathfinder.platform.context import veupathdb_auth_token_ctx
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.spec_build import build_strategy_from_spec

@@ -1,0 +1,158 @@
+"""A turn graph for an assistant that is one agent.
+
+The agent answers the user directly: its text and its tool calls stream to the
+client as the turn's message, and the turn's tokens and cost land on the
+state. The graph names no phase, no role and no other agent.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from dataclasses import dataclass, field
+from decimal import Decimal
+from typing import Any
+from uuid import UUID, uuid4
+
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.config import get_stream_writer
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.runtime import Runtime
+from pydantic_ai import Agent, AgentRunResultEvent
+from pydantic_ai.messages import AgentStreamEvent, PartStartEvent
+from pydantic_ai.usage import RunUsage
+
+from assistant_core.conversation.vercel_adapter import PhaseStreamEmitter
+from assistant_core.cost import cost_for_run
+from assistant_core.graph.emit import emit_chunk, emit_turn_usage
+from assistant_core.graph.runtime import TurnContext
+from assistant_core.graph.stream_events import turn_status_event
+from assistant_core.graph.turn_agent import TurnAgentFactory
+from assistant_core.graph.turn_message import write_turn_message
+from assistant_core.graph.turn_state import TurnState
+
+_AGENT_NODE = "agent"
+_FINALIZE_NODE = "finalize_turn"
+
+# Records one turn's tokens and cost against the user's budget.
+type UsageCharger = Callable[[UUID, int, Decimal], Awaitable[None]]
+
+
+@dataclass
+class _RunCapture:
+    """The accounting facts one agent run produces."""
+
+    usage: RunUsage = field(default_factory=RunUsage)
+    model_name: str | None = None
+    provider_name: str | None = None
+    provider_url: str | None = None
+
+    def cost_usd(self) -> Decimal:
+        return cost_for_run(
+            usage=self.usage,
+            model_name=self.model_name,
+            provider_name=self.provider_name,
+            provider_url=self.provider_url,
+        )
+
+
+def _absorb(event: AgentRunResultEvent[Any], capture: _RunCapture) -> None:
+    response = event.result.response
+    capture.model_name = response.model_name
+    capture.provider_name = response.provider_name
+    capture.provider_url = response.provider_url
+
+
+async def _stream_answer[DepsT](
+    *,
+    agent: Agent[DepsT, str],
+    deps: DepsT,
+    prompt: str,
+    cancel: asyncio.Event,
+    capture: _RunCapture,
+    writer: Any,
+) -> None:
+    """Run the agent for one turn, writing every chunk it produces.
+
+    A cancelled turn ends before the next part the model starts, so it spends
+    no further model call and every call the run already made still reports
+    its outcome.
+    """
+    emitter = PhaseStreamEmitter(message_id=str(uuid4()))
+
+    async def _events() -> AsyncGenerator[AgentStreamEvent | AgentRunResultEvent[str]]:
+        async with agent.run_stream_events(
+            prompt,
+            deps=deps,
+            usage=capture.usage,
+        ) as events:
+            async for event in events:
+                if cancel.is_set() and isinstance(event, PartStartEvent):
+                    return
+                if isinstance(event, AgentRunResultEvent):
+                    _absorb(event, capture)
+                yield event
+
+    async for chunk in emitter.chunks(_events()):
+        emit_chunk(writer, chunk)
+
+
+def single_agent_graph[StateT: TurnState, ContextT: TurnContext, DepsT](
+    *,
+    checkpointer: BaseCheckpointSaver[Any],
+    state_type: type[StateT],
+    context_type: type[ContextT],
+    build_agent: TurnAgentFactory[Agent[DepsT, str]],
+    build_deps: Callable[[StateT, ContextT], DepsT],
+    charge_usage: UsageCharger,
+) -> CompiledStateGraph[StateT, ContextT, StateT, StateT]:
+    """Compile the turn graph for a one-agent assistant.
+
+    The finalize step runs after the agent's, because the message row is
+    reduced from chunks the log only holds once the agent's step has ended.
+    """
+
+    async def agent_node(
+        state: StateT,
+        runtime: Runtime[ContextT],
+    ) -> dict[str, Any]:
+        writer = get_stream_writer()
+        context = runtime.context
+        capture = _RunCapture()
+        emit_chunk(writer, turn_status_event(label="Thinking...", waiting_on_llm=True))
+        await _stream_answer(
+            agent=build_agent(),
+            deps=build_deps(state, context),
+            prompt=state.user_prompt,
+            cancel=context.cancel_event,
+            capture=capture,
+            writer=writer,
+        )
+        tokens = capture.usage.total_tokens
+        cost = capture.cost_usd()
+        await charge_usage(state.user_id, tokens, cost)
+        total_tokens = state.turn_total_tokens + tokens
+        total_cost = state.turn_total_cost_usd + cost
+        emit_turn_usage(writer, total_tokens, str(total_cost))
+        return {
+            "turn_total_tokens": total_tokens,
+            "turn_total_cost_usd": total_cost,
+        }
+
+    async def finalize_node(state: StateT, runtime: Runtime[ContextT]) -> None:
+        await write_turn_message(context=runtime.context, state=state)
+
+    graph: StateGraph[StateT, ContextT, StateT, StateT] = StateGraph(
+        state_type,
+        context_schema=context_type,
+    )
+    graph.add_node(_AGENT_NODE, agent_node)
+    graph.add_node(_FINALIZE_NODE, finalize_node)
+    graph.add_edge(START, _AGENT_NODE)
+    graph.add_edge(_AGENT_NODE, _FINALIZE_NODE)
+    graph.add_edge(_FINALIZE_NODE, END)
+    return graph.compile(checkpointer=checkpointer)
+
+
+__all__ = ["UsageCharger", "single_agent_graph"]

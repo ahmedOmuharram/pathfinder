@@ -6,10 +6,10 @@ from uuid import uuid4
 
 import jwt
 import pytest
+from assistant_core.platform.context import application_id_ctx, user_id_ctx
 from fastapi.security.http import HTTPAuthorizationCredentials
 
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.context import application_id_ctx, user_id_ctx
 from pathfinder.platform.errors import UnauthorizedError
 from pathfinder.platform.security import (
     create_user_token,

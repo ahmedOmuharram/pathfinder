@@ -3,6 +3,8 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import DBSessionFactory
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.models.test import TestModel
@@ -13,9 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.scratchpad import tools as sc_tools
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
-from pathfinder.platform.db import DBSessionFactory
 
 
 @pytest.fixture

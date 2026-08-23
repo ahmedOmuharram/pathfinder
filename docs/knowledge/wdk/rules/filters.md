@@ -15,7 +15,7 @@ status: stable
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/web-monorepo/blob/63d1705463d553c0ac19ee577c1b09666597b903/packages/libs/wdk-client/src/Utils/WdkModel.ts#L377-L385
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKSearchConfig
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_filter_and_level_contract.py::test_wdk_filter_001_the_search_config_keeps_them_apart
 
 A `filter` parameter is an entry in `searchConfig.parameters` whose stable value
 is a JSON object of faceted clauses; its format is
@@ -239,7 +239,7 @@ so absence is not zero and is not staleness - see
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/request/filter/ColumnFilterServiceFormat.java#L11-L37
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKSearchConfig
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_filter_and_level_contract.py::test_wdk_filter_006_a_refusal_is_not_treated_as_a_broken_request
 
 The parse method's contract lists four rejection reasons and two of them are
 about the column: unknown, and not filterable.
@@ -267,6 +267,18 @@ The config itself takes exactly one of three shapes -
 - chosen by which key is present, so sending two of them is ambiguous rather
 than additive.
 
+**The status of the refusal has since moved, and the refusal has not.** Re-run
+on plasmodb.org on 2026-08-22 against a freshly created
+`GenesByMolecularWeight` step, `primary_key`, `gene_source_id`, `source_id` and
+`organism` all answer **500 `Internal Error`** rather than the 400 above, while
+`gene_product` still answers 200. So the message naming the column is gone and
+the diagnosis is now indistinguishable from a WDK bug, which makes the operative
+half of this rule stronger rather than weaker. The nightly lane asserts a
+refusal and records the status, so the next move is dated.
+
 The operational consequence is that the record-type document cannot be used to
-decide what a step will take. Try it against the step, and treat a 400 here as
-"not on this search" rather than as a malformed request.
+decide what a step will take. Try it against the step, and treat a refusal here
+as "not on this search" rather than as a malformed request. One cost follows
+from the change: a 500 is retried three times before
+`get_column_distribution` returns an empty result, where the 400 was refused at
+once.

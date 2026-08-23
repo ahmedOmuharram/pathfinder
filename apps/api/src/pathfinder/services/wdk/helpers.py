@@ -3,6 +3,7 @@ parameter merging."""
 
 from collections.abc import Sequence
 
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -10,7 +11,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordInstance,
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.params import (
     encode_vocab_params,
     extract_default_params,

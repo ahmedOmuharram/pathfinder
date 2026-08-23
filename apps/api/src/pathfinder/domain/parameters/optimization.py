@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Literal, Self
 
+from assistant_core.platform.pydantic_base import CamelModel, RoundedFloat
 from pydantic import ConfigDict, Field, model_validator
 
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat
 
 
 class VariantSpec(CamelModel):

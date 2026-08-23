@@ -16,16 +16,16 @@ import contextlib
 import re
 
 import httpx
+from assistant_core.platform.types import ModelProvider
+from assistant_core.spec import MockModelFactory
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError, UserError
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.models.catalog import get_smallest_model
-from pathfinder.ai.models.mock import get_mock_model
 from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.types import ModelProvider
 
 MAX_TITLE_WORDS = 7
 MAX_TITLE_CHARS = 60
@@ -95,6 +95,7 @@ def _trim_title(raw: str) -> str:
 
 async def generate_conversation_title(
     first_user_message: str,
+    mock_model: MockModelFactory,
     provider: ModelProvider | None = None,
 ) -> str:
     """Generate a short conversation title from the user's first message.
@@ -102,6 +103,8 @@ async def generate_conversation_title(
     :param first_user_message: The text of the first user message.
     :param provider: Provider whose smallest model should be used. Defaults
         to the configured ``settings.default_provider``.
+    :param mock_model: The assistant's test double, used when the chat
+        provider is the mock one.
     :returns: A trimmed, formatted title of at most 7 words / 60 chars. If
         generation fails, returns a truncated-first-message fallback.
     """
@@ -133,7 +136,7 @@ async def generate_conversation_title(
     )
 
     override_ctx = (
-        agent.override(model=get_mock_model())
+        agent.override(model=mock_model())
         if is_mock and not isinstance(agent.model, FunctionModel)
         else contextlib.nullcontext()
     )

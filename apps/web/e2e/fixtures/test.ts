@@ -72,8 +72,20 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         throw new Error(`dev-login failed for worker-${id}: ${resp.status()}`);
       }
 
-      // Clean up stale data from previous runs for THIS worker's user.
+      // Acknowledge the first-login eval-data notice once per worker, the way
+      // a researcher does, so it is not over the app in every later spec.
       const req = page.context().request;
+      const noticeResp = await req.patch(`${BASE_URL}/api/v1/me/privacy`, {
+        headers: CSRF_HEADERS,
+        data: { noticeSeen: true },
+      });
+      if (!noticeResp.ok()) {
+        throw new Error(
+          `eval-data notice acknowledgement failed for worker-${id}: ${noticeResp.status()}`,
+        );
+      }
+
+      // Clean up stale data from previous runs for THIS worker's user.
       const strategiesResp = await req.get(`${BASE_URL}/api/v1/conversations`);
       if (strategiesResp.ok()) {
         const strategies = (await strategiesResp.json()) as { id: string }[];

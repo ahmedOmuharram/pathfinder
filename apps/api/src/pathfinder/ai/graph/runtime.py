@@ -2,15 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
+from assistant_core.graph.runtime import AssistantDeps, TurnContext
+from assistant_core.memory.schemas import MemoryValue
 from pydantic import Field, SkipValidation
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.agents.tool_vocabulary import build_tool_repetition_guard
 from pathfinder.ai.capabilities.service_outage import ServiceOutageMemory
 from pathfinder.ai.graph.state import PipelineState
-from pathfinder.assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
-from pathfinder.assistant_core.graph.runtime import AssistantDeps, TurnContext
-from pathfinder.assistant_core.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService

@@ -11,12 +11,13 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from pathfinder.assistant_core.memory.embedding import embed_text
+from assistant_core.memory.embedding import embed_text
+from assistant_core.platform.logging import setup_logging
+
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.impls import register_all_tools
 from pathfinder.jobs.logging_filters import install_procrastinate_redaction
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.logging import setup_logging
 
 
 async def _warm_up() -> None:

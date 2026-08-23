@@ -59,7 +59,11 @@ def test_wdk_step_ids_and_validations_do_not_change_the_revision() -> None:
     after = _ast(
         _leaf(),
         wdkStepIds={"step_a": 4242},
-        stepValidations={"step_a": StepValidation().model_dump(by_alias=True)},
+        stepValidations={
+            "step_a": StepValidation(level="NONE", is_valid=False).model_dump(
+                by_alias=True
+            )
+        },
     )
     assert strategy_revision(before) == strategy_revision(after)
 

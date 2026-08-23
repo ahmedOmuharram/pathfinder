@@ -5,8 +5,9 @@ whether their gene ID appears in the experiment's curated gene sets.
 Handles WDK transcript ID version suffixes (e.g. "GENE.1" -> "GENE").
 """
 
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.integrations.veupathdb.wdk_models import WDKRecordInstance
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.wdk.helpers import extract_pk
 
 

@@ -6,9 +6,8 @@ from string import ascii_lowercase
 from typing import Literal
 from uuid import uuid4
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import model_validator
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 LiteratureSource = Literal[
     "europepmc",

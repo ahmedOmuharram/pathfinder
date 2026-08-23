@@ -4,14 +4,14 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-
-from pathfinder.assistant_core.memory.schemas import MemoryValue
-from pathfinder.assistant_core.memory.tombstones import (
+from assistant_core.memory.schemas import MemoryValue
+from assistant_core.memory.tombstones import (
     TombstoneRepository,
     compute_content_hash,
 )
+from assistant_core.platform.db import async_session_factory
+
 from pathfinder.persistence.models import User
-from pathfinder.platform.db import async_session_factory
 
 
 def _value(content: dict[str, object]) -> MemoryValue:

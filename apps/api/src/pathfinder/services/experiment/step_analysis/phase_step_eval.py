@@ -2,10 +2,11 @@
 
 import asyncio
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,

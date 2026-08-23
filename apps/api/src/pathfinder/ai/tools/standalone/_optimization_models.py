@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.export import get_export_service
 from pathfinder.services.parameter_optimization.config import ParameterSpec
 

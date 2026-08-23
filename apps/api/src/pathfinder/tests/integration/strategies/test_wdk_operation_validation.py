@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.parameters.values import MultiPickValue, ParamValue, StringValue
@@ -13,9 +15,8 @@ from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.operations import UpdateStepParamsOp
 from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph, StrategyAst
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import ConversationStrategy, User
 from pathfinder.platform.context import veupathdb_auth_token_ctx
-from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.errors import ValidationError
 from pathfinder.services.strategies.commit import apply_and_commit
 from pathfinder.services.strategies.context import StrategyMutationContext
@@ -95,9 +96,9 @@ async def _persisted_leaf_params(
     built: _BuiltConv,
 ) -> dict[str, ParamValue]:
     async with built.session_maker() as session:
-        conv = await session.get(Conversation, built.conv_id)
-        assert conv is not None
-        ast = StrategyAst.model_validate(conv.strategy_ast)
+        strategy = await session.get(ConversationStrategy, built.conv_id)
+        assert strategy is not None
+        ast = StrategyAst.model_validate(strategy.strategy_ast)
     return dict(ast.root.parameters)
 
 

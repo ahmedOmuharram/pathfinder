@@ -1,10 +1,22 @@
-"""SQLAlchemy ORM models."""
+"""SQLAlchemy ORM models the science owns.
+
+The declarative base, the thread, the turn rows and the chunk log belong to
+the runtime package; the tables here map on the same base, so a foreign key
+between them resolves.
+"""
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, ClassVar
+from typing import Any
 from uuid import UUID, uuid4
 
+from assistant_core.persistence.models import (
+    GUID,
+    Base,
+    Conversation,
+    application_id_column,
+)
+from assistant_core.platform.types import JSONArray, JSONObject
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import (
     JSON,
@@ -29,76 +41,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.engine import Dialect
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    MappedColumn,
-    mapped_column,
-    relationship,
-)
-from sqlalchemy.types import CHAR, TypeDecorator, TypeEngine
-
-from pathfinder.platform.context import calling_application
-from pathfinder.platform.principal import DEFAULT_APPLICATION_ID
-from pathfinder.platform.types import JSONArray, JSONObject
-
-APPLICATION_ID_LENGTH = 64
-
-
-def _application_id_column() -> MappedColumn[str]:
-    """The application a row belongs to. Ownership is user plus application.
-
-    An insert that names no application takes the caller's, so a row cannot
-    land under an application nobody was acting as.
-    """
-    return mapped_column(
-        String(APPLICATION_ID_LENGTH),
-        nullable=False,
-        default=calling_application,
-        server_default=DEFAULT_APPLICATION_ID,
-    )
-
-
-class GUID(TypeDecorator[UUID]):
-    """Platform-independent GUID type.
-
-    The column stores a UUID as CHAR(36). A read returns a UUID object.
-    """
-
-    impl = CHAR
-    cache_ok = True
-
-    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[str]:
-        return dialect.type_descriptor(CHAR(36))
-
-    def process_bind_param(
-        self, value: UUID | str | None, dialect: Dialect
-    ) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, UUID):
-            return str(value)
-        return value
-
-    def process_result_value(
-        self, value: str | UUID | None, dialect: Dialect
-    ) -> UUID | None:
-        if value is None:
-            return None
-        if isinstance(value, UUID):
-            return value
-        return UUID(value)
-
-
-class Base(DeclarativeBase):
-    """Base class for all models."""
-
-    type_annotation_map: ClassVar[dict[type, type]] = {
-        dict: JSON,
-        list: JSON,
-        UUID: GUID,
-    }
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class User(Base):
@@ -112,9 +55,21 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     monthly_cost_limit_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Whether finished investigations of this user may be extracted for the
+    # eval corpus. Default on; the notice offers the switch on first sight.
+    eval_data_consent: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    # When the user saw the eval-data notice. Server side, so the notice does
+    # not come back on another device.
+    eval_notice_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
+    # One-directional: the thread is the runtime's and names no owner back.
+    # The relationship stays because it orders the flush and cascades a delete.
     conversations: Mapped[list[Conversation]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+        cascade="all, delete-orphan"
     )
     monthly_usage: Mapped[list["MonthlyUsage"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -130,7 +85,7 @@ class ControlSet(Base):
     user_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    application_id: Mapped[str] = _application_id_column()
+    application_id: Mapped[str] = application_id_column()
     name: Mapped[str] = mapped_column(String(255))
     site_id: Mapped[str] = mapped_column(String(100))
     record_type: Mapped[str] = mapped_column(String(100))
@@ -161,7 +116,7 @@ class ExperimentRow(Base):
     user_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    application_id: Mapped[str] = _application_id_column()
+    application_id: Mapped[str] = application_id_column()
     name: Mapped[str] = mapped_column(String(255), default="")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     data: Mapped[JSONObject] = mapped_column(JSON, default=dict)
@@ -191,7 +146,7 @@ class GeneSetRow(Base):
     user_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    application_id: Mapped[str] = _application_id_column()
+    application_id: Mapped[str] = application_id_column()
     site_id: Mapped[str] = mapped_column(String(100))
     name: Mapped[str] = mapped_column(String(255), default="")
     gene_ids: Mapped[JSONArray] = mapped_column(JSON, default=list)
@@ -214,66 +169,6 @@ class GeneSetRow(Base):
         Index("ix_gene_sets_site_id", "site_id"),
         Index("ix_gene_sets_user_app_site", "user_id", "application_id", "site_id"),
     )
-
-
-class Conversation(Base):
-    """One chat thread: who owns it, where it runs, and how it was branched."""
-
-    __tablename__ = "conversations"
-    __table_args__ = (
-        Index(
-            "ix_conversations_user_app_site",
-            "user_id",
-            "application_id",
-            "site_id",
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid4
-    )
-    user_id: Mapped[UUID] = mapped_column(
-        GUID(), ForeignKey("users.id", ondelete="CASCADE")
-    )
-    application_id: Mapped[str] = _application_id_column()
-    site_id: Mapped[str] = mapped_column(String(50), default="")
-    name: Mapped[str] = mapped_column(String(255), default="")
-    dismissed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    parent_conversation_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    parent_message_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("messages.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-    user: Mapped[User] = relationship(back_populates="conversations")
-    # Loaded on request only. An unplanned access raises instead of emitting
-    # a query the caller did not ask for.
-    strategy: Mapped[ConversationStrategy | None] = relationship(
-        back_populates="conversation",
-        lazy="raise",
-        passive_deletes=True,
-    )
-
-    @property
-    def strategy_view(self) -> ConversationStrategyView:
-        """The strategy projection; all-default when the thread has none."""
-        row = self.strategy
-        if row is None:
-            return _ABSENT_STRATEGY
-        return ConversationStrategyView.model_validate(row)
 
 
 class ConversationStrategy(Base):
@@ -321,11 +216,6 @@ class ConversationStrategy(Base):
         default=list,
     )
 
-    conversation: Mapped[Conversation] = relationship(
-        back_populates="strategy",
-        lazy="raise",
-    )
-
 
 class ConversationStrategyView(BaseModel):
     """Read shape of a conversation's strategy projection.
@@ -348,49 +238,8 @@ class ConversationStrategyView(BaseModel):
     imported_saved_strategy_ids: list[int] = Field(default_factory=list)
 
 
-_ABSENT_STRATEGY = ConversationStrategyView()
-
-
-class Message(Base):
-    """Per-turn metadata row that holds usage accounting and trace ids.
-
-    The chunk log in conversation_events is the source of truth for parts.
-    """
-
-    __tablename__ = "messages"
-    __table_args__ = (
-        CheckConstraint(
-            "role IN ('user', 'assistant', 'system')",
-            name="ck_messages_role",
-        ),
-        Index(
-            "messages_conversation_id_created_at_idx",
-            "conversation_id",
-            "created_at",
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
-    conversation_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    role: Mapped[str] = mapped_column(String, nullable=False)
-    # The attribute has a trailing underscore because DeclarativeBase reserves
-    # the name metadata. The column name stays metadata.
-    metadata_: Mapped[dict[str, Any]] = mapped_column(
-        "metadata",
-        JSONB,
-        nullable=False,
-        default=dict,
-        server_default="{}",
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
+# A thread with no side row reads as a thread whose strategy was never built.
+ABSENT_STRATEGY = ConversationStrategyView()
 
 
 class Export(Base):
@@ -416,39 +265,6 @@ class Export(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
-    )
-
-
-class MemoryTombstoneRow(Base):
-    """Soft-delete marker that prevents auto-write from re-adding pruned memories."""
-
-    __tablename__ = "memory_tombstones"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[UUID] = mapped_column(
-        GUID(),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-    )
-    application_id: Mapped[str] = _application_id_column()
-    kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    reason: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="user_deleted"
-    )
-    deleted_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "user_id",
-            "application_id",
-            "kind",
-            "content_hash",
-            name="uq_tombstones_user_app_kind_hash",
-        ),
     )
 
 
@@ -506,36 +322,6 @@ class TaskProgress(Base):
     percent: Mapped[float] = mapped_column(Float, nullable=False)
     message: Mapped[str] = mapped_column(String(500), nullable=False)
     data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    emitted_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-
-class ConversationEvent(Base):
-    """Durable conversation stream chunk that lets a client resume after a reconnect."""
-
-    __tablename__ = "conversation_events"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    conversation_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-    )
-    task_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("background_tasks.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
-    )
-    turn_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        nullable=True,
-    )
-    chunk: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     emitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -662,7 +448,7 @@ class MonthlyUsage(Base):
     user_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    application_id: Mapped[str] = _application_id_column()
+    application_id: Mapped[str] = application_id_column()
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
     total_cost_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, server_default=text("0")
@@ -687,4 +473,83 @@ class MonthlyUsage(Base):
             name="monthly_usage_user_app_period_key",
         ),
         Index("monthly_usage_user_idx", "user_id"),
+    )
+
+
+STAGED = "staged"
+PROMOTED = "promoted"
+
+# A staged row names the user and the thread it came from, so an opt-out or a
+# purge can delete it. A promoted row names neither, and holds no extract: the
+# science moved into the corpus file. The constraint is the rule itself, so a
+# promotion that kept the linkage cannot be written.
+_LINKAGE_ENDS_AT_PROMOTION = (
+    "(status = 'staged'"
+    " AND user_id IS NOT NULL"
+    " AND source_conversation_id IS NOT NULL"
+    " AND extract IS NOT NULL)"
+    " OR "
+    "(status = 'promoted'"
+    " AND user_id IS NULL"
+    " AND source_conversation_id IS NULL"
+    " AND extract IS NULL)"
+)
+
+
+class EvalStagedCase(Base):
+    """One candidate eval case, between extraction and curation.
+
+    The row is the only place a candidate is associated with anybody, and the
+    association ends when a curator promotes it.
+    """
+
+    __tablename__ = "eval_staged_cases"
+
+    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    source_conversation_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    application_id: Mapped[str] = application_id_column()
+    site_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    assistant_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # none_as_null: an absent extract is SQL NULL, which the linkage
+    # constraint reads. A JSON null would satisfy IS NOT NULL.
+    extract: Mapped[JSONObject | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=STAGED, server_default=STAGED
+    )
+    corpus_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    staged_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    promoted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('staged', 'promoted')",
+            name="ck_eval_staged_cases_status",
+        ),
+        CheckConstraint(
+            _LINKAGE_ENDS_AT_PROMOTION,
+            name="ck_eval_staged_cases_linkage_ends_at_promotion",
+        ),
+        UniqueConstraint("content_hash", name="uq_eval_staged_cases_content_hash"),
+        Index(
+            "ix_eval_staged_cases_source_conversation",
+            "source_conversation_id",
+            unique=True,
+            postgresql_where="source_conversation_id IS NOT NULL",
+        ),
+        Index("ix_eval_staged_cases_user_id", "user_id"),
+        Index("ix_eval_staged_cases_status", "status"),
     )

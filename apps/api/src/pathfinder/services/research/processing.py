@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.research.citations import (
@@ -13,7 +14,6 @@ from pathfinder.domain.research.citations import (
     ensure_unique_citation_tags,
 )
 from pathfinder.domain.research.papers import ParsedPaper
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.research.utils import (
     LiteratureItemContext,
     dedupe_key,

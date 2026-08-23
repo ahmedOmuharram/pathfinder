@@ -29,6 +29,71 @@ Two limits are worth knowing. The guard runs per test, so anything at collection
 
 A unit test that needs a real connection carries `@pytest.mark.allow_network`. No production test does: the two database-backed ones live in `tests/integration/`, where they belong. A new marked test needs a reason, because the marker is how the guard is defeated.
 
+## The science verifies in two lanes
+
+The WDK rules answer to two suites, and which lane a rule lands in follows from what can falsify it.
+
+**Per-PR, hermetic, hard gate.** Every rule that a pinned response can settle is a test in `tests/unit/`, reading a recorded fixture through `pathfinder.devtools.wdk_fixtures`. It runs in the ordinary unit tier, needs no network and no credential, and blocks a merge. A rule's `status` line names one of these tests, and `node scripts/check-wdk-rules.mjs` resolves the name and reports how many rules are still unenforced.
+
+**Nightly, live, never blocking.** `pytest -m live_wdk` is the second lane: the same rules against running sites, plus the checks a fixture cannot answer - a search still exists, a vocabulary still carries a pinned term, a sentinel count is still in band, and the pinned fixtures still describe the wire. It skips without `WDK_TEST_EMAIL`/`WDK_TEST_PASSWORD` (or `WDK_TEST_TOKEN`), runs on a schedule in `.github/workflows/wdk-nightly.yml`, and files an issue rather than failing a build. Every resource a live check creates is deleted in teardown: the account is a researcher's own.
+
+```
+yarn wdk:live       # run the nightly lane by hand
+yarn wdk:record     # re-record the pinned fixtures from live WDK
+yarn check:wdk-rules
+```
+
+**A confirmed drift is answered by re-recording, not by editing a fixture.** No fixture is written by hand. `apps/api/src/pathfinder/devtools/wdk_fixtures.py` holds the manifest - what to ask, where, and which rules read it - and `record` refreshes the store. Each file carries its own provenance as data: site, method, url, status, content type, and the date it was recorded. Recording needs `VEUPATHDB_AUTH_TOKEN`, because VEuPathDB refuses anonymous service calls; every manifest entry is user-independent, so no account is addressed.
+
+The lane writes `wdk-live-summary.json`: the run's outcomes, a per-site tally, and the drift list. It is the science layer's feed into the observability contract.
+
+**An unenforced rule must say why.** `check-wdk-rules.mjs` fails a rule whose status is `UNENFORCED` and whose block carries no `reason`. A rule with no test and no reason is a claim nobody is checking.
+
+## The logic verifies as a trend, and is promoted to a gate only by evidence
+
+The assistant's evals answer "did this change make it worse at real tasks", and a bad answer is a judgement, not a crash. So the eval lane is not a gate on arrival.
+
+**An eval starts as a tracked trend.** It runs on demand, it writes its result, and a regression in it is read, not enforced. Nothing blocks on it.
+
+**An eval becomes a hard gate only after it catches, or would have caught, a real regression, and then holds stable.** "Would have caught" counts: a case written from a failure already in the backlog qualifies once it is shown to fail on the code that had the bug and pass on the code that fixed it. "Holds stable" means it has not flipped without the assistant changing.
+
+**A flaking gate is demoted or deleted, never suppressed.** No skip mark, no retry loop, no tolerance widened until the red goes away. A gate that cannot decide is answering a question it cannot answer, and it goes back to being a trend, or it goes.
+
+```
+cd apps/api
+uv run python -m pathfinder.devtools.evals corpus                 # the cases
+uv run python -m pathfinder.devtools.evals run --out summary.json  # run them
+```
+
+The corpus lives in `apps/api/src/pathfinder/evals/corpus/`, one JSON file per case, each carrying its own provenance as data. A case arrives one of two ways: promoted from the staging queue by `pathfinder.devtools.evals promote`, or written from a cataloged failure in `backlog/`. No case names a user; see [the linkage decision](../decisions/a-staged-eval-case-carries-its-user-until-promotion.md).
+
+**A run under the deterministic provider tests the pipeline, not the model.** The mock is a script, so a green run says the routing, the materialisation, the persistence and the reported verdict still behave; it does not say a real model would have chosen that route. The corpus is provider-agnostic, so a real-model run is the same command with a different provider.
+
+The run writes `EvalRunSummary`: harness, provider, assistant, per-case verdict and named differences. It is the logic layer's feed into the observability contract.
+
+# Assistant runtime (`packages/assistant-core`)
+
+```
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run mypy --strict src
+uv run pytest
+```
+
+Run these from the package root, in the package's own environment. No
+`pathfinder` is installed there, and that is the point: the suite passing is
+the boundary, not a linter rule about it. `ruff` and the tests cover `tests/`
+too, because the synthetic assistant lives there and is the runtime's
+reference producer.
+
+`pytest` needs a Postgres. It starts a `pgvector/pgvector:pg16` testcontainer
+unless `DATABASE_URL` names one, and the conversation suite drives real
+LISTEN/NOTIFY, so an in-memory substitute will not do.
+
+`PROTOCOL.md` is gated by the suite: a chunk kind, a data part or an example
+that changes without the page changing fails
+`tests/integration/conversation/test_protocol_document.py`.
+
 # Frontend (`apps/web`)
 
 ```

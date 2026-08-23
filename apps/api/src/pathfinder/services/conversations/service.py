@@ -7,6 +7,9 @@ shaping) so transport routers stay thin and never import persistence.
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
+from assistant_core.persistence.repositories.message import MessagesRepository
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,25 +24,24 @@ from pathfinder.persistence.repositories import (
     ConversationRepository,
     ConversationUpdate,
 )
-from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
     NotFoundError,
     ValidationError,
 )
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.conversations import strategy_ops
 from pathfinder.services.conversations.authz import (
     get_owned_conversation_or_404,
     get_owned_or_404,
+    get_owned_thread_or_404,
 )
 from pathfinder.services.conversations.begin import begin_conversation
 from pathfinder.services.conversations.fork import ForkError, fork_conversation
 from pathfinder.services.conversations.responses import (
     ConversationResponse,
     build_conversation_response,
+    build_conversation_summaries,
     build_conversation_summary,
 )
 from pathfinder.services.strategies.insert_saved import (
@@ -92,7 +94,7 @@ class ConversationService:
         site_id: str | None,
     ) -> list[ConversationResponse]:
         rows = await self._repo.list_conversations(user_id, site_id)
-        return [build_conversation_summary(c, site_id=site_id or "") for c in rows]
+        return build_conversation_summaries(rows, site_id=site_id or "")
 
     async def list_dismissed(
         self,
@@ -100,7 +102,7 @@ class ConversationService:
         site_id: str | None,
     ) -> list[ConversationResponse]:
         rows = await self._repo.list_dismissed_conversations(user_id, site_id)
-        return [build_conversation_summary(c, site_id=site_id or "") for c in rows]
+        return build_conversation_summaries(rows, site_id=site_id or "")
 
     async def create(
         self,
@@ -124,24 +126,25 @@ class ConversationService:
                 step_count=len(walk_step_tree(payload.root)),
             ),
         )
-        refreshed = await self._repo.get_by_id(conversation.id)
+        refreshed = await self._repo.get_with_strategy(conversation.id)
         if not refreshed:
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND,
                 title="Strategy not found",
             )
-        return build_conversation_response(refreshed)
+        return build_conversation_response(*refreshed)
 
     async def get_detail(
         self, conversation_id: UUID, user_id: UUID
     ) -> ConversationResponse:
-        conversation = await get_owned_conversation_or_404(
+        conversation, strategy = await get_owned_thread_or_404(
             self._repo,
             conversation_id,
             user_id,
         )
-        conversation = await lazy_fetch_wdk_detail(
+        conversation, strategy = await lazy_fetch_wdk_detail(
             conversation=conversation,
+            strategy=strategy,
             conv_repo=self._repo,
         )
         total_tokens, total_cost = await MessagesRepository(
@@ -149,6 +152,7 @@ class ConversationService:
         ).sum_usage_for_conversation(conversation.id)
         return build_conversation_response(
             conversation,
+            strategy,
             total_tokens=total_tokens,
             total_cost_usd=total_cost,
         )
@@ -182,15 +186,16 @@ class ConversationService:
                 step_count=len(walk_step_tree(payload.root)) if payload else None,
             ),
         )
-        updated = await self._repo.get_by_id(conversation_id)
-        if not updated:
+        found = await self._repo.get_with_strategy(conversation_id)
+        if not found:
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND,
                 title="Strategy not found",
             )
-        if patch.is_saved_set and updated.strategy_view.wdk_strategy_id:
-            await sync_is_saved_to_wdk(conversation=updated)
-        return build_conversation_response(updated)
+        updated, strategy = found
+        if patch.is_saved_set and strategy.wdk_strategy_id:
+            await sync_is_saved_to_wdk(conversation=updated, strategy=strategy)
+        return build_conversation_response(updated, strategy)
 
     async def fork(
         self,
@@ -212,13 +217,13 @@ class ConversationService:
                 title=str(exc),
             ) from exc
         await self._session.commit()
-        refreshed = await self._repo.get_by_id(fork.id)
+        refreshed = await self._repo.get_with_strategy(fork.id)
         if refreshed is None:
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND,
                 title="Strategy not found",
             )
-        return build_conversation_summary(refreshed, site_id=refreshed.site_id)
+        return build_conversation_summary(*refreshed, site_id=refreshed[0].site_id)
 
     async def delete(
         self,
@@ -228,12 +233,12 @@ class ConversationService:
         delete_from_wdk: bool,
         cascade: bool,
     ) -> None:
-        conversation = await get_owned_conversation_or_404(
+        conversation, strategy = await get_owned_thread_or_404(
             self._repo,
             conversation_id,
             user_id,
         )
-        wdk_id = conversation.strategy_view.wdk_strategy_id
+        wdk_id = strategy.wdk_strategy_id
         is_wdk_linked = wdk_id is not None
 
         if is_wdk_linked and delete_from_wdk and wdk_id is not None:
@@ -360,6 +365,7 @@ class ConversationService:
             conversation_id,
             user_id,
         )
+        source_strategy = await self._repo.get_strategy(conversation_id)
         msg_repo = MessagesRepository(self._session)
         new_conv = await self._repo.create(
             user_id=user_id,
@@ -369,7 +375,7 @@ class ConversationService:
         # Carry the strategy over (topology + params). WDK step ids are dropped
         # so the copy re-syncs as its own fresh WDK strategy instead of sharing
         # the source's steps; wdk_strategy_id stays None for the same reason.
-        copied_ast = dict(source.strategy_view.strategy_ast)
+        copied_ast = dict(source_strategy.strategy_ast)
         copied_ast.pop("wdkStepIds", None)
         copied_ast.pop("wdk_step_ids", None)
         if copied_ast:
@@ -409,6 +415,7 @@ class ConversationService:
         conversation_id: UUID,
         user_id: UUID,
         site_id: str,
+        assistant_id: str,
         experiment_id: str | None,
     ) -> BegunConversation:
         result = await begin_conversation(
@@ -416,6 +423,7 @@ class ConversationService:
             conversation_id=conversation_id,
             user_id=user_id,
             site_id=site_id,
+            assistant_id=assistant_id,
             experiment_id=experiment_id,
         )
         await self._session.commit()

@@ -14,7 +14,7 @@ One person can drive several assistants. The user is the same person on all of
 them, and the work is not the same work.
 
 **The scope key is `(user_id, application_id)`.** The application comes from
-`application_id_ctx` (`platform/context.py`), which the request resolver sets
+`application_id_ctx` (`assistant_core/platform/context.py`), which the request resolver sets
 from the service token and a worker job sets from the conversation row. Six
 tables carry the column, `NOT NULL DEFAULT 'pathfinder'`: `conversations`,
 `gene_sets`, `control_sets`, `experiments`, `memory_tombstones`,

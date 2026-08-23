@@ -9,8 +9,9 @@ keeps the service layer free of any AI-layer import.
 from dataclasses import dataclass
 from uuid import UUID
 
+from assistant_core.platform.db import DBSessionFactory
+
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.platform.db import DBSessionFactory
 
 
 @dataclass(frozen=True)

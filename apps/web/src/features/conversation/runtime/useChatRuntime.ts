@@ -15,6 +15,8 @@ import { graphSnapshotSchema } from "@pathfinder/shared/generated/zod/graphSnaps
 import { strategyMetaSchema } from "@pathfinder/shared/generated/zod/strategyMetaSchema";
 import { turnUsageSchema } from "@pathfinder/shared/generated/zod/turnUsageSchema";
 
+import { DurableChatTransport } from "@pathfinder/assistant-client/ai-sdk";
+
 import { getAuthHeaders } from "@/lib/api/http";
 import { beginStrategy } from "@pathfinder/shared/generated/hooks/useBeginStrategy";
 import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
@@ -29,7 +31,6 @@ import { useStrategyStore } from "@/state/strategy/store";
 
 import { buildChatRequestBody } from "./buildRequestBody";
 import type { ChatHelpers } from "./chatHelpersContext";
-import { DurableChatTransport } from "./DurableChatTransport";
 import { createFeedbackAdapter } from "./feedbackAdapter";
 import { GeneIdAttachmentAdapter } from "./geneIdAttachmentAdapter";
 

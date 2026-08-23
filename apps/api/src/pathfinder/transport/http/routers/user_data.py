@@ -6,9 +6,9 @@ Thin HTTP adapter; all business logic lives in
 
 from typing import Annotated
 
+from assistant_core.platform.types import JSONObject
 from fastapi import APIRouter, Query
 
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.user_data import purge_user_data
 from pathfinder.transport.http.deps import CurrentUser, DBSession
 
@@ -52,5 +52,6 @@ async def purge_user_data_endpoint(
             "geneSets": result.gene_sets,
             "experiments": result.experiments,
             "controlSets": result.control_sets,
+            "stagedEvalCases": result.staged_eval_cases,
         },
     }

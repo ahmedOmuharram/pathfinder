@@ -1,4 +1,9 @@
 import type { UIMessage } from "ai";
+import {
+  buildTurnRequestBody,
+  type TurnRequestBody,
+} from "@pathfinder/assistant-client";
+
 import type { PhaseModelMap, PhaseReasoningMap } from "@/state/useSettingsStore";
 
 export interface BuildChatRequestBodyArgs {
@@ -12,18 +17,7 @@ export interface BuildChatRequestBodyArgs {
   phaseReasoning?: PhaseReasoningMap;
 }
 
-export interface ChatRequestBodyShape {
-  conversationId: string;
-  siteId: string;
-  id: string;
-  trigger: string;
-  messages: UIMessage[];
-  [key: string]: unknown;
-}
-
-function hasEntries(map: object | undefined): boolean {
-  return map !== undefined && Object.keys(map).length > 0;
-}
+export type ChatRequestBodyShape = TurnRequestBody<UIMessage>;
 
 export function buildChatRequestBody(
   args: BuildChatRequestBodyArgs,
@@ -35,14 +29,16 @@ export function buildChatRequestBody(
         "request was constructed.",
     );
   }
-  return {
-    ...(args.baseBody ?? {}),
+  return buildTurnRequestBody<UIMessage>({
     conversationId: args.conversationId,
-    siteId: args.siteId,
     id: args.id,
     trigger: args.trigger,
     messages: args.messages,
-    ...(hasEntries(args.phaseModels) ? { phaseModels: args.phaseModels } : {}),
-    ...(hasEntries(args.phaseReasoning) ? { phaseReasoning: args.phaseReasoning } : {}),
-  };
+    baseBody: args.baseBody,
+    extra: {
+      siteId: args.siteId,
+      phaseModels: args.phaseModels,
+      phaseReasoning: args.phaseReasoning,
+    },
+  });
 }

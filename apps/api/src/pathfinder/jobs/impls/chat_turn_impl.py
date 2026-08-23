@@ -3,12 +3,15 @@ from __future__ import annotations
 from contextlib import nullcontext
 from typing import Any
 
+from assistant_core.conversation.checkpointer import lifespan_checkpointer
+from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.memory.lifespan import lifespan_memory_store
+from assistant_core.platform.logging import get_logger
+
+from pathfinder.ai.conversation.assistant_routing import resolve_assistant
 from pathfinder.ai.conversation.turn_runner import run_turn
 from pathfinder.ai.graph._llm_capture import capture_llm
-from pathfinder.ai.graph.composition import build_pathfinder_graph
-from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
-from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
+from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.jobs.auth_context import (
     attach_conversation_application,
     attach_user_id,
@@ -16,7 +19,6 @@ from pathfinder.jobs.auth_context import (
 )
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -32,6 +34,9 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
     parsed = ChatTurnPayload.model_validate(payload)
     body = parsed.body
 
+    registry = get_assistant_registry()
+    spec = resolve_assistant(registry, parsed.assistant_id)
+
     writer = ChatEventWriter(
         conversation_id=body.conversation_id,
         turn_id=parsed.turn_id,
@@ -41,10 +46,13 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
         attach_wdk_auth(parsed.veupathdb_auth_token),
         attach_user_id(parsed.user_id),
         attach_conversation_application(body.conversation_id),
-        lifespan_checkpointer(settings.database_url) as saver,
+        lifespan_checkpointer(
+            settings.database_url,
+            checkpoint_types=registry.checkpoint_types(),
+        ) as saver,
         lifespan_memory_store(settings.database_url) as store,
     ):
-        graph = build_pathfinder_graph(checkpointer=saver)
+        graph = spec.build_graph(saver)
         capture = (
             capture_llm(parsed.capture_dir) if parsed.capture_dir else nullcontext()
         )
@@ -52,6 +60,7 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
             await run_turn(
                 body=body,
                 user_id=parsed.user_id,
+                spec=spec,
                 compiled_graph=graph,
                 memory_store=store,
                 writer=writer,
@@ -60,5 +69,6 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
         "chat turn completed",
         conversation_id=str(body.conversation_id),
         turn_id=str(parsed.turn_id),
+        assistant_id=spec.assistant_id,
         has_veupathdb_auth=parsed.veupathdb_auth_token is not None,
     )

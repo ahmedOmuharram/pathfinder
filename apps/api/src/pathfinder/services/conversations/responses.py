@@ -4,19 +4,24 @@ Owns the ``Conversation`` ORM → response-DTO mapping so transport returns
 these without importing persistence or building them itself.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
+from assistant_core.persistence.models import DEFAULT_ASSISTANT_ID, Conversation
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import Field
 
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.revision import strategy_revision
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.persistence.models import Conversation
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
+from pathfinder.persistence.models import ConversationStrategyView
+from pathfinder.persistence.repositories.conversation_strategy import (
+    ConversationWithStrategy,
+)
 from pathfinder.services.strategies.schemas import (
     StepResponse,
     step_response_from_strategy_ast,
@@ -31,6 +36,7 @@ class ConversationResponse(CamelModel):
     name: str
     title: str | None = None
     description: str | None = None
+    assistant_id: str = DEFAULT_ASSISTANT_ID
     site_id: str
     record_type: str | None
     steps: list[StepResponse] = Field(default_factory=list)
@@ -108,23 +114,21 @@ def _parse_strategy_ast(plan_raw: JSONObject | None) -> StrategyAst | None:
         return None
 
 
-def conversation_strategy_revision(conversation: Conversation | None) -> str:
+def conversation_strategy_revision(strategy: ConversationStrategyView | None) -> str:
     """Fingerprint the conversation's persisted strategy; ``""`` when absent."""
-    if conversation is None:
+    if strategy is None:
         return ""
-    return strategy_revision(
-        _parse_strategy_ast(conversation.strategy_view.strategy_ast),
-    )
+    return strategy_revision(_parse_strategy_ast(strategy.strategy_ast))
 
 
 def build_conversation_response(
     conversation: Conversation,
+    strategy: ConversationStrategyView,
     *,
     total_tokens: int = 0,
     total_cost_usd: Decimal | None = None,
 ) -> ConversationResponse:
     """Build a detail-view ``ConversationResponse`` from a ``Conversation``."""
-    strategy = conversation.strategy_view
     payload = _parse_strategy_ast(strategy.strategy_ast)
     root_step_id = extract_root_step_id(payload)
     wdk_url = _compute_wdk_url(conversation.site_id, strategy.wdk_strategy_id)
@@ -134,6 +138,7 @@ def build_conversation_response(
         name=conversation.name,
         title=conversation.name,
         description=extract_strategy_description(payload),
+        assistant_id=conversation.assistant_id,
         site_id=conversation.site_id,
         record_type=strategy.record_type,
         steps=derive_steps_from_strategy_ast(payload),
@@ -156,11 +161,11 @@ def build_conversation_response(
 
 def build_conversation_summary(
     conversation: Conversation,
+    strategy: ConversationStrategyView,
     *,
     site_id: str = "",
 ) -> ConversationResponse:
     """Build a list-view ``ConversationResponse`` (steps=[]) from a ``Conversation``."""
-    strategy = conversation.strategy_view
     effective_site_id = site_id or conversation.site_id
     wdk_url = _compute_wdk_url(effective_site_id, strategy.wdk_strategy_id)
     payload = _parse_strategy_ast(strategy.strategy_ast)
@@ -170,6 +175,7 @@ def build_conversation_summary(
         name=conversation.name,
         title=conversation.name,
         description=extract_strategy_description(payload),
+        assistant_id=conversation.assistant_id,
         site_id=effective_site_id,
         record_type=strategy.record_type,
         wdk_strategy_id=strategy.wdk_strategy_id,
@@ -186,3 +192,15 @@ def build_conversation_summary(
         parent_message_id=conversation.parent_message_id,
         strategy_revision=strategy_revision(payload),
     )
+
+
+def build_conversation_summaries(
+    rows: Sequence[ConversationWithStrategy],
+    *,
+    site_id: str = "",
+) -> list[ConversationResponse]:
+    """Build the list view for a page of threads and their projections."""
+    return [
+        build_conversation_summary(conversation, strategy, site_id=site_id)
+        for conversation, strategy in rows
+    ]

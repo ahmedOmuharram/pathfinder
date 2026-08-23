@@ -13,10 +13,10 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+from assistant_core.platform.db import DBSessionFactory
 from sqlalchemy import text
 
 from pathfinder.persistence.models import TaskProgress
-from pathfinder.platform.db import DBSessionFactory
 
 
 @dataclass(frozen=True)

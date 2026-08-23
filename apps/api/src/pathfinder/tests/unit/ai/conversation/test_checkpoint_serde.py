@@ -12,6 +12,18 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from assistant_core.conversation.serde import (
+    CORE_CHECKPOINT_TYPES,
+    build_checkpoint_serde,
+    checkpoint_types,
+)
+from assistant_core.graph.turn_state import (
+    PendingApproval,
+    SubAgentApprovalCall,
+    SubAgentApprovalPending,
+    UserQuestionAnswer,
+)
+from assistant_core.memory.schemas import MemoryValue
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from pydantic_ai.ui.vercel_ai.request_types import TextUIPart, ToolApprovalResponded
 
@@ -23,18 +35,7 @@ from pathfinder.ai.graph.state import (
     VerificationDigest,
 )
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
-from pathfinder.assistant_core.conversation.serde import (
-    CORE_CHECKPOINT_TYPES,
-    build_checkpoint_serde,
-    checkpoint_types,
-)
-from pathfinder.assistant_core.graph.turn_state import (
-    PendingApproval,
-    SubAgentApprovalCall,
-    SubAgentApprovalPending,
-    UserQuestionAnswer,
-)
-from pathfinder.assistant_core.memory.schemas import MemoryValue
+from pathfinder.assistants.pathfinder_spec import PATHFINDER_CHECKPOINT_TYPES
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
     NodeResult,
@@ -214,20 +215,23 @@ SAMPLES: dict[type, object] = {
 }
 
 
+ALLOWLIST = checkpoint_types(PATHFINDER_CHECKPOINT_TYPES)
+
+
 def _strict_roundtrip(value: object) -> object:
     """Encode with our serde, decode under a STRICT (no-fallback) serializer."""
-    serde = build_checkpoint_serde()
+    serde = build_checkpoint_serde(PATHFINDER_CHECKPOINT_TYPES)
     type_, payload = serde.dumps_typed(value)
     strict = JsonPlusSerializer(allowed_msgpack_modules=None).with_msgpack_allowlist(
-        checkpoint_types()
+        ALLOWLIST
     )
     return strict.loads_typed((type_, payload))
 
 
 def test_every_registered_type_is_a_real_class() -> None:
     # Guards against a typo'd/renamed entry silently dropping off the allowlist.
-    assert checkpoint_types()
-    for entry in checkpoint_types():
+    assert ALLOWLIST
+    for entry in ALLOWLIST:
         assert isinstance(entry, type), entry
 
 
@@ -244,9 +248,9 @@ def test_the_core_allowlist_holds_no_strategy_type() -> None:
     )
 
 
-def test_importing_the_product_state_registers_its_types() -> None:
-    """The registration rides on the module the graph already imports."""
-    registered = set(checkpoint_types()) - set(CORE_CHECKPOINT_TYPES)
+def test_the_pathfinder_spec_declares_its_state_types() -> None:
+    """The assistant carries the allowlist entries its own state needs."""
+    registered = set(ALLOWLIST) - set(CORE_CHECKPOINT_TYPES)
     assert registered == {
         SearchOverview,
         PhaseDisposition,
@@ -265,7 +269,7 @@ def test_importing_the_product_state_registers_its_types() -> None:
 
 
 def test_every_allowlisted_type_has_a_sample() -> None:
-    assert set(checkpoint_types()) == set(SAMPLES)
+    assert set(ALLOWLIST) == set(SAMPLES)
 
 
 def test_every_allowlisted_type_survives_strict_roundtrip() -> None:

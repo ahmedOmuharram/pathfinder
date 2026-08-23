@@ -1,9 +1,8 @@
 """Health-check probes for external dependencies."""
 
+from assistant_core.platform.logging import get_logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -7,6 +7,8 @@ from collections.abc import Mapping, Sequence
 from typing import cast
 
 import httpx
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 from tenacity import (
     AsyncRetrying,
@@ -16,6 +18,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from pathfinder.integrations.veupathdb._failures import wdk_failure
 from pathfinder.integrations.veupathdb._observability import (
     WdkRequestTelemetry,
     log_wdk_retry,
@@ -24,12 +27,11 @@ from pathfinder.integrations.veupathdb.delayed_result import (
     WDKDelayedResultError,
     is_delayed_result,
 )
+from pathfinder.integrations.veupathdb.probe import WDKProbe
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.errors import WDKError, WDKLoginRequiredError
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.metrics import wdk_request_duration_s, wdk_requests
-from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -253,10 +255,8 @@ class HTTPClient:
             # 5xx is retryable. 4xx is not.
             if e.response.status_code >= _HTTP_SERVER_ERROR:
                 raise
-            msg = f"{method} {path} -> HTTP {e.response.status_code}: {e.response.text[:200]}"
-            raise WDKError(
-                msg,
-                status=e.response.status_code,
+            raise wdk_failure(
+                method, path, e.response.status_code, e.response.text
             ) from e
         except httpx.TimeoutException, httpx.ConnectError:
             # Transient. Tenacity retries these.
@@ -353,6 +353,36 @@ class HTTPClient:
             wdk_requests.add(1, metric_attrs)
             wdk_request_duration_s.record(time.monotonic() - start, metric_attrs)
             return result
+
+    async def probe(
+        self,
+        method: str,
+        path: str,
+        params: JSONObject | None = None,
+        json: object = None,
+    ) -> WDKProbe:
+        """Send one request and report what WDK answered, without retrying.
+
+        A 4xx is the measurement, so nothing here raises on one.
+        """
+        client = await self._get_client()
+        auth_token = self._effective_token(path)
+        request = client.build_request(
+            method=method,
+            url=path,
+            params=_convert_params_for_httpx(params),
+            json=json,
+        )
+        if auth_token:
+            _inject_auth_cookie(request, auth_token)
+        response = await client.send(request)
+        return WDKProbe(
+            method=method,
+            url=str(response.request.url),
+            status=response.status_code,
+            content_type=response.headers.get("content-type", ""),
+            text=response.text,
+        )
 
     async def get(self, path: str, params: JSONObject | None = None) -> JsonValue:
         """GET request."""

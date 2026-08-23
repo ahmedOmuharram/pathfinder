@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 import httpx
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from pydantic_ai.exceptions import AgentRunError
 
@@ -28,7 +29,6 @@ from pathfinder.domain.parameters.values import ParamValue, to_wire
 from pathfinder.domain.parameters.wdk_vocab import match_exact_option
 from pathfinder.domain.search import SearchContext
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_dag import (
     ParamFetcher,
     ResolvedParams,

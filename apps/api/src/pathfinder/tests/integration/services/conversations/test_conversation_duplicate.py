@@ -11,11 +11,11 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from assistant_core.persistence.repositories.message import MessagesRepository
+from assistant_core.platform.db import async_session_factory
 
 from pathfinder.persistence.models import ConversationStrategy, User
 from pathfinder.persistence.repositories.conversation import ConversationRepository
-from pathfinder.persistence.repositories.message import MessagesRepository
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.conversations.service import ConversationService
 
 _AST = {
@@ -70,9 +70,7 @@ async def test_duplicate_copies_strategy_dropping_wdk_ids(
 
     async with async_session_factory() as session:
         repo = ConversationRepository(session)
-        new = await repo.get_by_id(dup.id)
-        assert new is not None
-        copied = new.strategy_view
+        copied = await repo.get_strategy(dup.id)
         root = copied.strategy_ast.get("root")
         assert isinstance(root, dict)
         assert root.get("id") == "kinases"
@@ -85,6 +83,5 @@ async def test_duplicate_copies_strategy_dropping_wdk_ids(
         assert "wdkStepIds" not in copied.strategy_ast
         assert copied.wdk_strategy_id is None
 
-        original = await repo.get_by_id(conv_id)
-        assert original is not None
-        assert original.strategy_view.wdk_strategy_id == 555
+        original = await repo.get_strategy(conv_id)
+        assert original.wdk_strategy_id == 555

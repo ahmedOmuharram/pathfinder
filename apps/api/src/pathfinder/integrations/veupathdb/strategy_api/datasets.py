@@ -4,12 +4,13 @@ Provides :class:`DatasetsMixin` with a typed ``create_dataset`` method
 matching the monorepo's ``DatasetsService.ts``.
 """
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKDatasetConfig,
     WDKIdentifier,
 )
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

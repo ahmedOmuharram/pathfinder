@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import NoReturn
 
+from assistant_core.graph.turn_state import PendingApproval
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai import RunContext
@@ -38,7 +39,6 @@ from pathfinder.ai.lead.sub_agent_tools import (
     apply_agent_state,
 )
 from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
-from pathfinder.assistant_core.graph.turn_state import PendingApproval
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import (
     OperationalSpec,

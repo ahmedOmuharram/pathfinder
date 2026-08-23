@@ -2,21 +2,21 @@ from __future__ import annotations
 
 from typing import Literal
 
+from assistant_core.graph.stream_events import scratchpad_updated_event
+from assistant_core.graph.turn_message import write_turn_message
+from assistant_core.memory.autowrite import auto_write_memories
+from assistant_core.memory.store import MemoryStore
+from assistant_core.memory.tombstones import TombstoneRepository
+from assistant_core.platform.logging import get_logger
 from langgraph.config import get_stream_writer
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 from sqlalchemy.exc import SQLAlchemyError
 
-from pathfinder.ai.graph._lead_turn import write_turn_message
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.memory_candidates import collect_turn_memory_candidates
 from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
-from pathfinder.assistant_core.graph.stream_events import scratchpad_updated_event
-from pathfinder.assistant_core.memory.autowrite import auto_write_memories
-from pathfinder.assistant_core.memory.store import MemoryStore
-from pathfinder.assistant_core.memory.tombstones import TombstoneRepository
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -27,16 +27,7 @@ async def finalize_turn_node(
     state: PipelineState, runtime: Runtime[Context]
 ) -> Command[Literal["__end__"]]:
     if runtime.context is not None:
-        try:
-            await write_turn_message(
-                context=runtime.context,
-                state=state,
-            )
-        except SQLAlchemyError:
-            logger.warning(
-                "failed to write turn message",
-                conversation_id=str(state.conversation_id),
-            )
+        await write_turn_message(context=runtime.context, state=state)
 
     if (
         runtime.context is not None

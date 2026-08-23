@@ -2,12 +2,12 @@
 
 from typing import Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import Field, JsonValue
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR, BooleanOperator
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.types import (
     ControlValueFormat,
     EnrichmentAnalysisType,

@@ -12,7 +12,8 @@ re-encoding — making catalog warm-up instant.
 import asyncio
 import time
 
-from pathfinder.integrations.embeddings.model import warm_up_model
+from assistant_core.embeddings.model import warm_up_model
+
 from pathfinder.integrations.veupathdb.discovery_service import get_discovery_service
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.platform.errors import AppError

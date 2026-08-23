@@ -5,6 +5,7 @@ individual record retrieval, and column value distributions.
 """
 
 import pydantic
+from assistant_core.platform.logging import get_logger
 
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -13,7 +14,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordType,
 )
 from pathfinder.platform.errors import WDKError, validate_response
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

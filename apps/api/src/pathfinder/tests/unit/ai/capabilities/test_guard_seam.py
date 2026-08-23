@@ -7,8 +7,14 @@ than watching another product's tools by accident.
 
 from __future__ import annotations
 
+import assistant_core.capabilities.repetition_guard as repetition_mod
+from assistant_core.capabilities.repetition_guard import (
+    DEFAULT_REPETITION_THRESHOLD,
+    ToolRepetitionGuard,
+)
+from assistant_core.graph.runtime import AssistantDeps
+
 import pathfinder.ai.capabilities.resilience as resilience_mod
-import pathfinder.assistant_core.capabilities.repetition_guard as repetition_mod
 from pathfinder.ai.agents.tool_vocabulary import (
     GRAPH_MODIFYING_TOOLS,
     READ_ONLY_TOOLS,
@@ -17,11 +23,6 @@ from pathfinder.ai.agents.tool_vocabulary import (
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.assistant_core.capabilities.repetition_guard import (
-    DEFAULT_REPETITION_THRESHOLD,
-    ToolRepetitionGuard,
-)
-from pathfinder.assistant_core.graph.runtime import AssistantDeps
 from pathfinder.domain.strategy.session import StrategySession
 
 PRODUCT_NAMES = {

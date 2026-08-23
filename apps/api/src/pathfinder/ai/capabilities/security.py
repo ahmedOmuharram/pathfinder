@@ -6,6 +6,8 @@ import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.ai.capabilities.piguard import (
     InvisibleTextScanner,
     PIGuardScanner,
@@ -13,7 +15,6 @@ from pathfinder.ai.capabilities.piguard import (
     resolve_model_dir,
 )
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

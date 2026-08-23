@@ -2,9 +2,9 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
+from assistant_core.platform import db as session_module
 from sqlalchemy import text
 
-from pathfinder.platform import db as session_module
 from pathfinder.platform.health import worker_is_alive
 from pathfinder.platform.readiness import (
     _FIXED_SUBSYSTEMS,

@@ -4,10 +4,10 @@ Owned by the service (the producer) so transport returns them without the
 service importing transport.
 """
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import JsonValue
 
 from pathfinder.domain.wdk_values import WDKRecordIdPart
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class RecordAttribute(CamelModel):

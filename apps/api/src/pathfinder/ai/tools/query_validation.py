@@ -1,7 +1,7 @@
 import re
 from typing import cast
 
-from pathfinder.platform.types import JSONArray, JSONObject
+from assistant_core.platform.types import JSONArray, JSONObject
 
 _MIN_QUERY_TOKENS = 2
 

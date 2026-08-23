@@ -1,6 +1,6 @@
 """Request schemas for the feedback endpoint."""
 
-from pathfinder.platform.pydantic_base import CamelModel
+from assistant_core.platform.pydantic_base import CamelModel
 
 
 class FeedbackRequest(CamelModel):

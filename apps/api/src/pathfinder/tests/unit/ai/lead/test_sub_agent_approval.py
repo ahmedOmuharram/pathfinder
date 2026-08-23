@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from assistant_core.graph.turn_state import PendingApproval
 from pydantic_ai import RunContext, Tool
 from pydantic_ai.messages import (
     ModelMessage,
@@ -40,7 +41,6 @@ from pathfinder.ai.lead.sub_agent_dispatch import (
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
 from pathfinder.ai.tools.toolsets import execution, verification
-from pathfinder.assistant_core.graph.turn_state import PendingApproval
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService

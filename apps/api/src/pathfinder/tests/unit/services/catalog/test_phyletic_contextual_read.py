@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import cast
 
 import pytest
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.values import (
@@ -28,7 +29,6 @@ from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKStringParam,
 )
 from pathfinder.platform.errors import WDKError
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog import param_validation as pv
 
 _CTX = SearchContext(

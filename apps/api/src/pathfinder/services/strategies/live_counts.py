@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategyDetails
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

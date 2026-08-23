@@ -12,7 +12,10 @@ import sys
 from pathlib import Path
 
 DEFAULT_LIMIT = 400
-SRC_ROOT = Path("src/pathfinder")
+SRC_ROOTS = (
+    Path("src/pathfinder"),
+    Path("../../packages/assistant-core/src/assistant_core"),
+)
 
 # Directories and files exempt from the line limit.
 EXEMPT_PATTERNS: set[str] = {
@@ -45,8 +48,8 @@ EXEMPT_PATTERNS: set[str] = {
 }
 
 
-def _is_exempt(path: Path) -> bool:
-    rel = str(path.relative_to(SRC_ROOT))
+def _is_exempt(path: Path, root: Path) -> bool:
+    rel = str(path.relative_to(root))
     return any(pattern in rel for pattern in EXEMPT_PATTERNS)
 
 
@@ -68,14 +71,15 @@ def main() -> int:
 
     violations: list[tuple[Path, int]] = []
 
-    for path in sorted(SRC_ROOT.rglob("*.py")):
-        if _is_exempt(path):
-            continue
-        lines = _count_meaningful_lines(path)
-        if lines > args.limit:
-            violations.append((path, lines))
-        elif args.verbose:
-            print(f"  OK  {path} ({lines})")
+    for root in SRC_ROOTS:
+        for path in sorted(root.rglob("*.py")):
+            if _is_exempt(path, root):
+                continue
+            lines = _count_meaningful_lines(path)
+            if lines > args.limit:
+                violations.append((path, lines))
+            elif args.verbose:
+                print(f"  OK  {path} ({lines})")
 
     if violations:
         print(f"\n{len(violations)} file(s) exceed {args.limit} meaningful lines:\n")

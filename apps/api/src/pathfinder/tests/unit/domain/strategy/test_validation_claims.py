@@ -30,7 +30,7 @@ class TestWhetherAnyoneChecked:
 
     def test_the_default_is_unchecked(self) -> None:
         # The default must not read as a passing verdict.
-        assert not StepValidation().was_checked()
+        assert not StepValidation(level="NONE", is_valid=False).was_checked()
 
 
 class TestTheMessages:

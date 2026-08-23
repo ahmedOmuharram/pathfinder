@@ -7,6 +7,7 @@ decorator in the AI layer) never import persistence directly.
 from typing import Any
 from uuid import UUID
 
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +15,6 @@ from pathfinder.persistence.models import BackgroundTask
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.platform.db import async_session_factory
 
 _ACTIVE_TASK_STATUSES: frozenset[str] = frozenset({"pending", "running", "resuming"})
 

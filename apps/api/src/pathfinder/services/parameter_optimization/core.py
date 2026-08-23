@@ -10,10 +10,10 @@ import time
 from typing import cast
 
 import optuna
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONArray
 from pydantic import JsonValue
 
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONArray
 from pathfinder.services.parameter_optimization.batch import TrialContext
 from pathfinder.services.parameter_optimization.callbacks import (
     OptimizationCompletedEvent,

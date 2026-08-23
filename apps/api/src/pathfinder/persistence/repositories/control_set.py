@@ -3,12 +3,12 @@
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from assistant_core.platform.context import calling_application
 from sqlalchemy import cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB, array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import ControlSet
-from pathfinder.platform.context import calling_application
 
 
 @dataclass

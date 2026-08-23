@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pathfinder.platform.pydantic_base import CamelModel
+from assistant_core.platform.pydantic_base import CamelModel
 
 
 class TaskProgressEvent(CamelModel):

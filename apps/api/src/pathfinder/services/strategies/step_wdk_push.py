@@ -6,6 +6,7 @@ reconcile later.
 
 from typing import assert_never
 
+from assistant_core.platform.logging import get_logger
 from pydantic import BaseModel, ConfigDict
 
 from pathfinder.domain.parameters.values import ParamValue
@@ -33,7 +34,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
 )
 from pathfinder.platform.errors import AppError, ValidationError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.param_validation import (
     ValidationCallbacks,
     validate_parameters,

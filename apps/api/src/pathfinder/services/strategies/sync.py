@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.strategy.ast import (
@@ -23,8 +25,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
 from pathfinder.platform.errors import AppError, StrategyCompilationError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.searches import (
     make_record_type_resolver,
     resolve_record_type_from_steps,
@@ -166,7 +166,8 @@ def _extract_counts_and_validations(
         local_id = wdk_to_local.get(wdk_id)
         if local_id:
             counts[local_id] = wdk_step.estimated_size
-            validations[local_id] = wdk_step.validation
+            if wdk_step.validation is not None:
+                validations[local_id] = wdk_step.validation
 
     root_local = wdk_to_local.get(strategy_info.root_step_id)
     if root_local:

@@ -2,6 +2,9 @@
 
 from uuid import UUID, uuid4
 
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.integrations.veupathdb.factory import (
     get_strategy_api,
@@ -9,13 +12,11 @@ from pathfinder.integrations.veupathdb.factory import (
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
-from pathfinder.platform.context import calling_application
 from pathfinder.platform.errors import (
     InternalError,
     NotFoundError,
     ValidationError,
 )
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.enrichment.service import EnrichmentService
 from pathfinder.services.enrichment.types import (
     EnrichmentAnalysisType,

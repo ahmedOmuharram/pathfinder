@@ -2,15 +2,15 @@
 
 from uuid import UUID
 
+from assistant_core.persistence.models import ConversationEvent
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.persistence.models import ConversationEvent
 from pathfinder.persistence.repositories import (
     ChatTurnCancellationRepository,
     ConversationRepository,
 )
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.conversations.authz import get_owned_or_404
 
 

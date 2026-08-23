@@ -7,8 +7,8 @@ would rank the strongest term last and read a missing probability as certain.
 from __future__ import annotations
 
 import pytest
+from assistant_core.platform.types import JSONObject
 
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.types import EnrichmentTerm
 
 

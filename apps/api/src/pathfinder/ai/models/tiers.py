@@ -11,10 +11,9 @@ string, so a role the preset omits falls back to that agent's compile-time
 model.
 """
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import ModelProvider, ReasoningEffort, TierName
 from pydantic import ConfigDict
-
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import ModelProvider, ReasoningEffort, TierName
 
 __all__ = [
     "TIER_PRESETS",

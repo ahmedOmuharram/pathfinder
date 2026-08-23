@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathfinder.integrations.embeddings.prefixes import (
+from assistant_core.embeddings.prefixes import (
     SEARCH_DOCUMENT_PREFIX,
     SEARCH_QUERY_PREFIX,
 )

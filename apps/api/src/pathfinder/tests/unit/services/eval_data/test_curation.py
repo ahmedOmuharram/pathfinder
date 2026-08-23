@@ -1,0 +1,123 @@
+"""Turning one staged row into a case, without touching a database."""
+
+from __future__ import annotations
+
+from uuid import uuid4
+
+import pytest
+
+from pathfinder.evals.case import ExpectedOutcome
+from pathfinder.evals.extract import (
+    EvalExtract,
+    ExtractedStrategy,
+    ExtractedTurn,
+    ExtractedVerification,
+)
+from pathfinder.persistence.models import EvalStagedCase
+from pathfinder.services.eval_data.curation import (
+    PromotionEdits,
+    build_case,
+    default_expectation,
+    staged_extract,
+)
+
+STAGING_ID = uuid4()
+
+
+def _extract(*, built: bool = True) -> EvalExtract:
+    return EvalExtract(
+        site_id="plasmodb",
+        assistant_id="pathfinder",
+        turns=[ExtractedTurn(request="find kinases", reply="Built it.")],
+        strategy=(
+            ExtractedStrategy(
+                record_type="transcript",
+                step_count=3,
+                structure="(A INTERSECT B)",
+                strategy_ast={"recordType": "transcript"},
+            )
+            if built
+            else None
+        ),
+        verification=ExtractedVerification(success=True, reason="root size holds"),
+    )
+
+
+def _row(*, built: bool = True, promoted: bool = False) -> EvalStagedCase:
+    return EvalStagedCase(
+        id=STAGING_ID,
+        site_id="plasmodb",
+        assistant_id="pathfinder",
+        content_hash="a" * 64,
+        extract=(
+            None
+            if promoted
+            else _extract(built=built).model_dump(by_alias=True, mode="json")
+        ),
+        status="promoted" if promoted else "staged",
+    )
+
+
+def test_a_promoted_row_has_no_extract_to_read() -> None:
+    with pytest.raises(ValueError, match="already promoted"):
+        staged_extract(_row(promoted=True))
+
+
+def test_the_default_expectation_repeats_what_the_run_did() -> None:
+    expectation = default_expectation(_extract())
+
+    assert expectation.builds_strategy
+    assert expectation.structure == "(A INTERSECT B)"
+    assert expectation.step_count == 3
+    assert expectation.verified is True
+
+
+def test_a_run_that_built_nothing_defaults_to_forbidding_a_build() -> None:
+    expectation = default_expectation(_extract(built=False))
+
+    assert not expectation.builds_strategy
+    assert expectation.structure is None
+    assert expectation.step_count is None
+
+
+def test_the_case_takes_the_first_request_as_its_prompt() -> None:
+    case = build_case(
+        _row(),
+        PromotionEdits(name="a-case", rationale="pins the build"),
+        today="2026-08-23",
+    )
+
+    assert case.prompt == "find kinases"
+    assert case.site_id == "plasmodb"
+    assert case.provenance.origin == "promoted"
+    assert case.provenance.staging_id == str(STAGING_ID)
+    assert case.provenance.added_at == "2026-08-23"
+
+
+def test_the_curator_can_replace_the_prompt_and_the_expectation() -> None:
+    case = build_case(
+        _row(),
+        PromotionEdits(
+            name="a-case",
+            rationale="the run built a decoy; the case forbids it",
+            prompt="remember my preferred dataset",
+            expected=ExpectedOutcome(builds_strategy=False),
+        ),
+        today="2026-08-23",
+    )
+
+    assert case.prompt == "remember my preferred dataset"
+    assert not case.expected.builds_strategy
+
+
+def test_a_case_built_from_a_staged_row_names_no_user() -> None:
+    case = build_case(
+        _row(),
+        PromotionEdits(name="a-case", rationale="pins the build"),
+        today="2026-08-23",
+    )
+
+    payload = case.model_dump_json(by_alias=True)
+
+    assert "user" not in payload.casefold()
+    assert case.assert_de_identified()

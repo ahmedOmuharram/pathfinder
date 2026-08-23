@@ -1,7 +1,8 @@
 """Enrich sparse gene results with WDK metadata."""
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.text import strip_html_tags
 
 from .organism import normalize_organism

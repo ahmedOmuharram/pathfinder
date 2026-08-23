@@ -4,6 +4,8 @@ candidate collection live in sibling modules."""
 import re
 from collections.abc import Awaitable, Callable
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.tree import collect_plan_leaves
@@ -11,7 +13,6 @@ from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
 from pathfinder.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.models import SearchMatch
 from pathfinder.services.catalog.scoring import (
     is_chooser_search,

@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
 from pydantic_ai.exceptions import ModelRetry
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -26,11 +27,7 @@ from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
     StrategyAst,
 )
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationStrategy,
-    User,
-)
+from pathfinder.persistence.models import ConversationStrategy, User
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.sync_state import WDKSyncState
@@ -120,9 +117,7 @@ async def test_clearing_wipes_the_persisted_strategy(
     await clear_strategy(ctx, confirm=True)
 
     async with session_maker() as fresh:
-        refetched = await ConversationRepository(fresh).get_by_id(conv_id)
-        assert refetched is not None
-        strategy = refetched.strategy_view
+        strategy = await ConversationRepository(fresh).get_strategy(conv_id)
         assert not strategy.strategy_ast
         assert strategy.step_count == 0
         assert strategy.wdk_strategy_id is None
@@ -140,7 +135,6 @@ async def test_refusing_without_confirmation_leaves_the_row_alone(
         await clear_strategy(ctx, confirm=False)
 
     async with session_maker() as fresh:
-        refetched = await ConversationRepository(fresh).get_by_id(conv_id)
-        assert refetched is not None
-        assert refetched.strategy_view.strategy_ast
-        assert refetched.strategy_view.wdk_strategy_id == 555
+        refetched = await ConversationRepository(fresh).get_strategy(conv_id)
+        assert refetched.strategy_ast
+        assert refetched.wdk_strategy_id == 555

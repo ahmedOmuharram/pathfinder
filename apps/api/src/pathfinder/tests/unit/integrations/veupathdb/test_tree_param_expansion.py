@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 from typing import cast
 
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.wdk_vocab import FAKE_ALL_SENTINEL
 from pathfinder.integrations.veupathdb.client import VEuPathDBClient
 from pathfinder.integrations.veupathdb.strategy_api.api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKEnumParam, WDKParameter
-from pathfinder.platform.types import JSONObject
 
 _LEAVES = ["17 Hour", "18 Hour", "19 Hour"]
 _OTHER_LEAVES = ["24 Hour", "25 Hour"]

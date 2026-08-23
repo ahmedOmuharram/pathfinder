@@ -3,6 +3,8 @@
 import asyncio
 from collections.abc import Sequence
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.embeddings.semantic_index import SemanticSearchIndex
 from pathfinder.integrations.veupathdb.catalog_metadata import (
     load_dataset_metadata,
@@ -22,7 +24,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchResponse,
 )
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tasks import spawn
 
 logger = get_logger(__name__)

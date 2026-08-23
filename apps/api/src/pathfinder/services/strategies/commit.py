@@ -1,6 +1,8 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.graph_model import pushable_root_id
 from pathfinder.domain.strategy.operations import (
     GraphOperation,
@@ -18,7 +20,6 @@ from pathfinder.platform.errors import (
     AppError,
     ValidationError,
 )
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.persist import (
     persist_strategy_ast_to_conversation,

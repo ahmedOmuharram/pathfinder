@@ -7,14 +7,18 @@ auto-imported gene set), the chat is marked so re-syncs don't recreate it.
 
 from uuid import UUID
 
-from pathfinder.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
+from assistant_core.platform.logging import get_logger
+
+from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.persistence.repositories import (
     ConversationRepository,
     ConversationUpdate,
 )
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.repositories.conversation_strategy import (
+    ConversationWithStrategy,
+)
 from pathfinder.platform.errors import AppError, InternalError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.gene_sets import GeneSet, GeneSetService
 from pathfinder.services.gene_sets.operations import EmptyGeneSetError
 from pathfinder.services.gene_sets.store import get_gene_set_store
@@ -23,7 +27,7 @@ from pathfinder.services.gene_sets.wdk_helpers import GeneSetWdkContext
 logger = get_logger(__name__)
 
 
-def _is_eligible(conversation: Conversation) -> bool:
+def _is_eligible(strategy: ConversationStrategyView) -> bool:
     """Check if a chat is eligible for gene set auto-import.
 
     Eligible when:
@@ -31,7 +35,6 @@ def _is_eligible(conversation: Conversation) -> bool:
     - Has not been auto-imported before (one-way latch)
     - Does not already have a linked gene set
     """
-    strategy = conversation.strategy_view
     return (
         strategy.wdk_strategy_id is not None
         and not strategy.gene_set_auto_imported
@@ -40,7 +43,7 @@ def _is_eligible(conversation: Conversation) -> bool:
 
 
 async def auto_import_gene_sets(
-    conversations: list[Conversation],
+    conversations: list[ConversationWithStrategy],
     *,
     conv_repo: ConversationRepository,
     gene_set_service: GeneSetService,
@@ -58,11 +61,10 @@ async def auto_import_gene_sets(
 
     seen_wdk_ids: set[int] = set()
 
-    for conversation in conversations:
-        if not _is_eligible(conversation):
+    for conversation, strategy in conversations:
+        if not _is_eligible(strategy):
             continue
 
-        strategy = conversation.strategy_view
         wdk_id = strategy.wdk_strategy_id
         if wdk_id is None:
             msg = "wdk_id must not be None (guaranteed by _is_eligible)"
@@ -178,11 +180,11 @@ async def import_gene_set_for_conversation(
     async with async_session_factory() as session:
         try:
             repo = ConversationRepository(session)
-            conversation = await repo.get_by_id(conversation_id)
-            if conversation is None:
+            found = await repo.get_with_strategy(conversation_id)
+            if found is None:
                 return None
+            conversation, strategy = found
             gene_set_svc = GeneSetService(get_gene_set_store())
-            strategy = conversation.strategy_view
             if (
                 strategy.gene_set_id is not None
                 and strategy.wdk_strategy_id is not None
@@ -197,7 +199,7 @@ async def import_gene_set_for_conversation(
                 await session.commit()
                 return resynced
             created = await auto_import_gene_sets(
-                [conversation],
+                [(conversation, strategy)],
                 conv_repo=repo,
                 gene_set_service=gene_set_svc,
                 site_id=site_id,

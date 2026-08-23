@@ -5,10 +5,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 def enrichment_results_event(

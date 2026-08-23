@@ -3,6 +3,9 @@
 import asyncio
 from dataclasses import dataclass
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKAnalysisStatus,
@@ -12,8 +15,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStepAnalysisTypeResponse,
 )
 from pathfinder.platform.errors import InternalError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 

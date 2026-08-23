@@ -6,16 +6,12 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from assistant_core.persistence.models import Conversation
 from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationStrategy,
-    GeneSetRow,
-    User,
-)
+from pathfinder.persistence.models import ConversationStrategy, GeneSetRow, User
 from pathfinder.platform.security import create_user_token
 from pathfinder.services import user_data as user_data_service
 from pathfinder.services.gene_sets.operations import GeneSetService
@@ -159,6 +155,7 @@ async def test_purge_dismisses_all_conversations_and_reports_counts(
             "geneSets": 0,
             "experiments": 0,
             "controlSets": 0,
+            "stagedEvalCases": 0,
         },
     }
 
@@ -210,6 +207,7 @@ async def test_a_purge_from_another_application_destroys_nothing(
             "geneSets": 0,
             "experiments": 0,
             "controlSets": 0,
+            "stagedEvalCases": 0,
         },
     }
     async with session_maker() as verify:
@@ -230,6 +228,7 @@ async def test_a_purge_from_another_application_destroys_nothing(
         "geneSets": 1,
         "experiments": 0,
         "controlSets": 0,
+        "stagedEvalCases": 0,
     }
     async with session_maker() as verify:
         purged = await verify.get(Conversation, conversation)
@@ -331,6 +330,7 @@ async def test_a_signed_out_purge_still_deletes_the_local_rows(
         "geneSets": 0,
         "experiments": 0,
         "controlSets": 0,
+        "stagedEvalCases": 0,
     }
     async with session_maker() as verify:
         assert await verify.get(Conversation, conversation) is None

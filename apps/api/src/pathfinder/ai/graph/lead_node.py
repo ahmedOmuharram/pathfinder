@@ -4,8 +4,8 @@ The Lead is the only LLM in the dispatcher; sub-agents run as tools the
 Lead invokes inside its single ``run_stream_events`` call. This module owns
 the turn driver (``_drive_lead_stream``) and ``make_lead_node``, which binds
 the driver to the hooks the graph was built with; run accounting lives in
-``_lead_capture``, sub-agent event rendering in ``_lead_events``, and
-approval resolution plus turn persistence in ``_lead_turn``.
+``_lead_capture``, sub-agent event rendering in ``_lead_events``, and memory
+retrieval plus approval resolution in ``_lead_turn``.
 """
 
 from __future__ import annotations
@@ -14,6 +14,22 @@ from collections.abc import AsyncGenerator, Awaitable
 from typing import Any, Literal, Protocol
 from uuid import UUID, uuid4
 
+from assistant_core.conversation.vercel_adapter import (
+    DeferredToolHint,
+    PhaseStreamEmitter,
+)
+from assistant_core.cost import cost_for_run
+from assistant_core.graph.emit import emit_chunk, emit_turn_usage
+from assistant_core.graph.pre_turn import PreTurnHook
+from assistant_core.graph.stream_events import (
+    memory_retrieved_event,
+    turn_status_event,
+)
+from assistant_core.graph.turn_agent import TurnAgentFactory
+from assistant_core.graph.turn_state import PendingApproval
+from assistant_core.memory.schemas import MemoryValue
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import ReasoningEffort
 from langgraph.config import get_stream_writer
 from langgraph.errors import GraphBubbleUp
 from langgraph.runtime import Runtime
@@ -28,15 +44,12 @@ from pydantic_ai.messages import (
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph._lead_capture import (
     _charge_token_delta,
-    _emit_chunk,
     _emit_residual_prose,
     _LeadRunCapture,
     _persist_residual_quota,
     emit_lead_usage,
-    emit_turn_usage,
 )
 from pathfinder.ai.graph._lead_events import (
     handle_sub_agent_event,
@@ -57,21 +70,7 @@ from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
 from pathfinder.ai.models.mock import get_mock_model
 from pathfinder.ai.models.settings import baked_model_id, build_model_settings
 from pathfinder.ai.models.tiers import resolve_phase_tier_config
-from pathfinder.assistant_core.conversation.vercel_adapter import (
-    DeferredToolHint,
-    PhaseStreamEmitter,
-)
-from pathfinder.assistant_core.graph.pre_turn import PreTurnHook
-from pathfinder.assistant_core.graph.stream_events import (
-    memory_retrieved_event,
-    turn_status_event,
-)
-from pathfinder.assistant_core.graph.turn_agent import TurnAgentFactory
-from pathfinder.assistant_core.graph.turn_state import PendingApproval
-from pathfinder.assistant_core.memory.schemas import MemoryValue
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import ReasoningEffort
 
 logger = get_logger(__name__)
 
@@ -213,7 +212,7 @@ async def _drive_lead_stream(
     )
     capture.lead_model = agent_model
     sub_agent_tool_calls: dict[str, str] = {}
-    _emit_chunk(
+    emit_chunk(
         writer,
         turn_status_event(label="Thinking...", waiting_on_llm=True, model=agent_model),
     )
@@ -258,7 +257,7 @@ async def _drive_lead_stream(
                     sub_agent_tool_calls,
                 ):
                     continue
-                _emit_chunk(writer, v6_chunk)
+                emit_chunk(writer, v6_chunk)
     except UsageLimitExceeded as exc:
         logger.warning(
             "lead exceeded usage cap",
@@ -402,7 +401,7 @@ async def _run_lead_turn(
     emit_turn_usage(writer, residual_tokens, residual_cost)
     emit_lead_usage(writer, capture.lead_model, capture.tokens, str(capture.cost_usd))
     final_ledger = derive_ledger(deps.state, deps.intent)
-    _emit_chunk(writer, ledger_update_event(ledger=final_ledger))
+    emit_chunk(writer, ledger_update_event(ledger=final_ledger))
     delta = _build_state_delta(
         state=state,
         deps=deps,

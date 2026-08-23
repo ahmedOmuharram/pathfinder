@@ -5,12 +5,13 @@ classifiers, which better matches how researchers use strategy results
 ("how many known positives are in my top K?").
 """
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSortDirection,
     WDKSortSpec,
 )
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.types import (
     DEFAULT_K_VALUES,
     RankMetrics,

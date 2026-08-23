@@ -3,9 +3,10 @@
 import json
 from functools import lru_cache
 
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.ai.prompts.loader import load_system_prompt
 from pathfinder.platform.langfuse.prompts import load_prompt
-from pathfinder.platform.types import JSONObject
 
 
 @lru_cache(maxsize=1)

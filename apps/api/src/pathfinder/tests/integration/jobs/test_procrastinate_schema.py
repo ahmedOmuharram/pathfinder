@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import pytest
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import text
-
-from pathfinder.platform.db import async_session_factory
 
 
 @pytest.mark.asyncio

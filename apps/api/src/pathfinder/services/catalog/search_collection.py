@@ -3,6 +3,8 @@
 These are internal helpers for the ``search_for_searches`` orchestrator.
 """
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.veupathdb.discovery_service import DiscoveryService
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.integrations.veupathdb.site_search_client import (
@@ -11,7 +13,6 @@ from pathfinder.integrations.veupathdb.site_search_client import (
 )
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.text import strip_html_tags
 from pathfinder.services.catalog.models import SearchMatch
 from pathfinder.services.catalog.scoring import (

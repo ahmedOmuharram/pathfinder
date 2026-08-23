@@ -13,6 +13,9 @@ from pathfinder.ai.conversation.title_generator import (
     _trim_title,
     generate_conversation_title,
 )
+from pathfinder.assistants.pathfinder_spec import build_pathfinder_spec
+
+MOCK_MODEL = build_pathfinder_spec().build_mock_model
 
 
 class TestFallbackTitle:
@@ -65,8 +68,10 @@ class TestTrimTitle:
 class TestGenerateConversationTitle:
     @pytest.mark.asyncio
     async def test_empty_message_short_circuits_to_default(self) -> None:
-        assert await generate_conversation_title("") == "New conversation"
-        assert await generate_conversation_title("   ") == "New conversation"
+        assert await generate_conversation_title("", MOCK_MODEL) == "New conversation"
+        assert (
+            await generate_conversation_title("   ", MOCK_MODEL) == "New conversation"
+        )
 
     @pytest.mark.asyncio
     async def test_unknown_provider_falls_back(self) -> None:
@@ -74,8 +79,12 @@ class TestGenerateConversationTitle:
         # because "mock" (when not configured as smallest) has no entry for
         # some providers. We use a deliberately absurd provider literal cast
         # through ModelProvider to trigger LookupError → fallback path.
-        from pathfinder.platform.types import ModelProvider  # noqa: PLC0415
+        from assistant_core.platform.types import ModelProvider  # noqa: PLC0415
 
         bogus = cast("ModelProvider", "does-not-exist")
-        out = await generate_conversation_title("Find malaria genes", provider=bogus)
+        out = await generate_conversation_title(
+            "Find malaria genes",
+            MOCK_MODEL,
+            provider=bogus,
+        )
         assert out == "Find malaria genes"

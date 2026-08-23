@@ -7,9 +7,9 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from assistant_core.platform.db import get_db_session
 from fastapi import FastAPI
 
-from pathfinder.platform.db import get_db_session
 from pathfinder.platform.security import create_user_token
 from pathfinder.transport.http.routers.veupathdb_auth import router
 

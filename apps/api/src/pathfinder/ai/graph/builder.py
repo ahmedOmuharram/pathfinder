@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from assistant_core.graph.pre_turn import PreTurnHook
+from assistant_core.graph.turn_agent import TurnAgentFactory
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -11,8 +13,6 @@ from pathfinder.ai.graph.nodes import finalize_turn_node
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.lead_agent import LeadAgent
-from pathfinder.assistant_core.graph.pre_turn import PreTurnHook
-from pathfinder.assistant_core.graph.turn_agent import TurnAgentFactory
 
 
 def build_graph(

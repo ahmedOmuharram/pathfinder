@@ -1,0 +1,27 @@
+{
+  "name": "remember-request-does-not-build",
+  "prompt": "Please remember for future sessions that I prefer the Su et al. strand-specific dataset for gametocyte expression, then tell me what you stored.",
+  "siteId": "plasmodb",
+  "assistantId": "pathfinder",
+  "rationale": "A request to store a preference must leave no strategy behind. The cataloged run framed, built and verified one, and left a decoy WDK strategy. Under the deterministic provider this pins the pipeline half: a turn the Lead does not route to a build must persist no strategy AST.",
+  "expected": {
+    "buildsStrategy": false,
+    "structure": null,
+    "recordType": null,
+    "stepCount": null,
+    "verified": null,
+    "replyMentions": [],
+    "replyOmits": [
+      "Verified end-to-end"
+    ]
+  },
+  "provenance": {
+    "site": "plasmodb",
+    "assistant": "pathfinder",
+    "origin": "cataloged-failure",
+    "addedAt": "2026-08-23",
+    "stagingId": "",
+    "reference": "backlog/remember-request-builds-a-strategy.md",
+    "curatorNote": "Reworded so it carries no build keyword of the deterministic provider."
+  }
+}

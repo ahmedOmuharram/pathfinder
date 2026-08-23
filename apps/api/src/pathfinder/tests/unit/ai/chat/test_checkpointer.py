@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import pytest
-
-from pathfinder.assistant_core.conversation.checkpointer import to_psycopg_url
+from assistant_core.conversation.checkpointer import to_psycopg_url
 
 
 @pytest.mark.parametrize(

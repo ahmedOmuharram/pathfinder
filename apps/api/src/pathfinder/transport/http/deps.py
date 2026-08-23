@@ -4,10 +4,10 @@ import asyncio
 from typing import Annotated
 from uuid import UUID
 
+from assistant_core.platform.db import get_db_session
 from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.platform.db import get_db_session
 from pathfinder.platform.errors import ForbiddenError, NotFoundError
 from pathfinder.platform.principal import Principal
 from pathfinder.platform.security import resolve_principal

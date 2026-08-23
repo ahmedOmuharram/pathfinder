@@ -1,8 +1,8 @@
 """Internal endpoints — not for production use."""
 
+from assistant_core.platform.pydantic_base import CamelModel
 from fastapi import APIRouter
 
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.transport.http.schemas.experiment_responses import (
     BootstrapResultResponse,
     ConfidenceIntervalResponse,

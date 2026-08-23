@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from assistant_core.memory.store import MemoryStore
+
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.tools.standalone._experiment_models import (
     _run_step_control_tests,
@@ -17,7 +19,6 @@ from pathfinder.ai.tools.standalone._experiment_models import (
 from pathfinder.ai.tools.standalone.experiment import (
     _export_step_control_result,
 )
-from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.jobs.progress import TaskProgressEmitter
 
 

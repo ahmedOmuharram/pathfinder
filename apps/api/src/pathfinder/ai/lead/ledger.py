@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, computed_field
 
 from pathfinder.ai.graph.state import VerificationDigest
@@ -20,7 +21,6 @@ from pathfinder.domain.strategy.operational_spec import (
     StructureNode,
 )
 from pathfinder.domain.strategy.staleness import StaleBuild
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_intent import (
     contrast_role_of,
     is_direction_param,

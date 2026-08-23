@@ -4,6 +4,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 
 from pathfinder.ai.tools.standalone._experiment_models import (
@@ -17,16 +19,10 @@ from pathfinder.jobs.impls.control_tests_impl import (
 from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runner import run_durable_task
-from pathfinder.persistence.models import (
-    BackgroundTask,
-    Conversation,
-    TaskProgress,
-    User,
-)
+from pathfinder.persistence.models import BackgroundTask, TaskProgress, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.platform.db import async_session_factory
 
 
 async def _seed_user_chat(user_id: UUID, conversation_id: UUID) -> None:

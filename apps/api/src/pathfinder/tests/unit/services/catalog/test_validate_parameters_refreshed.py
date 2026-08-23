@@ -1,6 +1,7 @@
 from typing import Any, cast
 
 import pytest
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.values import SinglePickValue
@@ -15,7 +16,6 @@ from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKParameter,
 )
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog import param_validation as pv
 
 
@@ -46,7 +46,7 @@ def _make_response(parameters: list[WDKParameter]) -> WDKSearchResponse:
             param_names=[p.name for p in parameters],
             parameters=parameters,
         ),
-        validation=StepValidation(),
+        validation=StepValidation(level="NONE", is_valid=False),
     )
 
 

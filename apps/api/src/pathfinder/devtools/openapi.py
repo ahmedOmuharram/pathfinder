@@ -8,9 +8,9 @@ import json
 from pathlib import Path
 
 import yaml
+from assistant_core.platform.types import JSONObject
 
 from pathfinder.main import create_app
-from pathfinder.platform.types import JSONObject
 
 
 def _repo_root() -> Path:
@@ -19,7 +19,8 @@ def _repo_root() -> Path:
 
 
 def _spec_with_stable_overrides() -> JSONObject:
-    app = create_app()
+    # The published spec is the production contract; dev routes never enter it.
+    app = create_app(include_dev_routes=False)
     spec = app.openapi()
 
     # Keep a stable OAS version string if FastAPI omits/changes it.

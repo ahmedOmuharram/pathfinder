@@ -16,6 +16,15 @@ from contextlib import nullcontext
 from typing import Any
 from uuid import UUID
 
+from assistant_core.conversation.checkpointer import lifespan_checkpointer
+from assistant_core.conversation.event_writer import (
+    ChatEventWriter,
+    ChatWriter,
+)
+from assistant_core.memory.lifespan import lifespan_memory_store
+from assistant_core.memory.store import MemoryStore
+from assistant_core.platform.db import async_session_factory
+from assistant_core.platform.logging import get_logger
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 from pydantic import BaseModel, ValidationError
@@ -26,15 +35,9 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 )
 
 from pathfinder.ai.conversation._turn_helpers import _interrupt_chunks
+from pathfinder.ai.conversation.assistant_routing import resolve_assistant
 from pathfinder.ai.graph._llm_capture import capture_llm
-from pathfinder.ai.graph.composition import build_pathfinder_graph
-from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.assistant_core.conversation.event_writer import (
-    ChatEventWriter,
-    ChatWriter,
-)
-from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
-from pathfinder.assistant_core.memory.store import MemoryStore
+from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.jobs.auth_context import (
     attach_conversation_application,
     attach_user_id,
@@ -47,8 +50,7 @@ from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.db import async_session_factory
-from pathfinder.platform.logging import get_logger
+from pathfinder.services.conversations.authz import conversation_assistant_id
 
 logger = get_logger(__name__)
 
@@ -275,13 +277,22 @@ async def _resume_graph(
     design hid every post-resume token from the chat.
     """
     settings = get_settings()
+    registry = get_assistant_registry()
+    assistant_id = await conversation_assistant_id(UUID(thread_id))
+    if assistant_id is None:
+        logger.info("no conversation to resume", thread_id=thread_id)
+        return
+    spec = resolve_assistant(registry, assistant_id)
     async with (
         attach_wdk_auth(veupathdb_auth_token),
         attach_conversation_application(UUID(thread_id)),
-        lifespan_checkpointer(settings.database_url) as saver,
+        lifespan_checkpointer(
+            settings.database_url,
+            checkpoint_types=registry.checkpoint_types(),
+        ) as saver,
         lifespan_memory_store(settings.database_url) as raw_memory,
     ):
-        graph = build_pathfinder_graph(checkpointer=saver)
+        graph = spec.build_graph(saver)
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         snapshot = await graph.aget_state(config)
         if not snapshot.next:

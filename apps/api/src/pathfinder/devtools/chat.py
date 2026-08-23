@@ -12,22 +12,26 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 import structlog
+from assistant_core.conversation.checkpointer import lifespan_checkpointer
+from assistant_core.conversation.event_stream import latest_turn_boundary
+from assistant_core.graph.turn_state import (
+    PendingApproval,
+    UserQuestionAnswer,
+)
+from assistant_core.memory.lifespan import lifespan_memory_store
+from assistant_core.persistence.models import ConversationEvent
+from assistant_core.platform.db import async_session_factory
+from assistant_core.spec import AssistantSpec
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from pathfinder.ai.agents.roles import PhaseRole
+from pathfinder.ai.conversation.assistant_routing import resolve_turn_assistant
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.turn_runner import run_turn
 from pathfinder.ai.graph._llm_capture import capture_llm
-from pathfinder.ai.graph.composition import build_pathfinder_graph
-from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.assistant_core.conversation.event_stream import latest_turn_boundary
-from pathfinder.assistant_core.graph.turn_state import (
-    PendingApproval,
-    UserQuestionAnswer,
-)
-from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
+from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.devtools import inspector
 from pathfinder.devtools.capture import RunCapture, capture_tracebacks, reset_run_dir
 from pathfinder.devtools.gates import (
@@ -45,13 +49,11 @@ from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.auth_context import attach_user_id, attach_wdk_auth
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
-from pathfinder.persistence.models import ConversationEvent
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
 from pathfinder.persistence.repositories.user import UserRepository
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.conversations.begin import begin_conversation
 
 DEV_USER_ID = UUID("00000000-0000-0000-0000-0000000000c1")
@@ -73,6 +75,7 @@ class RunArgs(BaseModel):
     quiet: bool = False
     email: str | None = None
     password: str | None = None
+    assistant: str | None = None
     phase_models: dict[PhaseRole, str] = {}
 
 
@@ -140,6 +143,11 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--password", default=None, help="WDK login password (else $WDK_DEV_PASSWORD)"
     )
+    run.add_argument(
+        "--assistant",
+        default=None,
+        help="assistant id for a NEW conversation (else the registry default)",
+    )
     run.add_argument("--model", action="append", default=[], metavar="PHASE=ID")
 
     resp = sub.add_parser(
@@ -158,6 +166,7 @@ def _build_parser() -> argparse.ArgumentParser:
     resp.add_argument("--quiet", action="store_true")
     resp.add_argument("--email", default=None)
     resp.add_argument("--password", default=None)
+    resp.add_argument("--assistant", default=None)
     resp.add_argument("--model", action="append", default=[], metavar="PHASE=ID")
     resp.add_argument("--accept", action="store_true", help="approve the pending gate")
     resp.add_argument("--deny", action="store_true", help="deny the pending gate")
@@ -207,6 +216,7 @@ def parse_run_args(argv: list[str]) -> RunArgs:
             "quiet": ns.quiet,
             "email": ns.email,
             "password": ns.password,
+            "assistant": ns.assistant,
             "phase_models": phase_models,
         }
     )
@@ -229,6 +239,7 @@ def parse_respond_args(argv: list[str]) -> RespondArgs:
             "quiet": ns.quiet,
             "email": ns.email,
             "password": ns.password,
+            "assistant": ns.assistant,
             "phase_models": phase_models,
             "accept": ns.accept,
             "deny": ns.deny,
@@ -266,11 +277,33 @@ def _current_gate(capture: RunCapture) -> Gate:
     )
 
 
-async def _gate_from_checkpoint(conversation_id: UUID, settings_url: str) -> Gate:
+async def resolve_run_assistant(
+    conversation_id: UUID,
+    requested_id: str | None = None,
+) -> AssistantSpec:
+    """The thread's assistant, the requested one when the thread is new, or the
+    default. A request naming another assistant than the thread's is refused."""
+    return await resolve_turn_assistant(
+        registry=get_assistant_registry(),
+        conversation_id=conversation_id,
+        requested_id=requested_id,
+    )
+
+
+async def _gate_from_checkpoint(
+    conversation_id: UUID,
+    settings_url: str,
+    requested_id: str | None = None,
+) -> Gate:
     """Derives the pending gate from the conversation checkpoint, which is the single
     source of truth for what the turn waits on."""
-    async with lifespan_checkpointer(settings_url) as saver:
-        graph = build_pathfinder_graph(checkpointer=saver)
+    registry = get_assistant_registry()
+    spec = await resolve_run_assistant(conversation_id, requested_id)
+    async with lifespan_checkpointer(
+        settings_url,
+        checkpoint_types=registry.checkpoint_types(),
+    ) as saver:
+        graph = spec.build_graph(saver)
         config: RunnableConfig = {"configurable": {"thread_id": str(conversation_id)}}
         snapshot = await graph.aget_state(config)
     values = snapshot.values or {}
@@ -353,12 +386,20 @@ async def _exec_one(
             stack.enter_context(capture_llm(capture.run_dir))
         await stack.enter_async_context(attach_wdk_auth(wdk_token))
         await stack.enter_async_context(attach_user_id(DEV_USER_ID))
-        saver = await stack.enter_async_context(lifespan_checkpointer(settings_url))
+        registry = get_assistant_registry()
+        spec = await resolve_run_assistant(body.conversation_id, args.assistant)
+        saver = await stack.enter_async_context(
+            lifespan_checkpointer(
+                settings_url,
+                checkpoint_types=registry.checkpoint_types(),
+            ),
+        )
         store = await stack.enter_async_context(lifespan_memory_store(settings_url))
-        graph = build_pathfinder_graph(checkpointer=saver)
+        graph = spec.build_graph(saver)
         await run_turn(
             body=body,
             user_id=DEV_USER_ID,
+            spec=spec,
             compiled_graph=graph,
             memory_store=store,
             writer=capture,
@@ -462,7 +503,11 @@ async def _replay_run_dir(capture: RunCapture, run_dir: Path) -> None:
         capture.quiet = was_quiet
 
 
-async def run_once(args: RunArgs) -> int:
+async def drive_run(args: RunArgs) -> tuple[RunCapture, Gate]:
+    """Run one prompt to completion or to a gate, and return the capture.
+
+    The eval runner reads the capture; the command line prints it.
+    """
     _route_framework_logs_to_stderr()
     if args.mock:
         os.environ["PATHFINDER_CHAT_PROVIDER"] = "mock"
@@ -474,6 +519,7 @@ async def run_once(args: RunArgs) -> int:
     if not args.quiet and wdk_token is not None:
         print(f"logged in as {args.email or os.environ.get('WDK_DEV_EMAIL')}")
 
+    spec = await resolve_run_assistant(args.conversation_id, args.assistant)
     async with async_session_factory() as session:
         await UserRepository(session).get_or_create(DEV_USER_ID)
         await begin_conversation(
@@ -481,6 +527,7 @@ async def run_once(args: RunArgs) -> int:
             conversation_id=args.conversation_id,
             user_id=DEV_USER_ID,
             site_id=args.site,
+            assistant_id=spec.assistant_id,
         )
         await session.commit()
 
@@ -503,6 +550,11 @@ async def run_once(args: RunArgs) -> int:
 
     capture.flush()
     _write_gate(args.run_dir, gate)
+    return capture, gate
+
+
+async def run_once(args: RunArgs) -> int:
+    capture, gate = await drive_run(args)
     _report(capture, gate)
     return 1 if capture.has_error else 0
 
@@ -560,6 +612,7 @@ async def run_respond(args: RespondArgs) -> int:
     settings = get_settings()
     wdk_token = None if args.mock else await _wdk_token(args)
 
+    spec = await resolve_run_assistant(args.conversation_id, args.assistant)
     async with async_session_factory() as session:
         await UserRepository(session).get_or_create(DEV_USER_ID)
         await begin_conversation(
@@ -567,6 +620,7 @@ async def run_respond(args: RespondArgs) -> int:
             conversation_id=args.conversation_id,
             user_id=DEV_USER_ID,
             site_id=args.site,
+            assistant_id=spec.assistant_id,
         )
         await session.commit()
 
@@ -577,7 +631,11 @@ async def run_respond(args: RespondArgs) -> int:
         quiet=args.quiet,
     )
     await _replay_run_dir(capture, args.run_dir)
-    gate = await _gate_from_checkpoint(args.conversation_id, settings.database_url)
+    gate = await _gate_from_checkpoint(
+        args.conversation_id,
+        settings.database_url,
+        args.assistant,
+    )
     if gate.kind == "none":
         gate = _current_gate(capture)
     if gate.kind == "none":

@@ -6,10 +6,10 @@ Replaces the untyped ``JSONObject`` that required ``safe_int()`` for
 field extraction.
 """
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class ControlTargetData(CamelModel):

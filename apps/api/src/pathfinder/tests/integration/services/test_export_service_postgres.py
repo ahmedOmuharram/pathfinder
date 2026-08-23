@@ -3,9 +3,9 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from assistant_core.platform.db import async_session_factory
 
 from pathfinder.persistence.models import User
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.export.service import ExportService
 
 

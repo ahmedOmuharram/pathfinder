@@ -5,8 +5,7 @@ import json
 from dataclasses import dataclass, field
 
 import httpx
-
-from pathfinder.platform.types import JSONObject
+from assistant_core.platform.types import JSONObject
 
 
 @dataclass

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from assistant_core.platform.pydantic_base import CamelModel
+
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class RenameStrategyResult(CamelModel):

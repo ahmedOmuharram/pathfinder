@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import Field
 
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.wdk import get_results_api
 
 

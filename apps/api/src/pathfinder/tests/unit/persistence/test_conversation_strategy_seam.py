@@ -6,18 +6,16 @@ lands back on it is a regression even when every other test still passes.
 
 from __future__ import annotations
 
+from assistant_core.persistence.models import Conversation
 from sqlalchemy import Index
 
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationStrategy,
-    ConversationStrategyView,
-)
+from pathfinder.persistence.models import ConversationStrategy, ConversationStrategyView
 
 THREAD_COLUMNS = {
     "id",
     "user_id",
     "application_id",
+    "assistant_id",
     "site_id",
     "name",
     "dismissed_at",
@@ -90,11 +88,9 @@ def test_the_unique_wdk_strategy_index_moved_to_the_side_table() -> None:
     )
 
 
-def test_the_strategy_relationship_never_loads_behind_the_caller() -> None:
-    relationship = Conversation.__mapper__.relationships["strategy"]
-    assert relationship.lazy == "raise"
-    assert relationship.uselist is False
-    assert relationship.passive_deletes is True
+def test_the_thread_declares_no_relationship_to_the_science() -> None:
+    """The thread is the runtime's; a caller that wants the strategy asks for it."""
+    assert dict(Conversation.__mapper__.relationships) == {}
 
 
 def test_an_absent_row_reads_as_a_strategy_that_was_never_built() -> None:

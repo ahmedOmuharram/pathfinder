@@ -116,7 +116,8 @@ status-code or error-message claim read off the pinned sha:
 | [WDK-ANS-001](rules/searches-and-answers.md) | the step-report half only. The search-report half was confirmed live. |
 | [WDK-VALID-009](rules/validation.md) | that `EXPIRED` and `INTERRUPTED` carry `requiresRerun`. Neither status was provoked on either site; the rest of the rule's file is live-confirmed throughout. |
 
-Each is reachable with a guest session and should be confirmed the next time one of them
+Each was reachable with a guest session when this list was written and needs the
+registered account now (below), and each should be confirmed the next time one of them
 matters. None is marked `WITHDRAWN`, because there is no evidence against any of them - only
 an absence of evidence for them.
 
@@ -158,7 +159,7 @@ unlikely to be an artifact of one site.
 
 | Site | Service base | Used to confirm |
 |---|---|---|
-| plasmodb.org | `https://plasmodb.org/plasmo/service` | 325 searches on `record-types/transcript/searches`, verified 2026-08-10. Primary site for PathFinder's own work. |
+| plasmodb.org | `https://plasmodb.org/plasmo/service` | 325 searches on `record-types/transcript/searches`, verified 2026-08-10; **359** on 2026-08-22. Primary site for PathFinder's own work. |
 | toxodb.org | `https://toxodb.org/toxo/service` | 234 searches on the same path, same date. Confirms that per-site search availability is real, and that platform behavior is not. |
 | orthomcl.org | `https://orthomcl.org/orthomcl/service` | Used once, by [WDK-SITE-003](rules/site-model-params.md), and only as a contrast. It runs the same WDK platform over a different site model, and it is the site whose `GroupsByPhyleticPattern.phyletic_expression` grammar the `profile_pattern` default was written in. It is not a general verification site: nothing else in the bundle should be confirmed there, because a claim that holds on plasmodb.org and toxodb.org and orthomcl.org is not thereby a claim about the two sites PathFinder actually uses. |
 
@@ -167,15 +168,20 @@ The full list of configured sites and their base paths is in
 segment>/service`, and the project segment is not derivable from the host: plasmodb.org
 uses `plasmo`, toxodb.org uses `toxo`, tritrypdb.org uses `tritrypdb`.
 
-A live check never authenticates in this bundle. Every documented verification is a
-request any anonymous client can repeat, so nothing here depends on a credential and
-nothing here can leak one.
+**An anonymous live check no longer works, and this is a change.** Through 2026-08-17
+every verification here was a request any anonymous client could repeat. On 2026-08-22
+`GET /plasmo/service/record-types/transcript/searches/GenesByMolecularWeight` with no
+cookie is a **401** pointing at the API-key page, so re-verifying any rule in this bundle
+now carries the registered account. The nightly lane resolves it from `WDK_TEST_EMAIL` and
+`WDK_TEST_PASSWORD`, and the fixture recorder from `VEUPATHDB_AUTH_TOKEN`; no credential
+is written down here or anywhere else in the repository.
 
 Some checks need a user without needing an account. `GET /service/users/current` returns a
 **guest** - `{"isGuest": true, ...}` plus an `Authorization` cookie - and a guest can create
 steps, strategies and step analyses. That is how the enrichment figures in
-[WDK-ANS-007](rules/searches-and-answers.md) were measured, and it is still anonymous: no
-email, no password, nothing to leak. The guest rows are disposable and are not cleaned up.
+[WDK-ANS-007](rules/searches-and-answers.md) were measured. What has changed is that the
+guest identity is no longer reachable for the service reads above, so a guest is a
+fallback for account-scoped work rather than a way to avoid authenticating at all.
 
 # Re-verifying, which is manual
 

@@ -4,6 +4,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 
 from pathfinder.jobs.impls import geneset_enrichment_impl, register_all_tools
@@ -13,17 +15,10 @@ from pathfinder.jobs.impls.geneset_enrichment_impl import (
 from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runner import run_durable_task
-from pathfinder.persistence.models import (
-    BackgroundTask,
-    Conversation,
-    GeneSetRow,
-    TaskProgress,
-    User,
-)
+from pathfinder.persistence.models import BackgroundTask, GeneSetRow, TaskProgress, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.gene_sets.types import GeneSet
 
 

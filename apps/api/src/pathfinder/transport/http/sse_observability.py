@@ -5,7 +5,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from pathfinder.platform.logging import get_logger
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.platform.metrics import (
     sse_active_subscriptions,
     sse_disconnects,

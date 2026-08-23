@@ -73,9 +73,9 @@ Types
 -----
 
 **Purpose:** Shared type aliases for untyped dict/list payloads. JSONObject,
-JSONArray, JSONValue. Used throughout the codebase.
+JSONArray, JSONValue. Owned by the runtime package and used throughout.
 
-.. automodule:: pathfinder.platform.types
+.. automodule:: assistant_core.platform.types
    :members:
    :undoc-members:
    :show-inheritance:
@@ -113,7 +113,7 @@ JSON/structlog output. Used by all modules.
 
 **Key function:** :py:func:`get_logger`
 
-.. automodule:: pathfinder.platform.logging
+.. automodule:: assistant_core.platform.logging
    :members:
    :undoc-members:
    :show-inheritance:
@@ -121,8 +121,8 @@ JSON/structlog output. Used by all modules.
 Context
 -------
 
-**Purpose:** Context variables for request-scoped state. Auth tokens,
-user IDs, and other per-request data propagated via contextvars.
+**Purpose:** Context variables for request-scoped state. The VEuPathDB auth
+token and the request base URL; the runtime package owns the rest.
 
 .. automodule:: pathfinder.platform.context
    :members:

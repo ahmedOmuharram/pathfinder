@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from uuid import uuid4
 
 import pytest
+from assistant_core.platform.types import ReasoningEffort
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.agents.roles import PhaseRole
@@ -15,7 +16,6 @@ from pathfinder.ai.lead.sub_agent_tools import (
 )
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.types import ReasoningEffort
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 

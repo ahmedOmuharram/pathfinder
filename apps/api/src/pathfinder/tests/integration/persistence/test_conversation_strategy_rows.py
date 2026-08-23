@@ -5,17 +5,20 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
+from assistant_core.platform.db import async_session_factory
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError, InvalidRequestError
+from sqlalchemy.exc import IntegrityError
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.persistence.models import Conversation, ConversationStrategy
+from pathfinder.persistence.models import (
+    ConversationStrategy,
+    ConversationStrategyView,
+)
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
-from pathfinder.platform.db import async_session_factory
 from pathfinder.services.conversations.responses import build_conversation_summary
 from pathfinder.services.user_data import purge_user_data
 
@@ -51,10 +54,10 @@ async def test_a_new_thread_has_no_strategy_row(authed_user_id: UUID) -> None:
     conversation_id = await _thread(authed_user_id)
 
     async with async_session_factory() as session:
-        conversation = await ConversationRepository(session).get_by_id(conversation_id)
+        found = await ConversationRepository(session).get_with_strategy(conversation_id)
 
-    assert conversation is not None
-    assert conversation.strategy is None
+    assert found is not None
+    assert found[1] == ConversationStrategyView()
     assert await _side_row_count() == 0
 
 
@@ -64,9 +67,9 @@ async def test_an_absent_row_reads_as_a_strategy_that_was_never_built(
     conversation_id = await _thread(authed_user_id)
 
     async with async_session_factory() as session:
-        conversation = await ConversationRepository(session).get_by_id(conversation_id)
-        assert conversation is not None
-        summary = build_conversation_summary(conversation)
+        found = await ConversationRepository(session).get_with_strategy(conversation_id)
+        assert found is not None
+        summary = build_conversation_summary(*found)
 
     assert summary.wdk_strategy_id is None
     assert summary.record_type is None
@@ -95,11 +98,9 @@ async def test_the_first_strategy_write_creates_the_row(authed_user_id: UUID) ->
         await session.commit()
 
     async with async_session_factory() as session:
-        conversation = await ConversationRepository(session).get_by_id(conversation_id)
+        strategy = await ConversationRepository(session).get_strategy(conversation_id)
 
-    assert conversation is not None
-    assert conversation.strategy is not None
-    strategy = conversation.strategy_view
+    assert await _side_row_count() == 1
     assert strategy.wdk_strategy_id == 777001
     assert strategy.record_type == "transcript"
     assert strategy.step_count == 1
@@ -127,11 +128,10 @@ async def test_a_second_write_updates_the_same_row(authed_user_id: UUID) -> None
         await session.commit()
 
     async with async_session_factory() as session:
-        conversation = await ConversationRepository(session).get_by_id(conversation_id)
+        strategy = await ConversationRepository(session).get_strategy(conversation_id)
 
-    assert conversation is not None
-    assert conversation.strategy_view.estimated_size == 137
-    assert conversation.strategy_view.step_count == 1
+    assert strategy.estimated_size == 137
+    assert strategy.step_count == 1
     assert await _side_row_count() == 1
 
 
@@ -156,10 +156,8 @@ async def test_clearing_blanks_the_built_strategy_and_keeps_the_links(
         await session.commit()
 
     async with async_session_factory() as session:
-        conversation = await ConversationRepository(session).get_by_id(conversation_id)
+        strategy = await ConversationRepository(session).get_strategy(conversation_id)
 
-    assert conversation is not None
-    strategy = conversation.strategy_view
     assert strategy.strategy_ast == {}
     assert strategy.wdk_strategy_id is None
     assert strategy.step_count == 0
@@ -249,9 +247,7 @@ async def test_a_read_returns_what_another_session_committed(
 
     async with async_session_factory() as reader:
         repo = ConversationRepository(reader)
-        before = await repo.get_by_id(conversation_id)
-        assert before is not None
-        assert before.strategy is None
+        assert await repo.get_strategy(conversation_id) == ConversationStrategyView()
 
         async with async_session_factory() as writer:
             await ConversationRepository(writer).update_conversation(
@@ -260,22 +256,7 @@ async def test_a_read_returns_what_another_session_committed(
             )
             await writer.commit()
 
-        after = await repo.get_by_id(conversation_id)
+        after = await repo.get_with_strategy(conversation_id)
 
     assert after is not None
-    assert after.strategy_view.step_count == 4
-
-
-async def test_reading_the_strategy_without_asking_for_it_raises(
-    authed_user_id: UUID,
-) -> None:
-    """An unplanned relationship access must fail, not emit a hidden query."""
-    conversation_id = await _thread(authed_user_id)
-
-    async with async_session_factory() as session:
-        conversation = await session.scalar(
-            select(Conversation).where(Conversation.id == conversation_id),
-        )
-        assert conversation is not None
-        with pytest.raises(InvalidRequestError, match="lazy='raise'"):
-            _ = conversation.strategy
+    assert after[1].step_count == 4

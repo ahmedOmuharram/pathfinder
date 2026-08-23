@@ -15,14 +15,14 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.logging import get_logger
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import MonthlyUsage, User
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.context import calling_application
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

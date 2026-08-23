@@ -10,8 +10,8 @@ ToxoDB responses. See docs/knowledge/wdk/rules/searches-and-answers.md WDK-ANS-0
 from __future__ import annotations
 
 import pytest
+from assistant_core.platform.types import JSONObject
 
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.html import parse_result_genes_html
 from pathfinder.services.enrichment.parser import (
     infer_enrichment_type,

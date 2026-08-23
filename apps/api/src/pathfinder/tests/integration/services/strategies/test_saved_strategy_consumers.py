@@ -3,13 +3,14 @@
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import async_session_factory
 
-from pathfinder.persistence.models import Conversation, ConversationStrategy
+from pathfinder.persistence.models import ConversationStrategy
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
-from pathfinder.platform.db import async_session_factory
 
 
 async def _make_conversation(
@@ -135,9 +136,8 @@ async def test_imported_saved_strategy_ids_persists_via_update_conversation(
 
     async with async_session_factory() as db:
         repo = ConversationRepository(db)
-        conv = await repo.get_by_id(cid)
-        assert conv is not None
-        assert conv.strategy_view.imported_saved_strategy_ids == [44444, 55555]
+        conv = await repo.get_strategy(cid)
+        assert conv.imported_saved_strategy_ids == [44444, 55555]
 
 
 @pytest.mark.parametrize("strategy_to_count", [99991, 99992])

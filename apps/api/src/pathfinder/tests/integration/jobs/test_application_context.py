@@ -5,11 +5,12 @@ from __future__ import annotations
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.context import application_id_ctx
+from assistant_core.platform.db import async_session_factory
 
 from pathfinder.jobs.auth_context import attach_conversation_application
-from pathfinder.persistence.models import Conversation, User
-from pathfinder.platform.context import application_id_ctx
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.models import User
 
 OTHER = "companion"
 

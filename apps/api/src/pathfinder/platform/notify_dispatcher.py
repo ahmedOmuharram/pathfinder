@@ -15,15 +15,14 @@ from dataclasses import dataclass, field
 import psycopg
 import psycopg.rows
 import psycopg.sql
+from assistant_core.conversation.checkpointer import to_psycopg_url
+from assistant_core.platform.logging import get_logger
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
-
-from pathfinder.assistant_core.conversation.checkpointer import to_psycopg_url
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

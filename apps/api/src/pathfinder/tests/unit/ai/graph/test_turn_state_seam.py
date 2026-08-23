@@ -12,13 +12,13 @@ import dataclasses
 from uuid import uuid4
 
 import pytest
+from assistant_core.graph.runtime import AssistantDeps, TurnContext
+from assistant_core.graph.turn_state import TurnState
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState, StrategyDomainState
-from pathfinder.assistant_core.graph.runtime import AssistantDeps, TurnContext
-from pathfinder.assistant_core.graph.turn_state import TurnState
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService

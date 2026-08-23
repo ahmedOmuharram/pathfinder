@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import procrastinate
+from assistant_core.conversation.checkpointer import to_psycopg_url
 
-from pathfinder.assistant_core.conversation.checkpointer import to_psycopg_url
 from pathfinder.platform.config import get_settings
 
 

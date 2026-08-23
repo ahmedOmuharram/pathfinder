@@ -5,14 +5,14 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID, uuid4
 
+import assistant_core.platform.db as session_module
 import httpx
+from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.persistence.models import Conversation
 from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 
-import pathfinder.platform.db as session_module
-from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
 from pathfinder.jobs.app import procrastinate_app
-from pathfinder.persistence.models import Conversation
 from pathfinder.platform.security import create_user_token
 
 

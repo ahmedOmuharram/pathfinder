@@ -11,6 +11,24 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from assistant_core.cost import cost_for_run
+from assistant_core.graph.emit import emit_chunk
+from assistant_core.graph.stream_events import (
+    SubAgentCallPayload,
+    SubAgentStepPayload,
+    sub_agent_call_event,
+    sub_agent_step_event,
+    turn_status_event,
+)
+from assistant_core.graph.turn_state import (
+    SubAgentApprovalCall,
+    SubAgentApprovalPending,
+)
+from assistant_core.models.scripted import (
+    current_scope_id,
+    current_user_text,
+)
+from assistant_core.platform.logging import get_logger
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 from pydantic_ai import AgentRunResultEvent
@@ -30,7 +48,6 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults
 from pydantic_ai.ui.vercel_ai.response_types import (
-    BaseChunk,
     DataChunk,
     FileChunk,
     SourceDocumentChunk,
@@ -45,7 +62,6 @@ from pydantic_ai.usage import RunUsage
 
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.capabilities.error_classification import is_error_directive
-from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.stream_events import ledger_update_event
@@ -59,22 +75,6 @@ from pathfinder.ai.lead.sub_agent_tools import (
     phase_override_kwargs,
     phase_usage_limits,
 )
-from pathfinder.assistant_core.graph.stream_events import (
-    SubAgentCallPayload,
-    SubAgentStepPayload,
-    sub_agent_call_event,
-    sub_agent_step_event,
-    turn_status_event,
-)
-from pathfinder.assistant_core.graph.turn_state import (
-    SubAgentApprovalCall,
-    SubAgentApprovalPending,
-)
-from pathfinder.assistant_core.models.scripted import (
-    current_scope_id,
-    current_user_text,
-)
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -114,20 +114,8 @@ class SubAgentApprovalWait:
     pending: SubAgentApprovalPending
 
 
-def _emit_chunk(writer: Any, chunk: BaseChunk) -> None:
-    writer(
-        {
-            "chunk": chunk.model_dump(
-                by_alias=True,
-                mode="json",
-                exclude_none=True,
-            ),
-        },
-    )
-
-
 def _emit_step(writer: Any, payload: SubAgentStepPayload) -> None:
-    _emit_chunk(writer, sub_agent_step_event(payload))
+    emit_chunk(writer, sub_agent_step_event(payload))
 
 
 def _short(s: str, *, limit: int = 280) -> str:
@@ -179,7 +167,7 @@ def _forward_tool_metadata(writer: Any, metadata: object) -> None:
         return
     for chunk in metadata:
         if isinstance(chunk, _STREAMABLE_METADATA):
-            _emit_chunk(writer, chunk)
+            emit_chunk(writer, chunk)
 
 
 def _forward_inner_event(
@@ -242,11 +230,11 @@ def _forward_inner_event(
 def _announce_approval(writer: Any, call: ToolCallPart) -> SubAgentApprovalCall:
     """Render one inner tool call as a tool part awaiting the user's answer."""
     args = call.args_as_dict()
-    _emit_chunk(
+    emit_chunk(
         writer,
         ToolInputStartChunk(tool_call_id=call.tool_call_id, tool_name=call.tool_name),
     )
-    _emit_chunk(
+    emit_chunk(
         writer,
         ToolInputAvailableChunk(
             tool_call_id=call.tool_call_id,
@@ -254,7 +242,7 @@ def _announce_approval(writer: Any, call: ToolCallPart) -> SubAgentApprovalCall:
             input=args,
         ),
     )
-    _emit_chunk(
+    emit_chunk(
         writer,
         ToolApprovalRequestChunk(
             approval_id=call.tool_call_id,
@@ -297,9 +285,9 @@ def _close_answered_approval(
         return
     result = event.part
     if isinstance(result, ToolReturnPart) and result.outcome == "denied":
-        _emit_chunk(writer, ToolOutputDeniedChunk(tool_call_id=event.tool_call_id))
+        emit_chunk(writer, ToolOutputDeniedChunk(tool_call_id=event.tool_call_id))
         return
-    _emit_chunk(
+    emit_chunk(
         writer,
         ToolOutputAvailableChunk(
             tool_call_id=event.tool_call_id,
@@ -345,7 +333,7 @@ async def stream_sub_agent[OutputT: BaseModel](
         if override_kwargs
         else contextlib.nullcontext()
     )
-    _emit_chunk(
+    emit_chunk(
         writer,
         turn_status_event(
             label=_PHASE_STATUS_LABELS.get(role, "Working..."),
@@ -425,7 +413,7 @@ def _emit_running_sub_agent_usage(
         provider_name=provider or None,
         provider_url=None,
     )
-    _emit_chunk(
+    emit_chunk(
         writer,
         sub_agent_call_event(
             SubAgentCallPayload(
@@ -449,4 +437,4 @@ def _emit_live_ledger(
     """Sync state and broadcast a ledger snapshot after a sub-agent tool call."""
     apply_agent_state(deps, agent_deps)
     ledger = derive_ledger(deps.state, deps.intent)
-    _emit_chunk(writer, ledger_update_event(ledger=ledger))
+    emit_chunk(writer, ledger_update_event(ledger=ledger))

@@ -1,8 +1,9 @@
 """Strategy AST normalize request/response DTOs."""
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONArray
+
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONArray
 
 
 class StrategyAstNormalizeRequest(CamelModel):

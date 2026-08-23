@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from pathfinder.persistence.models import Conversation, ConversationStrategy
+from assistant_core.persistence.models import Conversation
+
+from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
@@ -73,7 +75,7 @@ class _StubGeneSetService:
         return None
 
 
-def _conversation() -> Conversation:
+def _thread() -> tuple[Conversation, ConversationStrategyView]:
     now = datetime.now(UTC)
     conversation = Conversation(
         id=uuid4(),
@@ -83,8 +85,7 @@ def _conversation() -> Conversation:
         created_at=now,
         updated_at=now,
     )
-    conversation.strategy = ConversationStrategy(
-        conversation_id=conversation.id,
+    strategy = ConversationStrategyView(
         wdk_strategy_id=330517023,
         gene_set_id=None,
         gene_set_auto_imported=False,
@@ -93,17 +94,18 @@ def _conversation() -> Conversation:
         strategy_ast={},
         imported_saved_strategy_ids=[],
     )
-    return conversation
+    return conversation, strategy
 
 
 async def _run(
-    conversation: Conversation,
+    thread: tuple[Conversation, ConversationStrategyView],
     resolved: list[str],
 ) -> tuple[_StubRepo, list[GeneSet]]:
+    conversation = thread[0]
     repo = _StubRepo()
     svc = _StubGeneSetService(resolved=resolved)
     created = await auto_import_gene_sets(
-        [conversation],
+        [thread],
         conv_repo=repo,  # type: ignore[arg-type]
         gene_set_service=svc,  # type: ignore[arg-type]
         site_id="plasmodb",
@@ -113,19 +115,19 @@ async def _run(
 
 
 async def test_empty_result_creates_nothing_and_does_not_latch() -> None:
-    repo, created = await _run(_conversation(), [])
+    repo, created = await _run(_thread(), [])
 
     assert created == []
     assert repo.updates == []
 
 
 async def test_non_empty_result_imports_and_latches() -> None:
-    conversation = _conversation()
-    repo, created = await _run(conversation, ["PF3D7_0100100"])
+    thread = _thread()
+    repo, created = await _run(thread, ["PF3D7_0100100"])
 
     assert len(created) == 1
     assert len(repo.updates) == 1
     conversation_id, upd = repo.updates[0]
-    assert conversation_id == conversation.id
+    assert conversation_id == thread[0].id
     assert upd.gene_set_auto_imported is True
     assert upd.gene_set_id == created[0].id

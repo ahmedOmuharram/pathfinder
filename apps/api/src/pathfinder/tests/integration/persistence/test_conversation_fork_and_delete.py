@@ -4,7 +4,11 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import assistant_core.platform.db as session_module
 import pytest
+from assistant_core.conversation.checkpointer import lifespan_checkpointer
+from assistant_core.persistence.models import Conversation, ConversationEvent, Message
+from assistant_core.persistence.repositories.message import MessagesRepository
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
     ChannelVersions,
@@ -17,18 +21,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import pathfinder.platform.db as session_module
-from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.domain.scratchpad.models import NoteCreate
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationEvent,
-    ConversationStrategy,
-    Message,
-    User,
-)
+from pathfinder.persistence.models import ConversationStrategy, User
 from pathfinder.persistence.repositories.conversation import ConversationRepository
-from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.config import get_settings
 from pathfinder.services.conversations.fork import (
@@ -1703,9 +1698,8 @@ async def test_fork_copies_ast_as_independent_deep_structure(
         await session.commit()
 
     async with session_module.async_session_factory() as session:
-        parent = await ConversationRepository(session).get_by_id(source_id)
-        assert parent is not None
-        parent_view = _AstView.model_validate(parent.strategy_view.strategy_ast)
+        parent = await ConversationRepository(session).get_strategy(source_id)
+        parent_view = _AstView.model_validate(parent.strategy_ast)
         assert parent_view.root.operator == "INTERSECT", (
             "fork mutation leaked into the parent strategy AST — shallow "
             "copy aliased the nested root subtree"
@@ -1764,9 +1758,8 @@ async def test_fork_imported_saved_strategy_ids_is_independent_list(
         await session.commit()
 
     async with session_module.async_session_factory() as session:
-        parent = await ConversationRepository(session).get_by_id(source_id)
-        assert parent is not None
-        assert parent.strategy_view.imported_saved_strategy_ids == [5001, 5002], (
+        parent = await ConversationRepository(session).get_strategy(source_id)
+        assert parent.imported_saved_strategy_ids == [5001, 5002], (
             "fork's consumer-id append leaked into the parent conversation"
         )
 

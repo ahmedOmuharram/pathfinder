@@ -5,6 +5,10 @@ from __future__ import annotations
 import warnings
 from uuid import UUID
 
+from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.persistence.models import ConversationEvent
+from assistant_core.platform.db import async_session_factory
+from assistant_core.platform.logging import get_logger
 from procrastinate.jobs import Job, Status
 from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic_ai.ui.vercel_ai.response_types import (
@@ -14,13 +18,9 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 )
 from sqlalchemy import select
 
-from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.payloads import ChatTurnPayload
-from pathfinder.persistence.models import ConversationEvent
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.db import async_session_factory
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

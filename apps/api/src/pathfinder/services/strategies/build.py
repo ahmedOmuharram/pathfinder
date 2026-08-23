@@ -3,13 +3,14 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.graph_model import StrategyStep
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

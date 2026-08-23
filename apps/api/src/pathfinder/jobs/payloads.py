@@ -15,12 +15,13 @@ from __future__ import annotations
 from typing import Self
 from uuid import UUID
 
+from assistant_core.persistence.models import DEFAULT_ASSISTANT_ID
+from assistant_core.platform.types import JSONObject
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.graph._llm_capture import current_capture_dir
 from pathfinder.platform.context import veupathdb_auth_token_ctx
-from pathfinder.platform.types import JSONObject
 
 
 class ChatTurnPayload(BaseModel):
@@ -31,6 +32,8 @@ class ChatTurnPayload(BaseModel):
     body: ChatRequestBody
     user_id: UUID
     turn_id: UUID
+    # The assistant the dispatcher resolved from the conversation row.
+    assistant_id: str = DEFAULT_ASSISTANT_ID
     veupathdb_auth_token: str | None = None
     capture_dir: str | None = None
 
@@ -41,6 +44,7 @@ class ChatTurnPayload(BaseModel):
         body: ChatRequestBody,
         user_id: UUID,
         turn_id: UUID,
+        assistant_id: str = DEFAULT_ASSISTANT_ID,
         capture_dir: str | None = None,
     ) -> Self:
         """Build a payload, capturing ``veupathdb_auth_token_ctx`` at call time.
@@ -49,6 +53,7 @@ class ChatTurnPayload(BaseModel):
             body=body,
             user_id=user_id,
             turn_id=turn_id,
+            assistant_id=assistant_id,
             veupathdb_auth_token=veupathdb_auth_token_ctx.get(),
             capture_dir=capture_dir,
         )

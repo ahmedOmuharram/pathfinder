@@ -11,11 +11,10 @@ per-request thinking effort.
 
 from typing import Any
 
+from assistant_core.platform.types import ReasoningEffort
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 from pydantic_ai.settings import ModelSettings
-
-from pathfinder.platform.types import ReasoningEffort
 
 
 def model_provider(model_id: str) -> str:

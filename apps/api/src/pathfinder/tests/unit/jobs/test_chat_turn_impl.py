@@ -8,13 +8,16 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.platform.context import application_id_ctx
+from assistant_core.spec import AssistantSpec
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.assistants.pathfinder_spec import build_pathfinder_spec
 from pathfinder.jobs import auth_context as auth_context_mod
 from pathfinder.jobs.impls import chat_turn_impl as chat_turn_impl_mod
 from pathfinder.jobs.impls.chat_turn_impl import run_chat_turn
 from pathfinder.jobs.payloads import ChatTurnPayload
-from pathfinder.platform.context import application_id_ctx, veupathdb_auth_token_ctx
+from pathfinder.platform.context import veupathdb_auth_token_ctx
 
 HOLDING_APPLICATION = "companion"
 
@@ -54,9 +57,17 @@ async def _fake_memory_ctx(*args: object, **kwargs: object) -> AsyncIterator[Non
     yield None
 
 
-def _fake_build_pathfinder_graph(*args: object, **kwargs: object) -> _FakeGraph:
+def _fake_build_graph(*args: object, **kwargs: object) -> _FakeGraph:
     del args, kwargs
     return _FakeGraph()
+
+
+def _fake_resolve_assistant(registry: object, assistant_id: str) -> AssistantSpec:
+    """The resolved spec, with only its graph factory replaced."""
+    del registry
+    real = build_pathfinder_spec()
+    assert real.assistant_id == assistant_id
+    return real.model_copy(update={"build_graph": _fake_build_graph})
 
 
 class _ObservingRunTurn:
@@ -109,7 +120,7 @@ async def test_run_chat_turn_sets_ctxvar_from_payload(
         _fake_memory_ctx,
     )
     monkeypatch.setattr(
-        chat_turn_impl_mod, "build_pathfinder_graph", _fake_build_pathfinder_graph
+        chat_turn_impl_mod, "resolve_assistant", _fake_resolve_assistant
     )
 
     payload = ChatTurnPayload(
@@ -144,7 +155,7 @@ async def test_run_chat_turn_resets_ctxvar_after_run(
         _fake_memory_ctx,
     )
     monkeypatch.setattr(
-        chat_turn_impl_mod, "build_pathfinder_graph", _fake_build_pathfinder_graph
+        chat_turn_impl_mod, "resolve_assistant", _fake_resolve_assistant
     )
 
     assert veupathdb_auth_token_ctx.get() is None
@@ -177,7 +188,7 @@ async def test_run_chat_turn_tolerates_missing_token(
         _fake_memory_ctx,
     )
     monkeypatch.setattr(
-        chat_turn_impl_mod, "build_pathfinder_graph", _fake_build_pathfinder_graph
+        chat_turn_impl_mod, "resolve_assistant", _fake_resolve_assistant
     )
 
     payload = ChatTurnPayload(

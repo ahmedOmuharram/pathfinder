@@ -2,8 +2,8 @@
 
 from typing import Literal
 
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 
 
 class ProductActionRequest(CamelModel):

@@ -4,6 +4,7 @@ import asyncio
 import re
 
 import httpx
+from assistant_core.platform.logging import get_logger
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from pathfinder.domain.research.citations import (
@@ -17,7 +18,6 @@ from pathfinder.domain.research.papers import (
     _PubMedSummaryAuthor,
 )
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.research.clients._base import (
     API_USER_AGENT,
     BaseClient,

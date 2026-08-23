@@ -6,13 +6,14 @@ against the user's query. Returns the top N matches.
 
 import re
 
-from pathfinder.integrations.embeddings.embed_fn import EmbedFn
-from pathfinder.integrations.embeddings.prefixes import (
+from assistant_core.embeddings.prefixes import (
     SEARCH_DOCUMENT_PREFIX,
     SEARCH_QUERY_PREFIX,
 )
+from assistant_core.platform.types import JSONObject
+
+from pathfinder.integrations.embeddings.embed_fn import EmbedFn
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
-from pathfinder.platform.types import JSONObject
 
 # Field weights: name matters most, description second, nameOfFirstStep third.
 _FIELD_WEIGHTS: list[tuple[str, float]] = [

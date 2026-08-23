@@ -3,6 +3,8 @@ chat session."""
 
 from uuid import uuid4
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.ast import (
     generate_step_id,
 )
@@ -19,7 +21,6 @@ from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import StrategyAst, _HistoryEntry
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.domain.strategy.validation import StepValidation
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

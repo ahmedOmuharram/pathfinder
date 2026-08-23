@@ -3,6 +3,7 @@
 from http import HTTPStatus
 
 import structlog
+from assistant_core.platform.types import JSONArray
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -11,7 +12,6 @@ from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException
 
 from pathfinder.platform.errors import AppError, ErrorCode, ProblemDetail
-from pathfinder.platform.types import JSONArray
 
 _logger = structlog.get_logger(__name__)
 

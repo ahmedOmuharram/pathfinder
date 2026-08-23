@@ -4,14 +4,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Self
 
-from pydantic import ConfigDict, Field, model_validator
-
-from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.platform.pydantic_base import (
+from assistant_core.platform.pydantic_base import (
     CamelModel,
     RoundedFloat,
     RoundedFloat2,
 )
+from pydantic import ConfigDict, Field, model_validator
+
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.services.experiment.helpers import ProgressCallback
 from pathfinder.services.experiment.types import (
     ControlValueFormat,

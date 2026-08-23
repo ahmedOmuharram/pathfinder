@@ -5,11 +5,12 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from assistant_core.persistence.models import Conversation
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.domain.scratchpad.models import NoteCreate
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.security import create_user_token
 

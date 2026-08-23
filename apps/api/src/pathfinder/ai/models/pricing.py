@@ -1,7 +1,8 @@
 """Cost estimation utilities for LLM model usage."""
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.ai.models.catalog import get_model_entry
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

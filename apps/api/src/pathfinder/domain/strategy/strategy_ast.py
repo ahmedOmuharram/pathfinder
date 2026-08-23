@@ -3,12 +3,12 @@
 A pushed strategy has one root step, which matches the WDK step tree shape.
 """
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import ConfigDict, Field, model_validator
 
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.validation import StepValidation
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 
 
 class StrategyAst(CamelModel):

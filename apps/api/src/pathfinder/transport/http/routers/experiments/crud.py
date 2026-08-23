@@ -1,10 +1,10 @@
 """CRUD endpoints for experiments: list, get, update, delete."""
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from fastapi import APIRouter, Depends, Response
 from pydantic import Field
 
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.materialization import (
     cleanup_experiment_strategy,
 )

@@ -12,12 +12,25 @@ from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
+from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.main import create_app
+from pathfinder.services.wdk_identity import require_registered_wdk_login
 from pathfinder.transport.http.deps import require_registered_wdk_identity
+from pathfinder.transport.http.routers.chat import resolve_chat_assistant
+
+# Routes whose gate is the resolved assistant's, not the route's. The refusal
+# is the same one; which assistant answers decides whether it runs.
+SPEC_GATED: dict[tuple[str, str], str] = {
+    (
+        "POST",
+        "/api/v1/chat",
+    ): "The turn's assistant declares the requirement; PathFinder's spec "
+    "names the registered login, and the dependency runs it before dispatch, "
+    "so the worker never builds a strategy without the user's token.",
+}
 
 GATED: frozenset[tuple[str, str]] = frozenset(
     {
-        ("POST", "/api/v1/chat"),
         # Conversations: the subroutes that act on the user's WDK strategies.
         ("POST", "/api/v1/conversations/step-counts"),
         ("POST", "/api/v1/conversations/open"),
@@ -155,7 +168,8 @@ def test_exactly_the_listed_routes_require_a_registered_login(app: FastAPI) -> N
 
 def test_every_listed_route_still_exists(app: FastAPI) -> None:
     registered = _all_routes(app)
-    missing = sorted((GATED | UNGATED_BUT_REACHES_WDK.keys()) - registered)
+    listed = GATED | UNGATED_BUT_REACHES_WDK.keys() | SPEC_GATED.keys()
+    missing = sorted(listed - registered)
 
     assert missing == [], f"the list names routes the app no longer serves: {missing}"
 
@@ -166,3 +180,37 @@ def test_no_exception_is_secretly_gated(app: FastAPI) -> None:
     stale = sorted(UNGATED_BUT_REACHES_WDK.keys() & gated)
 
     assert stale == [], f"exceptions that now carry the gate: {stale}"
+
+
+def test_a_spec_gated_route_carries_no_route_gate(app: FastAPI) -> None:
+    """Two gates on one route would refuse an assistant that declares none."""
+    gated = _gated_routes(app)
+
+    assert sorted(SPEC_GATED.keys() & gated) == []
+
+
+def _carries(dependant: Dependant, call: object) -> bool:
+    return any(
+        sub.call is call or _carries(sub, call) for sub in dependant.dependencies
+    )
+
+
+def test_every_spec_gated_route_resolves_its_assistant(app: FastAPI) -> None:
+    """A listed route with no resolver would serve every assistant ungated."""
+    resolving = {
+        (method, route.path)
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        and _carries(route.dependant, resolve_chat_assistant)
+        for method in route.methods - {"HEAD", "OPTIONS"}
+    }
+
+    assert resolving == set(SPEC_GATED)
+
+
+def test_pathfinder_still_declares_the_registered_login() -> None:
+    """The gate the chat route stopped carrying is the one the spec names."""
+    registry = get_assistant_registry()
+    spec = registry.resolve(registry.default_id)
+
+    assert spec.identity_gate is require_registered_wdk_login

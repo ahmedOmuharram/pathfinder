@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import assistant_core.platform.db as session_module
 import pytest
+from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.persistence.models import Conversation, ConversationEvent
 from sqlalchemy import select
 
-import pathfinder.platform.db as session_module
-from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
-from pathfinder.persistence.models import Conversation, ConversationEvent, User
+from pathfinder.persistence.models import User
 
 
 @pytest.mark.asyncio

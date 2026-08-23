@@ -7,6 +7,7 @@ structured data to transport handlers.  They are NOT WDK integration models
 
 from dataclasses import dataclass
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.parameters.wdk_vocab import (
@@ -14,7 +15,6 @@ from pathfinder.domain.parameters.wdk_vocab import (
     WDKFilterOntologyTerm,
     WDKVocabulary,
 )
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class ParamSpecResponse(CamelModel):

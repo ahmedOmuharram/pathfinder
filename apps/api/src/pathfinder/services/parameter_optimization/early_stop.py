@@ -2,7 +2,8 @@
 
 from enum import StrEnum
 
-from pathfinder.platform.logging import get_logger
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.services.parameter_optimization.config import TrialResult
 
 logger = get_logger(__name__)

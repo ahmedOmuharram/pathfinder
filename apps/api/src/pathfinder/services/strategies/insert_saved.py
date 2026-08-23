@@ -13,6 +13,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from assistant_core.platform.db import DBSessionFactory
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.ast import StrategyStepNode, generate_step_id
 from pathfinder.domain.strategy.graph_model import (
     StepKind,
@@ -27,14 +30,12 @@ from pathfinder.persistence.repositories.conversation import ConversationReposit
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
-from pathfinder.platform.db import DBSessionFactory
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
     NotFoundError,
     ValidationError,
 )
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.save_substrategy import (
     deep_clone_with_fresh_ids,
@@ -203,7 +204,8 @@ async def _record_consumer(
         conv = await repo.get_by_id(conversation_id)
         if conv is None:
             return
-        existing = list(conv.strategy_view.imported_saved_strategy_ids)
+        strategy = await repo.get_strategy(conversation_id)
+        existing = list(strategy.imported_saved_strategy_ids)
         if wdk_strategy_id in existing:
             return
         existing.append(wdk_strategy_id)

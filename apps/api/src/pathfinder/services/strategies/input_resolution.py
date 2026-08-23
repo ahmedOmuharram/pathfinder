@@ -2,12 +2,13 @@
 
 from dataclasses import dataclass
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode, generate_step_id
 from pathfinder.domain.strategy.graph_model import StrategyStep, subtree_ids
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import ErrorCode
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 
 logger = get_logger(__name__)

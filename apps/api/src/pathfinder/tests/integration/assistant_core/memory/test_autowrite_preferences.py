@@ -5,15 +5,16 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from assistant_core.memory.autowrite import auto_write_memories
+from assistant_core.memory.lifespan import lifespan_memory_store
+from assistant_core.memory.store import MemoryStore
+from assistant_core.memory.tombstones import TombstoneRepository
+from assistant_core.persistence.models import Conversation, Message
+from assistant_core.platform.db import async_session_factory
 
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.memory_candidates import collect_turn_memory_candidates
-from pathfinder.assistant_core.memory.autowrite import auto_write_memories
-from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
-from pathfinder.assistant_core.memory.store import MemoryStore
-from pathfinder.assistant_core.memory.tombstones import TombstoneRepository
-from pathfinder.persistence.models import Conversation, Message, User
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.models import User
 
 
 @pytest.mark.asyncio

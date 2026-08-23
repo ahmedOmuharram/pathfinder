@@ -8,6 +8,7 @@ the same step.
 from difflib import get_close_matches
 from typing import Any, Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 
@@ -21,7 +22,6 @@ from pathfinder.ai.tools.standalone._catalog_models import (
 )
 from pathfinder.domain.parameters.values import ParamValue, coerce_context_values
 from pathfinder.platform.errors import WDKError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
     format_search_overview,

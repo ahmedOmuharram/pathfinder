@@ -8,9 +8,8 @@ import re
 from collections.abc import Iterable, Sequence
 from typing import Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, RootModel
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 FAKE_ALL_SENTINEL = "@@fake@@"
 """The term WDK gives the synthetic tree root. It is not a submittable value."""

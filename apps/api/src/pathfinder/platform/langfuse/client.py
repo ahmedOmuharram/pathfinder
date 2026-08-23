@@ -2,12 +2,12 @@
 
 import threading
 
+from assistant_core.platform.logging import get_logger
 from langfuse import Langfuse
 from langfuse.span_filter import is_default_export_span
 from opentelemetry.sdk.trace import ReadableSpan
 
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

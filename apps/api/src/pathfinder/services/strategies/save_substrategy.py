@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     generate_step_id,
@@ -31,7 +33,6 @@ from pathfinder.domain.strategy.graph_model import (
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.platform.errors import ErrorCode, NotFoundError, ValidationError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.strategies.step_wdk_push import push_step_to_wdk
 from pathfinder.services.strategies.sync import build_step_tree_from_graph
 from pathfinder.services.strategies.sync_state import WDKSyncState

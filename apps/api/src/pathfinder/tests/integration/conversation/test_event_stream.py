@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID, uuid4
 
+import assistant_core.platform.db as session_module
 import pytest
+from assistant_core.conversation.event_stream import replay_and_tail
+from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.persistence.models import Conversation
 
-import pathfinder.platform.db as session_module
-from pathfinder.assistant_core.conversation.event_stream import replay_and_tail
-from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import User
 
 
 async def _seed_conversation() -> tuple[UUID, UUID]:

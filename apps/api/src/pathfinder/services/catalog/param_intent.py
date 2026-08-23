@@ -3,8 +3,9 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
+from assistant_core.platform.pydantic_base import CamelModel
+
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.catalog.param_formatting import ParameterInfo
 
 # One value, or the several values a multi-pick param takes.

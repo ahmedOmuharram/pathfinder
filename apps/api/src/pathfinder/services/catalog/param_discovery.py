@@ -8,6 +8,7 @@ fetch fails.
 from difflib import get_close_matches
 from typing import Any, cast
 
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.search import SearchContext
@@ -21,7 +22,6 @@ from pathfinder.platform.errors import (
     ErrorCode,
 )
 from pathfinder.platform.errors import ValidationError as CoreValidationError
-from pathfinder.platform.types import JSONObject
 
 
 async def fetch_search_details(

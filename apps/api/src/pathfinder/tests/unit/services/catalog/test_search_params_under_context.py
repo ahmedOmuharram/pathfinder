@@ -64,7 +64,7 @@ def _response(*parameters: WDKParameter) -> WDKSearchResponse:
             param_names=[p.name for p in parameters],
             parameters=list(parameters),
         ),
-        validation=StepValidation(),
+        validation=StepValidation(level="NONE", is_valid=False),
     )
 
 

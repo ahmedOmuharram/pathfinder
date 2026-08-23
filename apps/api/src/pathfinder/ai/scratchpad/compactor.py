@@ -4,17 +4,18 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from assistant_core.cost import cost_for_run
+from assistant_core.platform.db import DBSessionFactory
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.ai.agents.compactor import (
     CompactionResult,
     CompactorDeps,
     build_compactor_agent,
 )
-from pathfinder.ai.cost import cost_for_run
 from pathfinder.domain.scratchpad.ids import approx_body_tokens
 from pathfinder.domain.scratchpad.models import CompactionRun, Note, NoteCreate
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
-from pathfinder.platform.db import DBSessionFactory
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

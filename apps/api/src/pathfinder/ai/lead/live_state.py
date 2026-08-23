@@ -7,11 +7,11 @@ so the Lead can answer "what does my strategy return now?" with a fact rather
 than a memory.
 """
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.ai.tools.standalone._graph_helpers import build_step_response
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.platform.pydantic_base import CamelModel
 
 __all__ = ["LiveStepState", "LiveStrategyState", "read_live_state"]
 

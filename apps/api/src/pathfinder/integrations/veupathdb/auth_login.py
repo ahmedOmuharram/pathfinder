@@ -10,12 +10,12 @@ from http import HTTPStatus
 
 import httpx
 import jwt
+from assistant_core.platform.logging import get_logger
 from jwt import PyJWK
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.integrations.veupathdb.factory import get_site
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

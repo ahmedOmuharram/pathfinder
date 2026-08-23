@@ -28,7 +28,7 @@ see is in [layer-ownership](../pathfinder/layer-ownership.md).
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/param/ParamFormatterFactory.java#L18-L55
 - anchor: apps/api/src/pathfinder/domain/parameters/values.py:_WIRE_BUILDERS
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/parameters/test_wdk_param_kinds.py::test_wdk_map_001_a_twelfth_kind_has_no_wire_form
 
 That there are eleven types, and that `ParamKind` is exactly those eleven, is
 [WDK-PARAM-001](parameters-and-vocabularies.md#wdk-param-001---there-are-eleven-parameter-types-displaytype-is-a-fifth-and-later-axis-and-never-changes-the-value-shape).
@@ -100,7 +100,7 @@ live in `integrations/`, which is a fact about the file tree rather than a check
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/StepFormatter.java#L129-L140
 - anchor: apps/api/src/pathfinder/domain/strategy/graph_model.py:flatten_tree
-- status: PARTIAL by apps/api/src/pathfinder/tests/unit/domain/strategy/test_graph_model_round_trip.py::test_the_data_map_holds_no_structure
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/strategies/test_wdk_pushed_step_tree.py::test_wdk_map_003_the_serialized_tree_carries_only_the_three_keys
 
 `formatAsStepTree` writes a node as `stepId` plus optional `primaryInput` and
 `secondaryInput` and nothing else, and the client type says the same
@@ -174,7 +174,7 @@ prohibition this rule states, and for nothing wider.
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/SessionService.java#L277-L311
 - anchor: apps/api/src/pathfinder/transport/http/routers/veupathdb_auth.py:logout
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_call_sites.py::test_wdk_map_005_no_module_outside_the_integration_builds_a_site_client
 
 **This rule was briefly marked `PARTIAL by` the contract
 `Transport never imports integrations or persistence directly`, and that was
@@ -283,7 +283,7 @@ which has the same gap for the same reason.
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/web-monorepo/blob/63d1705463d553c0ac19ee577c1b09666597b903/packages/libs/wdk-client/src/Utils/WdkUser.ts#L59-L79
 - anchor: packages/shared-ts/src/types.ts:StrategyAst
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/test_shared_names_are_pathfinder_types.py::test_wdk_map_008_no_name_carries_the_wdk_shape
 
 Four names collide with `wdk-client` and none of them means the same thing.
 

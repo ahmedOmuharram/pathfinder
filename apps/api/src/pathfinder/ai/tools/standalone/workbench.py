@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
+from assistant_core.platform.logging import get_logger
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -27,7 +28,6 @@ from pathfinder.ai.tools.standalone._workbench_models import (
     GeneSetListResponse,
     WdkSourceSpec,
 )
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.gene_sets.store import get_gene_set_store
 from pathfinder.services.gene_sets.types import GeneSet, GeneSetSource
 

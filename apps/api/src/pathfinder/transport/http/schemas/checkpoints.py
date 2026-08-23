@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class ForkRequest(CamelModel):

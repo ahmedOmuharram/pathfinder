@@ -5,10 +5,11 @@ These phases run late in the experiment lifecycle to assess result
 reliability and add biological context.
 """
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.enrichment.parser import upsert_enrichment_result
 from pathfinder.services.enrichment.service import EnrichmentService
 from pathfinder.services.experiment.cross_validation import (

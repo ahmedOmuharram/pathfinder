@@ -10,22 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic_ai.messages import ModelMessage, ToolCallPart
-from pydantic_ai.models.function import FunctionModel
-
-from pathfinder.ai.models.mock_specs import (
-    CriterionReply,
-    SpecPlan,
-    combined_spec,
-    criterion_replies,
-    frame_call,
-    go_spec,
-    interpro_spec,
-    organism_for,
-    single_spec,
-    verification_delta,
-)
-from pathfinder.assistant_core.models.scripted import (
+from assistant_core.models.scripted import (
     RoleMarkers,
     RoleScript,
     ScriptedModel,
@@ -40,6 +25,21 @@ from pathfinder.assistant_core.models.scripted import (
     scripted_call,
     terminal_call,
     tool_return_parts,
+)
+from pydantic_ai.messages import ModelMessage, ToolCallPart
+from pydantic_ai.models.function import FunctionModel
+
+from pathfinder.ai.models.mock_specs import (
+    CriterionReply,
+    SpecPlan,
+    combined_spec,
+    criterion_replies,
+    frame_call,
+    go_spec,
+    interpro_spec,
+    organism_for,
+    single_spec,
+    verification_delta,
 )
 
 LeadTurnState = Literal["await_user", "complete"]

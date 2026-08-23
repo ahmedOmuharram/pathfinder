@@ -1,5 +1,8 @@
 """Stream parts of the strategy product: graph, strategy, gene sets, experiments."""
 
+from assistant_core.conversation.stream_parts.registry import (
+    StreamPartRegistry,
+)
 from shared_py.stream_parts.enrichment import EnrichmentResultsChunk
 from shared_py.stream_parts.gene_set import GeneSet
 from shared_py.stream_parts.graph import GraphCleared, GraphPlan, GraphSnapshot
@@ -8,9 +11,6 @@ from shared_py.stream_parts.phase import PhaseChange
 from shared_py.stream_parts.strategy import StrategyLink, StrategyMeta, StrategyPatch
 
 from pathfinder.ai.graph.stream_events import StrategyRevisionPayload
-from pathfinder.assistant_core.conversation.stream_parts.registry import (
-    StreamPartRegistry,
-)
 from pathfinder.services.experiment.scored_comparison import ScoredComparison
 from pathfinder.services.experiment.variant_comparison import VariantComparison
 

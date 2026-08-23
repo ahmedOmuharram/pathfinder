@@ -2,6 +2,9 @@ import json
 from dataclasses import dataclass
 from typing import NoReturn
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.domain.parameters.phyletic import TriState, encode_profile_pattern
 from pathfinder.domain.parameters.value_utils import decode_values
 from pathfinder.domain.parameters.wdk_vocab import (
@@ -20,8 +23,6 @@ from pathfinder.integrations.veupathdb.strategy_api.helpers import (
 from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, ErrorCode, validate_response
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -142,11 +143,11 @@ class StrategyAPIBase:
         return out
 
     async def _ensure_session(self) -> None:
-        """Initialize session and resolve user id for mutation endpoints.
+        """Resolve the concrete user id once, so every later path names it.
 
-        Some WDK deployments allow GET/POST using `/users/current/...` but do NOT
-        allow PUT/PATCH/DELETE on `/users/current/...` (405 Method Not Allowed).
-        Resolve the concrete user id once and then use `/users/{userId}/...`.
+        WDK rewrites the ``current`` alias to whichever identity the request
+        authenticated as, so a path built on it cannot fail an ownership check.
+        A concrete id is a 403 under the wrong token.
         """
         if self._session_initialized:
             return

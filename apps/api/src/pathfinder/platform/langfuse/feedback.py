@@ -1,9 +1,9 @@
 """Record user feedback (thumbs up/down) as Langfuse scores."""
 
 import langfuse.api
+from assistant_core.platform.logging import get_logger
 
 from pathfinder.platform.langfuse.client import get_langfuse
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -105,6 +105,7 @@ const ALLOWED_PREFIXES = [
   "@/lib/",
   "@/state/",
   "@pathfinder/shared",
+  "@pathfinder/assistant-client",
   // Vendored shadcn / AI Elements primitives — installed via shadcn CLI,
   // treated as third-party. Lives under src/components/{ui,ai-elements}/.
   "@/components/ui/",

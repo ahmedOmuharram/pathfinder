@@ -4,10 +4,10 @@ These models mirror ``services.experiment.types`` and live in the transport
 layer so they appear in the OpenAPI schema. Field aliases are camelCase.
 """
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import ConfigDict, Field, JsonValue
 
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.types import EnrichmentAnalysisType
 from pathfinder.services.experiment.types.core import (
     ControlValueFormat,

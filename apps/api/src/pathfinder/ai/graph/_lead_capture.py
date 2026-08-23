@@ -1,9 +1,9 @@
 """Lead-run capture + token/cost accounting.
 
-Shared base for the Lead node: the mutable ``_LeadRunCapture`` accumulator,
-the chunk-emit primitive, and the streaming/residual quota charging that
-mutate it. Kept separate so ``lead_node`` and its event helpers can share
-this state without an import cycle.
+Shared base for the Lead node: the mutable ``_LeadRunCapture`` accumulator and
+the streaming/residual quota charging that mutates it. Kept separate so
+``lead_node`` and its event helpers can share this state without an import
+cycle.
 """
 
 from __future__ import annotations
@@ -13,9 +13,13 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from assistant_core.cost import cost_for_run
+from assistant_core.graph.emit import emit_chunk, emit_turn_usage
+from assistant_core.graph.stream_events import lead_usage_event
+from assistant_core.graph.turn_state import PendingApproval
+from assistant_core.platform.logging import get_logger
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.ui.vercel_ai.response_types import (
-    BaseChunk,
     TextDeltaChunk,
     TextEndChunk,
     TextStartChunk,
@@ -23,16 +27,9 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.exc import SQLAlchemyError
 
-from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.lead_agent import LeadResponse
-from pathfinder.assistant_core.graph.stream_events import (
-    lead_usage_event,
-    turn_usage_event,
-)
-from pathfinder.assistant_core.graph.turn_state import PendingApproval
-from pathfinder.platform.logging import get_logger
 from pathfinder.services import quota as quota_service
 
 logger = get_logger(__name__)
@@ -87,24 +84,8 @@ class _LeadRunCapture:
         )
 
 
-def _emit_chunk(writer: Any, chunk: BaseChunk) -> None:
-    writer(
-        {
-            "chunk": chunk.model_dump(
-                by_alias=True,
-                mode="json",
-                exclude_none=True,
-            ),
-        },
-    )
-
-
-def emit_turn_usage(writer: Any, total_tokens: int, cost_usd: str) -> None:
-    _emit_chunk(writer, turn_usage_event(total_tokens=total_tokens, cost_usd=cost_usd))
-
-
 def emit_lead_usage(writer: Any, model_id: str, tokens: int, cost_usd: str) -> None:
-    _emit_chunk(
+    emit_chunk(
         writer,
         lead_usage_event(model_id=model_id, tokens=tokens, cost_usd=cost_usd),
     )
@@ -120,9 +101,9 @@ def _emit_residual_prose(
     if response is None or not response.prose or capture.prose_already_streamed:
         return
     chunk_id = f"lead-prose-{message_id}"
-    _emit_chunk(writer, TextStartChunk(id=chunk_id))
-    _emit_chunk(writer, TextDeltaChunk(id=chunk_id, delta=response.prose))
-    _emit_chunk(writer, TextEndChunk(id=chunk_id))
+    emit_chunk(writer, TextStartChunk(id=chunk_id))
+    emit_chunk(writer, TextDeltaChunk(id=chunk_id, delta=response.prose))
+    emit_chunk(writer, TextEndChunk(id=chunk_id))
 
 
 def _split_agent_model(agent_model: str) -> tuple[str | None, str | None]:

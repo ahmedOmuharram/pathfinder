@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from assistant_core.platform.logging import get_logger
 from pydantic_ai import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -13,7 +14,6 @@ from pathfinder.ai.tools.standalone._experiment_models import (
 )
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.errors import AppError, ErrorCode
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.control_tests import (
     IntersectionConfig,

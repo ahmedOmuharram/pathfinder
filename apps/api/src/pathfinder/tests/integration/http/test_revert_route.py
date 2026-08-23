@@ -6,12 +6,13 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from assistant_core.conversation.checkpointer import lifespan_checkpointer
+from assistant_core.persistence.models import Conversation, Message
 from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.persistence.models import Conversation, Message, User
+from pathfinder.persistence.models import User
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.security import create_user_token
 

@@ -5,8 +5,12 @@ description: The runtime-generic modules moved into pathfinder/assistant_core/ a
 tags: [assistant-core, ws2, architecture, import-linter]
 generated: { by: claude-code/opus-5, at: 2026-08-22T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-22T00:00:00Z }
-status: stable
+status: superseded
 ---
+
+> Superseded by [the runtime is a package](the-runtime-is-a-package.md):
+> the directory became `packages/assistant-core`, and contract 7 became the
+> package's own dependency list. What follows is why the directory came first.
 
 # What was found
 

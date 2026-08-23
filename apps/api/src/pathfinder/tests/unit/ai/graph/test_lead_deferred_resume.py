@@ -14,6 +14,10 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from assistant_core.graph.turn_state import (
+    SubAgentApprovalCall,
+    SubAgentApprovalPending,
+)
 from pydantic_ai import DeferredToolRequests
 from pydantic_ai.messages import (
     ModelMessagesTypeAdapter,
@@ -34,10 +38,6 @@ from pathfinder.ai.graph.lead_node import _absorb_run_result
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
-from pathfinder.assistant_core.graph.turn_state import (
-    SubAgentApprovalCall,
-    SubAgentApprovalPending,
-)
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService

@@ -2,6 +2,7 @@
 
 import json
 
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue, ValidationError
 
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -11,7 +12,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKPathwayEnrichmentRow,
     WDKWordEnrichmentRow,
 )
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.html import parse_result_genes_html
 from pathfinder.services.enrichment.types import (
     EnrichmentAnalysisType,

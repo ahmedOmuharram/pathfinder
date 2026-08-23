@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.parameters.values import InputDatasetValue, ParamValue
 from pathfinder.integrations.veupathdb.factory import (
     get_strategy_api,
@@ -13,7 +15,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKDatasetIdListContent,
 )
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.wdk.helpers import extract_record_ids
 
 logger = get_logger(__name__)

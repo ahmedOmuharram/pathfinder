@@ -1,5 +1,7 @@
 """Analysis, step-filter, and report endpoint methods for VEuPathDBClient."""
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue, TypeAdapter
 
 from pathfinder.integrations.veupathdb._helpers import _validate_list
@@ -15,8 +17,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStepAnalysisTypeResponse,
 )
 from pathfinder.platform.errors import validate_response
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 

@@ -2,11 +2,11 @@
 
 from uuid import UUID
 
+from assistant_core.platform.pydantic_base import CamelModel
 from fastapi import APIRouter
 from pydantic import Field
 
 from pathfinder.platform.errors import ValidationError as CoreValidationError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.control_sets import (
     ControlSetResponse,
     ControlSetService,

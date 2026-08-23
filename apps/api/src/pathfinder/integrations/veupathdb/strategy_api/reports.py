@@ -4,11 +4,11 @@ Provides :class:`ReportsMixin` with methods to run reports, fetch step
 answers and records, and get step counts.
 """
 
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer, WDKSortSpec
-from pathfinder.platform.types import JSONObject
 
 
 class ReportsMixin(StrategyAPIBase):

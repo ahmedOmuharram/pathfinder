@@ -9,9 +9,8 @@ error payloads to the client.
 import re
 from typing import cast
 
+from assistant_core.platform.types import JSONArray, JSONObject
 from pydantic import JsonValue
-
-from pathfinder.platform.types import JSONArray, JSONObject
 
 _HEADER_RE = re.compile(
     r"^\s*(?P<count>\d+)\s+validation error for\s+(?P<model>.+?)\s*$"

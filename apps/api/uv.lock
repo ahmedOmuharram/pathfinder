@@ -133,6 +133,52 @@ wheels = [
 ]
 
 [[package]]
+name = "assistant-core"
+version = "0.2.0a1"
+source = { editable = "../../packages/assistant-core" }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "fastembed" },
+    { name = "genai-prices" },
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint-postgres" },
+    { name = "opentelemetry-api" },
+    { name = "pathfinder-shared" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pydantic" },
+    { name = "pydantic-ai" },
+    { name = "pydantic-settings" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "structlog" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.31.0" },
+    { name = "fastembed", specifier = ">=0.8.0" },
+    { name = "genai-prices", specifier = ">=0.0.40" },
+    { name = "langgraph", specifier = "==1.1.6" },
+    { name = "langgraph-checkpoint-postgres", specifier = "==3.0.5" },
+    { name = "opentelemetry-api", specifier = ">=1.39.0" },
+    { name = "pathfinder-shared", editable = "../../packages/shared-py" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
+    { name = "pydantic", specifier = ">=2.12.0" },
+    { name = "pydantic-ai", specifier = ">=2.22.0,<3" },
+    { name = "pydantic-settings", specifier = ">=2.13.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.49" },
+    { name = "structlog", specifier = ">=25.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "ruff", specifier = "==0.15.9" },
+    { name = "testcontainers", specifier = ">=4.14.0" },
+]
+
+[[package]]
 name = "asyncpg"
 version = "0.31.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2282,6 +2328,7 @@ version = "0.2.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
+    { name = "assistant-core" },
     { name = "asyncpg" },
     { name = "cachetools" },
     { name = "ddgs" },
@@ -2307,6 +2354,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-ai" },
+    { name = "pydantic-evals" },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
     { name = "python-multipart" },
@@ -2348,6 +2396,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.0" },
+    { name = "assistant-core", editable = "../../packages/assistant-core" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "cachetools", specifier = ">=7.0.5" },
     { name = "ddgs", specifier = ">=9.14.1" },
@@ -2373,6 +2422,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
     { name = "pydantic", specifier = ">=2.12.0" },
     { name = "pydantic-ai", specifier = ">=2.22.0,<3" },
+    { name = "pydantic-evals", specifier = ">=2.22.0,<3" },
     { name = "pydantic-settings", specifier = ">=2.13.0" },
     { name = "pyjwt", specifier = ">=2.13.0" },
     { name = "python-multipart", specifier = ">=0.0.22" },

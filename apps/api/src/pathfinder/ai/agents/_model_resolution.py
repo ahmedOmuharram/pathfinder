@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from assistant_core.platform.types import ModelProvider
+
 from pathfinder.ai.models.catalog import (
     ModelEntry,
     get_model_entry,
     get_smallest_model,
 )
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.types import ModelProvider
 
 
 def resolve_orchestrator_model_entry(

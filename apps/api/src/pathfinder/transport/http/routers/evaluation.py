@@ -10,11 +10,11 @@ not affect PathFinder's own data).  Used by thesis/eval/scripts/ only.
 from typing import Any
 from uuid import UUID
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
 from fastapi import APIRouter, Depends
 from pydantic import Field
 
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.uuid_utils import format_uuid
 from pathfinder.services.eval import (
     build_gold_strategy,

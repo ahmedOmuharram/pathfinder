@@ -34,7 +34,13 @@ and values; none has a fix yet.
 - [A failed turn shows "Response failed" while it streams, and nothing at all after a reload](failed-turn-shows-no-error-after-reload.md) - neither reducer turns the `error` chunk into a part; the nine-chunk log reduces to two parts on both sides
 - [FRAME's tool budget does not scale with the problem](frame-budget-does-not-scale.md) - nine criteria do not fit in 60 calls, and the bound ones are discarded
 
+- [A one-agent assistant cannot ask for approval; the tool call becomes a red error](single-agent-graph-cannot-ask-for-approval.md) - `single_agent_graph` resolves no deferred call, so `requires_approval=True` reaches the user as "`DeferredToolRequests` is not among output types"; `pending_approval` is declared and written by nothing
+- [Reading a thread with `graph.aget_state` decodes checkpoint values outside the msgpack allowlist](aget-state-bypasses-the-checkpoint-allowlist.md) - eleven warnings on a read that `astream` makes silently, including three types that are on the allowlist; `CombineOp` and `PhaseDisposition` are on it nowhere
+
 ## Agents
+
+- [VERIFY's instructions name three tools it cannot call](verify-instructions-name-tools-it-cannot-call.md) - a controls-needing verification wastes a model turn on a nonexistent tool; three more tools are registered in no toolset while the context extractor names them
+
 
 - [A numeric bound stated in the request is ignored, then reported as honoured](numeric-intent-ignored-then-reported-as-honoured.md) - the resolution half is closed; a reply can still restate a bound value with an interpretation the value does not support
 
@@ -49,11 +55,21 @@ and values; none has a fix yet.
 Ranked by consequence, and each item states its own blast radius rather than leaving it to
 be assumed.
 
-- [Whether the other 181 hidden required defaults return rows is unmeasured](hidden-required-default-chooses-the-science.md) - the one default known to return nothing is no longer filled; the rest are filled on trust, and only a per-search live run can clear them
+- [219 of the 237 hidden required defaults are still unmeasured](hidden-required-default-chooses-the-science.md) - the sweep exists and runs nightly; one search whose published defaults all resolve returns zero rows, and `channel` and `dataset_url` are blocked by a visible parameter first
 
 - [The substitution detector compares filter and input-step params as text](substitution-detector-compares-some-params-as-text.md) - a filter WDK re-serialized reads as a value WDK chose, and an input-step reads as one the caller never set
 
-- [32 of the 83 WDK rules have no test; every one of them is HARD or CONTRACT](wdk-rules-are-unenforced.md) - last in this section because it is the missing safety net under the others rather than a live hazard: the SILENT class, where WDK answers 200 and the science is wrong, is closed
+- [A strategy's record class is read off its first leaf, and WDK reads it off the root](strategy-record-class-comes-from-the-leaves.md) - the one WDK rule that no test can hold today: the graph's single record type also addresses every step's search URL, so the fix is a per-node record class
+
+## Verification gates
+
+- [The web lint job is red on a formatting check CLAUDE.md's documented commands do not run](web-lint-job-is-red-on-formatting.md) - 645 files were wrapped narrower than the `printWidth: 88` the config declares, so `lint-web` cannot pass and the write-mode pre-commit hook can bury a change
+
+- [The API lint job is red on two checks CLAUDE.md's documented commands do not run](api-lint-job-is-red-on-alembic-and-pip-audit.md) - `ruff check .` over `alembic/`, and 44 advisories across 14 packages including the checkpoint path
+
+- [A thread streams two SSE dialects, and a conforming client can only read one](two-sse-dialects-serve-one-thread.md) - the task endpoint frames `event: stream` with a `custom` envelope and no cursor, so the long-running half of a turn is the half that cannot resume
+
+- [Eval scoring answers "same shape or not"](eval-scoring-is-exact-match-only.md) - one wrong operator and a completely different search both report `structure` differs, so no trend can say how much worse
 
 ## Known and accepted
 

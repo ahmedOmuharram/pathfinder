@@ -6,20 +6,16 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from assistant_core.memory.schemas import MemoryValue
+from assistant_core.memory.store import MemoryStore
+from assistant_core.persistence.models import Conversation, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.assistant_core.memory.schemas import MemoryValue
-from pathfinder.assistant_core.memory.store import MemoryStore
 from pathfinder.domain.parameters.values import SinglePickValue
 from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.persistence.models import (
-    ControlSet,
-    Conversation,
-    ConversationStrategy,
-    Message,
-)
+from pathfinder.persistence.models import ControlSet, ConversationStrategy
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.services.experiment.store import get_experiment_store
 from pathfinder.services.experiment.types import Experiment, ExperimentConfig

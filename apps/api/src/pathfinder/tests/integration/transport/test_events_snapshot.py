@@ -7,17 +7,14 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from assistant_core.conversation.event_stream import iter_sse
+from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.conversation.ui_message_reducer import user_message_chunk
+from assistant_core.persistence.models import Conversation
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.assistant_core.conversation.event_stream import iter_sse
-from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
-from pathfinder.assistant_core.conversation.ui_message_reducer import user_message_chunk
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationStrategy,
-    User,
-)
+from pathfinder.persistence.models import ConversationStrategy, User
 from pathfinder.platform.security import create_user_token
 from pathfinder.tests._support.chunk_log import reduce_chunks_to_messages
 

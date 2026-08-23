@@ -12,6 +12,7 @@ WORKDIR /app
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared-ts/package.json ./packages/shared-ts/
+COPY packages/assistant-client-ts/package.json ./packages/assistant-client-ts/
 
 # Install all workspace dependencies.
 # Cache mount keeps yarn's download cache across builds.
@@ -24,6 +25,7 @@ WORKDIR /app
 COPY --from=deps /app ./
 COPY apps/web ./apps/web
 COPY packages/shared-ts ./packages/shared-ts
+COPY packages/assistant-client-ts ./packages/assistant-client-ts
 COPY packages/spec ./packages/spec
 RUN yarn --cwd packages/shared-ts generate
 

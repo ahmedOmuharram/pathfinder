@@ -9,17 +9,16 @@ from functools import cache
 from typing import cast
 from uuid import UUID
 
+# ---------------------------------------------------------------------------
+# Row conversion helpers
+# ---------------------------------------------------------------------------
+from assistant_core.platform.context import calling_application
+from assistant_core.platform.db import async_session_factory
 from pydantic import TypeAdapter
 from sqlalchemy import select
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.persistence.models import GeneSetRow
-
-# ---------------------------------------------------------------------------
-# Row conversion helpers
-# ---------------------------------------------------------------------------
-from pathfinder.platform.context import calling_application
-from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.store import WriteThruStore
 from pathfinder.services.enrichment.types import EnrichmentResult
 from pathfinder.services.gene_sets.types import GeneSet, GeneSetSource

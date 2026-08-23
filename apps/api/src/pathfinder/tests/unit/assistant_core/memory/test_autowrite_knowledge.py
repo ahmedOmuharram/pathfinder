@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from assistant_core.memory.schemas import MemoryEntryDraft
+
 from pathfinder.ai.graph.state import (
     PhaseDisposition,
     PipelineState,
@@ -14,7 +16,6 @@ from pathfinder.ai.graph.state import (
     VerificationDigest,
 )
 from pathfinder.ai.lead.memory_candidates import collect_memory_candidates
-from pathfinder.assistant_core.memory.schemas import MemoryEntryDraft
 
 
 def _state(*, digest: VerificationDigest | None) -> PipelineState:

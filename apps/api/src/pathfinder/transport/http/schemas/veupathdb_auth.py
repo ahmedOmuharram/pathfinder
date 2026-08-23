@@ -1,6 +1,6 @@
 """VEuPathDB auth request/response DTOs."""
 
-from pathfinder.platform.pydantic_base import CamelModel
+from assistant_core.platform.pydantic_base import CamelModel
 
 
 class AuthSuccessResponse(CamelModel):

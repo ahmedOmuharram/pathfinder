@@ -59,7 +59,7 @@ def _make_search_response(
             parameters=params,
             param_names=[p.name for p in params],
         ),
-        validation=StepValidation(),
+        validation=StepValidation(level="NONE", is_valid=False),
     )
 
 

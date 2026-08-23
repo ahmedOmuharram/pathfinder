@@ -216,11 +216,41 @@ The engine (`diagnosis.py`) flags PathFinder's recurring failure modes:
 
 ---
 
+## `pathfinder.devtools.evals` — the curation desk and the eval run
+
+The same turn pipeline, driven from the corpus instead of from a prompt. It
+shares `chat.py`'s `drive_run`, so a case runs exactly as a chat turn does, and
+its artifacts land under `/data/pf-runs/evals/<case-name>/` where `inspect`
+reads them.
+
+```bash
+docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals staged
+docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals show <staging-id>
+docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals promote <staging-id> \
+  --name a-case-name --rationale "what this pins" --expect '{"buildsStrategy": false}'
+docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals corpus
+docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals run \
+  --out /data/pf-runs/evals/summary.json
+```
+
+`extract` runs one extraction pass by hand; the worker runs it daily on the
+`maintenance` queue.
+
+**A run under the deterministic provider tests the pipeline, not the model.**
+The mock is a script that routes on keywords, so a green run says the routing,
+the materialisation, the persistence and the reported verdict still behave. The
+corpus is provider-agnostic: a real-model run is the same command with a
+different provider.
+
+---
+
 ## Modules
 
 | file | responsibility |
 |------|----------------|
 | `chat.py` | CLI: `run`/`inspect`/`diff`, bootstrap, turn loop, approval resume |
+| `evals.py` | CLI: `staged`/`show`/`promote`/`corpus`/`extract`/`run` |
+| `eval_runner.py` | one case per fresh thread, read back from the projection and the checkpoint |
 | `capture.py` | `RunCapture` (chunk → artifacts writer) + `capture_tracebacks` |
 | `models.py` | artifact schema + chunk parsers + validation-error decoder |
 | `diagnosis.py` | the fingerprint engine |
@@ -228,5 +258,5 @@ The engine (`diagnosis.py`) flags PathFinder's recurring failure modes:
 | `wdk_capture.py` | opt-in WDK httpx capture (`--capture-wdk`) |
 
 `RunCapture` implements the `ChatWriter` protocol
-(`assistant_core/conversation/event_writer.py`) — the same surface as the production
+(`packages/assistant-core/.../conversation/event_writer.py`) — the same surface as the production
 `ChatEventWriter`, so the CLI exercises the real turn pipeline.

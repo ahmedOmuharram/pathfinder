@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from assistant_core.platform.pydantic_base import CamelModel
 from fastapi import APIRouter, HTTPException, status
 
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.conversations.revert import (
     RevertError,
     revert_conversation_to_message,

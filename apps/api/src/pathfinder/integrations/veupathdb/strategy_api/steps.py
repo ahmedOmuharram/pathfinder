@@ -2,6 +2,9 @@
 
 from http import HTTPStatus
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import (
     CombinedStepSpec,
@@ -12,8 +15,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStep,
 )
 from pathfinder.platform.errors import AppError, DataParsingError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 

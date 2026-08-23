@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from assistant_core.platform.db import async_session_factory
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,9 +23,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordInstance,
 )
 from pathfinder.persistence.repositories.conversation import ConversationRepository
-from pathfinder.platform.db import async_session_factory
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.conversations.authz import get_owned_or_404
 from pathfinder.services.experiment.materialization import (
     _materialize_step_tree,
@@ -169,15 +169,15 @@ async def build_gold_strategy(
 async def fetch_strategy_gene_ids(
     *,
     api: Any,
-    conversation: Any,
+    wdk_strategy_id: int,
 ) -> list[str]:
     """Fetch all gene IDs from a chat's linked WDK strategy.
 
     :param api: StrategyAPI instance for the site.
-    :param chat: ``Conversation`` with ``wdk_strategy_id``.
+    :param wdk_strategy_id: the WDK strategy the chat is linked to.
     :returns: List of gene ID strings.
     """
-    strategy = await api.get_strategy(conversation.strategy_view.wdk_strategy_id)
+    strategy = await api.get_strategy(wdk_strategy_id)
     return await fetch_all_gene_ids(api, strategy.root_step_id)
 
 
@@ -188,15 +188,16 @@ async def get_strategy_gene_ids(
     user_id: UUID,
 ) -> StrategyGeneIdsResult:
     """Fetch gene IDs for a PathFinder strategy's linked WDK root step."""
-    conversation = await get_owned_or_404(
-        ConversationRepository(session),
-        strategy_id,
-        user_id,
-    )
-    if not conversation.strategy_view.wdk_strategy_id:
+    repo = ConversationRepository(session)
+    conversation = await get_owned_or_404(repo, strategy_id, user_id)
+    strategy = await repo.get_strategy(conversation.id)
+    if not strategy.wdk_strategy_id:
         return StrategyGeneIdsResult(error="No WDK strategy linked")
     api = get_strategy_api(site_id)
-    gene_ids = await fetch_strategy_gene_ids(api=api, conversation=conversation)
+    gene_ids = await fetch_strategy_gene_ids(
+        api=api,
+        wdk_strategy_id=strategy.wdk_strategy_id,
+    )
     if not gene_ids:
         return StrategyGeneIdsResult(error="No gene IDs found")
     return StrategyGeneIdsResult(gene_ids=gene_ids, estimated_size=len(gene_ids))

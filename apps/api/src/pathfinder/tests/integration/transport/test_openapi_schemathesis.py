@@ -16,10 +16,13 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
+import assistant_core.platform.db as session_module
 import httpx
 import procrastinate
 import pytest
 import schemathesis
+from assistant_core.conversation.checkpointer import to_psycopg_url
+from assistant_core.memory.lifespan import lifespan_memory_store
 from fastapi import FastAPI
 from hypothesis import HealthCheck, settings
 from schemathesis import Case
@@ -42,9 +45,6 @@ from schemathesis.specs.openapi.checks import (
 )
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-import pathfinder.platform.db as session_module
-from pathfinder.assistant_core.conversation.checkpointer import to_psycopg_url
-from pathfinder.assistant_core.memory.lifespan import lifespan_memory_store
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.main import create_app
 from pathfinder.persistence.models import User

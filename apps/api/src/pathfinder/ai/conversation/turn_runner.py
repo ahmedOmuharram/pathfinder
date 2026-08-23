@@ -7,6 +7,19 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from assistant_core.conversation.event_writer import ChatWriter
+from assistant_core.graph.stream_events import (
+    conversation_title_event,
+    turn_status_event,
+    turn_stopped_event,
+)
+from assistant_core.platform.db import async_session_factory
+from assistant_core.platform.logging import get_logger
+from assistant_core.spec import (
+    AssistantSpec,
+    TurnContextRequest,
+    turn_input,
+)
 from pydantic_ai.ui.vercel_ai.response_types import (
     DoneChunk,
     ErrorChunk,
@@ -15,32 +28,19 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 )
 
 from pathfinder.ai.conversation._turn_helpers import (
-    _build_runtime_context,
-    _build_turn_input,
     _extract_chunk,
     _interrupt_chunks,
+    build_turn_start,
     resolve_site_id,
 )
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
-from pathfinder.ai.graph.stream_events import strategy_revision_event
-from pathfinder.assistant_core.conversation.event_writer import ChatWriter
-from pathfinder.assistant_core.graph.stream_events import (
-    conversation_title_event,
-    turn_status_event,
-    turn_stopped_event,
-)
 from pathfinder.persistence.repositories import (
     ChatTurnCancellationRepository,
     ConversationRepository,
 )
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
-)
-from pathfinder.platform.db import async_session_factory
-from pathfinder.platform.logging import get_logger
-from pathfinder.services.conversations.responses import (
-    conversation_strategy_revision,
 )
 
 _CANCEL_POLL_INTERVAL_SECONDS = 1.0
@@ -101,6 +101,7 @@ async def run_turn(
     *,
     body: ChatRequestBody,
     user_id: UUID,
+    spec: AssistantSpec,
     compiled_graph: Any,
     memory_store: Any,
     writer: ChatWriter,
@@ -121,13 +122,16 @@ async def run_turn(
         conversation_id=body.conversation_id,
     )
     body = body.model_copy(update={"site_id": effective_site_id})
-    runtime_context = _build_runtime_context(
-        conversation=conversation,
-        site_id=effective_site_id,
-        user_id=user_id,
-        memory_store=memory_store,
-        phase_models=body.runtime_phase_models,
-        phase_reasoning=body.runtime_phase_reasoning,
+    runtime_context = await spec.build_turn_context(
+        TurnContextRequest(
+            conversation=conversation,
+            site_id=effective_site_id,
+            user_id=user_id,
+            memory_store=memory_store,
+            cancel_event=asyncio.Event(),
+            phase_models=body.runtime_phase_models,
+            phase_reasoning=body.runtime_phase_reasoning,
+        ),
     )
 
     turn_message_id = writer.turn_id
@@ -149,14 +153,18 @@ async def run_turn(
     title_task: asyncio.Task[str] | None = None
     if body.last_user_text.strip():
         title_task = asyncio.create_task(
-            generate_conversation_title(body.last_user_text),
+            generate_conversation_title(body.last_user_text, spec.build_mock_model),
         )
 
-    graph_input = _build_turn_input(
-        body,
-        user_id,
-        turn_message_id=writer.turn_id,
-        turn_start_event_id=start_event_id - 1,
+    graph_input = turn_input(
+        spec.build_initial_state(
+            build_turn_start(
+                body,
+                user_id,
+                turn_message_id=writer.turn_id,
+                turn_start_event_id=start_event_id - 1,
+            ),
+        ),
     )
     result = await _drive_graph(
         body=body,
@@ -186,10 +194,9 @@ async def run_turn(
                 exclude_none=True,
             ),
         )
-    await _emit_strategy_revision(
-        writer=writer,
-        conversation_id=body.conversation_id,
-    )
+    if spec.turn_epilogue is not None:
+        for chunk in await spec.turn_epilogue(body.conversation_id):
+            await writer.write(chunk)
     await writer.write(
         FinishChunk(finish_reason=finish_reason).model_dump(
             by_alias=True,
@@ -199,31 +206,6 @@ async def run_turn(
     )
     await writer.write(
         DoneChunk().model_dump(by_alias=True, mode="json", exclude_none=True),
-    )
-
-
-async def _emit_strategy_revision(
-    *,
-    writer: ChatWriter,
-    conversation_id: UUID,
-) -> None:
-    """Stamp the finished turn with the strategy state it described.
-
-    Read after the graph has run so it reflects any build this turn did.
-    Nothing is emitted when the conversation has no strategy: a message that
-    quoted no strategy counts can never be superseded by an edit to one.
-    """
-    async with async_session_factory() as session:
-        conversation = await ConversationRepository(session).get_by_id(conversation_id)
-    revision = conversation_strategy_revision(conversation)
-    if not revision:
-        return
-    await writer.write(
-        strategy_revision_event(revision=revision).model_dump(
-            by_alias=True,
-            mode="json",
-            exclude_none=True,
-        ),
     )
 
 

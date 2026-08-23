@@ -1,10 +1,10 @@
 """HTTP request/response schemas for gene sets."""
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import Field
 
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.types import (
     EnrichmentAnalysisType,
     EnrichmentResult,

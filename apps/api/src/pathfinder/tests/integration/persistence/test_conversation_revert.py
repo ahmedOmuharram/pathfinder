@@ -4,20 +4,16 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import assistant_core.platform.db as session_module
 import pytest
+from assistant_core.conversation.checkpointer import lifespan_checkpointer
+from assistant_core.conversation.ui_message_reducer import user_message_chunk
+from assistant_core.persistence.models import Conversation, ConversationEvent, Message
+from assistant_core.persistence.repositories.message import MessagesRepository
 from sqlalchemy import func, select, text
 
-import pathfinder.platform.db as session_module
-from pathfinder.assistant_core.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.assistant_core.conversation.ui_message_reducer import user_message_chunk
 from pathfinder.domain.scratchpad.models import NoteCreate
-from pathfinder.persistence.models import (
-    Conversation,
-    ConversationEvent,
-    Message,
-    User,
-)
-from pathfinder.persistence.repositories.message import MessagesRepository
+from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.config import get_settings
 from pathfinder.services.conversations.fork import fork_conversation

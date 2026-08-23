@@ -7,20 +7,24 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.context import calling_application
 from shared_py.defaults import DEFAULT_STREAM_NAME
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from pathfinder.persistence.models import Conversation, ConversationStrategy
+from pathfinder.persistence.models import ConversationStrategy, ConversationStrategyView
+from pathfinder.persistence.repositories.conversation_strategy import (
+    ConversationWithStrategy,
+    paired,
+    strategy_view_of,
+    with_strategy,
+)
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
     collect_strategy_values,
 )
-from pathfinder.platform.context import calling_application
-
-_STRATEGY_LOADER = selectinload(Conversation.strategy)
 
 
 class ConversationRepository:
@@ -89,21 +93,29 @@ class ConversationRepository:
         result = await self.session.execute(
             select(Conversation)
             .where(Conversation.id == conversation_id)
-            .options(_STRATEGY_LOADER)
             .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_id_with_strategy_lock(
-        self, conversation_id: UUID
-    ) -> Conversation | None:
-        # The advisory lock releases at transaction end and does not block
-        # concurrent reads of the row.
-        await self.session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
-            {"k": f"strategy:{conversation_id}"},
+    async def get_strategy(self, conversation_id: UUID) -> ConversationStrategyView:
+        """The thread's strategy projection; all-default when it has none."""
+        result = await self.session.execute(
+            select(ConversationStrategy)
+            .where(ConversationStrategy.conversation_id == conversation_id)
+            .execution_options(populate_existing=True)
         )
-        return await self.get_by_id(conversation_id)
+        return strategy_view_of(result.scalar_one_or_none())
+
+    async def get_with_strategy(
+        self, conversation_id: UUID
+    ) -> ConversationWithStrategy | None:
+        result = await self.session.execute(
+            with_strategy()
+            .where(Conversation.id == conversation_id)
+            .execution_options(populate_existing=True)
+        )
+        rows = paired(result.all())
+        return rows[0] if rows else None
 
     async def delete(
         self,
@@ -154,14 +166,13 @@ class ConversationRepository:
         user_id: UUID,
         site_id: str | None = None,
         limit: int = 50,
-    ) -> list[Conversation]:
+    ) -> list[ConversationWithStrategy]:
         """List chats that are not dismissed, most recently updated first."""
         stmt = (
-            select(Conversation)
+            with_strategy()
             .where(Conversation.user_id == user_id)
             .where(Conversation.application_id == calling_application())
             .where(Conversation.dismissed_at.is_(None))
-            .options(_STRATEGY_LOADER)
             .execution_options(populate_existing=True)
             .order_by(Conversation.updated_at.desc())
             .limit(limit)
@@ -169,20 +180,19 @@ class ConversationRepository:
         if site_id:
             stmt = stmt.where(Conversation.site_id == site_id)
         result = await self.session.execute(stmt)
-        return list(result.unique().scalars().all())
+        return paired(result.unique().all())
 
     async def list_dismissed_conversations(
         self,
         user_id: UUID,
         site_id: str | None = None,
         limit: int = 50,
-    ) -> list[Conversation]:
+    ) -> list[ConversationWithStrategy]:
         stmt = (
-            select(Conversation)
+            with_strategy()
             .where(Conversation.user_id == user_id)
             .where(Conversation.application_id == calling_application())
             .where(Conversation.dismissed_at.is_not(None))
-            .options(_STRATEGY_LOADER)
             .execution_options(populate_existing=True)
             .order_by(Conversation.dismissed_at.desc())
             .limit(limit)
@@ -190,26 +200,22 @@ class ConversationRepository:
         if site_id:
             stmt = stmt.where(Conversation.site_id == site_id)
         result = await self.session.execute(stmt)
-        return list(result.unique().scalars().all())
+        return paired(result.unique().all())
 
     async def get_by_wdk_strategy_id(
         self, user_id: UUID, wdk_strategy_id: int
-    ) -> Conversation | None:
+    ) -> ConversationWithStrategy | None:
         result = await self.session.execute(
-            select(Conversation)
-            .join(
-                ConversationStrategy,
-                ConversationStrategy.conversation_id == Conversation.id,
-            )
+            with_strategy()
             .where(
                 Conversation.user_id == user_id,
                 Conversation.application_id == calling_application(),
                 ConversationStrategy.wdk_strategy_id == wdk_strategy_id,
             )
-            .options(_STRATEGY_LOADER)
             .execution_options(populate_existing=True)
         )
-        return result.scalar_one_or_none()
+        rows = paired(result.all())
+        return rows[0] if rows else None
 
     async def count_consumers_per_saved_strategy(
         self,

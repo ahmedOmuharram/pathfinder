@@ -7,7 +7,7 @@ PathFinder's vocabulary, and it lives here.
 
 from __future__ import annotations
 
-from pathfinder.assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
+from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
 
 __all__ = [
     "GRAPH_MODIFYING_TOOLS",

@@ -54,7 +54,7 @@ def _published() -> WDKSearchResponse:
             param_names=[p.name for p in parameters],
             parameters=parameters,
         ),
-        validation=StepValidation(),
+        validation=StepValidation(level="NONE", is_valid=False),
     )
 
 

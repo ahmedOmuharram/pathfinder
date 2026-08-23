@@ -13,6 +13,7 @@ from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.impls.chat_turn_impl import run_chat_turn
 from pathfinder.jobs.maintenance import release_stalled_jobs
 from pathfinder.jobs.runner import run_durable_task
+from pathfinder.services.eval_data.extraction import extract_eval_candidates
 
 
 def ensure_registered() -> None:
@@ -95,3 +96,10 @@ async def run_chat_turn_job(payload: dict[str, Any]) -> None:
 async def release_stalled_jobs_job(timestamp: int) -> None:
     del timestamp
     await release_stalled_jobs()
+
+
+@procrastinate_app.periodic(cron="17 3 * * *")
+@procrastinate_app.task(queue="maintenance", name="maintenance:extract_eval_candidates")
+async def extract_eval_candidates_job(timestamp: int) -> None:
+    del timestamp
+    await extract_eval_candidates()

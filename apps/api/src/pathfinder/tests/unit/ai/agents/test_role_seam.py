@@ -12,14 +12,20 @@ from types import ModuleType
 from typing import get_type_hints
 from uuid import uuid4
 
+import assistant_core.graph.turn_state as turn_state_mod
 import pytest
+from assistant_core.graph.runtime import TurnContext
+from assistant_core.graph.turn_state import (
+    PendingApproval,
+    SubAgentApprovalPending,
+)
+from assistant_core.platform.types import ReasoningEffort
 from pydantic import ValidationError
 
 import pathfinder.ai.agents.registry as registry_mod
 import pathfinder.ai.conversation._turn_helpers as turn_helpers_mod
 import pathfinder.ai.graph.runtime as runtime_mod
 import pathfinder.ai.models.tiers as tiers_mod
-import pathfinder.assistant_core.graph.turn_state as turn_state_mod
 from pathfinder.ai.agents.registry import phase_defaults
 from pathfinder.ai.agents.roles import PHASE_ROLES
 from pathfinder.ai.conversation.request_body import ChatRequestBody
@@ -28,12 +34,6 @@ from pathfinder.ai.models.tiers import (
     TierPreset,
     resolve_phase_tier_config,
 )
-from pathfinder.assistant_core.graph.runtime import TurnContext
-from pathfinder.assistant_core.graph.turn_state import (
-    PendingApproval,
-    SubAgentApprovalPending,
-)
-from pathfinder.platform.types import ReasoningEffort
 
 CORE_MODULES: tuple[ModuleType, ...] = (
     runtime_mod,

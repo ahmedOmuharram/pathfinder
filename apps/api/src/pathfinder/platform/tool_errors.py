@@ -8,10 +8,9 @@ for the LLM while preserving type safety for Python callers.
 
 from enum import Enum
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
-
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 
 
 class ToolErrorPayload(CamelModel):

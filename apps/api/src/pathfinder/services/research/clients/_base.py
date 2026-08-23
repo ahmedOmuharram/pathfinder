@@ -2,6 +2,8 @@
 
 import asyncio
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import JsonValue
 
 from pathfinder.domain.research.citations import (
@@ -10,8 +12,6 @@ from pathfinder.domain.research.citations import (
 )
 from pathfinder.domain.research.papers import ParsedPaper
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.pydantic_base import CamelModel
 
 logger = get_logger(__name__)
 

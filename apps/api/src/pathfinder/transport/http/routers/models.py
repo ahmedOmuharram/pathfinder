@@ -1,5 +1,7 @@
 """Models endpoint — exposes available LLM models and their status."""
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import ModelProvider, TierName
 from fastapi import APIRouter
 from pydantic import ConfigDict, TypeAdapter
 
@@ -8,8 +10,6 @@ from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.models.catalog import ModelEntry, get_model_catalog
 from pathfinder.ai.pricing import lookup_per_mtok_prices
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import ModelProvider, TierName
 
 
 class ModelCatalogEntryResponse(ModelEntry):

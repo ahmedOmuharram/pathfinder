@@ -6,6 +6,8 @@ from typing import Any, cast
 from uuid import UUID
 
 import pytest
+from assistant_core.persistence.models import Conversation
+from assistant_core.platform.db import DBSessionFactory
 from langgraph.runtime import Runtime
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
@@ -27,9 +29,8 @@ from pathfinder.ai.graph.state import (
 from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
 from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
-from pathfinder.platform.db import DBSessionFactory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 

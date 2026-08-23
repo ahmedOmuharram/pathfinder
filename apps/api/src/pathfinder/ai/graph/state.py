@@ -3,22 +3,18 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
+from assistant_core.graph.turn_state import TurnState
+from assistant_core.memory.schemas import MemoryEntryDraft
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.ai.agents.state import SearchOverview
-from pathfinder.ai.lead.intent import IntentClassification, UserIntent
-from pathfinder.assistant_core.conversation.serde import register_checkpoint_types
-from pathfinder.assistant_core.graph.turn_state import TurnState
-from pathfinder.assistant_core.memory.schemas import MemoryEntryDraft
+from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
-    NodeResult,
-    StepPushFailure,
 )
-from pathfinder.domain.strategy.constraints import ConstraintKind, ConstraintSource
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 from pathfinder.domain.strategy.staleness import StaleBuild
-from pathfinder.platform.pydantic_base import CamelModel
 
 PhaseName = Literal[
     "frame",
@@ -117,20 +113,3 @@ class StrategyDomainState(BaseModel):
 
 class PipelineState(TurnState):
     domain: StrategyDomainState = Field(default_factory=StrategyDomainState)
-
-
-register_checkpoint_types(
-    SearchOverview,
-    PhaseDisposition,
-    VerificationDigest,
-    IntentClassification,
-    UserIntent,
-    BuildOutcome,
-    NodeResult,
-    StepPushFailure,
-    ConstraintKind,
-    ConstraintSource,
-    OperationalSpec,
-    StaleBuild,
-    StrategyDomainState,
-)

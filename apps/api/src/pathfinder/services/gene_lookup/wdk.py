@@ -3,6 +3,9 @@
 import json
 from dataclasses import dataclass
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.integrations.veupathdb.client import VEuPathDBClient
 from pathfinder.integrations.veupathdb.factory import get_wdk_client
 from pathfinder.integrations.veupathdb.site_router import get_site_router
@@ -16,9 +19,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.text import strip_html_tags
-from pathfinder.platform.types import JSONObject
 
 from .organism import normalize_organism
 from .result import DEFAULT_GENE_ATTRIBUTES, GeneResult

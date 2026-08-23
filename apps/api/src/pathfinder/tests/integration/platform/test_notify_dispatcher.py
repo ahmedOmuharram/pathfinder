@@ -9,8 +9,8 @@ from collections.abc import Callable
 import psycopg
 import psycopg.sql
 import pytest
+from assistant_core.conversation.checkpointer import to_psycopg_url
 
-from pathfinder.assistant_core.conversation.checkpointer import to_psycopg_url
 from pathfinder.platform.notify_dispatcher import (
     NotifyDispatcher,
     lifespan_notify_dispatcher,

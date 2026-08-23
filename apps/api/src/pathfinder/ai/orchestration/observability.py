@@ -9,6 +9,8 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as importlib_version
 from uuid import uuid4
 
+from assistant_core.platform.context import request_id_ctx, site_id_ctx, user_id_ctx
+from assistant_core.platform.logging import get_logger
 from fastapi import FastAPI
 from opentelemetry import metrics, trace
 from opentelemetry._logs import set_logger_provider
@@ -38,13 +40,7 @@ from opentelemetry.trace import Span
 from pydantic_ai import Agent, InstrumentationSettings
 
 from pathfinder.platform.config import get_settings
-from pathfinder.platform.context import (
-    request_id_ctx,
-    site_id_ctx,
-    user_id_ctx,
-)
 from pathfinder.platform.langfuse.client import get_langfuse
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

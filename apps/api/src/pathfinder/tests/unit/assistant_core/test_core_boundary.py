@@ -1,71 +1,46 @@
-"""The boundary that keeps the runtime extractable.
+"""The runtime is a package, not a directory.
 
-``assistant_core`` is the half a second assistant reuses. It may reach the
-platform, the event tables and the embedding model, and nothing else, so
-lifting it out stays a move of one directory.
+``assistant-core`` installs into this application; the application does not
+install into it. The dependency edge points one way, so the science cannot
+reach the runtime's modules even by mistake.
 """
 
 from __future__ import annotations
 
-import ast
-import importlib
-import pkgutil
+from importlib.metadata import distribution
 from pathlib import Path
-from types import ModuleType
 
-import pytest
+import assistant_core
 
-from pathfinder import assistant_core
+import pathfinder
 
-CORE = assistant_core.__name__
-
-ALLOWED_OUTSIDE = {
-    "pathfinder.integrations.embeddings.model",
-    "pathfinder.integrations.embeddings.prefixes",
-    "pathfinder.persistence.models",
-    "pathfinder.platform.config",
-    "pathfinder.platform.context",
-    "pathfinder.platform.db",
-    "pathfinder.platform.logging",
-    "pathfinder.platform.pydantic_base",
-    "pathfinder.platform.types",
-}
+CORE_DISTRIBUTION = "assistant-core"
+SCIENCE_DISTRIBUTION = "pathfinder-api"
 
 
-def _core_modules() -> list[ModuleType]:
-    return [
-        assistant_core,
-        *(
-            importlib.import_module(info.name)
-            for info in pkgutil.walk_packages(
-                assistant_core.__path__,
-                prefix=f"{CORE}.",
-            )
-        ),
-    ]
+def _requires(name: str) -> list[str]:
+    return [raw.lower() for raw in distribution(name).requires or []]
 
 
-def _imports_outside_core(module: ModuleType) -> set[str]:
-    path = module.__file__
-    assert path is not None
-    names: set[str] = set()
-    for node in ast.walk(ast.parse(Path(path).read_text())):
-        if isinstance(node, ast.ImportFrom) and node.module:
-            names.add(node.module)
-        elif isinstance(node, ast.Import):
-            names.update(alias.name for alias in node.names)
-    return {
-        name
-        for name in names
-        if name.startswith("pathfinder") and not name.startswith(f"{CORE}.")
-    }
+def test_the_runtime_ships_as_its_own_distribution() -> None:
+    assert distribution(CORE_DISTRIBUTION).metadata["Name"] == CORE_DISTRIBUTION
 
 
-@pytest.mark.parametrize("module", _core_modules(), ids=lambda m: m.__name__)
-def test_no_runtime_module_imports_the_science(module: ModuleType) -> None:
-    assert _imports_outside_core(module) <= ALLOWED_OUTSIDE
+def test_the_science_depends_on_the_runtime() -> None:
+    assert any(
+        raw.startswith(CORE_DISTRIBUTION) for raw in _requires(SCIENCE_DISTRIBUTION)
+    )
 
 
-def test_the_surface_the_runtime_reaches_outside_itself_has_not_grown() -> None:
-    reached = {name for m in _core_modules() for name in _imports_outside_core(m)}
-    assert reached == ALLOWED_OUTSIDE
+def test_the_runtime_depends_on_no_part_of_the_science() -> None:
+    assert not any(
+        raw.startswith(SCIENCE_DISTRIBUTION) for raw in _requires(CORE_DISTRIBUTION)
+    )
+
+
+def test_the_runtime_source_lives_outside_the_science() -> None:
+    core_root = Path(assistant_core.__file__ or "").resolve().parent
+    science_root = Path(pathfinder.__file__ or "").resolve().parent
+
+    assert science_root not in core_root.parents
+    assert core_root != science_root

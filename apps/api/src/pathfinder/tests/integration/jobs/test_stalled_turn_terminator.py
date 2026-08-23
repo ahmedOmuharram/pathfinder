@@ -10,16 +10,17 @@ import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.persistence.models import Conversation, ConversationEvent
+from assistant_core.platform.db import async_session_factory
 from procrastinate.testing import InMemoryConnector
 from sqlalchemy import select
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.assistant_core.conversation.event_writer import ChatEventWriter
 from pathfinder.jobs.maintenance import release_stalled_jobs
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
-from pathfinder.persistence.models import Conversation, ConversationEvent, User
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.models import User
 
 _STALL_SECONDS = 7200
 

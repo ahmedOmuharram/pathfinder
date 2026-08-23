@@ -4,9 +4,10 @@ import json
 from collections.abc import Callable
 from typing import Annotated, Literal, Protocol
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, JsonValue, TypeAdapter, model_validator
 
-from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.domain.parameters.date_bounds import WDKDateBound
 
 ParamKind = Literal[
     "string",
@@ -92,8 +93,8 @@ class DateValue(CamelModel):
 
 class DateRangeValue(CamelModel):
     type: Literal["date-range"] = "date-range"
-    min: str | None = None
-    max: str | None = None
+    min: WDKDateBound | None = None
+    max: WDKDateBound | None = None
 
     @model_validator(mode="after")
     def _at_least_one_endpoint(self) -> DateRangeValue:

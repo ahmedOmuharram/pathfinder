@@ -1,9 +1,9 @@
 """Emit evaluation metrics as Langfuse scores on traces."""
 
 import langfuse.api
+from assistant_core.platform.logging import get_logger
 
 from pathfinder.platform.langfuse.client import get_langfuse
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.types import ExperimentMetrics
 
 logger = get_logger(__name__)

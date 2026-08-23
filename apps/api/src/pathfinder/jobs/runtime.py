@@ -3,15 +3,14 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID
 
-from sqlalchemy.orm import selectinload
+from assistant_core.platform.db import async_session_factory
 
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
     StrategyAst,
 )
-from pathfinder.persistence.models import Conversation
-from pathfinder.platform.db import async_session_factory
+from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 from pathfinder.services.strategies.session_factory import build_strategy_session
@@ -24,16 +23,14 @@ async def build_worker_runtime_context(
 ) -> Context:
     del task_id
     async with async_session_factory() as session:
-        conversation = await session.get(
-            Conversation,
+        found = await ConversationRepository(session).get_with_strategy(
             UUID(conversation_id),
-            options=[selectinload(Conversation.strategy)],
         )
-    if conversation is None:
+    if found is None:
         msg = f"chat {conversation_id} not found"
         raise LookupError(msg)
 
-    strategy = conversation.strategy_view
+    conversation, strategy = found
     plan_payload: StrategyAst | None = None
     raw_ast = strategy.strategy_ast
     if raw_ast and "root" in raw_ast:

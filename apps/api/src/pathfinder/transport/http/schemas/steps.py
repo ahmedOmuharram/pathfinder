@@ -1,8 +1,7 @@
 """Step request/response DTOs."""
 
+from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
-
-from pathfinder.platform.pydantic_base import CamelModel
 
 
 class PrimaryKeyPart(CamelModel):

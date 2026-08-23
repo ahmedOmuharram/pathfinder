@@ -7,10 +7,11 @@ planner doesn't try to PATCH/RECREATE steps that no longer exist (or
 worse, CREATE duplicates of steps it forgot were already pushed).
 """
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import WDKStepTree
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)

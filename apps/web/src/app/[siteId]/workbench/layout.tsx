@@ -9,6 +9,7 @@ import { AppNavRail } from "@/app/components/AppNavRail";
 import { TopBar } from "@/app/components/TopBar";
 import { VeupathdbSignInGate } from "@/app/components/VeupathdbSignInGate";
 import { LoadingScreen } from "@/app/components/LoadingScreen";
+import { EvalDataNotice } from "@/features/settings/components/EvalDataNotice";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
 import { useSystemConfig } from "@/app/hooks/useSystemConfig";
@@ -77,13 +78,15 @@ function WorkbenchLayoutInner({
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
 
+  const forcedSignIn = requiresFullScreenSignIn({
+    embedded: false,
+    signedIn: veupathdbSignedIn,
+  });
+
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
       <VeupathdbSignInGate
-        forced={requiresFullScreenSignIn({
-          embedded: false,
-          signedIn: veupathdbSignedIn,
-        })}
+        forced={forcedSignIn}
         selectedSite={selectedSite}
         onSiteChange={handleSiteChange}
       />
@@ -127,6 +130,8 @@ function WorkbenchLayoutInner({
         tab={modals.settingsTab}
         onTabChange={modals.setSettingsTab}
       />
+
+      {!forcedSignIn && <EvalDataNotice />}
     </div>
   );
 }

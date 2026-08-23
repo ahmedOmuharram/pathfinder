@@ -4,6 +4,8 @@ Provides the shared business logic for adding steps to an experiment's
 WDK strategy — used by both the HTTP endpoint and the AI refinement tools.
 """
 
+from assistant_core.platform.pydantic_base import CamelModel
+
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -13,7 +15,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStepTree,
 )
 from pathfinder.platform.errors import AppError, NotFoundError
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.experiment.store import ExperimentStore
 from pathfinder.services.experiment.types import Experiment
 

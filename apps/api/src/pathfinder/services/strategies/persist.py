@@ -8,18 +8,18 @@ WDK push above the call site.
 
 from __future__ import annotations
 
+from assistant_core.platform.logging import get_logger
 from sqlalchemy import text
 
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.sync import SyncResult
 
@@ -58,16 +58,12 @@ async def persist_strategy_ast_to_conversation(
                 {"k": f"strategy:{deps.conversation_id}"},
             )
             repo = ConversationRepository(session)
-            current = await repo.get_by_id(deps.conversation_id)
+            current = await repo.get_strategy(deps.conversation_id)
             merged_ast = _merge_agent_ast_into_current(current, agent_ast)
             wdk_strategy_id_to_write = (
                 sync_result.wdk_strategy_id
                 if sync_result is not None
-                else (
-                    current.strategy_view.wdk_strategy_id
-                    if current is not None
-                    else None
-                )
+                else current.wdk_strategy_id
             )
             await repo.update_conversation(
                 deps.conversation_id,
@@ -119,7 +115,7 @@ async def _clear_persisted_strategy(deps: StrategyMutationContext) -> None:
 
 
 def _merge_agent_ast_into_current(
-    current: Conversation | None,
+    current: ConversationStrategyView,
     agent_ast: StrategyAst,
 ) -> StrategyAst:
     """Write the agent's AST but preserve persisted ``wdk_step_ids`` it lacks.
@@ -130,9 +126,7 @@ def _merge_agent_ast_into_current(
     did not push this turn. When persisted state is missing entirely
     (fresh chat), use the agent view as-is.
     """
-    if current is None:
-        return agent_ast
-    persisted_ast = current.strategy_view.strategy_ast
+    persisted_ast = current.strategy_ast
     if not persisted_ast:
         return agent_ast
     persisted = StrategyAst.model_validate(persisted_ast)

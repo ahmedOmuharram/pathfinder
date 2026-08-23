@@ -2,6 +2,9 @@
 
 from collections.abc import Callable, Mapping
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
+
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import find_input_step_param
 from pathfinder.domain.parameters.values import ParamValue
@@ -20,8 +23,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, ErrorCode, WDKError
 from pathfinder.platform.errors import ValidationError as CoreValidationError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_discovery import fetch_search_details

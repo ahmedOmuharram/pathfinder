@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathfinder.assistant_core.memory.schemas import MemoryValue
-from pathfinder.platform.pydantic_base import CamelModel
+from assistant_core.memory.schemas import MemoryValue
+from assistant_core.platform.pydantic_base import CamelModel
 
 
 class MemoryItem(CamelModel):

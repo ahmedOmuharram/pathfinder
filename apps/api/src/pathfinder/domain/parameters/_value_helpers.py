@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
@@ -13,7 +14,6 @@ from pathfinder.domain.parameters.value_utils import (
 )
 from pathfinder.domain.parameters.vocab_utils import match_vocab_value
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import JSONObject
 
 
 def _safe_float(value: JsonValue) -> float | None:

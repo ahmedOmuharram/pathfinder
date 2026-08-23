@@ -1,10 +1,10 @@
 """Tiers endpoint — exposes tier preset registry to the frontend."""
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import ModelProvider, TierName
 from fastapi import APIRouter
 
 from pathfinder.ai.models.tiers import TIER_PRESETS, TierPreset
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import ModelProvider, TierName
 
 
 class TierListResponse(CamelModel):

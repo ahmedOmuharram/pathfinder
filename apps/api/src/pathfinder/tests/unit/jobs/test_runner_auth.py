@@ -7,11 +7,12 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.platform.context import application_id_ctx
 
 from pathfinder.jobs import auth_context as auth_context_mod
 from pathfinder.jobs import runner as runner_mod
 from pathfinder.jobs.runner import run_durable_task
-from pathfinder.platform.context import application_id_ctx, veupathdb_auth_token_ctx
+from pathfinder.platform.context import veupathdb_auth_token_ctx
 
 HOLDING_APPLICATION = "companion"
 

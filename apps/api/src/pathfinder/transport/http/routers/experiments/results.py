@@ -3,13 +3,13 @@
 from dataclasses import dataclass
 from typing import Annotated
 
+from assistant_core.platform.logging import get_logger
 from fastapi import APIRouter, Depends, Query
 
 from pathfinder.platform.errors import (
     NotFoundError,
     ValidationError,
 )
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.classification import classify_records
 from pathfinder.services.experiment.refine import (
     apply_transform,

@@ -13,12 +13,12 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from assistant_core.persistence.models import ConversationEvent
+from assistant_core.platform.db import async_session_factory
 from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 from sqlalchemy import select
 
-from pathfinder.persistence.models import ConversationEvent
-from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.security import create_user_token
 from pathfinder.tests.integration.chat._helpers import (
     chat_post_body,

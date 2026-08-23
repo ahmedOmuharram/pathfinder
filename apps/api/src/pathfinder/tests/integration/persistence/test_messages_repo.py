@@ -1,8 +1,10 @@
 from uuid import uuid4
 
-import pathfinder.platform.db as session_module
-from pathfinder.persistence.models import Conversation, User
-from pathfinder.persistence.repositories.message import MessagesRepository
+import assistant_core.platform.db as session_module
+from assistant_core.persistence.models import Conversation
+from assistant_core.persistence.repositories.message import MessagesRepository
+
+from pathfinder.persistence.models import User
 
 
 async def test_insert_and_fetch_message(

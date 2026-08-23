@@ -4,6 +4,8 @@ Functions that operate on ``StrategyGraph`` to produce serialized
 responses and context payloads for AI tool results.
 """
 
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.ai.tools.standalone._validation_helpers import (
     ContextStrategyAstPayload,
     GraphEdge,
@@ -16,7 +18,6 @@ from pathfinder.domain.strategy.graph_model import StrategyStep, step_status
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.domain.strategy.validation import StepValidation
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.schemas import StepResponse
 
 # ---------------------------------------------------------------------------

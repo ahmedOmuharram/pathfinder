@@ -1,8 +1,9 @@
 import asyncio
 from typing import Protocol, runtime_checkable
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

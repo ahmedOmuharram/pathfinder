@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import cast
 
 import pytest
+from assistant_core.platform.types import ModelProvider
 
 from pathfinder.ai.models.catalog import (
     ModelEntry,
@@ -12,7 +13,6 @@ from pathfinder.ai.models.catalog import (
     get_model_entry,
     get_smallest_model,
 )
-from pathfinder.platform.types import ModelProvider
 
 
 def test_opus_5_present_with_prices_verified_against_genai_prices() -> None:

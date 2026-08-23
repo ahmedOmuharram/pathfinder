@@ -6,10 +6,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from assistant_core.memory.schemas import MemoryValue
+from assistant_core.memory.store import MemoryStore
 from httpx import AsyncClient
-
-from pathfinder.assistant_core.memory.schemas import MemoryValue
-from pathfinder.assistant_core.memory.store import MemoryStore
 
 
 async def _seed(store: MemoryStore, user_id, n: int) -> list[str]:

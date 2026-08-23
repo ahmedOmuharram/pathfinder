@@ -1,0 +1,25 @@
+{
+  "name": "framed-criteria-all-reach-the-strategy",
+  "prompt": "Build a comprehensive kinase strategy for Plasmodium.",
+  "siteId": "plasmodb",
+  "assistantId": "pathfinder",
+  "rationale": "Every framed criterion must reach the persisted strategy. The cataloged run framed three and built two, then reported the rest preserved. Three criteria over two operators must sign as five nodes.",
+  "expected": {
+    "buildsStrategy": true,
+    "structure": "((GenesByText UNION GenesByGoTerm) INTERSECT GenesByTaxon)",
+    "recordType": null,
+    "stepCount": 5,
+    "verified": null,
+    "replyMentions": [],
+    "replyOmits": []
+  },
+  "provenance": {
+    "site": "plasmodb",
+    "assistant": "pathfinder",
+    "origin": "cataloged-failure",
+    "addedAt": "2026-08-23",
+    "stagingId": "",
+    "reference": "backlog/edit-strategy-drops-criteria-and-claims-preserved.md",
+    "curatorNote": "The verification verdict is not asserted here: see the runner's note on what the deterministic provider can and cannot settle."
+  }
+}

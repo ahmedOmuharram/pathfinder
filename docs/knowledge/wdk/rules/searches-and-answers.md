@@ -15,7 +15,7 @@ status: stable
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/AbstractWdkService.java#L359-L368
 - anchor: apps/api/src/pathfinder/services/catalog/searches.py:find_record_type_for_search
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_search_addressing.py::test_wdk_search_001_the_catalog_binds_a_search_to_one_record_type
 
 `getQuestionOrNotFound(RecordClass, String)` resolves the search by name and then compares
 `question.getRecordClassName()` against the record class's **full name**. A mismatch throws
@@ -45,7 +45,7 @@ segment** (`transcript`), the same two-vocabulary split that bites in
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/AbstractWdkService.java#L344-L349
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKSearch
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_search_addressing.py::test_wdk_search_002_the_request_path_carries_the_url_segment
 
 A search carries two names and the response gives you both:
 [`QuestionFormatter`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/QuestionFormatter.java#L66-L68)
@@ -77,7 +77,7 @@ Two names, two jobs; the mapping between them is data, so keep both.
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/QuestionService.java#L96-L105
 - anchor: apps/api/src/pathfinder/services/catalog/searches.py:get_raw_searches
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_search_document.py::test_wdk_search_003_two_sites_do_not_share_a_search_set
 
 `getQuestions()` takes `model.getAllQuestions()` and filters it by the requested record
 class's full name, every time. There is no per-site constant anywhere in the service layer:
@@ -102,7 +102,7 @@ that exists on both can differ in what it will take.
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/Group.java#L6-L16
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKParameterGroup
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_search_document.py::test_wdk_search_004_the_specs_come_from_the_parameter_list
 
 `Group`'s class comment is unambiguous: a group is `only used to group Params together in
 the question page for display/layout purpose`, and a param with no group is assigned to the
@@ -296,7 +296,7 @@ narrower search, because the reporter will stream whatever the step returns.
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/service/AnswerService.java#L448-L461
 - anchor: apps/api/src/pathfinder/integrations/veupathdb/wdk_models.py:WDKReporter
-- status: UNENFORCED
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/integrations/veupathdb/test_wdk_param_metadata.py::test_wdk_ans_006_nothing_but_the_model_reads_scopes
 
 `getConfiguredReporter` checks one thing before dispatching: whether the name is a key in
 `question.getReporterMap()`. It never reads `scopes`. Scope is only ever consulted when the

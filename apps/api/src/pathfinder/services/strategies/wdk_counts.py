@@ -9,6 +9,8 @@ import hashlib
 import json
 from collections.abc import Iterable
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from cachetools import LRUCache
 
 from pathfinder.domain.parameters.values import ParamValue
@@ -30,8 +32,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
 )
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_helpers import delete_temp_strategy
 from pathfinder.services.strategies.sync import build_step_tree_from_graph
 from pathfinder.services.strategies.sync_state import WDKSyncState

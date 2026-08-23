@@ -47,7 +47,7 @@ The choice belongs to whoever owns the phase budgets, which is why Batch C left 
 
 # Anchor
 
-`apps/api/src/pathfinder/assistant_core/capabilities/repetition_guard.py` defines it;
+`packages/assistant-core/src/assistant_core/capabilities/repetition_guard.py` defines it;
 `apps/api/src/pathfinder/ai/agents/{frame,execution,verification}.py` are where a
 registration would go. Done when either a test proves the guard blocks a real
 agent's third call, or the module is gone.

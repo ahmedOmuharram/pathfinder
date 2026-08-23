@@ -4,6 +4,8 @@ Conversion is pure except for the parameter canonicalization pass, which
 fetches param specs from WDK.
 """
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.values import ParamKind, as_param_kind
 from pathfinder.domain.strategy.ast import (
@@ -21,7 +23,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
 from pathfinder.platform.errors import AppError, DataParsingError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.search_context import (
     get_search_params_under_context,

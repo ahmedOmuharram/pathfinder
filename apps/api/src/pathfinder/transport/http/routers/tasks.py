@@ -7,12 +7,12 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
+from assistant_core.platform.pydantic_base import CamelModel
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from shared_py.stream_events import CustomEvent, DoneEvent, StreamEvent
 
 from pathfinder.platform.notify_dispatcher import NotifyDispatcher
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.security import get_current_user
 from pathfinder.services.tasks.queries import (
     ProgressRow,

@@ -6,6 +6,8 @@ from ipaddress import IPv4Address
 from pathlib import Path
 from typing import Literal, get_origin
 
+from assistant_core.platform.config import RuntimeSettings, use_settings_source
+from assistant_core.platform.types import ModelProvider, TierName
 from pydantic import Field, computed_field, field_validator
 from pydantic_settings import (
     BaseSettings,
@@ -14,7 +16,6 @@ from pydantic_settings import (
 )
 
 from pathfinder.platform.principal import ServiceTokenRegistry
-from pathfinder.platform.types import ModelProvider, TierName
 
 _API_DIR = Path(__file__).resolve().parents[3]  # apps/api/
 _REPO_ROOT = _API_DIR.parents[1]  # repo root
@@ -75,27 +76,19 @@ class TomlConfigSettingsSource(PydanticBaseSettingsSource):
         return data
 
 
-class Settings(BaseSettings):
+class Settings(RuntimeSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
         env_file=(str(_REPO_ROOT / ".env"), str(_API_DIR / ".env")),
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        env_ignore_empty=True,
-        extra="ignore",
     )
 
     # API
     api_host: str = Field(default_factory=lambda: str(IPv4Address(0)))
     api_port: int = 8000
     api_env: Literal["development", "staging", "production", "test"] = "production"
-    api_debug: bool = False
     api_secret_key: str = Field(default="", repr=False)
     api_docs_enabled: bool = True
-
-    # Database
-    database_url: str = Field(default="", repr=False)
 
     openai_api_key: str = Field(default="", repr=False)
     anthropic_api_key: str = Field(default="", repr=False)
@@ -146,19 +139,6 @@ class Settings(BaseSettings):
         ),
     )
 
-    # Chat SSE
-    sse_keepalive_seconds: int = Field(
-        default=15,
-        ge=1,
-        description=(
-            "Seconds of silence after which the chat SSE stream sends a comment frame."
-        ),
-    )
-
-    # Logging
-    log_level: str = "INFO"
-    log_format: Literal["json", "console"] = "json"
-
     # Observability: SigNoz APM
     signoz_otel_endpoint: str | None = Field(
         default=None,
@@ -184,7 +164,7 @@ class Settings(BaseSettings):
     langfuse_host: str = ""
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     cors_origin_regex: str | None = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
     # Default monthly usage quota in USD. The `users` row can override it.
@@ -322,3 +302,6 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
+
+
+use_settings_source(get_settings)

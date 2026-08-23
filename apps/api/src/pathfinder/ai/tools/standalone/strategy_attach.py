@@ -6,6 +6,7 @@ Each function takes ``RunContext[AgentDeps]`` and mirrors the original
 
 from __future__ import annotations
 
+from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
@@ -25,7 +26,6 @@ from pathfinder.domain.strategy.ast import (
 from pathfinder.domain.strategy.graph_model import StrategyStep
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.platform.tool_errors import ToolErrorPayload
-from pathfinder.platform.types import JSONObject
 
 
 def _step_updated_return(

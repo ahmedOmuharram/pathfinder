@@ -2,8 +2,9 @@
 
 import asyncio
 
+from assistant_core.platform.logging import get_logger
+
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.logging import get_logger
 from pathfinder.services.parameter_optimization.batch import (
     BatchInput,
     LoopState,

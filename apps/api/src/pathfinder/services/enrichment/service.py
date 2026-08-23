@@ -4,6 +4,9 @@ endpoints, gene set endpoints, and AI tools alike."""
 import asyncio
 import json
 
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
+
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
@@ -15,8 +18,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, InternalError, ValidationError
-from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_helpers import delete_temp_strategy
 from pathfinder.services.enrichment.params import (
     extract_default_params,

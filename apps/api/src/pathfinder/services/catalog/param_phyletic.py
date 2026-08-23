@@ -4,6 +4,9 @@ from collections.abc import Mapping, Sequence
 from typing import cast
 
 import numpy as np
+from assistant_core.embeddings.model import get_embedding_model
+from assistant_core.platform.logging import get_logger
+from assistant_core.platform.types import JSONObject
 from pydantic import BaseModel, Field, JsonValue
 
 from pathfinder.domain.parameters.phyletic import (
@@ -18,16 +21,13 @@ from pathfinder.domain.parameters.wdk_vocab import (
     nearest_entries,
 )
 from pathfinder.domain.search import SearchContext
-from pathfinder.integrations.embeddings.model import get_embedding_model
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
 from pathfinder.integrations.veupathdb.phyletic_tree import phyletic_tree_of
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, ErrorCode
-from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.catalog.param_formatting import (
     PHYLETIC_LIST_PARAMS,
