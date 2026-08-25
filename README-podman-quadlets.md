@@ -175,4 +175,6 @@ podman volume rm pathfinder-postgres-data
 |---------|-------|---------------|------------|
 | pathfinder-db | pgvector/pgvector:pg16 | — (internal) | — |
 | pathfinder-api | localhost/pathfinder-api:latest | 8000 | db |
+| pathfinder-worker | localhost/pathfinder-api:latest | — (internal) | db |
+| pathfinder-wdk-mcp | localhost/pathfinder-api:latest | 8100 | db |
 | pathfinder-web | localhost/pathfinder-web:latest | 3000 | api |

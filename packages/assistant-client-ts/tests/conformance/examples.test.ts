@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import captured from "../../src/protocol/captured.json" with { type: "json" };
-import { type ProtocolChunk, parseChunk } from "../../src/core/chunks.ts";
+import { type ProtocolChunk, parseChunk, readString } from "../../src/core/chunks.ts";
 import { DONE_PAYLOAD, frameText, isDone, parseFrame } from "../../src/core/sse.ts";
 import { reduceTurn } from "../../src/core/reduce.ts";
 
@@ -123,15 +123,60 @@ describe("section 9, a captured turn reduces to one message", () => {
   });
 
   it("reports the error chunk without calling the turn failed", () => {
+    // Section 6's rule, not a captured example: the reference assistant
+    // produces no `error` chunk, and section 8 documents only what it does.
     const message = reduceTurn([
       chunkFor("start"),
-      chunkFor("error"),
+      { type: "error", errorText: "the model provider timed out" },
       chunkFor("finish"),
     ]);
 
     expect(message.finishReason).toBe("stop");
-    expect(message.errors).toHaveLength(1);
-    expect(message.errors[0]).toContain("DeferredToolRequests");
+    expect(message.errors).toEqual(["the model provider timed out"]);
+  });
+
+  it("holds a call the user has not answered in approval-requested", () => {
+    const request = chunkFor("tool-approval-request");
+    const toolCallId = readString(request, "toolCallId");
+
+    const message = reduceTurn([
+      chunkFor("start"),
+      { type: "tool-input-start", toolCallId, toolName: "wipe_everything" },
+      { type: "tool-input-available", toolCallId, input: { target: "everything" } },
+      request,
+      chunkFor("finish"),
+    ]);
+
+    expect(message.parts).toEqual([
+      {
+        type: "tool-wipe_everything",
+        toolCallId,
+        state: "approval-requested",
+        input: { target: "everything" },
+        approval: { id: toolCallId },
+      },
+    ]);
+  });
+
+  it("closes the answered call the next turn re-announces", () => {
+    const toolCallId = readString(chunkFor("tool-approval-request"), "toolCallId");
+
+    const message = reduceTurn([
+      chunkFor("start"),
+      { type: "tool-input-start", toolCallId, toolName: "wipe_everything" },
+      { type: "tool-input-available", toolCallId, input: { target: "everything" } },
+      { type: "tool-output-available", toolCallId, output: "wiped everything" },
+    ]);
+
+    expect(message.parts).toEqual([
+      {
+        type: "tool-wipe_everything",
+        toolCallId,
+        state: "output-available",
+        input: { target: "everything" },
+        output: "wiped everything",
+      },
+    ]);
   });
 
   it("keeps a stopped turn stopped across a reload", () => {
@@ -145,19 +190,22 @@ describe("section 9, a captured turn reduces to one message", () => {
   });
 
   it("records a tool that failed", () => {
+    // The wire defines this kind, but no captured example produces it.
+    const toolCallId = "call-9";
+
     const message = reduceTurn([
       chunkFor("start"),
-      { type: "tool-input-start", toolCallId: "call_wipe", toolName: "wipe" },
-      chunkFor("tool-output-error"),
+      { type: "tool-input-start", toolCallId, toolName: "peek" },
+      { type: "tool-output-error", toolCallId, errorText: "peek failed" },
     ]);
 
     expect(message.parts).toEqual([
       {
-        type: "tool-wipe",
-        toolCallId: "call_wipe",
+        type: "tool-peek",
+        toolCallId,
         state: "output-error",
         input: undefined,
-        errorText: "Tool execution was interrupted by an error.",
+        errorText: "peek failed",
       },
     ]);
   });

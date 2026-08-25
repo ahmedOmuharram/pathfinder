@@ -11,19 +11,20 @@ from pathfinder.services.enrichment.types import (
 )
 from pathfinder.services.gene_sets.types import GeneSetSource
 from pathfinder.services.gene_sets.wdk_helpers import SetOperation
+from pathfinder.transport.http.schemas.site_id import SiteId
 
 
 class CreateGeneSetRequest(CamelModel):
     """Request to create a gene set from IDs, a strategy, or an upload."""
 
     name: str = Field(min_length=1, max_length=200)
-    site_id: str
+    site_id: SiteId
     gene_ids: list[str]
     source: GeneSetSource = "paste"
     wdk_strategy_id: int | None = Field(None)
     wdk_step_id: int | None = Field(None)
-    search_name: str | None = Field(None)
-    record_type: str | None = Field(None)
+    search_name: str | None = Field(None, max_length=255)
+    record_type: str | None = Field(None, max_length=100)
     parameters: dict[str, ParamValue] | None = None
 
 
@@ -76,7 +77,7 @@ class ReverseSearchRequest(CamelModel):
 
     positive_gene_ids: list[str] = Field(min_length=1)
     negative_gene_ids: list[str] | None = Field(None)
-    site_id: str
+    site_id: SiteId
 
 
 class ReverseSearchResultItem(CamelModel):

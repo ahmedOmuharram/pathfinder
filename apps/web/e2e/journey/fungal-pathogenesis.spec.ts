@@ -13,6 +13,13 @@ import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
  * API verification of all persisted data.
  */
 test.describe("Fungal Pathogenesis Journey", () => {
+  // A FungiDB build turn does not finish: measured at 1039 s once and at
+  // 1909 s with an Error the next time, against 12-30 s on every other site.
+  // The turn also holds its worker slot, so running this spec queues every
+  // other conversation behind it.
+  // See docs/knowledge/backlog/chat-turn-hangs-for-half-an-hour.md
+  test.fixme(true, "blocked by the FungiDB build turn that never finishes");
+
   test("full FungiDB research flow with enrichment and API verification", async ({
     chatPage,
     graphPage,

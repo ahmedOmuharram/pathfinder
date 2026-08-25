@@ -207,7 +207,7 @@ export const ReasoningContent = memo(
     return (
       <div
         className={cn(
-          "mt-2 animate-in fade-in-0 duration-200 text-muted-foreground/60 [overflow-anchor:none]",
+          "mt-2 animate-in fade-in-0 duration-200 text-muted-foreground [overflow-anchor:none]",
           className,
         )}
       >

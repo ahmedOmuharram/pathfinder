@@ -16,12 +16,16 @@ from pathfinder.services.experiment.store import get_experiment_store
 from pathfinder.services.experiment.types import Experiment
 from pathfinder.services.users import ensure_user_exists
 from pathfinder.services.wdk_identity import require_registered_wdk_login
+from pathfinder.transport.http.schemas.site_id import SiteId
 
 # Type aliases for dependencies
 DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 
 # Optional ``siteId`` query param shared by list endpoints.
-SiteIdQuery = Annotated[str | None, Query(alias="siteId")]
+SiteIdQuery = Annotated[SiteId | None, Query(alias="siteId")]
+
+# Required ``siteId`` query param for endpoints that write with it.
+RequiredSiteIdQuery = Annotated[SiteId, Query(alias="siteId")]
 
 
 async def get_current_principal_with_db_row(

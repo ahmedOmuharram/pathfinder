@@ -19,6 +19,7 @@
 import type { BrowserContext, Route } from "@playwright/test";
 
 import { test, expect } from "../fixtures/test";
+import { sseDone, sseFrame, uiMessageStreamHeaders } from "../fixtures/sse";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 const NOTE_ID = "note-e2e-scratchpad-001";
@@ -26,17 +27,6 @@ const NOTE_TITLE = "E2E_SCRATCHPAD_NOTE";
 const NOTE_SUMMARY = "one-line summary of the finding";
 const NOTE_BODY = "Fuller body text saved by the agent.";
 
-function sseFrame(obj: unknown): string {
-  return `data: ${JSON.stringify(obj)}\n\n`;
-}
-
-function uiMessageStreamHeaders(): Record<string, string> {
-  return {
-    "content-type": "text/event-stream",
-    "cache-control": "no-cache",
-    "x-vercel-ai-ui-message-stream": "v1",
-  };
-}
 
 interface OpenConversationResponse {
   conversationId?: string;
@@ -110,7 +100,7 @@ function scratchpadChatStream(): string {
     }),
     sseFrame({ type: "data-scratchpad-updated", data: {} }),
     sseFrame({ type: "finish", finishReason: "stop" }),
-    "data: [DONE]\n\n",
+    sseDone(),
   ].join("");
 }
 

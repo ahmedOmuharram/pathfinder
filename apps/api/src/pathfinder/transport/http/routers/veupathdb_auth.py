@@ -1,6 +1,6 @@
 """VEuPathDB login bridge. Links a VEuPathDB session to an internal user token."""
 
-from typing import TypedDict
+from typing import Annotated, TypedDict
 from urllib.parse import urlparse
 
 from assistant_core.platform.logging import get_logger
@@ -28,6 +28,7 @@ from pathfinder.transport.http.schemas import (
     AuthStatusResponse,
     AuthSuccessResponse,
 )
+from pathfinder.transport.http.schemas.site_id import SiteId
 
 logger = get_logger(__name__)
 
@@ -109,7 +110,7 @@ async def login_with_password(
     session: DBSession,
     payload: LoginPayload | None = None,
     redirect_to: str | None = Query(None, alias="redirectTo"),
-    site_id: str = Query("veupathdb", alias="siteId"),
+    site_id: Annotated[SiteId, Query(alias="siteId")] = "veupathdb",
 ) -> JSONResponse:
     """Log in to VEuPathDB, link the internal user, and set the auth cookies."""
     if not payload:
@@ -166,7 +167,7 @@ async def logout_of_veupathdb(veupathdb_token: str | None, site_id: str) -> bool
 @router.post("/logout", response_model=AuthSuccessResponse)
 async def logout(
     request: Request,
-    site_id: str = Query("veupathdb", alias="siteId"),
+    site_id: Annotated[SiteId, Query(alias="siteId")] = "veupathdb",
 ) -> JSONResponse:
     """Clear the local auth cookies and end the VEuPathDB session.
 
@@ -187,7 +188,7 @@ async def logout(
 async def refresh_internal_auth(
     request: Request,
     session: DBSession,
-    site_id: str = Query("veupathdb", alias="siteId"),
+    site_id: Annotated[SiteId, Query(alias="siteId")] = "veupathdb",
 ) -> JSONResponse:
     """Re-derive the internal auth token from a live VEuPathDB session.
 
@@ -234,7 +235,7 @@ class _AuthStatusDict(TypedDict):
 @router.get("/status", response_model=AuthStatusResponse)
 async def auth_status(
     request: Request,
-    site_id: str = Query("veupathdb", alias="siteId"),
+    site_id: Annotated[SiteId, Query(alias="siteId")] = "veupathdb",
 ) -> _AuthStatusDict:
     """Return the current VEuPathDB auth status.
 

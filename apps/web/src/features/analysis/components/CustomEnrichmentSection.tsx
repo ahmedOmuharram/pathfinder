@@ -105,7 +105,7 @@ export function CustomEnrichmentSection({
                 </span>
               </div>
               {r.overlapGenes.length > 0 && (
-                <div className="mt-1.5 truncate text-xs font-mono text-muted-foreground/60">
+                <div className="mt-1.5 truncate text-xs font-mono text-muted-foreground">
                   {r.overlapGenes.slice(0, 20).join(", ")}
                   {r.overlapGenes.length > 20 && ` +${r.overlapGenes.length - 20} more`}
                 </div>

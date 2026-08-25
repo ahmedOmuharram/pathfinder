@@ -110,16 +110,17 @@
   --accent: 200 25% 93%;
   --accent-foreground: 222 47% 11%;
 
-  --destructive: 9 100% 54%;
+  /* Status tokens are the SSOT for bad/good/warn UI; components must not
+     hardcode red/emerald/amber. Each one carries WCAG AA (4.5:1) as TEXT on
+     every app surface and on its own /15 tint, and as white-on-solid for
+     badges. `statusTokens.test.ts` holds the thresholds. */
+  --destructive: 9 80% 37%;
   --destructive-foreground: 0 0% 100%;
 
-  /* Tuned to read as TEXT on a low-alpha tint (bg-success/15) while still
-     passing white-on-solid for badges — status tokens are the SSOT for
-     warn/good/bad UI; components must not hardcode amber/emerald. */
-  --success: 142 58% 38%;
+  --success: 142 50% 27%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 32 80% 40%;
+  --warning: 32 85% 28%;
   --warning-foreground: 0 0% 100%;
 
   --border: 200 20% 89%;

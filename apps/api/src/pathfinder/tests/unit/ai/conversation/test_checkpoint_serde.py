@@ -1,11 +1,7 @@
-"""Checkpoint payloads must survive STRICT msgpack deserialization.
+"""Checkpoint payloads must survive the serializer the checkpointer runs with.
 
-LangGraph currently warns ("Deserializing unregistered type ... will be
-blocked in a future version") and still decodes. When it flips to strict,
-any type not on the allowlist fails to deserialize — which would make every
-persisted conversation unresumable. These tests pin the allowlist by
-round-tripping each type through a STRICT serializer, so a new state type
-that nobody registered fails here instead of after a LangGraph upgrade.
+That serializer decodes the types on the allowlist and nothing else, so a state
+type nobody registered fails here rather than on a persisted conversation.
 """
 
 from datetime import UTC, datetime
@@ -23,12 +19,13 @@ from assistant_core.graph.turn_state import (
     SubAgentApprovalPending,
     UserQuestionAnswer,
 )
-from assistant_core.memory.schemas import MemoryValue
-from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from assistant_core.memory.schemas import MemoryEntryDraft, MemoryValue
 from pydantic_ai.ui.vercel_ai.request_types import TextUIPart, ToolApprovalResponded
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.graph.state import (
+    ConstraintCheck,
+    FailureCause,
     PhaseDisposition,
     PipelineState,
     StrategyDomainState,
@@ -36,13 +33,26 @@ from pathfinder.ai.graph.state import (
 )
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
 from pathfinder.assistants.pathfinder_spec import PATHFINDER_CHECKPOINT_TYPES
+from pathfinder.domain.parameters.values import StringValue
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
     NodeResult,
     StepPushFailure,
 )
-from pathfinder.domain.strategy.constraints import ConstraintKind, ConstraintSource
-from pathfinder.domain.strategy.operational_spec import Criterion, OperationalSpec
+from pathfinder.domain.strategy.constraints import (
+    Constraint,
+    ConstraintKind,
+    ConstraintSource,
+)
+from pathfinder.domain.strategy.operational_spec import (
+    Criterion,
+    DroppedCriterion,
+    OpenSlot,
+    OperationalSpec,
+    SpecStructure,
+    StructureNode,
+)
+from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.staleness import StaleBuild
 
 
@@ -96,6 +106,22 @@ def _digest() -> VerificationDigest:
         reason="verification successful",
         success=True,
         key_findings=["1234 hits"],
+        constraint_report=[
+            ConstraintCheck(
+                label="organism",
+                requested="P. falciparum 3D7",
+                realized="P. falciparum 3D7",
+                honored=True,
+            ),
+        ],
+        remember=[
+            MemoryEntryDraft(
+                name="P. falciparum kinome size",
+                summary="1234 kinase hits on plasmodb",
+                content={"count": 1234},
+                tags=["kinase"],
+            ),
+        ],
     )
 
 
@@ -123,7 +149,35 @@ def _spec() -> OperationalSpec:
     return OperationalSpec(
         goal="find drug targets",
         interpreted_goal="protein kinases in P. falciparum",
-        criteria=[Criterion(id="c1", text="kinases", search_name="GenesByGoTerm")],
+        criteria=[
+            Criterion(
+                id="c1",
+                text="kinases",
+                search_name="GenesByGoTerm",
+                resolved_params={"go_term": StringValue(value="GO:0004672")},
+                open_params=[OpenSlot(criterion_id="c1", param_name="evidence_code")],
+            ),
+            Criterion(id="c2", text="P. falciparum", search_name="GenesByTaxon"),
+        ],
+        dropped=[DroppedCriterion(text="host response", reason="no gene search")],
+        constraints=[
+            Constraint(
+                kind=ConstraintKind.ORGANISM,
+                requested_value="P. falciparum 3D7",
+                label="organism",
+                source=ConstraintSource.USER_EXPLICIT,
+            ),
+        ],
+        structure=SpecStructure(
+            root=StructureNode(
+                kind="combine",
+                operator=CombineOp.INTERSECT,
+                inputs=[
+                    StructureNode(kind="leaf", criterion_id="c1"),
+                    StructureNode(kind="leaf", criterion_id="c2"),
+                ],
+            ),
+        ),
     )
 
 
@@ -209,6 +263,7 @@ SAMPLES: dict[type, object] = {
     StepPushFailure: _outcome().failed_steps[0],
     ConstraintKind: ConstraintKind.ORGANISM,
     ConstraintSource: ConstraintSource.USER_EXPLICIT,
+    CombineOp: CombineOp.INTERSECT,
     OperationalSpec: _spec(),
     StaleBuild: StaleBuild(added_nodes=["s3"]),
     StrategyDomainState: _domain(),
@@ -219,13 +274,9 @@ ALLOWLIST = checkpoint_types(PATHFINDER_CHECKPOINT_TYPES)
 
 
 def _strict_roundtrip(value: object) -> object:
-    """Encode with our serde, decode under a STRICT (no-fallback) serializer."""
+    """Round trip through the serializer the checkpointer runs with."""
     serde = build_checkpoint_serde(PATHFINDER_CHECKPOINT_TYPES)
-    type_, payload = serde.dumps_typed(value)
-    strict = JsonPlusSerializer(allowed_msgpack_modules=None).with_msgpack_allowlist(
-        ALLOWLIST
-    )
-    return strict.loads_typed((type_, payload))
+    return serde.loads_typed(serde.dumps_typed(value))
 
 
 def test_every_registered_type_is_a_real_class() -> None:
@@ -262,10 +313,18 @@ def test_the_pathfinder_spec_declares_its_state_types() -> None:
         StepPushFailure,
         ConstraintKind,
         ConstraintSource,
+        CombineOp,
         OperationalSpec,
         StaleBuild,
         StrategyDomainState,
     }
+
+
+def test_the_allowlist_carries_the_types_a_thread_read_decodes() -> None:
+    """Both reach a checkpoint: the disposition on the verification digest, the
+    operator on the spec's structure."""
+    assert PhaseDisposition in PATHFINDER_CHECKPOINT_TYPES
+    assert CombineOp in PATHFINDER_CHECKPOINT_TYPES
 
 
 def test_every_allowlisted_type_has_a_sample() -> None:
@@ -303,6 +362,25 @@ def test_a_populated_state_keeps_its_nested_types() -> None:
     assert isinstance(outcome.failed_steps[0], StepPushFailure)
     assert isinstance(outcome.node_results[0], NodeResult)
     assert isinstance(restored.discovered_searches["GenesByTaxon"], SearchOverview)
+
+
+def test_a_failed_digest_keeps_its_typed_cause_and_handoff() -> None:
+    """``FailureCause`` is on no allowlist, so it decodes as its raw value and
+    the digest that declares the field rebuilds it."""
+    digest = VerificationDigest(
+        disposition=PhaseDisposition.HANDOFF,
+        prose="The build pushed two of four steps.",
+        reason="partial build",
+        success=False,
+        handoff_to="build",
+        failure_cause=FailureCause.PARTIAL_BUILD,
+    )
+
+    restored = _strict_roundtrip(digest)
+
+    assert restored == digest
+    assert isinstance(restored, VerificationDigest)
+    assert restored.failure_cause is FailureCause.PARTIAL_BUILD
 
 
 def test_nested_state_container_survives_strict_roundtrip() -> None:

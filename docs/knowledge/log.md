@@ -1,6 +1,249 @@
 # Log
 
+## 2026-08-25
+
+* **MCP program batch D: veupathdb-wdk-mcp is served.** Sixteen tools over
+  streamable HTTP in a container of their own on the api image, binding in
+  about three seconds because the entrypoint preloads nothing. Fourteen
+  declare readOnly; the two writers declare non-destructive with per-tool
+  `_meta` call budgets the live suite enforces by setting the client's
+  read timeout from the served declaration - enrichment measured 508.9 s at
+  the 200-gene cap against its declared 600, and the controls estimate held
+  at under nine seconds against 180. Bearer auth chains the SDK's own
+  middleware (the fastmcp shortcut silently drops the credential subclass,
+  so the SDK path is pinned by a test that fails without the context
+  middleware). Memory ceilings landed on the two growers (worker and
+  wdk-mcp at 2 GiB, the api uncapped by measurement); sizing them
+  reproduced the api OOM incident on purpose, and the live proof then
+  showed a cold-site catalog read killing the served container at
+  3.269 GiB - the eviction half stays in the backlog for batch F. The
+  isolation case ran against a real foreign-owned public strategy and
+  leaked neither the step nor its count. One review round: the server
+  advertised fastmcp's version as its own; it now declares the
+  deployment's, pinned at build and on the wire. Fable review: accepted.
+
+* **MCP program batches B and C: the tool protocol lives in the runtime, and
+  the sixteen tools' service seam exists.** `assistant_core/mcp/` now holds
+  declarations, admission, the deny-by-default approval predicate, the
+  untrusted-output wrapper with real jsonschema payload validation, the fixed
+  wrapping order, and per-turn resolution: a declared source is built,
+  credentialed at the transport and nowhere else, opened with the turn and
+  closed with it, proven against an in-process FastMCP server with the
+  design's P1 exit criteria each named in a test. The turn runner enters the
+  resolution around the drive; a spec that declares nothing constructs
+  nothing. The three sub-agents left their module singletons for
+  per-dispatch factories. On the service side, the four gated catalog tools
+  split into pure retrieval halves under `services/catalog/` with
+  byte-identical wrapper behaviour pinned, `pathfinder/mcp/` gained bearer
+  auth that reuses the api's verifier by identity plus the RFC 9728 document
+  from the SDK's own helpers, and `enrich_gene_ids` runs enrichment by value
+  through the same WDK plugin machinery with the wire field names pinned
+  three ways. Fable review: both batches accepted with zero defects; the
+  next batch inherits two measured corrections (the api venv lacks the
+  fastmcp server extra, and the enrichment tool cannot fit the default
+  60 s call budget).
+
+## 2026-08-24
+
+* **MCP program batch A: the trust base.** Three changes an external consumer
+  of the runtime depends on, executed from the plan in
+  `docs/design/2026-08-24-mcp-sdk-execution-plan.md`.
+
+  **Every named tool is callable.** The gene chain VERIFY's instructions
+  order (`literature_search`, `lookup_gene_records`,
+  `resolve_gene_ids_to_records`) is registered on its toolset, the two
+  catalog tools joined FRAME, and `update_search_decision` is deleted with
+  its module. An agreement suite now walks every agent's instructions and
+  the extractor registry and asserts each named tool is callable by that
+  agent - it caught a fourth instance on EXECUTION and seven extractor
+  orphans on the way, and the orphaned `SearchOverview` selection fields it
+  exposed are a backlog item.
+
+  **The deferred-tool cycle exists once.** The Lead's duplicated approval
+  code folded onto `assistant_core.graph.approvals`: `parked_call` is the
+  one construction of the shared fields, the Lead adds its product fields by
+  `model_copy(update=...)`, and its thirty approval tests pass unchanged.
+  The two resume helpers this file's earlier entry placed in `_lead_turn.py`
+  now live in the runtime; the Lead keeps sub-agent re-entry, the
+  dispatch-answer fan-out and `is_pure_approval` only.
+
+  **The checkpoint allowlist is real.** It never was: with strict msgpack
+  off, `with_msgpack_allowlist` returns the serializer unchanged, so every
+  declared type was discarded and both hypotheses in the backlog item were
+  wrong (the item leaves with the correction that `astream` warned
+  identically). The serde now binds the allowlist at construction
+  (decision recorded), `CombineOp` completes the PathFinder list, and an
+  integration test reads a real thread under the library's serde-event
+  listener and asserts zero unregistered-type events. Found on the way and
+  filed: the api and package lockfiles resolve `langgraph-checkpoint` to
+  4.0.1 and 4.2.0 under identical pins, and two api integration tests fail
+  under machine load only.
+
+* **Every tool an instruction or an extractor names is callable by the agent
+  that reads it.** VERIFY told the model to resolve control gene IDs through
+  `literature_search` then `lookup_gene_records` then
+  `resolve_gene_ids_to_records`, and its toolset held none of the three, so a
+  controls-needing verification spent a model turn on a tool that did not
+  exist; all three are registered now. FRAME registers
+  `browse_search_categories` and `list_transforms`, which the context extractor
+  already claimed observations from. `update_search_decision` and its module
+  are gone, superseded by the `set_criterion` flow, and the outage-rejection
+  detector that was its only reader goes with them. A new agreement test walks
+  each agent's instruction text and the extractor registry against the tools
+  its toolsets register; it found a fourth case nobody had reported, EXECUTION
+  naming `get_estimated_size` and `get_sample_records` under "Read-only
+  inspection" while registering neither. The backlog item leaves with the fix;
+  a new one records the six selection fields on `SearchOverview` that the
+  deleted tool was the only writer for.
+
+* **A rehydrated thread can keep talking: the request parses the protocol's
+  own reduction output.** The snapshot reduction attaches `errors`, `aborted`
+  and `finishReason` to an assistant message, and a live stream records
+  `resultProviderMetadata` on an output-error tool part; pydantic-ai's strict
+  message union refused both on resend, so any conversation whose history was
+  rehydrated - a reload, a restore from dismissed, a branch - answered every
+  later send with a 422 and the raw error list. `ChatRequestBody` now parses
+  those members away in one before-validator, PROTOCOL.md 1.2.2 says a runtime
+  MUST ignore them, and the restored-strategy e2e journey proves the turn end
+  to end on a rebuilt stack. This closes the resend-brick investigation from
+  the 2026-08-17 UI run; its backlog item leaves with it. `site_id` on the
+  same body gained the String(50) bound the transport sweep gave every other
+  request field.
+
+* **The e2e mocks now speak the wire they test.** Five route-mocking specs
+  sent `data:`-only SSE frames that section 3 of the protocol orders a client
+  to reject, and parameter-sweep still spoke the pre-v6 `messages/partial`
+  dialect against a dead per-task mock; all six now build their streams from
+  one conformant fixture (`e2e/fixtures/sse.ts`) and pass. The "durable path
+  never fires" scare dissolved with them: no e2e spec drives a real durable
+  turn by design, and that coverage lives in the backend integration suites.
+  What remains of the fourteen reds is worker contention on three feature
+  specs that pass standalone, recorded with the adjudication in the residual
+  item.
+
+* **Every transport request string that lands in a bounded column is bounded.**
+  One `SiteId` type now covers the five schemas the re-review flagged and the
+  nine more a residual sweep found - body fields, write-path query params via
+  `RequiredSiteIdQuery`, the auth routes' defaulted params - plus the gene-set
+  and control-set name/searchName/recordType/source fields, each sized to its
+  column, so an oversized value answers 422 at the edge instead of 500 at
+  INSERT. Seventeen red-first cases pin the bounds; the spec and generated
+  types carry them.
+
+* **The stalled-turn releaser and the thread log survived their review.** The
+  P2 verifier's findings, closed the same day: `_chat_stream_is_open` now
+  reads only turn-tagged rows, so task progress written into the gap between
+  turns neither reopens an ended turn nor hides a stalled one; `_ThreadLog`
+  clears its pending update only when it wrote that update, so a concurrent
+  scoped child's offer is no longer dropped while an append awaits the
+  database; the first chat POST of a fresh test process paying the PIGuard
+  model load against a 5 s enqueue ceiling is a backlog item with the
+  measured runs.
+
 ## 2026-08-23
+
+* **WS-V batch P1: the one-agent assistant can ask, and the loop guard finally
+  runs.** Two mechanisms the runtime declared and never reached are now wired,
+  each with the turn that proves it.
+
+  **Approvals.** `single_agent_graph` admits `DeferredToolRequests` as a
+  per-run output type, so a tool marked approval-required no longer reaches the
+  user as "`DeferredToolRequests` is not among output types". The cycle lives
+  in `assistant_core/graph/approvals.py` - park the call as a `PendingApproval`
+  with the run's full history, rebuild `DeferredToolResults` from the user's
+  answer, replay that history, and hand the emitter the hint that re-announces
+  the call - and the graph runs it in about thirty lines. The phase a one-agent
+  turn parks is `"agent"`, the name of the only node that can raise one; a
+  one-agent assistant has one role and it is the graph's. A turn that answers
+  nothing supersedes the card rather than re-running the call the user never
+  approved. Nine package cases drive request, approve, deny, the parked state
+  and the superseded card end to end, and three more do it over HTTP in
+  `apps/api` with a site-help-shaped assistant whose one tool needs confirming,
+  through the route, the worker and the resume. `site_help`'s own tools are
+  read-only and stay silent.
+
+  **The repetition guard.** `ToolRepetitionGuard.check` had no caller since
+  batch C. It now runs from `RepetitionGuard`, an `AbstractCapability` the
+  driver passes per run, on the guard the turn's deps carry - the same
+  interception surface `ToolResilience` uses, chosen because the Lead's tools
+  are registered with `tools=` and no toolset wrapper can see them. Both
+  blocks return the refusal as the tool's ordinary result, never as a
+  `ModelRetry` (a retry raised in the wrapper shares the tool's retry budget
+  and can abort a run whose tool already retried); the first names the
+  repetition so the model can route around it, the second sets
+  `stopped_call_id` and the driver stops consuming the stream once that
+  result has reached the client, so the turn ends with `finish`/`stop` and no
+  dangling part. It is
+  wired on the Lead, the three sub-agents and the single-agent graph, and the
+  synthetic assistant grew a loop arc that asks for one reading five times: the
+  third is refused, the fourth ends the turn, and the fifth is never made.
+
+  Two things the wiring found. `graph_modifying_tools` was a constructor
+  argument with no behaviour - both of `check`'s early branches reset the
+  counter and return `None` - so it is gone and a tool outside the vocabulary
+  is what clears a streak. And `READ_ONLY_TOOLS` named ten tools, nine of which
+  no agent has carried since the FRAME/BUILD/VERIFY split; the guard would have
+  watched `get_plan` and `search_catalog` forever. It now names the 26 real
+  inspectors across the four agents, and a seam test fails when a watched name
+  is not a tool some agent offers.
+
+  `PROTOCOL.md` is **1.2.0**: section 6.2 states the approval cycle a turn
+  really runs, the `error` example the reference assistant used to produce
+  because of this defect is gone, and `tool-approval-request` is captured in
+  its place. `@pathfinder/assistant-client` re-synced and its reducer already
+  read both chunks; two conformance cases now say so. Devtools' loop diagnosis
+  reports guard refusals, and one refusal is enough to name a loop, because the
+  guard measured it rather than inferring it from a failure count.
+
+  `lead_node.py` crossed the 400-line cap on the way, so model selection left
+  it for `_lead_model.py` and the two approval-resume helpers joined the rest of
+  the Lead's approval code in `_lead_turn.py`; the five known files are the only
+  ones over the cap again.
+
+  Verified: package `uv run pytest` 205 passed with no `pathfinder` installed,
+  ruff, ruff-format, mypy --strict 54 files; `apps/api` ruff, mypy --strict 577
+  files, pyright 0/0/0, import-linter 7 kept, 2626 unit tests, the integration
+  suite; the client's 200 vitest cases; `openapi check` exit 0 and `yarn tsc`
+  clean on the web app; knowledge gate 120 files.
+
+* **The protocol grew a request side and stopped needing two readers.** PROTOCOL.md
+  1.1.0 answers the two questions section 6.4 of the MCP/SDK design named as ours to
+  close before an external client is written. The turn-start contract is section 12:
+  the identity a request must prove, the `X-Requested-With` rule that applies to a
+  cookie and not to a bearer, the body split into the nine fields any assistant on
+  this runtime takes and the one this product adds, the approval answer that rides in
+  the body instead of inventing a user message, the six refusals including the `409`
+  a thread's fixed assistant produces, and the fact that the POST's response is a tail
+  from the last turn terminator rather than a stream the turn depends on. Two request
+  examples are on the page and a gate validates both through `ChatRequestBody`; a
+  second gate asserts the two field tables together name every field the model
+  accepts, so a field added without a row on the page fails.
+
+  The durable-task half is its own subsection of section 6.
+  `data-background-task-started` was already in the log; `data-task-progress` and
+  `data-task-completed` are now written there too, untagged, so the chat stream
+  carries them and a client that reads the thread learns the whole lifecycle with one
+  reader and one cursor. Progress is coalesced - first
+  update, every five-point advance, ten seconds of silence, and always the last one -
+  because the alternative is on the order of 900 rows replayed on every read of a
+  thread that once ran a sweep. The comparison is in whole percentage points, since
+  `0.15 - 0.10` is `0.049999999999999996` and a fraction rule would skip the tick it
+  names. The chunk carries the task id as its `id`, so however many are written the
+  reduced message holds one part.
+
+  The per-task endpoint keeps working byte for byte and is now written down rather
+  than merely known: section 13 states its `event: stream` framing, its `custom`
+  envelope, its missing cursor and the two payloads that differ from their logged
+  counterparts, and an integration test pins its exact frames against that section.
+  It is deprecated, `@pathfinder/assistant-client/legacy` says so, and the web app's
+  migration is a backlog item rather than a break.
+
+  All three gates were made to bite before they were trusted. Removing the
+  `phaseReasoning` row from the document's core table failed the field-table test with
+  "Extra items in the right set: 'phaseReasoning'"; adding one space inside the pinned
+  legacy frame failed the golden test on that byte; renaming the changelog's newest
+  row failed the new assistant-core test with `assert '1.2.0' in {'1.0.0', '1.1.0',
+  '1.2.1'}`. All three were restored.
 
 * **The published OpenAPI spec is the production contract, whatever the process environment.** `openapi check` answered 0 or 1 depending on who ran it: the generator built the app under the ambient profile, so a mock-profile shell put `/api/v1/dev/login` into `packages/spec/openapi.yaml` and a production shell then reported drift. `create_app` takes `include_dev_routes` (None follows settings; the generator passes False), the committed spec is regenerated without the dev route, and a unit test pins that a mock-profile environment still produces a spec with no `/api/v1/dev/` path.
 
@@ -54,7 +297,7 @@
   `graph.aget_state` prints eleven "Deserializing unregistered type" warnings, including
   for three types that are on the allowlist `assistant_core.conversation.serde` builds,
   where the same checkpoint read by `astream` prints none
-  ([backlog](backlog/aget-state-bypasses-the-checkpoint-allowlist.md)).
+  ([fixed](decisions/the-checkpoint-allowlist-binds-at-construction.md)).
 
 ## 2026-08-22
 
@@ -120,7 +363,7 @@
   which is why the recording command needs `VEUPATHDB_AUTH_TOKEN` and why the bundle's
   "most live checks need no credential" note no longer holds.
 
-* **WS-V batch 2: the runtime proves the conversation works, and the wire has a written spec.** `packages/assistant-core/tests/synthetic.py` is a complete `AssistantSpec` built from runtime code alone - `single_agent_graph` over bare `TurnState`, an `Agent` whose model is a `ScriptedModel` with four arcs (plain answer, `add` tool call, an approval-required `wipe_everything`, and a `stop_turn` that sets the cancel from inside the run), a `UsageLedger` as the `charge_usage` hook, and a `turn_epilogue`. The suite drives it through the package's public surfaces only, so 128 tests became **192**: turn lifecycle (the graph's chunks reach `conversation_events`, reduce to the `UIMessage` a client renders, and leave one `messages` row whose `usage.totalTokens` equals what the ledger was charged), durability (a reader that reconnects at cursor N gets the remainder **byte for byte**, cursors are strictly increasing and unique, the snapshot equals the live accumulation, two turns split cleanly on `done`), resume (a turn with `is_resume=True` names no prompt field at all, so `turn_input` omits it and the checkpointed prompt survives - the resumed turn answers from it), cancellation, cost, tenancy (two threads driven with `asyncio.gather` share no event id and neither sees the other's chunks), SSE framing against a real Postgres LISTEN channel (a strict `tests/sse.py` parser that accepts `id`/`data` frames and comment frames and nothing else), and a strict-msgpack round trip of every `CORE_CHECKPOINT_TYPES` entry plus the state type a spec declares - which the package could not prove alone before, because the only such suite lived in `apps/api`. **One real bug, found by the suite and fixed**: `_stream_answer` returned on the first event seen after the cancel was set, and pydantic-ai runs the agent in a background task that had already executed the tool and produced its `FunctionToolResultEvent`, so a stopped turn discarded a result it was holding and persisted the call in state `input-available` forever - a tool part that spins after a reload for a tool that finished. The rule is now *a cancelled turn ends before the next part the model starts*: the step already in flight reports its outcome, and the existing guarantee that no further model call is streamed is unchanged (`test_a_cancelled_turn_makes_no_further_model_call_and_finalizes` still passes beside the new `..._still_reports_the_tool_that_already_ran`). **One real gap, named not fixed**: the shipped turn graph resolves no deferred tool call, so `Tool(x, requires_approval=True)` on a one-agent assistant produces `tool-output-error` plus an `error` chunk reading "`DeferredToolRequests` is not among output types" instead of a `tool-approval-request` card, and `TurnState.pending_approval` is a channel no turn ever writes; PathFinder's Lead implements the cycle, `assistants/site_help` cannot - [backlog item](backlog/single-agent-graph-cannot-ask-for-approval.md) with the fix and the chunk sequence it would produce. **`packages/assistant-core/PROTOCOL.md` is version 1.0.0** of the wire: frame grammar, cursor semantics (`after` is exclusive, cursors are per-deployment and not dense), the snapshot/tail contract and the `204` fallback, the `start ... finish done` turn shape, the three `finishReason` values and the rule that an `error` chunk does not end a turn, the full chunk vocabulary, the reduction rules, and the additive-only versioning rule. Its examples are captured from real turns and its tables are compared to `register_core_stream_parts` and to pydantic-ai's `vercel_ai.response_types`, so a new chunk kind or a changed payload fails `test_protocol_document.py`; only generated ids and instants are edited. Recorded as [the wire protocol is a written spec, verified against captured frames](decisions/the-wire-protocol-is-a-written-spec.md), which names the rejected alternatives: generating the page from the models (true by construction, and with nowhere to put a rule) and leaving it hand-written (silent drift). **Where the boundary cuts**: `run_turn`, the cancel watcher that polls `chat_turn_cancellations`, the durable-tool interrupt stream, the title generator, `identity_gate` and the user-message envelope all live in `apps/api`, so the suite composes their package-side equivalent in `drive_turn` (start chunk, `astream`, epilogue, finish, done) and says so; `turn_epilogue` is exercised, `identity_gate` is not reachable without a transport. `docs/knowledge/conventions/verification-gates.md` gained the package lane. Verified: from the package, `uv run pytest` 192 passed with `find_spec("pathfinder") is None`, ruff over `src tests`, ruff-format, mypy --strict 53 files; from `apps/api` - untouched this batch - ruff, ruff-format, mypy --strict 557 files, pyright 0/0/0, import-linter 7 kept 0 broken, 2392 unit and 379 integration tests, `python -m pathfinder.devtools.openapi check` exit 0; knowledge gate clean at 110 files. No file under `apps/web/` was touched.
+* **WS-V batch 2: the runtime proves the conversation works, and the wire has a written spec.** `packages/assistant-core/tests/synthetic.py` is a complete `AssistantSpec` built from runtime code alone - `single_agent_graph` over bare `TurnState`, an `Agent` whose model is a `ScriptedModel` with four arcs (plain answer, `add` tool call, an approval-required `wipe_everything`, and a `stop_turn` that sets the cancel from inside the run), a `UsageLedger` as the `charge_usage` hook, and a `turn_epilogue`. The suite drives it through the package's public surfaces only, so 128 tests became **192**: turn lifecycle (the graph's chunks reach `conversation_events`, reduce to the `UIMessage` a client renders, and leave one `messages` row whose `usage.totalTokens` equals what the ledger was charged), durability (a reader that reconnects at cursor N gets the remainder **byte for byte**, cursors are strictly increasing and unique, the snapshot equals the live accumulation, two turns split cleanly on `done`), resume (a turn with `is_resume=True` names no prompt field at all, so `turn_input` omits it and the checkpointed prompt survives - the resumed turn answers from it), cancellation, cost, tenancy (two threads driven with `asyncio.gather` share no event id and neither sees the other's chunks), SSE framing against a real Postgres LISTEN channel (a strict `tests/sse.py` parser that accepts `id`/`data` frames and comment frames and nothing else), and a strict-msgpack round trip of every `CORE_CHECKPOINT_TYPES` entry plus the state type a spec declares - which the package could not prove alone before, because the only such suite lived in `apps/api`. **One real bug, found by the suite and fixed**: `_stream_answer` returned on the first event seen after the cancel was set, and pydantic-ai runs the agent in a background task that had already executed the tool and produced its `FunctionToolResultEvent`, so a stopped turn discarded a result it was holding and persisted the call in state `input-available` forever - a tool part that spins after a reload for a tool that finished. The rule is now *a cancelled turn ends before the next part the model starts*: the step already in flight reports its outcome, and the existing guarantee that no further model call is streamed is unchanged (`test_a_cancelled_turn_makes_no_further_model_call_and_finalizes` still passes beside the new `..._still_reports_the_tool_that_already_ran`). **One real gap, named not fixed**: the shipped turn graph resolves no deferred tool call, so `Tool(x, requires_approval=True)` on a one-agent assistant produces `tool-output-error` plus an `error` chunk reading "`DeferredToolRequests` is not among output types" instead of a `tool-approval-request` card, and `TurnState.pending_approval` is a channel no turn ever writes; PathFinder's Lead implements the cycle, `assistants/site_help` cannot - a backlog item with the fix and the chunk sequence it would produce (closed in WS-V batch P1). **`packages/assistant-core/PROTOCOL.md` is version 1.0.0** of the wire: frame grammar, cursor semantics (`after` is exclusive, cursors are per-deployment and not dense), the snapshot/tail contract and the `204` fallback, the `start ... finish done` turn shape, the three `finishReason` values and the rule that an `error` chunk does not end a turn, the full chunk vocabulary, the reduction rules, and the additive-only versioning rule. Its examples are captured from real turns and its tables are compared to `register_core_stream_parts` and to pydantic-ai's `vercel_ai.response_types`, so a new chunk kind or a changed payload fails `test_protocol_document.py`; only generated ids and instants are edited. Recorded as [the wire protocol is a written spec, verified against captured frames](decisions/the-wire-protocol-is-a-written-spec.md), which names the rejected alternatives: generating the page from the models (true by construction, and with nowhere to put a rule) and leaving it hand-written (silent drift). **Where the boundary cuts**: `run_turn`, the cancel watcher that polls `chat_turn_cancellations`, the durable-tool interrupt stream, the title generator, `identity_gate` and the user-message envelope all live in `apps/api`, so the suite composes their package-side equivalent in `drive_turn` (start chunk, `astream`, epilogue, finish, done) and says so; `turn_epilogue` is exercised, `identity_gate` is not reachable without a transport. `docs/knowledge/conventions/verification-gates.md` gained the package lane. Verified: from the package, `uv run pytest` 192 passed with `find_spec("pathfinder") is None`, ruff over `src tests`, ruff-format, mypy --strict 53 files; from `apps/api` - untouched this batch - ruff, ruff-format, mypy --strict 557 files, pyright 0/0/0, import-linter 7 kept 0 broken, 2392 unit and 379 integration tests, `python -m pathfinder.devtools.openapi check` exit 0; knowledge gate clean at 110 files. No file under `apps/web/` was touched.
 
 * **WS-V batch 1: the runtime is a package, and the boundary is now an installation fact.** `packages/assistant-core` is its own distribution - own `pyproject.toml`, own `uv.lock`, `src/assistant_core` importable with no `pathfinder.` prefix, own `tests/` tree, own CI job - and `apps/api` consumes it as an editable path dependency beside `pathfinder-shared`. The eleven-module surface that batch D pinned as "what the runtime may reach outside itself" moved with it, because every entry was runtime-owned by nature: `platform/{config,context,db,logging,pydantic_base,types}.py`, `integrations/embeddings/{model,prefixes}.py` (now `assistant_core/embeddings/`), and the four tables the runtime reads and writes - `conversations`, `messages`, `conversation_events`, `memory_tombstones` - with `MessagesRepository`, `MessageMetadata`, the `GUID` type, the application-id column and the declarative `Base`. **Three modules split rather than moved, each along what it imports**: `config.py` became `RuntimeSettings` (database URL, engine echo, SSE keep-alive, log level and format) in the package with `Settings` subclassing it in the product and installing itself through `use_settings_source`, so one instance still serves the process and `get_settings.cache_clear()` still works in tests; `context.py` kept `veupathdb_auth_token_ctx` and `request_base_url_ctx` product-side and moved the six the runtime and its logger read; `db.py` moved the engine, the session factory and the request-scoped session, and left `init_db` - which runs alembic against `alembic.ini` - as `platform/migrations.py`. `errors.py` and `principal.py` stayed, because their taxonomies name WDK, VEuPathDB bearers and PathFinder service tokens; the one thing `db.py` took from `errors.py` was a sqlite guard, which now raises `ValueError` with the same detail (both reach the client as a 500). **One declarative base, not two metadatas.** A cross-package foreign key resolves only inside the `MetaData` that holds both tables, and the keys cross in both directions (`conversations.user_id` and `conversation_events.task_id` point at host tables; `conversation_strategies`, `background_tasks`, `chat_turn_cancellations` and the two scratchpad tables point back at `conversations`), so the package exports `Base` and the product maps its twelve tables on it. `alembic/env.py` is untouched, `target_metadata` still lists all sixteen tables, and every migration stays hand-written. The package's own test kit declares stub `users` and `background_tasks` tables so `create_all` works with nothing else installed. **The thread lost its relationship to the science**: `Conversation.strategy` and `Conversation.strategy_view` named `ConversationStrategy`, which a package class cannot, so `ConversationRepository.get_with_strategy` and the two listings now select the thread beside its projection through one outer join (one query where `selectinload` issued two), `get_strategy` reads the projection alone, `get_owned_thread_or_404` returns both, and `build_conversation_response`/`build_conversation_summary` take the projection as an argument; `build_conversation_summaries` states the list mapping once. `Conversation.user` was deleted, because a package class cannot name `User`; `User.conversations` stayed as a **one-directional** relationship, because the unit of work reads it to insert a user before the thread that references it, and dropping it turned 22 integration tests into `conversations_user_id_fkey` violations. `TurnContextFactory` became `Callable[[TurnContextRequest], Awaitable[TurnContext]]`, because PathFinder's factory read `strategy_view` off the row it was handed and now has to read its own projection. **Contract 7 was replaced, not deleted twice over**: the package's pyproject names no dependency on this application (the enforcement), `tests/unit/test_package_boundary.py` walks every module in the package and fails on an import naming `pathfinder` while pinning the two `shared_py` wire-type modules it does read (the belt), and the seventh in-repo contract now says *the science never imports an assistant's composition root* - direct-only, like the six layer contracts, because the chat dispatcher still reaches the registry through the job runner. `test_core_boundary.py` moved to composition level and reads the installed distributions instead of the import graph: the science requires the runtime, the runtime requires no part of the science, and the two source trees do not nest. Recorded as [the runtime is a package, so the boundary is an installation fact](decisions/the-runtime-is-a-package.md), which names the rejected alternatives: keeping the runtime in-repo behind contracts only, and leaving `conversations` product-side. Verified: `cd packages/assistant-core && uv run pytest` passes 128 tests with **no `pathfinder` installed** (the isolation proof, testcontainers Postgres, `importlib.util.find_spec("pathfinder") is None`), plus its own ruff and mypy --strict (53 files); from `apps/api`, import-linter 7 kept 0 broken, ruff, ruff-format, mypy --strict (557 files) and pyright zero findings, 2771 tests green in one run (2392 unit, 379 integration, 50 skipped, 98 subtests), `packages/spec/openapi.json` byte-identical, the file-size gate reporting the same five known files (it now scans the package too), and the knowledge gate clean at 108 files. No file under `apps/web/` was touched.
 
@@ -132,7 +375,7 @@
 
 ## 2026-08-21
 
-* **WS2 batch C: the runtime hard-codes nothing of PathFinder's any more.** The seven pluggability entanglements (assessment Appendix A rows 5, 6, 7, 9, 12, 13, 14) are inverted. **Roles**: `TurnContext.phase_models`/`phase_reasoning`, `resolve_phase_tier_config`, the agent registry and `PendingApproval.phase` all take a plain string; `PhaseRole` survives only in `ai/agents/roles.py` and the three models that publish it, and `SUB_AGENT_APPROVAL_PHASE` moved to `ai/lead/sub_agent_tools.py`. **Pre-turn**: the live WDK staleness read left the turn node for `ai/lead/pre_turn.py` and reaches the graph as a required `pre_turn` hook. **Agent**: `lead_agent` is no longer a module singleton - `build_lead_agent()` is a factory the builder takes, so each turn owns its instance and its `override`; the dead `isinstance(agent.model, FunctionModel)` branch went with it. **Guards**: `ToolRepetitionGuard` and `ToolResilience` take their tool-name sets and thresholds as constructor arguments, with PathFinder's in `ai/agents/tool_vocabulary.py`. **Instructions**: `_instructions.py` keeps the two generic pinned renderers (typed on `AssistantDeps`); the system prompt, FRAME workspace, graph, ledger and discovered-searches renderers moved to `strategy_instructions.py`, byte-identical (pinned by a render digest before the move, then retired for a per-agent order contract). **Memory**: the store, retriever, tombstone index and re-embed all key by `str`; `auto_write_memories` takes candidates and a user id, so `ai/memory/` imports no product module at all, and `ai/lead/memory_candidates.py` owns the four kinds and the turn-to-candidates mapping. **Mock**: the reusable half (role markers, sequence advance, `FunctionModel` wiring, context vars) is `ai/models/scripted.py`; `mock.py` is PathFinder's script for it, with all 71 mock unit tests unchanged. One `build_pathfinder_graph` composition root replaced five duplicate `build_graph` call sites. Three copies of "read the model id off an agent" collapsed into `ai/models/settings.baked_model_id`, and `ConversationUpdate` left the conversation repository for its own module so the file-size gate reports only the five known files again. Recorded as [the runtime takes the vocabulary as an argument; the wire keeps it](decisions/vocabulary-is-an-argument.md) and [the Lead agent belongs to the turn that runs it](decisions/the-agent-belongs-to-the-turn.md). Found on the way and filed rather than fixed: [the repetition guard is registered on no agent](backlog/repetition-guard-runs-on-no-agent.md), so the mechanism this batch made injectable never actually runs. Verified: ruff, mypy strict, pyright and ruff-format zero findings, import-linter 6/6, 2390 unit tests (67 of them new seam tests), the integration suite, and `packages/spec/openapi.json` byte-identical - the frozen wire contract is what kept the three published role enums and `MemoryValue.kind` narrow.
+* **WS2 batch C: the runtime hard-codes nothing of PathFinder's any more.** The seven pluggability entanglements (assessment Appendix A rows 5, 6, 7, 9, 12, 13, 14) are inverted. **Roles**: `TurnContext.phase_models`/`phase_reasoning`, `resolve_phase_tier_config`, the agent registry and `PendingApproval.phase` all take a plain string; `PhaseRole` survives only in `ai/agents/roles.py` and the three models that publish it, and `SUB_AGENT_APPROVAL_PHASE` moved to `ai/lead/sub_agent_tools.py`. **Pre-turn**: the live WDK staleness read left the turn node for `ai/lead/pre_turn.py` and reaches the graph as a required `pre_turn` hook. **Agent**: `lead_agent` is no longer a module singleton - `build_lead_agent()` is a factory the builder takes, so each turn owns its instance and its `override`; the dead `isinstance(agent.model, FunctionModel)` branch went with it. **Guards**: `ToolRepetitionGuard` and `ToolResilience` take their tool-name sets and thresholds as constructor arguments, with PathFinder's in `ai/agents/tool_vocabulary.py`. **Instructions**: `_instructions.py` keeps the two generic pinned renderers (typed on `AssistantDeps`); the system prompt, FRAME workspace, graph, ledger and discovered-searches renderers moved to `strategy_instructions.py`, byte-identical (pinned by a render digest before the move, then retired for a per-agent order contract). **Memory**: the store, retriever, tombstone index and re-embed all key by `str`; `auto_write_memories` takes candidates and a user id, so `ai/memory/` imports no product module at all, and `ai/lead/memory_candidates.py` owns the four kinds and the turn-to-candidates mapping. **Mock**: the reusable half (role markers, sequence advance, `FunctionModel` wiring, context vars) is `ai/models/scripted.py`; `mock.py` is PathFinder's script for it, with all 71 mock unit tests unchanged. One `build_pathfinder_graph` composition root replaced five duplicate `build_graph` call sites. Three copies of "read the model id off an agent" collapsed into `ai/models/settings.baked_model_id`, and `ConversationUpdate` left the conversation repository for its own module so the file-size gate reports only the five known files again. Recorded as [the runtime takes the vocabulary as an argument; the wire keeps it](decisions/vocabulary-is-an-argument.md) and [the Lead agent belongs to the turn that runs it](decisions/the-agent-belongs-to-the-turn.md). Found on the way and filed rather than fixed: the repetition guard is registered on no agent, so the mechanism this batch made injectable never actually runs (closed in WS-V batch P1). Verified: ruff, mypy strict, pyright and ruff-format zero findings, import-linter 6/6, 2390 unit tests (67 of them new seam tests), the integration suite, and `packages/spec/openapi.json` byte-identical - the frozen wire contract is what kept the three published role enums and `MemoryValue.kind` narrow.
 
 * **The embedding cache holds one row per entry, and the encode no longer runs on the event loop.** The whole-file cache validated a site by hashing its whole catalog, so any drift in the fetched content re-encoded everything: the same api process built the portal index twice in one boot at 2472 and then 2934 entries, tritrypdb (414) and vectorbase (923) re-encoded hours after another process had written their npz to the shared volume, and a worker chat turn on the portal held the worker at 785% CPU for 2 h 39 m while every queued turn and the heartbeat waited. The cache is now content-addressed per entry: `SearchIndexEntry.cache_key` is a sha256 over the model name, the document prefix and the enriched text, the npz carries `keys` beside `embeddings` with the rows aligned to them, and `build()` reads the file as a key-to-row map, encodes only the entries with no row, assembles the matrix in the canonical `(record_type, search_name)` order from cached and fresh rows, and writes back exactly the current keys, so stale rows leave the file instead of accumulating. A catalog that drifts by N searches costs N encodes, where the portal's second build of that boot paid for all 2934. Files in the old `embeddings + hash` shape, the bundled ones included, read as a miss and are not converted, so each site pays one more full encode and only deltas after that. Two invalidations are automatic: the model name is inside the key, so a model swap invalidates every row, and a cached row whose width does not match the model's output re-encodes the site. Writes are staged under a pid-suffixed name and renamed into place because api and worker share the `embeddings_cache` volume, and a truncated file now reads as a miss rather than raising. Off the loop: `build()` is `async` and the fastembed call runs through `asyncio.to_thread`, which ONNX makes real work rather than a formality since it drops the GIL for the encode; `SearchCatalog._build_semantic_index` is the only caller and both of its call sites were already coroutines, so the seam is three awaited lines and no service changed shape. The turn that triggers a cold build still waits for its own index, but nothing else on the worker does. Eight unit tests pin it, including a delta encode that receives only the new entry's text, a removed entry that keeps the others and drops its key from the file, the old-format and truncated misses, the width miss, and an event-loop responsiveness test whose fake blocks inside `embed` on a `threading.Event` and fails if the loop cannot release it. Verified: ruff, mypy strict and pyright clean, 2351 unit tests.
 

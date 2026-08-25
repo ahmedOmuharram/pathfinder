@@ -1,4 +1,15 @@
-import { type Locator, type Page, expect } from "@playwright/test";
+import { type Locator, type Page, expect, test } from "@playwright/test";
+
+/**
+ * Wall clock a build turn needs before the rail can list its steps.
+ *
+ * The rail panel appears on the `data-graph-snapshot` chunk, so the bound is
+ * the turn's own duration plus the time it waits for a free worker slot.
+ * Measured build turns run 12 s to 30 s across sites, and a turn queued behind
+ * another adds about as much again. A budget only costs wall clock when the
+ * assertion fails.
+ */
+const BUILD_TURN_BUDGET_MS = 180_000;
 
 /**
  * Page object for the strategy graph + step editor surfaces.
@@ -12,6 +23,8 @@ import { type Locator, type Page, expect } from "@playwright/test";
  */
 export class GraphPage {
   constructor(private page: Page) {}
+
+  private buildBudgetGranted = false;
 
   // ── Rail panel (read-only step list on /conversation/[id]) ──────
 
@@ -292,9 +305,18 @@ export class GraphPage {
 
   // ── Compound assertions ──────────────────────────────────────────
 
-  /** Assert the rail panel with steps is visible (planning artifact applied). */
+  /**
+   * Assert the rail panel with steps is visible (planning artifact applied).
+   *
+   * A test that waits on a build turn carries that turn's budget on top of its
+   * own, the way the enrichment helper does. The grant is made once per test.
+   */
   async expectRailPanel() {
-    await expect(this.railPanel).toBeVisible({ timeout: 30_000 });
+    if (!this.buildBudgetGranted) {
+      this.buildBudgetGranted = true;
+      test.setTimeout(test.info().timeout + BUILD_TURN_BUDGET_MS);
+    }
+    await expect(this.railPanel).toBeVisible({ timeout: BUILD_TURN_BUDGET_MS });
   }
 
   async expectStrategyTopbar() {

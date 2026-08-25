@@ -117,7 +117,12 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-auto">
+      <div
+        className="flex-1 overflow-auto"
+        role="region"
+        aria-label="Investigation Ledger detail"
+        tabIndex={0}
+      >
         {ledger === null ? (
           <p className="px-4 py-3 text-xs text-muted-foreground">
             Waiting for the Lead to dispatch its first sub-agent...

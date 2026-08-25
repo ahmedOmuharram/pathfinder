@@ -119,6 +119,12 @@ class Settings(RuntimeSettings):
     # Application identities, as "app_id:secret[,app_id:secret...]".
     pathfinder_service_tokens: str = Field(default="", repr=False)
 
+    # veupathdb-wdk-mcp: its own public URL, and the applications it serves in
+    # service mode. The secrets are separate from pathfinder_service_tokens,
+    # because a credential sent to an MCP server must not authenticate to the API.
+    pathfinder_mcp_base_url: str = ""
+    pathfinder_mcp_service_tokens: str = Field(default="", repr=False)
+
     # Conversation provider. "mock" gives deterministic offline runs.
     pathfinder_chat_provider: str = ""
 
@@ -258,8 +264,14 @@ class Settings(RuntimeSettings):
         """The application identities, parsed once per settings instance."""
         return ServiceTokenRegistry.parse(self.pathfinder_service_tokens)
 
+    @cached_property
+    def mcp_service_tokens(self) -> ServiceTokenRegistry:
+        """The applications veupathdb-wdk-mcp serves without a user."""
+        return ServiceTokenRegistry.parse(self.pathfinder_mcp_service_tokens)
+
     def _validate_service_tokens(self) -> None:
         _ = self.service_tokens
+        _ = self.mcp_service_tokens
 
     def _validate_langfuse_settings(self) -> None:
         langfuse_values = {

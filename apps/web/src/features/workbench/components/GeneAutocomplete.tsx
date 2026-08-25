@@ -105,7 +105,7 @@ export function GeneAutocomplete({
                     ? gene.product
                     : "\u2014"}
                 </p>
-                <p className="truncate text-[10px] italic text-muted-foreground/70">
+                <p className="truncate text-[10px] italic text-muted-foreground">
                   {gene.organism}
                 </p>
               </div>

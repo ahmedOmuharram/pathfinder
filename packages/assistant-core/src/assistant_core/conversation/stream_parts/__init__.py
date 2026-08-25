@@ -1,11 +1,5 @@
-"""Core stream-part registry. Products register their own parts onto it."""
+"""The registry, its core registrations, and the payloads they carry.
 
-from assistant_core.conversation.stream_parts.core_parts import (
-    register_core_stream_parts,
-)
-from assistant_core.conversation.stream_parts.registry import (
-    StreamPartRegistry,
-)
-
-STREAM_PARTS = StreamPartRegistry()
-register_core_stream_parts(STREAM_PARTS)
+The package imports nothing on load, so a payload module stays importable
+from the chunk builders that construct it.
+"""

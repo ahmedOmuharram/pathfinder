@@ -106,7 +106,12 @@ export class ChatPage {
 
   // ── Assertions ──────────────────────────────────────────────────
 
-  async expectIdle(timeout = 60_000) {
+  /**
+   * Wait until the composer accepts input again, which happens when the turn
+   * ends. Measured turns reach 43 s when two run at once, and a third waits
+   * for a free worker slot on top of that.
+   */
+  async expectIdle(timeout = 90_000) {
     await expect(this.sendButton).toBeVisible({ timeout });
     await expect(this.messageInput).toBeEditable({ timeout });
   }
@@ -122,12 +127,16 @@ export class ChatPage {
    * By default this finds ANY assistant message containing the pattern
    * (resilient to stale messages from prior conversations). Pass an
    * explicit `index` to pin to a specific position.
+   *
+   * The reply lands when the worker finishes the turn, so the wait covers the
+   * turn plus the time it spends queued behind another worker's turn. Measured
+   * turns run 4 s to 16 s, and a queued one waits about as long again.
    */
   async expectAssistantMessage(
     pattern: RegExp,
     options?: { index?: number; timeout?: number },
   ) {
-    const timeout = options?.timeout ?? 30_000;
+    const timeout = options?.timeout ?? 90_000;
     if (options?.index !== undefined) {
       await expect(this.assistantMessage(options.index)).toContainText(pattern, {
         timeout,

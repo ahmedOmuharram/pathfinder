@@ -43,7 +43,7 @@ function CriterionCard({ crit }: { crit: LedgerCriterionPayload }) {
           {params.map(([key, value]) => (
             <div key={key} className="break-all font-mono text-[10px] leading-relaxed">
               <span className="text-muted-foreground">{key}</span>
-              <span className="text-muted-foreground/60">: </span>
+              <span className="text-muted-foreground">: </span>
               <span className="text-foreground">{JSON.stringify(value)}</span>
               {defaulted.has(key) && (
                 <span

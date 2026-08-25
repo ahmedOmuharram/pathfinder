@@ -2,10 +2,15 @@
 
 Both guards key on tool names. The names are PathFinder's, so they arrive as
 constructor arguments; a guard built with no vocabulary watches nothing rather
-than watching another product's tools by accident.
+than watching another product's tools by accident. Every watched name must be
+a tool one of the four agents offers, or the guard watches nothing that runs.
 """
 
 from __future__ import annotations
+
+import asyncio
+from typing import Any
+from uuid import uuid4
 
 import assistant_core.capabilities.repetition_guard as repetition_mod
 from assistant_core.capabilities.repetition_guard import (
@@ -13,24 +18,78 @@ from assistant_core.capabilities.repetition_guard import (
     ToolRepetitionGuard,
 )
 from assistant_core.graph.runtime import AssistantDeps
+from pydantic_ai.toolsets.abstract import AbstractToolset
+from pydantic_ai.toolsets.function import FunctionToolset
+from pydantic_ai.toolsets.wrapper import WrapperToolset
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import pathfinder.ai.capabilities.resilience as resilience_mod
 from pathfinder.ai.agents.tool_vocabulary import (
-    GRAPH_MODIFYING_TOOLS,
     READ_ONLY_TOOLS,
     SEARCH_LOOKUP_TOOLS,
     build_tool_repetition_guard,
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
-from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps, Context, build_node_deps
+from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.lead.lead_agent import build_lead_agent
+from pathfinder.ai.lead.sub_agent_tools import BUILD_SUB_AGENT_BY_ROLE, LeadDeps
 from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.services.research.literature_search import LiteratureSearchService
+from pathfinder.services.research.web_search import WebSearchService
 
 PRODUCT_NAMES = {
     "READ_ONLY_TOOLS",
-    "GRAPH_MODIFYING_TOOLS",
     "SEARCH_LOOKUP_TOOLS",
     "_SEARCH_LOOKUP_TOOLS",
 }
+
+
+def _never_factory() -> AsyncSession:
+    msg = "the seam test makes no database call"
+    raise AssertionError(msg)
+
+
+def _tool_names(toolset: AbstractToolset[Any]) -> set[str]:
+    """Names a toolset offers, through however many wrappers it carries."""
+    if isinstance(toolset, WrapperToolset):
+        return _tool_names(toolset.wrapped)
+    if isinstance(toolset, FunctionToolset):
+        return set(toolset.tools)
+    return set()
+
+
+def _offered_tool_names() -> set[str]:
+    """Every tool name the Lead or one of the sub-agents can call."""
+    agents = [build_lead_agent()]
+    agents.extend(build() for build in BUILD_SUB_AGENT_BY_ROLE.values())
+    return {
+        name
+        for agent in agents
+        for toolset in agent.toolsets
+        for name in _tool_names(toolset)
+    }
+
+
+def _context() -> Context:
+    return Context(
+        site_id="plasmodb",
+        user_id=uuid4(),
+        strategy_session=StrategySession(site_id="plasmodb"),
+        db_session_factory=_never_factory,
+        web_search_service=WebSearchService(),
+        literature_search_service=LiteratureSearchService(),
+        cancel_event=asyncio.Event(),
+    )
+
+
+def _pipeline_state() -> PipelineState:
+    return PipelineState(
+        conversation_id=uuid4(),
+        user_id=uuid4(),
+        site_id="plasmodb",
+        mode="strategy",
+    )
 
 
 def test_the_repetition_guard_module_names_no_product_tool() -> None:
@@ -61,11 +120,8 @@ def test_a_guard_honors_the_threshold_it_was_given() -> None:
     assert guard.check("peek", {}) is not None
 
 
-def test_a_guard_resets_on_the_modifying_tools_it_was_given() -> None:
-    guard = ToolRepetitionGuard(
-        read_only_tools=frozenset({"peek"}),
-        graph_modifying_tools=frozenset({"poke"}),
-    )
+def test_a_tool_outside_the_vocabulary_clears_the_streak() -> None:
+    guard = ToolRepetitionGuard(read_only_tools=frozenset({"peek"}))
     for _ in range(DEFAULT_REPETITION_THRESHOLD - 1):
         guard.check("peek", {})
     assert guard.check("poke", {}) is None
@@ -75,9 +131,16 @@ def test_a_guard_resets_on_the_modifying_tools_it_was_given() -> None:
 def test_the_product_guard_carries_the_pathfinder_vocabulary() -> None:
     guard = build_tool_repetition_guard()
     assert guard.read_only_tools == READ_ONLY_TOOLS
-    assert guard.graph_modifying_tools == GRAPH_MODIFYING_TOOLS
     assert "get_strategy" in guard.read_only_tools
-    assert "update_step" in guard.graph_modifying_tools
+
+
+def test_every_watched_name_is_a_tool_some_agent_offers() -> None:
+    """A watched name no agent carries is an entry that can never fire."""
+    assert READ_ONLY_TOOLS - _offered_tool_names() == set()
+
+
+def test_every_search_lookup_name_is_a_tool_some_agent_offers() -> None:
+    assert SEARCH_LOOKUP_TOOLS - _offered_tool_names() == set()
 
 
 def test_the_generic_deps_default_to_a_guard_that_watches_nothing() -> None:
@@ -91,6 +154,37 @@ def test_the_product_deps_default_to_the_pathfinder_guard() -> None:
         strategy_session=StrategySession(site_id="plasmodb"),
     )
     assert deps.tool_repetition_guard.read_only_tools == READ_ONLY_TOOLS
+
+
+def test_every_sub_agent_dispatch_builds_deps_under_the_product_guard() -> None:
+    """One deps container serves all three sub-agents, built once per dispatch."""
+    deps = build_node_deps(_pipeline_state(), _context())
+
+    assert deps.tool_repetition_guard.read_only_tools == READ_ONLY_TOOLS
+    assert deps.tool_repetition_guard.stopped_call_id == ""
+
+
+def test_the_lead_deps_carry_the_product_guard() -> None:
+    deps = LeadDeps(
+        state=_pipeline_state(),
+        intent=None,
+        runtime=_context(),
+        retrieved_memories=[],
+    )
+
+    assert deps.tool_repetition_guard.read_only_tools == READ_ONLY_TOOLS
+
+
+def test_each_turn_gets_its_own_guard_state() -> None:
+    """Two dispatches never share a streak, so one turn cannot stop the next."""
+    first = build_node_deps(_pipeline_state(), _context()).tool_repetition_guard
+    for _ in range(DEFAULT_REPETITION_THRESHOLD + 1):
+        first.check("get_strategy", {})
+    second = build_node_deps(_pipeline_state(), _context()).tool_repetition_guard
+
+    assert first.stopped_call_id != second.stopped_call_id or first.total_blocked > 0
+    assert second.total_blocked == 0
+    assert second.check("get_strategy", {}) is None
 
 
 def test_resilience_takes_its_search_lookup_tools_as_an_argument() -> None:

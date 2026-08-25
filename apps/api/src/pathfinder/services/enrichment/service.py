@@ -20,6 +20,7 @@ from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, InternalError, ValidationError
 from pathfinder.services.control_helpers import delete_temp_strategy
 from pathfinder.services.enrichment.params import (
+    encode_vocab_value,
     extract_default_params,
     extract_vocab_values,
 )
@@ -31,6 +32,7 @@ from pathfinder.services.enrichment.parser import (
     parse_enrichment_terms,
 )
 from pathfinder.services.enrichment.types import (
+    BackgroundSource,
     EnrichmentAnalysisType,
     EnrichmentResult,
 )
@@ -43,7 +45,14 @@ _WDK_ENRICHMENT_SEMAPHORE = asyncio.Semaphore(3)
 
 
 class EnrichmentService:
-    """Unified enrichment dispatcher."""
+    """Unified enrichment dispatcher.
+
+    One instance serves one run, so the background it tests against is set
+    when it is built.
+    """
+
+    def __init__(self, background: BackgroundSource | None = None) -> None:
+        self._background = background
 
     async def run_batch(
         self,
@@ -116,7 +125,7 @@ class EnrichmentService:
         """Run one analysis on a step and parse the result.
 
         Parameter names and defaults come from the WDK analysis form metadata.
-        Only the GO ontology parameter is overridden.
+        The GO ontology and the background organism are the two overrides.
         """
         wdk_analysis_type = ANALYSIS_TYPE_MAP.get(analysis_type)
         if not wdk_analysis_type:
@@ -160,6 +169,11 @@ class EnrichmentService:
             analysis_params["goAssociationsOntologies"] = json.dumps(
                 [requested_ontology]
             )
+
+        # The organism parameter picks the background genome. WDK refuses one
+        # that no gene in the result belongs to.
+        if self._background is not None and self._background.organism is not None:
+            analysis_params["organism"] = encode_vocab_value(self._background.organism)
 
         logger.info(
             "Running enrichment analysis",

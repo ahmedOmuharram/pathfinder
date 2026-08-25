@@ -879,7 +879,9 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
                 },
                 {
                   "type": "null"
@@ -1005,7 +1007,9 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
                 },
                 {
                   "type": "null"
@@ -2389,6 +2393,8 @@
             "required": true,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "title": "Siteid"
             }
           }
@@ -2468,6 +2474,8 @@
             "required": true,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "title": "Siteid"
             }
           }
@@ -2729,6 +2737,8 @@
             "required": true,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "title": "Siteid"
             }
           }
@@ -2866,6 +2876,8 @@
             "required": true,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "title": "Siteid"
             }
           }
@@ -2939,6 +2951,8 @@
             "required": true,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "title": "Siteid"
             }
           }
@@ -3078,7 +3092,9 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
                 },
                 {
                   "type": "null"
@@ -3270,7 +3286,9 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
                 },
                 {
                   "type": "null"
@@ -4600,7 +4618,9 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
                 },
                 {
                   "type": "null"
@@ -4877,6 +4897,8 @@
             "required": false,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "default": "veupathdb",
               "title": "Siteid"
             }
@@ -4943,6 +4965,8 @@
             "required": false,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "default": "veupathdb",
               "title": "Siteid"
             }
@@ -4992,6 +5016,8 @@
             "required": false,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "default": "veupathdb",
               "title": "Siteid"
             }
@@ -5041,6 +5067,8 @@
             "required": false,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
               "default": "veupathdb",
               "title": "Siteid"
             }
@@ -5158,7 +5186,9 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
                 },
                 {
                   "type": "null"
@@ -6560,7 +6590,9 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
                 },
                 {
                   "type": "null"
@@ -8028,6 +8060,8 @@
           },
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           },
           "recordType": {
@@ -8155,6 +8189,7 @@
           },
           "siteId": {
             "type": "string",
+            "maxLength": 50,
             "title": "Siteid",
             "default": ""
           },
@@ -9176,14 +9211,20 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
             "title": "Name"
           },
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           },
           "recordType": {
             "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Recordtype"
           },
           "positiveIds": {
@@ -9203,7 +9244,8 @@
           "source": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 50
               },
               {
                 "type": "null"
@@ -9254,6 +9296,8 @@
           },
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           },
           "strategyAst": {
@@ -9272,6 +9316,8 @@
         "properties": {
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           },
           "recordType": {
@@ -9647,6 +9693,8 @@
           },
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           },
           "geneIds": {
@@ -9693,7 +9741,8 @@
           "searchName": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 255
               },
               {
                 "type": "null"
@@ -9704,7 +9753,8 @@
           "recordType": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -12694,6 +12744,8 @@
           },
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           }
         },
@@ -13264,10 +13316,14 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
             "title": "Name"
           },
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           },
           "rawText": {
@@ -14542,7 +14598,9 @@
           "siteId": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -16872,6 +16930,8 @@
           },
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           }
         },
@@ -17762,6 +17822,8 @@
         "properties": {
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           },
           "strategyAst": {
@@ -18527,6 +18589,8 @@
         "properties": {
           "siteId": {
             "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
             "title": "Siteid"
           },
           "strategyAst": {
@@ -19247,6 +19311,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/TaskProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turnFailed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnFailedPayload"
               },
               {
                 "type": "null"
@@ -21018,6 +21092,20 @@
         ],
         "title": "TrialProgressDataResponse",
         "description": "Progress data for a single optimization trial."
+      },
+      "TurnFailedPayload": {
+        "properties": {
+          "errorText": {
+            "type": "string",
+            "title": "Errortext"
+          }
+        },
+        "type": "object",
+        "required": [
+          "errorText"
+        ],
+        "title": "TurnFailedPayload",
+        "description": "Payload for the turn-failed chunk. The chunk persists as a message part,\nso a failure the ``error`` chunk reported still shows after a reload."
       },
       "TurnStatusPayload": {
         "properties": {

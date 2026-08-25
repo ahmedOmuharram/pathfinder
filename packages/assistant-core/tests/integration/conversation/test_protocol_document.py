@@ -21,6 +21,7 @@ from tests.sse import DONE_PAYLOAD, read_stream
 from tests.synthetic import (
     ADD_PROMPT,
     APPROVAL_PROMPT,
+    LOOP_PROMPT,
     PLAIN_PROMPT,
     STOP_PROMPT,
     SyntheticRuntime,
@@ -102,7 +103,7 @@ async def captured(runtime: SyntheticRuntime) -> dict[str, str]:
     Each turn is read as its own stream, because a reader stops at the
     terminator of the turn it attached to.
     """
-    prompts = (PLAIN_PROMPT, ADD_PROMPT, APPROVAL_PROMPT, STOP_PROMPT)
+    prompts = (PLAIN_PROMPT, ADD_PROMPT, APPROVAL_PROMPT, LOOP_PROMPT, STOP_PROMPT)
     examples: dict[str, str] = {}
     cursor = 0
     for prompt in prompts:
@@ -166,6 +167,19 @@ def _chunk_kinds() -> set[str]:
 
 def test_the_chunk_table_lists_the_chunk_kinds_the_sdk_defines() -> None:
     assert set(_TABLE_KIND.findall(_section("chunks"))) == _chunk_kinds()
+
+
+_DECLARED_VERSION = re.compile(r"^\*\*Version (\d+\.\d+\.\d+)\.\*\*", re.MULTILINE)
+_CHANGELOG_VERSION = re.compile(r"^\| `(\d+\.\d+\.\d+)` \|", re.MULTILINE)
+
+
+def test_the_changelog_names_the_version_the_document_declares() -> None:
+    declared = _DECLARED_VERSION.search(PROTOCOL.read_text())
+    assert declared is not None, "PROTOCOL.md declares no version"
+
+    assert declared.group(1) in set(
+        _CHANGELOG_VERSION.findall(_section("changelog")),
+    )
 
 
 def test_the_envelope_table_lists_the_kinds_the_log_holds_but_never_frames() -> None:

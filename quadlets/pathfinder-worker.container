@@ -8,6 +8,7 @@ ContainerName=pathfinder-worker
 Image=localhost/pathfinder-api:latest
 Exec=.venv/bin/python -m pathfinder.jobs.worker
 Network=pathfinder.network
+PodmanArgs=--memory=2g
 
 # API keys and app settings loaded from .env
 EnvironmentFile=%h/.config/pathfinder/.env

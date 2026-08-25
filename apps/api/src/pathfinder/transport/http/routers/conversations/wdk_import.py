@@ -1,8 +1,6 @@
 """WDK-backed strategy endpoints (open/import/sync/list) — thin transport."""
 
-from typing import Annotated
-
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks
 
 from pathfinder.services.conversations.responses import ConversationResponse
 from pathfinder.services.conversations.wdk_import import (
@@ -14,7 +12,7 @@ from pathfinder.services.conversations.wdk_import import (
 from pathfinder.services.strategies.auto_import import (
     background_auto_import_gene_sets,
 )
-from pathfinder.transport.http.deps import CurrentUser, DBSession
+from pathfinder.transport.http.deps import CurrentUser, DBSession, RequiredSiteIdQuery
 from pathfinder.transport.http.schemas import (
     OpenConversationRequest,
     OpenConversationResponse,
@@ -45,7 +43,7 @@ async def open_strategy(
 
 @router.post("/sync-wdk", response_model=list[ConversationResponse])
 async def sync_all_wdk_strategies(
-    site_id: Annotated[str, Query(alias="siteId")],
+    site_id: RequiredSiteIdQuery,
     session: DBSession,
     user_id: CurrentUser,
     background_tasks: BackgroundTasks,

@@ -13,6 +13,7 @@ from pathfinder.services.control_sets import (
     NewControlSet,
 )
 from pathfinder.transport.http.deps import CurrentUser, DBSession, SiteIdQuery
+from pathfinder.transport.http.schemas.site_id import SiteId
 
 router = APIRouter(prefix="/api/v1/control-sets", tags=["control-sets"])
 
@@ -20,12 +21,12 @@ router = APIRouter(prefix="/api/v1/control-sets", tags=["control-sets"])
 class CreateControlSetRequest(CamelModel):
     """Payload for creating a new control set."""
 
-    name: str
-    site_id: str
-    record_type: str
+    name: str = Field(min_length=1, max_length=255)
+    site_id: SiteId
+    record_type: str = Field(min_length=1, max_length=100)
     positive_ids: list[str] = Field(default_factory=list)
     negative_ids: list[str] = Field(default_factory=list)
-    source: str | None = None
+    source: str | None = Field(None, max_length=50)
     tags: list[str] = Field(default_factory=list)
     provenance_notes: str | None = Field(None)
     is_public: bool = Field(default=False)

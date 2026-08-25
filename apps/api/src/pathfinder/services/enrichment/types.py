@@ -17,6 +17,26 @@ EnrichmentAnalysisType = Literal[
     "go_function", "go_component", "go_process", "pathway", "word"
 ]
 
+ALL_ENRICHMENT_ANALYSIS_TYPES: tuple[EnrichmentAnalysisType, ...] = (
+    "go_function",
+    "go_component",
+    "go_process",
+    "pathway",
+    "word",
+)
+
+
+class BackgroundSource(CamelModel):
+    """The annotated genome an over-representation test runs against.
+
+    The enrichment plugins restrict both the result and the background to one
+    organism. A None organism keeps the one the analysis form offers.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    organism: str | None = None
+
 
 class EnrichmentTerm(CamelModel):
     """Single enriched term from WDK analysis.

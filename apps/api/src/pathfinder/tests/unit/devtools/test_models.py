@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathfinder.devtools.models import (
     Chunk,
+    SubAgentStepData,
     decode_errors,
     sub_agent_call_data,
     sub_agent_step_data,
@@ -112,3 +113,20 @@ def test_sub_agent_step_data_parses_parent_and_args() -> None:
     assert d.tool_name == "think"
     assert d.parent_tool_call_id == "call_dj"
     assert d.args == {"thought": "x"}
+
+
+def test_a_thinking_step_carries_no_tool_name() -> None:
+    # A text or reasoning step has no tool, so the wire sends toolName null.
+    data = SubAgentStepData.model_validate(
+        {
+            "kind": "text",
+            "state": "completed",
+            "text": "weighing options",
+            "toolName": None,
+            "toolCallId": None,
+            "args": None,
+        },
+    )
+
+    assert data.tool_name == ""
+    assert data.kind == "text"

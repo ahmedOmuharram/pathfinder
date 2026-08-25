@@ -22,22 +22,12 @@
  */
 
 import { test, expect } from "../fixtures/test";
+import { sseDone, sseFrame, uiMessageStreamHeaders } from "../fixtures/sse";
 import type { BrowserContext } from "@playwright/test";
 
 const TASK_ID = "00000000-0000-0000-0000-0000000000aa";
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
-function sseFrame(obj: unknown): string {
-  return `data: ${JSON.stringify(obj)}\n\n`;
-}
-
-function uiMessageStreamHeaders(): Record<string, string> {
-  return {
-    "content-type": "text/event-stream",
-    "cache-control": "no-cache",
-    "x-vercel-ai-ui-message-stream": "v1",
-  };
-}
 
 interface OpenStrategyResponse {
   conversationId?: string;
@@ -101,7 +91,7 @@ test.describe("Durable verification TaskCard", () => {
         data: { taskId: TASK_ID, status: "success" },
       }),
       sseFrame({ type: "finish", finishReason: "stop" }),
-      "data: [DONE]\n\n",
+      sseDone(),
     ].join("");
 
     await page.route("**/api/v1/chat", async (route) => {

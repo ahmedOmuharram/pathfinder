@@ -23,7 +23,7 @@ export function ConsultRecapView({ recap }: { recap: ConsultRecap }) {
           return (
             <li key={q.id} className="leading-snug">
               <span className="font-medium text-foreground">{q.prompt}</span>
-              <span className="mx-1 text-muted-foreground/50">→</span>
+              <span className="mx-1 text-muted-foreground">→</span>
               <span className="text-foreground">
                 {chosen !== undefined && chosen !== "" ? chosen : "—"}
               </span>

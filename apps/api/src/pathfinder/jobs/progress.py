@@ -1,9 +1,9 @@
 """Durable-task progress emission (worker-side).
 
-The worker emits incremental progress for a durable task: it persists rows
-to ``task_progress`` and fires a ``pg_notify`` on
-``task_progress:<conversation_id>`` so the dispatcher can stream progress
-into the UI without polling.
+The worker emits incremental progress for a durable task on two channels: it
+persists every update to ``task_progress`` and fires a ``pg_notify`` on
+``task_progress:<conversation_id>``, and it appends a coalesced subset to the
+thread's own log so a reader of the main stream sees the task advance.
 """
 
 from __future__ import annotations
@@ -13,10 +13,18 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+from assistant_core.conversation.event_writer import append_chunk
+from assistant_core.graph.stream_events import task_progress_event
 from assistant_core.platform.db import DBSessionFactory
 from sqlalchemy import text
 
 from pathfinder.persistence.models import TaskProgress
+
+# The log is the coarse channel: it answers "where is this task now" for a
+# reader that reconnects. An update reaches it when the task advances five
+# percentage points, or when the last one it holds is this old.
+_LOG_ADVANCE_POINTS = 5
+_LOG_MAX_SILENCE_SECONDS = 10.0
 
 
 @dataclass(frozen=True)
@@ -24,6 +32,57 @@ class _PendingProgress:
     percent: float
     message: str
     data: dict[str, Any] | None
+
+
+def _points(percent: float) -> int:
+    return round(percent * 100)
+
+
+@dataclass
+class _ThreadLog:
+    """Which of a task's updates reach the conversation log.
+
+    One instance per task. A scoped child shares its parent's instance, so a
+    fan-out spends the same budget as a single sequence.
+    """
+
+    conversation_id: UUID
+    task_id: UUID
+    written_points: int | None = None
+    written_at: float = 0.0
+    unwritten: _PendingProgress | None = None
+
+    def _is_due(self, row: _PendingProgress, now: float) -> bool:
+        if self.written_points is None:
+            return True
+        if _points(row.percent) - self.written_points >= _LOG_ADVANCE_POINTS:
+            return True
+        return now - self.written_at >= _LOG_MAX_SILENCE_SECONDS
+
+    async def offer(self, row: _PendingProgress) -> None:
+        self.unwritten = row
+        if self._is_due(row, time.monotonic()):
+            await self._append(row)
+
+    async def write_last(self) -> None:
+        """Append the newest update the log does not hold yet."""
+        if self.unwritten is not None:
+            await self._append(self.unwritten)
+
+    async def _append(self, row: _PendingProgress) -> None:
+        await append_chunk(
+            conversation_id=self.conversation_id,
+            chunk=task_progress_event(
+                task_id=self.task_id,
+                percent=row.percent,
+                message=row.message,
+                tool_specific=row.data,
+            ).model_dump(by_alias=True, mode="json", exclude_none=True),
+        )
+        self.written_points = _points(row.percent)
+        self.written_at = time.monotonic()
+        if self.unwritten is row:
+            self.unwritten = None
 
 
 @dataclass
@@ -48,6 +107,13 @@ class TaskProgressEmitter:
     _scope_data: dict[str, Any] = field(default_factory=dict)
     _buffer: list[_PendingProgress] = field(default_factory=list)
     _last_flush_monotonic: float = field(default=0.0)
+    _thread_log: _ThreadLog = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._thread_log = _ThreadLog(
+            conversation_id=self.conversation_id,
+            task_id=self.task_id,
+        )
 
     def scoped(self, **scope: Any) -> TaskProgressEmitter:
         """Return a child emitter that tags every update with ``scope``."""
@@ -59,6 +125,7 @@ class TaskProgressEmitter:
             max_flush_interval_seconds=self.max_flush_interval_seconds,
         )
         child._scope_data = {**self._scope_data, **scope}
+        child._thread_log = self._thread_log
         return child
 
     async def update(
@@ -73,9 +140,8 @@ class TaskProgressEmitter:
             merged = {**self._scope_data, **(data or {})}
         else:
             merged = None
-        self._buffer.append(
-            _PendingProgress(percent=percent, message=message, data=merged),
-        )
+        row = _PendingProgress(percent=percent, message=message, data=merged)
+        self._buffer.append(row)
         now = time.monotonic()
         if self._last_flush_monotonic == 0.0:
             self._last_flush_monotonic = now
@@ -85,6 +151,7 @@ class TaskProgressEmitter:
         )
         if should_flush:
             await self.flush()
+        await self._thread_log.offer(row)
 
     async def flush(self) -> None:
         """Commit all buffered rows + fire one NOTIFY. No-op if empty."""
@@ -115,3 +182,4 @@ class TaskProgressEmitter:
 
     async def aclose(self) -> None:
         await self.flush()
+        await self._thread_log.write_last()

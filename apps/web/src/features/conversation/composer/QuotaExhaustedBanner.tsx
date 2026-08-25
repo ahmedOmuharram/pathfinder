@@ -34,7 +34,7 @@ export function QuotaExhaustedBanner() {
       <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="font-medium">Monthly quota reached</p>
-        <p className="mt-0.5 text-xs text-destructive/80">
+        <p className="mt-0.5 text-xs text-destructive">
           You&apos;ve used {currency.format(used)} of your {currency.format(limit)}{" "}
           monthly limit. New messages are paused until{" "}
           {dateFmt.format(new Date(data.resetsAt))}.

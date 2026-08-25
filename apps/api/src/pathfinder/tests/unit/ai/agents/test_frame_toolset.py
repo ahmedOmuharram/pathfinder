@@ -11,7 +11,7 @@ from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.toolsets.wrapper import WrapperToolset
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
-from pathfinder.ai.tools.standalone import _catalog_models, frame_spec
+from pathfinder.ai.tools.standalone import frame_spec
 from pathfinder.ai.tools.standalone.frame_spec import (
     ParamProposals,
     SetCriterionResult,
@@ -42,6 +42,7 @@ from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKStringParam,
 )
 from pathfinder.platform.errors import ValidationError
+from pathfinder.services.catalog import searches
 from pathfinder.services.catalog.param_dag import (
     ParamFetcher,
     ResolvedParams,
@@ -767,7 +768,7 @@ def _serve_search_details(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     client = MagicMock()
     client.get_search_details = _details
-    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _site: client)
+    monkeypatch.setattr(searches, "get_wdk_client", lambda _site: client)
     return reads
 
 
@@ -1051,7 +1052,7 @@ def _serve_bare_definition(monkeypatch: pytest.MonkeyPatch) -> None:
 
     client = MagicMock()
     client.get_search_details = _details
-    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _site: client)
+    monkeypatch.setattr(searches, "get_wdk_client", lambda _site: client)
     _serve_catalog_details(monkeypatch, [])
 
 

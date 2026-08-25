@@ -586,6 +586,8 @@ paths:
         schema:
           anyOf:
           - type: string
+            minLength: 1
+            maxLength: 50
           - type: 'null'
           title: Siteid
       responses:
@@ -657,6 +659,8 @@ paths:
         schema:
           anyOf:
           - type: string
+            minLength: 1
+            maxLength: 50
           - type: 'null'
           title: Siteid
       responses:
@@ -1481,6 +1485,8 @@ paths:
         required: true
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           title: Siteid
       requestBody:
         required: true
@@ -1527,6 +1533,8 @@ paths:
         required: true
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           title: Siteid
       responses:
         '200':
@@ -1680,6 +1688,8 @@ paths:
         required: true
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           title: Siteid
       requestBody:
         required: true
@@ -1759,6 +1769,8 @@ paths:
         required: true
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           title: Siteid
       responses:
         '200':
@@ -1803,6 +1815,8 @@ paths:
         required: true
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           title: Siteid
       requestBody:
         required: true
@@ -1884,6 +1898,8 @@ paths:
         schema:
           anyOf:
           - type: string
+            minLength: 1
+            maxLength: 50
           - type: 'null'
           title: Siteid
       responses:
@@ -1996,6 +2012,8 @@ paths:
         schema:
           anyOf:
           - type: string
+            minLength: 1
+            maxLength: 50
           - type: 'null'
           title: Site Id
       responses:
@@ -2768,6 +2786,8 @@ paths:
         schema:
           anyOf:
           - type: string
+            minLength: 1
+            maxLength: 50
           - type: 'null'
           title: Siteid
       - name: tags
@@ -2927,6 +2947,8 @@ paths:
         required: false
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           default: veupathdb
           title: Siteid
       requestBody:
@@ -2971,6 +2993,8 @@ paths:
         required: false
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           default: veupathdb
           title: Siteid
       responses:
@@ -3007,6 +3031,8 @@ paths:
         required: false
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           default: veupathdb
           title: Siteid
       responses:
@@ -3043,6 +3069,8 @@ paths:
         required: false
         schema:
           type: string
+          minLength: 1
+          maxLength: 50
           default: veupathdb
           title: Siteid
       responses:
@@ -3111,6 +3139,8 @@ paths:
         schema:
           anyOf:
           - type: string
+            minLength: 1
+            maxLength: 50
           - type: 'null'
           title: Siteid
       responses:
@@ -3956,6 +3986,8 @@ paths:
         schema:
           anyOf:
           - type: string
+            minLength: 1
+            maxLength: 50
           - type: 'null'
           title: Siteid
       - name: deleteWdk
@@ -4856,6 +4888,8 @@ components:
           title: Goldid
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
         recordType:
           type: string
@@ -4942,6 +4976,7 @@ components:
           title: Assistantid
         siteId:
           type: string
+          maxLength: 50
           title: Siteid
           default: ''
         mode:
@@ -5681,12 +5716,18 @@ components:
       properties:
         name:
           type: string
+          maxLength: 255
+          minLength: 1
           title: Name
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
         recordType:
           type: string
+          maxLength: 100
+          minLength: 1
           title: Recordtype
         positiveIds:
           items:
@@ -5701,6 +5742,7 @@ components:
         source:
           anyOf:
           - type: string
+            maxLength: 50
           - type: 'null'
           title: Source
         tags:
@@ -5733,6 +5775,8 @@ components:
           title: Name
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
         strategyAst:
           $ref: '#/components/schemas/StrategyAst-Input'
@@ -5746,6 +5790,8 @@ components:
       properties:
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
         recordType:
           type: string
@@ -5982,6 +6028,8 @@ components:
           title: Name
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
         geneIds:
           items:
@@ -6011,11 +6059,13 @@ components:
         searchName:
           anyOf:
           - type: string
+            maxLength: 255
           - type: 'null'
           title: Searchname
         recordType:
           anyOf:
           - type: string
+            maxLength: 100
           - type: 'null'
           title: Recordtype
         parameters:
@@ -7845,6 +7895,8 @@ components:
           title: Strategyid
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
       type: object
       required:
@@ -8249,9 +8301,13 @@ components:
       properties:
         name:
           type: string
+          maxLength: 200
+          minLength: 1
           title: Name
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
         rawText:
           type: string
@@ -9142,6 +9198,8 @@ components:
         siteId:
           anyOf:
           - type: string
+            maxLength: 50
+            minLength: 1
           - type: 'null'
           title: Siteid
       type: object
@@ -10607,6 +10665,8 @@ components:
           title: Negativegeneids
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
       type: object
       required:
@@ -11194,6 +11254,8 @@ components:
       properties:
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
         strategyAst:
           $ref: '#/components/schemas/StrategyAst-Input'
@@ -11643,6 +11705,8 @@ components:
       properties:
         siteId:
           type: string
+          maxLength: 50
+          minLength: 1
           title: Siteid
         strategyAst:
           $ref: '#/components/schemas/StrategyAst-Input'
@@ -12032,6 +12096,10 @@ components:
         taskProgress:
           anyOf:
           - $ref: '#/components/schemas/TaskProgress'
+          - type: 'null'
+        turnFailed:
+          anyOf:
+          - $ref: '#/components/schemas/TurnFailedPayload'
           - type: 'null'
         turnStatus:
           anyOf:
@@ -13114,6 +13182,18 @@ components:
       - status
       title: TrialProgressDataResponse
       description: Progress data for a single optimization trial.
+    TurnFailedPayload:
+      properties:
+        errorText:
+          type: string
+          title: Errortext
+      type: object
+      required:
+      - errorText
+      title: TurnFailedPayload
+      description: 'Payload for the turn-failed chunk. The chunk persists as a message part,
+
+        so a failure the ``error`` chunk reported still shows after a reload.'
     TurnStatusPayload:
       properties:
         label:

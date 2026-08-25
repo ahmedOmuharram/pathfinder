@@ -7,7 +7,7 @@ their parent schemas and do not need explicit entries.
 Every installed assistant registers its parts, so the spec carries the union.
 """
 
-from assistant_core.conversation.stream_parts import STREAM_PARTS
+from assistant_core.conversation.stream_parts.core_parts import STREAM_PARTS
 from assistant_core.platform.pydantic_base import CamelModel
 from fastapi import APIRouter
 

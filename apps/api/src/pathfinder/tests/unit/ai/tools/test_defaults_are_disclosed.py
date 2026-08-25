@@ -7,11 +7,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.tools.standalone import _catalog_models, frame_spec
+from pathfinder.ai.tools.standalone import frame_spec
 from pathfinder.domain.parameters.values import NumberValue, SinglePickValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch, WDKSearchResponse
+from pathfinder.services.catalog import searches
 from pathfinder.services.catalog.param_dag import ParamFetcher, ResolvedParams
 from pathfinder.services.catalog.param_formatting import ParameterInfo
 from pathfinder.services.catalog.param_intent import Provenance
@@ -73,7 +74,7 @@ async def _bind(monkeypatch: pytest.MonkeyPatch, state: AgentToolState):
 
     client = MagicMock()
     client.get_search_details = _details
-    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _site: client)
+    monkeypatch.setattr(searches, "get_wdk_client", lambda _site: client)
     monkeypatch.setattr(frame_spec, "fetch_search_details", _catalog_details)
     monkeypatch.setattr(frame_spec, "resolve_params_with_intent", _resolve)
     monkeypatch.setattr(frame_spec, "validate_parameters", _validate)

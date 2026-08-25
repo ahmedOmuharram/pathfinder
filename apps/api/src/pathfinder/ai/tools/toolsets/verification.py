@@ -14,8 +14,13 @@ from pathfinder.ai.tools.standalone.experiment import (
     run_control_tests_on_step,
 )
 from pathfinder.ai.tools.standalone.export import export_gene_set
+from pathfinder.ai.tools.standalone.gene import (
+    lookup_gene_records,
+    resolve_gene_ids_to_records,
+)
 from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.optimization import optimize_search_parameters
+from pathfinder.ai.tools.standalone.research import literature_search
 from pathfinder.ai.tools.standalone.results import (
     get_download_url,
     get_sample_records,
@@ -102,6 +107,9 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
                 max_retries=3,
             ),
             run_control_tests_on_search,
+            literature_search,
+            lookup_gene_records,
+            resolve_gene_ids_to_records,
             create_workbench_gene_set,
             Tool(run_gene_set_enrichment, sequential=True, max_retries=3),
             list_workbench_gene_sets,

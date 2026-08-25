@@ -4,8 +4,9 @@ The Lead is the only LLM in the dispatcher; sub-agents run as tools the
 Lead invokes inside its single ``run_stream_events`` call. This module owns
 the turn driver (``_drive_lead_stream``) and ``make_lead_node``, which binds
 the driver to the hooks the graph was built with; run accounting lives in
-``_lead_capture``, sub-agent event rendering in ``_lead_events``, and memory
-retrieval plus approval resolution in ``_lead_turn``.
+``_lead_capture``, sub-agent event rendering in ``_lead_events``, model
+selection in ``_lead_model``, and memory retrieval plus approval resolution in
+``_lead_turn``.
 """
 
 from __future__ import annotations
@@ -14,11 +15,13 @@ from collections.abc import AsyncGenerator, Awaitable
 from typing import Any, Literal, Protocol
 from uuid import UUID, uuid4
 
-from assistant_core.conversation.vercel_adapter import (
-    DeferredToolHint,
-    PhaseStreamEmitter,
+from assistant_core.capabilities.repetition_guard import (
+    RepetitionGuard,
+    ToolRepetitionGuard,
 )
+from assistant_core.conversation.vercel_adapter import PhaseStreamEmitter
 from assistant_core.cost import cost_for_run
+from assistant_core.graph import approvals
 from assistant_core.graph.emit import emit_chunk, emit_turn_usage
 from assistant_core.graph.pre_turn import PreTurnHook
 from assistant_core.graph.stream_events import (
@@ -26,10 +29,8 @@ from assistant_core.graph.stream_events import (
     turn_status_event,
 )
 from assistant_core.graph.turn_agent import TurnAgentFactory
-from assistant_core.graph.turn_state import PendingApproval
 from assistant_core.memory.schemas import MemoryValue
 from assistant_core.platform.logging import get_logger
-from assistant_core.platform.types import ReasoningEffort
 from langgraph.config import get_stream_writer
 from langgraph.errors import GraphBubbleUp
 from langgraph.runtime import Runtime
@@ -38,10 +39,10 @@ from pydantic_ai import AgentRunResultEvent
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import (
     AgentStreamEvent,
-    ModelMessage,
-    ModelMessagesTypeAdapter,
+    FunctionToolResultEvent,
 )
 from pydantic_ai.tools import DeferredToolRequests
+from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
 from pydantic_ai.usage import RunUsage, UsageLimits
 
 from pathfinder.ai.graph._lead_capture import (
@@ -55,22 +56,19 @@ from pathfinder.ai.graph._lead_events import (
     handle_sub_agent_event,
     is_suppressed_sub_agent_chunk,
 )
+from pathfinder.ai.graph._lead_model import resolve_lead_model_context
 from pathfinder.ai.graph._lead_turn import (
+    ApprovalResolution,
     pending_approval,
     resolve_pending_approval,
     retrieve_memories,
 )
-from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState, StrategyDomainState
 from pathfinder.ai.graph.stream_events import ledger_update_event
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.lead_agent import LeadAgent, LeadResponse
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
-from pathfinder.ai.models.mock import get_mock_model
-from pathfinder.ai.models.settings import baked_model_id, build_model_settings
-from pathfinder.ai.models.tiers import resolve_phase_tier_config
-from pathfinder.platform.config import get_settings
 
 logger = get_logger(__name__)
 
@@ -94,23 +92,17 @@ class LeadNode(Protocol):
     ) -> Awaitable[Command[Literal["finalize_turn"]]]: ...
 
 
-def _resume_user_prompt(state: PipelineState) -> str | None:
-    """When resuming from a deferred tool, the user's text is already
-    captured as the approval/denial — don't re-insert it as a new prompt."""
-    if state.pending_approval is None:
-        return state.user_prompt
-    return None
+def _run_prompt(state: PipelineState, resolution: ApprovalResolution) -> str | None:
+    """The message the Lead's run starts from.
 
-
-def _resume_message_history(
-    state: PipelineState,
-) -> list[ModelMessage] | None:
-    """Replay the prior agent run's messages so OpenAI sees the original
-    tool-call request when the user approves a deferred tool."""
-    approval = state.pending_approval
-    if approval is None or not approval.prior_messages_json:
+    A turn that resumes a deferred tool carries the user's answer, not a new
+    prompt, unless the user answered by typing instead of clicking.
+    """
+    if resolution.user_prompt:
+        return resolution.user_prompt
+    if state.pending_approval is not None:
         return None
-    return ModelMessagesTypeAdapter.validate_json(approval.prior_messages_json)
+    return state.user_prompt
 
 
 def _absorb_run_result(
@@ -142,41 +134,41 @@ def _absorb_run_result(
     )
 
 
-def _deferred_hint(pending: PendingApproval | None) -> DeferredToolHint | None:
-    if pending is None:
-        return None
-    return DeferredToolHint(
-        tool_call_id=pending.tool_call_id,
-        tool_name=pending.tool_name,
-        tool_args=pending.tool_args,
-    )
+def _emit_unless_suppressed(
+    writer: Any,
+    chunk: BaseChunk,
+    sub_agent_tool_calls: dict[str, str],
+) -> None:
+    """Write one chunk, unless a sub-agent already renders that call itself."""
+    if is_suppressed_sub_agent_chunk(chunk, sub_agent_tool_calls):
+        return
+    emit_chunk(writer, chunk)
 
 
-def _resolve_lead_model_context(
-    agent: LeadAgent,
-    *,
-    model_override: str | None = None,
-    reasoning_effort: ReasoningEffort | None = None,
-) -> tuple[Any, str]:
-    """Swap in the mock for the mock provider, otherwise honor per-request overrides."""
-    if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
-        return agent.override(model=get_mock_model()), "mock:lead"
-
-    settings = get_settings()
-    tier_cfg = resolve_phase_tier_config(
-        settings.default_provider, settings.default_tier, "lead"
-    )
-    tier_model = tier_cfg.model_id if tier_cfg is not None else None
-    effective_model = model_override or tier_model or baked_model_id(agent)
-    effort = reasoning_effort or (
-        tier_cfg.reasoning_effort if tier_cfg is not None else None
-    )
+def _guard_stopped_on(
+    event: AgentStreamEvent | AgentRunResultEvent[Any],
+    guard: ToolRepetitionGuard,
+) -> bool:
+    """True for the result of the call whose refusal ends the run."""
     return (
-        agent.override(
-            model=maybe_wrap_model(effective_model, "lead"),
-            model_settings=build_model_settings(effective_model, thinking=effort),
+        isinstance(event, FunctionToolResultEvent)
+        and event.tool_call_id == guard.stopped_call_id
+    )
+
+
+def _absorb_loop_stop(
+    capture: _LeadRunCapture,
+    guard: ToolRepetitionGuard,
+) -> None:
+    """Say why the turn ended when the guard stopped the Lead's own run."""
+    if not guard.stopped_call_id or capture.response is not None:
+        return
+    capture.response = LeadResponse(
+        prose=(
+            "I stopped this turn: I was repeating the same lookup and making "
+            "no progress. Tell me what to try instead and I will carry on."
         ),
-        effective_model,
+        next_state="await_user",
     )
 
 
@@ -195,17 +187,21 @@ async def _drive_lead_stream(
         # so the turn ends on the new question instead of resuming it.
         capture.pending_approval = resolution.still_pending
         return
-    deferred_hint = _deferred_hint(state.pending_approval)
+    approval = state.pending_approval
     emitter = PhaseStreamEmitter(
         message_id=str(message_id),
-        deferred_hint=deferred_hint,
+        deferred_hint=(
+            approvals.deferred_hint(approval) if approval is not None else None
+        ),
     )
     deferred_results = resolution.results
     capture.approval_consumed = deferred_results is not None
-    resume_prompt = resolution.user_prompt or _resume_user_prompt(state)
-    resume_history = _resume_message_history(state)
+    resume_prompt = _run_prompt(state, resolution)
+    resume_messages = (
+        approvals.resume_history(approval) if approval is not None else None
+    )
     usage_acc = RunUsage()
-    override_ctx, agent_model = _resolve_lead_model_context(
+    override_ctx, agent_model = resolve_lead_model_context(
         agent,
         model_override=deps.runtime.phase_models.get("lead"),
         reasoning_effort=deps.runtime.phase_reasoning.get("lead"),
@@ -217,14 +213,17 @@ async def _drive_lead_stream(
         turn_status_event(label="Thinking...", waiting_on_llm=True, model=agent_model),
     )
 
+    guard = deps.tool_repetition_guard
+
     async def _agent_events() -> AsyncGenerator[
         AgentStreamEvent | AgentRunResultEvent[Any]
     ]:
         async with agent.run_stream_events(
             resume_prompt,
             deps=deps,
-            message_history=resume_history,
+            message_history=resume_messages,
             deferred_tool_results=deferred_results,
+            capabilities=[RepetitionGuard(guard=guard)],
             usage_limits=LEAD_USAGE_LIMITS,
             usage=usage_acc,
         ) as events:
@@ -248,16 +247,13 @@ async def _drive_lead_stream(
                     agent_model,
                 )
                 yield event
+                if _guard_stopped_on(event, guard):
+                    return
 
     try:
         with override_ctx:
             async for v6_chunk in emitter.chunks(_agent_events()):
-                if is_suppressed_sub_agent_chunk(
-                    v6_chunk,
-                    sub_agent_tool_calls,
-                ):
-                    continue
-                emit_chunk(writer, v6_chunk)
+                _emit_unless_suppressed(writer, v6_chunk, sub_agent_tool_calls)
     except UsageLimitExceeded as exc:
         logger.warning(
             "lead exceeded usage cap",
@@ -280,6 +276,7 @@ async def _drive_lead_stream(
             user_id=str(state.user_id),
         )
         raise
+    _absorb_loop_stop(capture, guard)
 
 
 def _domain_delta(

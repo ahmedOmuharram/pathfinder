@@ -9,6 +9,7 @@ public surfaces allow, and it is where the boundary cuts.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -19,6 +20,8 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai.models import Model
+from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.ui.vercel_ai.request_types import ToolApprovalResponded
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
     DoneChunk,
@@ -26,11 +29,13 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     StartChunk,
 )
 
+from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
 from assistant_core.conversation.event_writer import ChatEventWriter, ChatWriter
 from assistant_core.graph.runtime import AssistantDeps, TurnContext
 from assistant_core.graph.single_agent import single_agent_graph
 from assistant_core.graph.stream_events import turn_status_event, turn_stopped_event
 from assistant_core.graph.turn_state import TurnState
+from assistant_core.mcp.declaration import ToolSourceDeclarations
 from assistant_core.models.scripted import (
     RoleMarkers,
     ScriptedModel,
@@ -55,16 +60,37 @@ SYNTHETIC_MODE = "chat"
 ADD_TOOL = "add"
 APPROVAL_TOOL = "wipe_everything"
 STOP_TOOL = "stop_turn"
+LOOP_TOOL = "peek"
 
 ADD_CALL_ID = "call_add"
 APPROVAL_CALL_ID = "call_wipe"
 STOP_CALL_ID = "call_stop"
+LOOP_CALL_ID = "call_peek"
 
 # A marker in the user's message picks the arc, so a prompt is the script.
 ADD_PROMPT = "please add"
 APPROVAL_PROMPT = "please wipe"
 STOP_PROMPT = "please stop"
+LOOP_PROMPT = "please peek"
 PLAIN_PROMPT = "which sites do you serve"
+
+# The tools a declared MCP source contributes, under its local name's prefix.
+SOURCE_READ_TOOL = "catalog_read_thing"
+SOURCE_WRITE_TOOL = "catalog_write_thing"
+SOURCE_PLAIN_TOOL = "catalog_plain_thing"
+
+SOURCE_READ_CALL_ID = "call_source_read"
+SOURCE_WRITE_CALL_ID = "call_source_write"
+SOURCE_PLAIN_CALL_ID = "call_source_plain"
+
+SOURCE_READ_PROMPT = "please read"
+SOURCE_WRITE_PROMPT = "please write"
+SOURCE_PLAIN_PROMPT = "please look"
+
+SOURCE_THING_NAME = "kinase"
+
+# The loop arc asks for the same reading more times than the guard allows.
+LOOP_CALLS = 5
 
 PREPARING_LABEL = "Preparing context"
 EPILOGUE_LABEL = "Turn recorded"
@@ -78,6 +104,11 @@ async def add(a: int, b: int) -> int:
 async def wipe_everything(target: str) -> str:
     """Delete everything under a target."""
     return f"wiped {target}"
+
+
+async def peek() -> str:
+    """Read a value that never changes."""
+    return "unchanged"
 
 
 async def stop_turn(ctx: RunContext[AssistantDeps]) -> str:
@@ -102,11 +133,38 @@ _ARCS: tuple[_Arc, ...] = (
     _Arc(ADD_PROMPT, ADD_TOOL, ADD_CALL_ID, {"a": 2, "b": 3}),
     _Arc(APPROVAL_PROMPT, APPROVAL_TOOL, APPROVAL_CALL_ID, {"target": "everything"}),
     _Arc(STOP_PROMPT, STOP_TOOL, STOP_CALL_ID, {}),
+    _Arc(
+        SOURCE_READ_PROMPT,
+        SOURCE_READ_TOOL,
+        SOURCE_READ_CALL_ID,
+        {"name": SOURCE_THING_NAME},
+    ),
+    _Arc(
+        SOURCE_WRITE_PROMPT,
+        SOURCE_WRITE_TOOL,
+        SOURCE_WRITE_CALL_ID,
+        {"name": SOURCE_THING_NAME},
+    ),
+    _Arc(SOURCE_PLAIN_PROMPT, SOURCE_PLAIN_TOOL, SOURCE_PLAIN_CALL_ID, {}),
 )
+
+
+def _loop_part(messages: list[ModelMessage]) -> ScriptedPart:
+    """Ask for the same reading again, under a fresh call id each time."""
+    made = [p for p in called_tool_parts(messages) if p.tool_name == LOOP_TOOL]
+    if len(made) >= LOOP_CALLS:
+        return scripted_text("Nothing changed.")
+    return ToolCallPart(
+        tool_name=LOOP_TOOL,
+        args={},
+        tool_call_id=f"{LOOP_CALL_ID}_{len(made)}",
+    )
 
 
 def _next_part(messages: list[ModelMessage]) -> ScriptedPart:
     text = last_user_text(messages)
+    if LOOP_PROMPT in text:
+        return _loop_part(messages)
     called = {part.tool_name for part in called_tool_parts(messages)}
     for arc in _ARCS:
         if arc.marker in text and arc.tool_name not in called:
@@ -130,13 +188,16 @@ def synthetic_model() -> ScriptedModel:
     )
 
 
-def synthetic_agent() -> Agent[AssistantDeps, str]:
+def synthetic_agent(
+    toolsets: Sequence[AbstractToolset[AssistantDeps]] = (),
+) -> Agent[AssistantDeps, str]:
     return Agent(
         synthetic_model().as_function_model(),
         output_type=str,
         deps_type=AssistantDeps,
         instructions="Answer the user.",
-        tools=[add, Tool(wipe_everything, requires_approval=True), stop_turn],
+        tools=[add, Tool(wipe_everything, requires_approval=True), stop_turn, peek],
+        toolsets=list(toolsets),
         name=SYNTHETIC_ASSISTANT_ID,
     )
 
@@ -164,6 +225,9 @@ def _deps(state: TurnState, context: TurnContext) -> AssistantDeps:
         memory_store=context.memory_store,
         cancel_event=context.cancel_event,
         retrieved_memories=state.retrieved_memories,
+        tool_repetition_guard=ToolRepetitionGuard(
+            read_only_tools=frozenset({LOOP_TOOL}),
+        ),
     )
 
 
@@ -173,23 +237,52 @@ async def _epilogue(conversation_id: UUID) -> list[dict[str, Any]]:
     return [dump_chunk(turn_status_event(label=EPILOGUE_LABEL))]
 
 
-def synthetic_spec(ledger: UsageLedger) -> AssistantSpec:
+@dataclass(frozen=True, kw_only=True)
+class SyntheticTurnContext(TurnContext):
+    """The runtime's turn context, plus the sources this turn resolved."""
+
+    tool_sources: Mapping[str, AbstractToolset[Any]] = field(default_factory=dict)
+
+
+def synthetic_tool_sources(
+    context: TurnContext,
+) -> Mapping[str, AbstractToolset[Any]]:
+    """The tool sources the synthetic assistant's turn context carries."""
+    assert isinstance(context, SyntheticTurnContext)
+    return context.tool_sources
+
+
+def synthetic_graph(
+    *,
+    checkpointer: BaseCheckpointSaver[Any],
+    ledger: UsageLedger,
+    toolsets: Sequence[AbstractToolset[AssistantDeps]] = (),
+) -> CompiledStateGraph[Any, Any, Any, Any]:
+    """Compile the synthetic turn graph, with this turn's sources on the agent."""
+    return single_agent_graph(
+        checkpointer=checkpointer,
+        state_type=TurnState,
+        context_type=SyntheticTurnContext,
+        build_agent=lambda: synthetic_agent(toolsets),
+        build_deps=_deps,
+        charge_usage=ledger,
+    )
+
+
+def synthetic_spec(
+    ledger: UsageLedger,
+    *,
+    tool_sources: ToolSourceDeclarations = (),
+) -> AssistantSpec:
     """The synthetic assistant, as the runtime sees any assistant."""
 
     def build_graph(
         checkpointer: BaseCheckpointSaver[Any],
     ) -> CompiledStateGraph[Any, Any, Any, Any]:
-        return single_agent_graph(
-            checkpointer=checkpointer,
-            state_type=TurnState,
-            context_type=TurnContext,
-            build_agent=synthetic_agent,
-            build_deps=_deps,
-            charge_usage=ledger,
-        )
+        return synthetic_graph(checkpointer=checkpointer, ledger=ledger)
 
     async def build_turn_context(request: TurnContextRequest) -> TurnContext:
-        return TurnContext(
+        return SyntheticTurnContext(
             site_id=request.site_id,
             user_id=request.user_id,
             db_session_factory=async_session_factory,
@@ -197,6 +290,7 @@ def synthetic_spec(ledger: UsageLedger) -> AssistantSpec:
             memory_store=request.memory_store,
             phase_models=request.phase_models,
             phase_reasoning=request.phase_reasoning,
+            tool_sources=request.tool_sources,
         )
 
     return AssistantSpec(
@@ -207,6 +301,7 @@ def synthetic_spec(ledger: UsageLedger) -> AssistantSpec:
         build_mock_model=_mock_model,
         checkpoint_types=(TurnState,),
         memory_kinds=frozenset({"note"}),
+        tool_sources=tool_sources,
         turn_epilogue=_epilogue,
     )
 
@@ -224,6 +319,7 @@ async def build_context(
     *,
     user_id: UUID,
     cancel_event: asyncio.Event | None = None,
+    tool_sources: Mapping[str, AbstractToolset[Any]] | None = None,
 ) -> TurnContext:
     return await spec.build_turn_context(
         TurnContextRequest(
@@ -234,6 +330,7 @@ async def build_context(
             cancel_event=cancel_event or asyncio.Event(),
             phase_models={},
             phase_reasoning={},
+            tool_sources=tool_sources or {},
         ),
     )
 
@@ -250,6 +347,7 @@ class TurnRequest:
     user_id: UUID
     prompt: str = ""
     is_resume: bool = False
+    approval_responses: dict[str, ToolApprovalResponded] = field(default_factory=dict)
 
 
 @dataclass
@@ -279,6 +377,7 @@ def _turn_start(request: TurnRequest, start_event_id: int) -> TurnStart:
         is_resume=request.is_resume,
         user_message_id=None if request.is_resume else uuid4(),
         user_prompt="" if request.is_resume else request.prompt,
+        approval_responses=request.approval_responses,
     )
 
 
@@ -346,6 +445,7 @@ class SyntheticRuntime:
         *,
         is_resume: bool = False,
         cancel: asyncio.Event | None = None,
+        approval_responses: dict[str, ToolApprovalResponded] | None = None,
     ) -> TurnOutcome:
         """Drive one turn, with its own message id and its own cancel event."""
         writer = ChatEventWriter(
@@ -367,7 +467,27 @@ class SyntheticRuntime:
                 user_id=self.user_id,
                 prompt=prompt,
                 is_resume=is_resume,
+                approval_responses=approval_responses or {},
             ),
+        )
+
+    async def answer_approval(
+        self,
+        tool_call_id: str,
+        *,
+        approved: bool,
+        reason: str = "",
+    ) -> TurnOutcome:
+        """Drive the turn that carries the user's answer to an approval card."""
+        return await self.run(
+            is_resume=True,
+            approval_responses={
+                tool_call_id: ToolApprovalResponded(
+                    id=tool_call_id,
+                    approved=approved,
+                    reason=reason or None,
+                ),
+            },
         )
 
     def thread_config(self) -> dict[str, Any]:

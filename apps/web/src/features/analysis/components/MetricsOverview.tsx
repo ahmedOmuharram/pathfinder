@@ -39,7 +39,7 @@ function CIBadge({
   const upper = ci?.upper;
   if (lower === undefined || upper === undefined) return null;
   return (
-    <span className="ml-1.5 text-[10px] text-muted-foreground/70 tabular-nums">
+    <span className="ml-1.5 text-[10px] text-muted-foreground tabular-nums">
       [{fmt(lower)}, {fmt(upper)}]
     </span>
   );

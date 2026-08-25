@@ -196,7 +196,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
                   value={wdkConfirmText}
                   onChange={(e) => setWdkConfirmText(e.target.value)}
                   placeholder="delete my data"
-                  className="bg-background px-2 py-1 placeholder:text-muted-foreground/50"
+                  className="bg-background px-2 py-1 placeholder:text-muted-foreground"
                   autoFocus
                 />
               </div>

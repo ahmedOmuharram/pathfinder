@@ -13,7 +13,7 @@ from uuid import uuid4
 
 import pytest
 from assistant_core.graph.turn_state import PendingApproval
-from pydantic_ai import RunContext, Tool
+from pydantic_ai import Agent, DeferredToolRequests, RunContext, Tool
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -25,9 +25,7 @@ from pydantic_ai.tools import DeferredToolResults, ToolDenied
 from pydantic_ai.toolsets import FunctionToolset
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.agents.execution import execution_agent
-from pathfinder.ai.agents.frame import frame_agent
-from pathfinder.ai.agents.verification import verification_agent
+from pathfinder.ai.agents.execution import EXECUTION_MODEL, ExecutionAgent
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead import sub_agent_stream, sub_agent_tools
@@ -45,6 +43,7 @@ from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
+from pathfinder.tests._support.sub_agents import pinned_sub_agent
 
 _OPTIMIZE_ARGS: dict[str, Any] = {
     "target": {
@@ -194,7 +193,10 @@ def deleted_step_ids() -> list[str]:
 
 
 @pytest.fixture
-def stub_execution_toolset(deleted_step_ids: list[str]) -> Iterator[None]:
+def stub_execution_toolset(
+    monkeypatch: pytest.MonkeyPatch,
+    deleted_step_ids: list[str],
+) -> Iterator[None]:
     """The execution agent with one approval-gated tool that records its calls."""
 
     async def delete_step(ctx: RunContext[AgentDeps], step_id: str) -> str:
@@ -205,7 +207,9 @@ def stub_execution_toolset(deleted_step_ids: list[str]) -> Iterator[None]:
     toolset = FunctionToolset[AgentDeps](
         tools=[Tool(delete_step, requires_approval=True)],
     )
-    with execution_agent.override(
+    with pinned_sub_agent(
+        monkeypatch,
+        "execution",
         toolsets=[toolset],
         instructions=_TEST_INSTRUCTIONS,
     ):
@@ -227,7 +231,9 @@ async def test_verification_approval_reaches_the_client(
     )
     deps = _deps()
 
-    with verification_agent.override(
+    with pinned_sub_agent(
+        monkeypatch,
+        "verification",
         toolsets=[verification.build_toolset()],
         instructions=_TEST_INSTRUCTIONS,
     ):
@@ -283,7 +289,9 @@ async def test_execution_approval_reaches_the_client(
     )
     deps = _deps()
 
-    with execution_agent.override(
+    with pinned_sub_agent(
+        monkeypatch,
+        "execution",
         toolsets=[execution.build_toolset()],
         instructions=_TEST_INSTRUCTIONS,
     ):
@@ -301,6 +309,76 @@ async def test_execution_approval_reaches_the_client(
     assert collector.chunks_of("tool-approval-request")[0]["approvalId"] == (
         "call_delete_step"
     )
+
+
+async def test_a_resumed_dispatch_runs_on_a_freshly_built_agent(
+    collector: _Collector,
+    monkeypatch: pytest.MonkeyPatch,
+    deleted_step_ids: list[str],
+) -> None:
+    """The answer re-enters from the stored messages, so the second half of a
+    dispatch runs on the agent that half built."""
+    del collector
+    monkeypatch.setattr(
+        sub_agent_tools,
+        "get_mock_model",
+        lambda: _scripted(
+            tool_name="delete_step",
+            tool_args=_DELETE_ARGS,
+            final_args=_RECOVERY_FINAL,
+        ),
+    )
+
+    async def delete_step(ctx: RunContext[AgentDeps], step_id: str) -> str:
+        del ctx
+        deleted_step_ids.append(step_id)
+        return f"deleted {step_id}"
+
+    built: list[ExecutionAgent] = []
+
+    def build() -> ExecutionAgent:
+        agent: ExecutionAgent = Agent(
+            EXECUTION_MODEL,
+            output_type=[RecoveryDelta, DeferredToolRequests],
+            deps_type=AgentDeps,
+            instructions=_TEST_INSTRUCTIONS,
+            toolsets=[
+                FunctionToolset[AgentDeps](
+                    tools=[Tool(delete_step, requires_approval=True)],
+                ),
+            ],
+            name="execution",
+            defer_model_check=True,
+        )
+        built.append(agent)
+        return agent
+
+    monkeypatch.setitem(sub_agent_tools.BUILD_SUB_AGENT_BY_ROLE, "execution", build)
+    deps = _deps()
+
+    waiting = await run_recovery(
+        deps=deps,
+        parent_tool_call_id="lead_call_recover",
+        reason="drop the step that failed to push",
+    )
+    assert isinstance(waiting, SubAgentApprovalWait)
+
+    resumed = await run_recovery(
+        deps=deps,
+        parent_tool_call_id="lead_call_recover",
+        reason="drop the step that failed to push",
+        resume=SubAgentResume(
+            messages=ModelMessagesTypeAdapter.validate_json(
+                waiting.pending.messages_json,
+            ),
+            results=DeferredToolResults(approvals={"call_delete_step": True}),
+        ),
+    )
+
+    assert isinstance(resumed, RecoveryDelta)
+    assert deleted_step_ids == ["s2"]
+    assert len(built) == 2
+    assert built[0] is not built[1]
 
 
 @pytest.mark.usefixtures("stub_execution_toolset")
@@ -435,7 +513,12 @@ async def test_the_stored_dispatch_arguments_drive_the_re_entry(
         tools=[Tool(bind_criterion, requires_approval=True)],
     )
 
-    with frame_agent.override(toolsets=[toolset], instructions=_TEST_INSTRUCTIONS):
+    with pinned_sub_agent(
+        monkeypatch,
+        "frame",
+        toolsets=[toolset],
+        instructions=_TEST_INSTRUCTIONS,
+    ):
         waiting = await run_frame(
             deps=deps,
             parent_tool_call_id="lead_call_frame",

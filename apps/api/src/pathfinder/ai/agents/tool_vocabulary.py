@@ -1,6 +1,6 @@
 """The PathFinder tool names the runtime's guards key on.
 
-The guards are generic mechanisms: one blocks a repeated read-only call, the
+The guards are generic mechanisms: one refuses a repeated read-only call, the
 other gives a search-specific hint on a 404. Which tools those are is
 PathFinder's vocabulary, and it lives here.
 """
@@ -10,37 +10,48 @@ from __future__ import annotations
 from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
 
 __all__ = [
-    "GRAPH_MODIFYING_TOOLS",
     "READ_ONLY_TOOLS",
     "SEARCH_LOOKUP_TOOLS",
     "build_tool_repetition_guard",
 ]
 
+# Inspectors: the same call with the same arguments returns the same answer,
+# so repeating one is not progress. Every name is a tool the Lead or a
+# sub-agent carries. Anything absent resets the guard's counter.
 READ_ONLY_TOOLS: frozenset[str] = frozenset(
     {
+        # Catalog and discovery
+        "get_record_types",
+        "list_searches",
+        "search_for_searches",
+        "search_example_plans",
+        "get_search_overview",
+        "get_parameter_options",
+        "lookup_phyletic_codes",
+        "lookup_gene_records",
+        # Strategy inspection
         "get_strategy",
-        "get_plan",
-        "get_step_preview",
-        "get_step_results",
-        "get_record_detail",
-        "get_records",
-        "get_attributes",
-        "get_distribution",
-        "search_catalog",
-        "text_search",
-    }
-)
-
-GRAPH_MODIFYING_TOOLS: frozenset[str] = frozenset(
-    {
-        "create_leaf_step",
-        "create_combined_step",
-        "create_transform_step",
-        "update_step",
-        "combine_steps",
-        "apply_view_filter",
-        "delete_view_filter",
-        "update_search_config",
+        "get_estimated_size",
+        "get_sample_records",
+        "get_download_url",
+        # Workbench and experiment reads
+        "list_workbench_gene_sets",
+        "get_evaluation_summary",
+        "get_enrichment_results",
+        "get_confidence_scores",
+        "get_step_contributions",
+        "get_experiment_config",
+        "get_ensemble_analysis",
+        "get_result_gene_lists",
+        # Research
+        "web_search",
+        "literature_search",
+        # Memory
+        "search_memory",
+        # Lead reads
+        "read_ledger_section",
+        "get_live_strategy_state",
+        "list_control_sets",
     }
 )
 
@@ -56,7 +67,4 @@ SEARCH_LOOKUP_TOOLS: frozenset[str] = frozenset(
 
 def build_tool_repetition_guard() -> ToolRepetitionGuard:
     """A repetition guard that watches PathFinder's read-only tools."""
-    return ToolRepetitionGuard(
-        read_only_tools=READ_ONLY_TOOLS,
-        graph_modifying_tools=GRAPH_MODIFYING_TOOLS,
-    )
+    return ToolRepetitionGuard(read_only_tools=READ_ONLY_TOOLS)

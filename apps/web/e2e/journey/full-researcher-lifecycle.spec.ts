@@ -206,7 +206,10 @@ test.describe("Full Researcher Lifecycle", () => {
     // Phase 7: Final Chat & Conversation Persistence
     // ═══════════════════════════════════════════════════════════════
 
-    await page.goto("/");
+    // The sidebar lists one site's conversations, and this journey's live on
+    // PlasmoDB, so return to the PlasmoDB chat rather than to "/" (which
+    // resolves to the portal).
+    await page.goto("/plasmodb/conversation");
     await expect(page.getByTestId("message-composer")).toBeVisible();
 
     // Verify conversations still exist in sidebar

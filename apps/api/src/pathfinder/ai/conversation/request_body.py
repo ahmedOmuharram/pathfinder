@@ -15,6 +15,22 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.models.catalog import get_model_entry
 
+_TURN_FACTS = frozenset({"errors", "aborted", "finishReason"})
+_PART_STREAM_FACTS = frozenset({"resultProviderMetadata"})
+
+
+def _without_stream_facts(entry: dict[str, object]) -> dict[str, object]:
+    cleaned = {k: v for k, v in entry.items() if k not in _TURN_FACTS}
+    parts = cleaned.get("parts")
+    if isinstance(parts, list):
+        cleaned["parts"] = [
+            {k: v for k, v in part.items() if k not in _PART_STREAM_FACTS}
+            if isinstance(part, dict)
+            else part
+            for part in parts
+        ]
+    return cleaned
+
 
 class ChatRequestBody(CamelModel):
     """Typed body for ``POST /api/v1/chat`` (AI SDK v6 + PathFinder extras).
@@ -38,13 +54,27 @@ class ChatRequestBody(CamelModel):
     # Which assistant answers. Read only when the conversation is created; an
     # existing thread keeps the assistant it was created with.
     assistant_id: str | None = None
-    site_id: str = ""
+    site_id: str = Field(default="", max_length=50)
     mode: str = "strategy"
     experiment_id: str | None = None
     # ``PhaseRole`` is the product's declared role set; a key outside it is
     # refused here, so the runtime downstream only ever sees plain strings.
     phase_models: dict[PhaseRole, str] = Field(default_factory=dict)
     phase_reasoning: dict[PhaseRole, ReasoningEffort] = Field(default_factory=dict)
+
+    @field_validator("messages", mode="before")
+    @classmethod
+    def _drop_reduction_turn_facts(cls, value: object) -> object:
+        """The client sends the thread as it holds it, and holding it adds
+        members the strict message union forbids: the snapshot reduction's
+        turn facts, and stream-recorded part metadata. They parse away here.
+        """
+        if not isinstance(value, list):
+            return value
+        return [
+            _without_stream_facts(entry) if isinstance(entry, dict) else entry
+            for entry in value
+        ]
 
     @field_validator("phase_models")
     @classmethod

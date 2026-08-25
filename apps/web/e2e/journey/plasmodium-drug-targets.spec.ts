@@ -8,6 +8,10 @@ test.describe("P. falciparum candidate drug-targets journey (6 turns)", () => {
     sitePicker,
     apiClient,
   }) => {
+    // Six turns at up to 43 s each, plus the wait for a free worker slot on
+    // each one, do not fit the journey project's own budget.
+    test.setTimeout(test.info().timeout + 300_000);
+
     await chatPage.goto();
     await sitePicker.selectSite("plasmodb");
     await chatPage.newChat("plasmodb");

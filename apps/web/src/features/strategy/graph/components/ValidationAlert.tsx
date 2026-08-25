@@ -47,7 +47,7 @@ export function ValidationAlert({
     <Alert
       variant="destructive"
       data-testid="validation-alert"
-      className="pointer-events-auto w-auto max-w-2xl border-warning/40 bg-warning/10 text-warning *:data-[slot=alert-description]:text-warning/80 [&>svg]:text-warning"
+      className="pointer-events-auto w-auto max-w-2xl border-warning/40 bg-warning/10 text-warning *:data-[slot=alert-description]:text-warning [&>svg]:text-warning"
     >
       <TriangleAlert className="size-4" aria-hidden />
       <AlertTitle className="flex items-center justify-between gap-3">

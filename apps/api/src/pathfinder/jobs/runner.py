@@ -5,22 +5,24 @@ implementation in ``TOOL_REGISTRY``, builds a worker-side ``Context``,
 executes the impl, persists the result on the ``background_tasks`` row, and
 resumes the LangGraph with ``Command(resume=...)`` so the suspended phase
 can produce its final output. Any SSE chunks emitted during resume are
-persisted to ``chat_events`` so they can be replayed to a UI that reconnects
-after the original request disconnected.
+persisted to ``conversation_events`` so they can be replayed to a UI that
+reconnects after the original request disconnected.
 """
 
 from __future__ import annotations
 
 import dataclasses
 from contextlib import nullcontext
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from assistant_core.conversation.checkpointer import lifespan_checkpointer
 from assistant_core.conversation.event_writer import (
     ChatEventWriter,
     ChatWriter,
+    append_chunk,
 )
+from assistant_core.graph.stream_events import task_completed_event
 from assistant_core.memory.lifespan import lifespan_memory_store
 from assistant_core.memory.store import MemoryStore
 from assistant_core.platform.db import async_session_factory
@@ -66,13 +68,13 @@ async def run_durable_task(
 ) -> None:
     """Execute a durable tool impl on the worker and resume the graph.
 
-    The worker→worker procrastinate hop drops ``ContextVar`` state, so the
+    The worker-to-worker procrastinate hop drops ``ContextVar`` state, so the
     dispatcher (``@durable_tool`` wrapper) serializes the VEuPathDB auth
     cookie into the task payload and we re-install it here for the impl's
     lifetime. Without this, any WDK call inside the impl (enrichment,
     control tests, optimization) would fall through to the service-account
     token in settings. ``capture_dir`` (devtools only) re-installs LLM capture
-    so the graph resume — where the post-result phase agent runs — is recorded.
+    so the graph resume, where the post-result phase agent runs, is recorded.
     """
     capture = capture_llm(capture_dir) if capture_dir else nullcontext()
     with capture:
@@ -103,6 +105,7 @@ async def _run_durable_task_inner(
         error = f"unknown durable tool: {tool_name}"
         logger.error("durable runner missing impl", tool_name=tool_name)
         await repo.mark_failed(task_id=task_uuid, error=error)
+        await _announce_completion(chat_uuid, task_uuid, "failed", error)
         await _resume_graph_with_error(thread_id, task_uuid, error)
         return
 
@@ -139,6 +142,7 @@ async def _run_durable_task_inner(
         logger.exception("durable tool failed", tool_name=tool_name)
         error = str(exc) or exc.__class__.__name__
         await repo.mark_failed(task_id=task_uuid, error=error)
+        await _announce_completion(chat_uuid, task_uuid, "failed", error)
         await _safe_resume_graph_with_error(
             thread_id,
             task_uuid,
@@ -150,6 +154,7 @@ async def _run_durable_task_inner(
     result = _to_dict(payload)
     await repo.mark_result_ready(task_id=task_uuid, result=result)
     await repo.mark_resuming(task_id=task_uuid)
+    await _announce_completion(chat_uuid, task_uuid, "success", None)
     resume_error = await _safe_resume_graph_with_result(
         thread_id,
         task_uuid,
@@ -160,6 +165,27 @@ async def _run_durable_task_inner(
         await repo.mark_complete(task_id=task_uuid)
     else:
         await repo.mark_failed(task_id=task_uuid, error=resume_error)
+
+
+async def _announce_completion(
+    conversation_id: UUID,
+    task_id: UUID,
+    status: Literal["success", "failed"],
+    error: str | None,
+) -> None:
+    """Record the tool's outcome on the thread, before the graph resumes.
+
+    The status reports whether the tool produced a result. A resume that then
+    fails is reported by the resumed turn.
+    """
+    await append_chunk(
+        conversation_id=conversation_id,
+        chunk=task_completed_event(
+            task_id=task_id,
+            status=status,
+            error=error,
+        ).model_dump(by_alias=True, mode="json", exclude_none=True),
+    )
 
 
 async def _safe_resume_graph_with_result(
@@ -272,9 +298,8 @@ async def _resume_graph(
 
     Output goes through :class:`ChatEventWriter` (no ``task_id`` tag) so it
     lands in the same ``conversation_events`` rows the chat dispatcher
-    replays — the resumed assistant message appears inline as a fresh bubble
-    after the durable task completes. The earlier task-tagged sub-stream
-    design hid every post-resume token from the chat.
+    replays: the resumed assistant message appears inline as a fresh bubble
+    after the durable task completes.
     """
     settings = get_settings()
     registry = get_assistant_registry()

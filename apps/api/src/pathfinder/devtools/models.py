@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ErrorKind = Literal["missing_required", "unknown_param", "type_error", "other"]
 ToolStatus = Literal["started", "completed", "failed", "denied"]
@@ -45,11 +45,17 @@ class SubAgentCallData(BaseModel):
 class SubAgentStepData(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
+    @field_validator("tool_name", "kind", "state", mode="before")
+    @classmethod
+    def _absent_is_empty(cls, value: object) -> object:
+        return "" if value is None else value
+
     args: dict[str, Any] | None = None
     kind: str = ""
     text: str | None = None
     state: str = ""
-    tool_name: str = Field(default="", alias="toolName")
+    # A text or reasoning step names no tool, so the wire sends null.
+    tool_name: str = Field(default="", alias="toolName", validate_default=False)
     tool_call_id: str | None = Field(default=None, alias="toolCallId")
     result_summary: str | None = Field(default=None, alias="resultSummary")
     parent_tool_call_id: str | None = Field(default=None, alias="parentToolCallId")
@@ -82,15 +88,6 @@ class SearchArgs(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     search_name: str | None = None
-
-
-class DecisionArgs(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    search_name: str | None = None
-    selection_status: str = ""
-    rationale: str = ""
-    selection_reason: str = ""
 
 
 class ConstraintProbe(BaseModel):

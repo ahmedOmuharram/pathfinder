@@ -53,7 +53,7 @@ be provably pure, and everything else is being kept honest about its dependencie
 rather than its transitive closure - but it means five of the six contracts are
 contracts about **import statements**, not about reachability.
 
-`uv run lint-imports` reports **6 kept, 0 broken**. The AI-tools contract has been
+`uv run lint-imports` reports **8 kept, 0 broken**. The AI-tools contract has been
 red once, on a single edge from `catalog_discovery` into a WDK client wrapper that
 belonged in the service layer; moving the wrapper cleared it. See
 [WDK-MAP-004](../rules/pathfinder-mapping.md).
@@ -71,7 +71,7 @@ That is the whole mechanism, and it is worth being precise about what it does an
 does not buy.
 
 **It does not keep WDK types out of the AI layer.** `ai/tools/standalone/_catalog_models.py`
-holds `WDKParameter` and `WDKBaseParameter`; `_result_models.py` holds `WDKAnswer`
+and `frame_spec.py` hold `WDKSearch`; `_result_models.py` holds `WDKAnswer`
 and `StrategyAPI`. Those are integration-layer types in agent-facing code, and the
 contract is green on them because the import names a service module. The contract
 polices the **import path**, not the type.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from typing import Protocol
 from uuid import UUID
 
 from langgraph.store.postgres.aio import AsyncPostgresStore
@@ -28,6 +29,12 @@ class TurnContext:
     # Keyed by the product's own role names; the runtime never reads them.
     phase_models: dict[str, str] = field(default_factory=dict)
     phase_reasoning: dict[str, ReasoningEffort] = field(default_factory=dict)
+
+
+class GuardedDeps(Protocol):
+    """What a turn graph needs from an agent's deps to guard its tool calls."""
+
+    tool_repetition_guard: ToolRepetitionGuard
 
 
 class AssistantDeps(BaseModel):

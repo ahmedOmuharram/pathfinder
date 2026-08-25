@@ -57,8 +57,10 @@ export function ConversationListItem({
       data-conversation-id={item.id}
       className={cn(
         "group relative rounded-md px-2.5 py-1.5 transition-colors",
+        // The primary tint marks the active row; its text stays on a dark
+        // foreground tone, which the primary tone cannot reach over that tint.
         isActive
-          ? "bg-primary/15 text-primary hover:bg-primary/20"
+          ? "bg-primary/15 text-foreground hover:bg-primary/20"
           : "text-foreground/85 hover:bg-muted/60",
       )}
     >
@@ -97,9 +99,6 @@ export function ConversationListItem({
             <div
               className={cn(
                 "mt-0.5 truncate text-xs",
-                // On the primary-tinted active row, muted/primary tones share
-                // the background hue and fail the contrast threshold — use a
-                // dark foreground tone there instead.
                 isActive ? "text-foreground/70" : "text-muted-foreground",
               )}
             >

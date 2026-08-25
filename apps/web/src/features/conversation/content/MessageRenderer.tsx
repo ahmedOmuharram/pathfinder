@@ -14,16 +14,7 @@ import {
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ToolUIPart } from "ai";
-import {
-  AlertTriangle,
-  Check,
-  Copy,
-  Pencil,
-  RefreshCw,
-  ThumbsDown,
-  ThumbsUp,
-  X,
-} from "lucide-react";
+import { Check, Copy, Pencil, ThumbsDown, ThumbsUp, X } from "lucide-react";
 
 import { BranchMessageAction } from "./BranchMessageAction";
 import { EditComposerBranchOrRevert } from "./EditComposerSend";
@@ -53,6 +44,7 @@ import { Button } from "@/components/ui/button";
 import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
+import { FailureNotice } from "./FailureNotice";
 import { ModelBadge } from "./ModelBadge";
 import { SupersededBadge } from "./SupersededBadge";
 import { ConsultCarousel } from "./parts/ConsultCarousel";
@@ -206,9 +198,24 @@ export function UserEditComposer() {
 
 const ASSISTANT_ERROR_DEFAULT = "The model couldn't finish this turn.";
 
-function selectAssistantErrorDetail(m: ThreadMessage): string | null {
+type FailureCarrier = {
+  status?: { type: string; reason?: string; error?: unknown };
+  content: readonly { type: string; name?: string }[];
+};
+
+function isFailedPart(part: { type: string; name?: string }): boolean {
+  return (
+    part.type === "data-turn-failed" ||
+    (part.type === "data" && part.name === "turn-failed")
+  );
+}
+
+/** The live error, or null when the turn already carries its durable
+ * `data-turn-failed` part, which says the same thing and survives a reload. */
+export function selectAssistantErrorDetail(m: FailureCarrier): string | null {
   if (m.status?.type !== "incomplete") return null;
   if (m.status.reason === "cancelled") return null;
+  if (m.content.some(isFailedPart)) return null;
   const raw = m.status.error;
   if (typeof raw === "string" && raw.length > 0) return raw;
   if (
@@ -225,27 +232,7 @@ function selectAssistantErrorDetail(m: ThreadMessage): string | null {
 function AssistantErrorCard() {
   const detail = useAuiState((s) => selectAssistantErrorDetail(s.message));
   if (typeof detail !== "string") return null;
-  return (
-    <div
-      data-testid="assistant-error-card"
-      className="my-2 flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-    >
-      <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">Response failed</p>
-        <p className="mt-0.5 break-words text-xs text-destructive/80">{detail}</p>
-        <ActionBarPrimitive.Reload asChild>
-          <button
-            type="button"
-            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-background px-2 py-1 text-xs font-medium text-destructive shadow-sm transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
-          >
-            <RefreshCw className="size-3" aria-hidden />
-            Try again
-          </button>
-        </ActionBarPrimitive.Reload>
-      </div>
-    </div>
-  );
+  return <FailureNotice detail={detail} />;
 }
 
 function selectAssistantStopped(m: ThreadMessage): boolean {

@@ -11,6 +11,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from assistant_core.capabilities.repetition_guard import RepetitionGuard
 from assistant_core.cost import cost_for_run
 from assistant_core.graph.emit import emit_chunk
 from assistant_core.graph.stream_events import (
@@ -67,7 +68,7 @@ from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.stream_events import ledger_update_event
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_tools import (
-    SUB_AGENT_BY_ROLE,
+    BUILD_SUB_AGENT_BY_ROLE,
     LeadDeps,
     SubAgentRunUsage,
     apply_agent_state,
@@ -312,7 +313,7 @@ async def stream_sub_agent[OutputT: BaseModel](
     approve, and ``None`` when the run exhausts its budget.
     """
     role = run.role
-    agent = SUB_AGENT_BY_ROLE[role]
+    agent = BUILD_SUB_AGENT_BY_ROLE[role]()
     writer = get_stream_writer()
     inner_calls: dict[str, str] = {}
     answered: frozenset[str] = (
@@ -340,6 +341,7 @@ async def stream_sub_agent[OutputT: BaseModel](
             waiting_on_llm=True,
         ),
     )
+    guard = agent_deps.tool_repetition_guard
     with override_ctx:
         try:
             async with agent.run_stream_events(
@@ -347,6 +349,7 @@ async def stream_sub_agent[OutputT: BaseModel](
                 deps=agent_deps,
                 message_history=resume.messages if resume is not None else None,
                 deferred_tool_results=resume.results if resume is not None else None,
+                capabilities=[RepetitionGuard(guard=guard)],
                 usage_limits=phase_usage_limits(run.declared_criteria),
                 usage=usage,
             ) as events:
@@ -385,6 +388,15 @@ async def stream_sub_agent[OutputT: BaseModel](
                         _emit_running_sub_agent_usage(
                             writer, role, parent_tool_call_id, usage
                         )
+                        if event.tool_call_id == guard.stopped_call_id:
+                            # The guard refused the same call twice. The draft
+                            # holds whatever the pass bound, as with a budget.
+                            logger.warning(
+                                "sub-agent repeated one call; keeping partial progress",
+                                role=role,
+                                blocked=guard.total_blocked,
+                            )
+                            break
         except UsageLimitExceeded as exc:
             # A usage ceiling is a budget, not a correctness failure. The
             # sub-agent writes each result into the shared draft as it goes,

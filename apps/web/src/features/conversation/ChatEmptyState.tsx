@@ -73,7 +73,7 @@ export function ChatEmptyState() {
               type="button"
               onClick={dismissHint}
               aria-label="Dismiss hint"
-              className="shrink-0 rounded p-0.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+              className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
             </button>

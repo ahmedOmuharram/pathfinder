@@ -176,6 +176,27 @@ def test_the_service_token_registry_is_parsed_once() -> None:
     )
 
 
+def test_a_short_mcp_service_token_secret_is_rejected_at_load() -> None:
+    with pytest.raises(ValueError, match="at least 32 characters"):
+        make_settings(pathfinder_mcp_service_tokens="gene-page:too-short")
+
+
+def test_the_mcp_service_token_registry_is_its_own() -> None:
+    """A secret the MCP server accepts must not authenticate to the API."""
+    settings = make_settings(
+        pathfinder_mcp_service_tokens="gene-page:gene-page-secret-0123456789abcdef",
+    )
+
+    assert (
+        settings.mcp_service_tokens.application_for(
+            "gene-page-secret-0123456789abcdef",
+        )
+        == "gene-page"
+    )
+    assert settings.service_tokens.tokens == ()
+    assert "gene-page-secret" not in repr(settings)
+
+
 def test_the_service_token_registry_stays_out_of_the_serialized_settings() -> None:
     settings = make_settings(
         pathfinder_service_tokens="analytics:analytics-secret-0123456789abcdef",

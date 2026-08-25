@@ -160,7 +160,7 @@ belonged in the service layer, and moving the wrapper cleared it. A gate that ha
 never been red is a gate nobody has tested; this one has been.
 
 Note what the contract does **not** say. It forbids the import path, not the type:
-`ai/tools/standalone/_catalog_models.py` holds `WDKParameter` and
+`ai/tools/standalone/_catalog_models.py` holds `WDKSearch` and
 `_result_models.py` holds `WDKAnswer`, both through the seam, both green. Nor does
 it forbid `httpx`, which is on only the domain contract's list - a tool that built
 its own client would break the reasoning above with all six contracts green. That

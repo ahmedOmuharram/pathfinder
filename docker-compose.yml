@@ -58,6 +58,9 @@ services:
     # restart covers the boot window before the API applies the DB schema, and
     # any later crash of the worker loop.
     restart: unless-stopped
+    # Per-site catalogs and indexes are never evicted, so the ceiling makes the
+    # kill land on the worker, which restarts clean.
+    mem_limit: 2g
     healthcheck:
       disable: true
     depends_on:
@@ -89,6 +92,49 @@ services:
       WORKER_STALLED_JOB_TIMEOUT_SECONDS: ${WORKER_STALLED_JOB_TIMEOUT_SECONDS:-3600}
     volumes:
       - ./apps/api/.pf-runs:/data/pf-runs
+      - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
+
+  wdk-mcp:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: .venv/bin/python -m pathfinder.mcp
+    restart: unless-stopped
+    # Per-site catalogs and indexes load on demand and are never evicted, so
+    # the ceiling makes exhaustion kill this server and not its neighbours.
+    mem_limit: 2g
+    ports:
+      - "${MCP_PORT:-8100}:8100"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8100/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    environment:
+      API_ENV: ${API_ENV:-production}
+      API_SECRET_KEY: ${API_SECRET_KEY:-}
+      DATABASE_URL: ${DATABASE_URL:-}
+      PATHFINDER_CHAT_PROVIDER: ${PATHFINDER_CHAT_PROVIDER:?Set PATHFINDER_CHAT_PROVIDER=default for real providers or use the test overlay for mock mode}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      VEUPATHDB_SITES_CONFIG: ${VEUPATHDB_SITES_CONFIG:-}
+      VEUPATHDB_AUTH_TOKEN: ${VEUPATHDB_AUTH_TOKEN:-}
+      VEUPATHDB_OAUTH_URL: ${VEUPATHDB_OAUTH_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-}
+      LOG_FORMAT: ${LOG_FORMAT:-}
+      # The URL a client reads the RFC 9728 document at. It must be reachable
+      # by the client, not by this container.
+      PATHFINDER_MCP_BASE_URL: ${PATHFINDER_MCP_BASE_URL:-http://localhost:8100}
+      # Applications this server admits without a VEuPathDB user, as
+      # "app_id:secret[,app_id:secret...]". Empty admits user bearers only.
+      PATHFINDER_MCP_SERVICE_TOKENS: ${PATHFINDER_MCP_SERVICE_TOKENS:-}
+    volumes:
       - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
 
   web:

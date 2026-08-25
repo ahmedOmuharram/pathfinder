@@ -6,7 +6,7 @@ import { render, screen } from "@testing-library/react";
 
 import { DataPartRenderer } from "./DataPartRenderer";
 import { dataPartRenderers } from "./dataPartRegistry";
-import { toolUIState } from "./MessageRenderer";
+import { selectAssistantErrorDetail, toolUIState } from "./MessageRenderer";
 import { USER_QUESTION_ANSWERS_PART_TYPE } from "../rail/consultActions";
 
 // Test the DataPartRenderer dispatch directly since MessageRenderer
@@ -23,6 +23,51 @@ describe("toolUIState", () => {
     expect(toolUIState("incomplete", undefined)).toBe("output-error");
     expect(toolUIState("complete", undefined)).toBe("input-streaming");
     expect(toolUIState("complete", { ok: true })).toBe("output-available");
+  });
+});
+
+describe("selectAssistantErrorDetail", () => {
+  const failed = { type: "incomplete", reason: "error", error: "boom" };
+
+  it("reads the live error off a message that carries no failure part", () => {
+    expect(
+      selectAssistantErrorDetail({ status: failed, content: [{ type: "text" }] }),
+    ).toBe("boom");
+  });
+
+  it("says nothing once the turn carries its own failure part", () => {
+    // The part is durable and says the same thing, so the live card would be
+    // a second copy of one failure.
+    expect(
+      selectAssistantErrorDetail({
+        status: failed,
+        content: [{ type: "text" }, { type: "data-turn-failed" }],
+      }),
+    ).toBeNull();
+  });
+
+  it("also recognises the generic data part shape", () => {
+    expect(
+      selectAssistantErrorDetail({
+        status: failed,
+        content: [{ type: "data", name: "turn-failed" }],
+      }),
+    ).toBeNull();
+  });
+
+  it("says nothing for a turn the user stopped", () => {
+    expect(
+      selectAssistantErrorDetail({
+        status: { type: "incomplete", reason: "cancelled" },
+        content: [],
+      }),
+    ).toBeNull();
+  });
+
+  it("says nothing for a turn that finished", () => {
+    expect(
+      selectAssistantErrorDetail({ status: { type: "complete" }, content: [] }),
+    ).toBeNull();
   });
 });
 
@@ -61,14 +106,26 @@ describe("DataPartRenderer dispatch", () => {
     expect(screen.getByTestId("data-sub-agent-call")).toBeInTheDocument();
   });
 
-  it("dispatches data-task-completed to the correct component", () => {
+  it("dispatches data-memory-retrieved to the correct component", () => {
     render(
+      <DataPartRenderer
+        kind="data-memory-retrieved"
+        data={{
+          memories: [{ key: "k1", kind: "gene_set", name: "Kinases", score: 1 }],
+        }}
+      />,
+    );
+    expect(screen.getByTestId("data-memory-retrieved")).toBeInTheDocument();
+  });
+
+  it("renders nothing for a task part the started card owns", () => {
+    const { container } = render(
       <DataPartRenderer
         kind="data-task-completed"
         data={{ taskId: "t1", status: "success" }}
       />,
     );
-    expect(screen.getByTestId("data-task-completed")).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("dispatches data-strategy-link to the correct component", () => {

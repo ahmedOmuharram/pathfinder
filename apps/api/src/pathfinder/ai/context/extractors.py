@@ -179,12 +179,7 @@ def _extract_evaluation_summary(record: ToolCallRecord) -> str:
 
 _GRAPH_MUTATION_TOOLS = frozenset(
     {
-        "create_leaf_step",
-        "combine_steps",
-        "transform_step",
         "delete_step",
-        "update_step",
-        "undo_last_change",
         "add_step_filter",
         "add_step_analysis",
         "add_step_report",

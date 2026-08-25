@@ -109,3 +109,13 @@ describe("LedgerPanel tab indicators", () => {
     expect(screen.getByLabelText("Build has updates")).toBeInTheDocument();
   });
 });
+
+describe("LedgerPanel keyboard access", () => {
+  it("gives the scrolling detail body a named tab stop", () => {
+    setLedger(makeLedger());
+    render(<LedgerPanel conversationId="c1" />);
+
+    const body = screen.getByRole("region", { name: "Investigation Ledger detail" });
+    expect(body).toHaveAttribute("tabindex", "0");
+  });
+});

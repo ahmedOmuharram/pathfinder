@@ -10,10 +10,15 @@ and its test suite is the protocol's consumer-side conformance suite.
 | ------------------------------------- | -------------------- | --------------------------------------------------------------------------- |
 | `@pathfinder/assistant-client`        | none                 | Frame reader, cursors, reduction, snapshot, request body, `AssistantClient` |
 | `@pathfinder/assistant-client/ai-sdk` | `ai` (optional peer) | `DurableChatTransport` for `useChat`                                        |
-| `@pathfinder/assistant-client/legacy` | none                 | The task-progress dialect the protocol does not define                      |
+| `@pathfinder/assistant-client/legacy` | none                 | **Deprecated.** The per-task progress dialect                               |
 
 No entry point imports React. A host supplies its own hooks, storage and
 rendering.
+
+`./legacy` is deprecated as of protocol 1.1.0. A durable task's whole
+lifecycle - started, progress, completed - is on the thread, so the core ring
+reads it with one reader and one cursor. Take `./legacy` only to follow a task
+at the worker's own rate instead of the log's coalesced rate.
 
 ## Reading a thread
 
@@ -49,7 +54,9 @@ table to the kinds the reducer answers to, so a kind the document adds fails
 here until this client reads it.
 
 ```bash
-yarn test        # conformance + unit
+yarn sync:protocol && yarn format   # after a PROTOCOL.md change
+yarn test                           # conformance + unit
 yarn typecheck
 yarn lint
+yarn format:check
 ```

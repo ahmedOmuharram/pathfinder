@@ -35,6 +35,28 @@ repos:
         types: [python]
         files: ^packages/assistant-core/
         stages: [pre-push]
+      - id: ruff-mcp-conformance
+        name: ruff (mcp-conformance)
+        entry: bash -c "cd packages/mcp-conformance && $HOME/.local/bin/uv run ruff check src tests"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^packages/mcp-conformance/
+      - id: mypy-mcp-conformance
+        name: mypy (mcp-conformance)
+        entry: bash -c "cd packages/mcp-conformance && $HOME/.local/bin/uv run mypy --strict src"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^packages/mcp-conformance/
+      - id: pytest-mcp-conformance
+        name: pytest (mcp-conformance, fixture servers on loopback)
+        entry: bash -c "cd packages/mcp-conformance && $HOME/.local/bin/uv run pytest"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^packages/mcp-conformance/
+        stages: [pre-push]
       - id: typecheck-assistant-client
         name: tsc --noEmit (assistant-client)
         entry: bash -c "cd packages/assistant-client-ts && yarn typecheck"

@@ -94,6 +94,44 @@ LISTEN/NOTIFY, so an in-memory substitute will not do.
 that changes without the page changing fails
 `tests/integration/conversation/test_protocol_document.py`.
 
+# MCP conformance suite (`packages/mcp-conformance`)
+
+```
+uv run ruff check src tests
+uv run mypy --strict src
+uv run pytest
+```
+
+Run these from the package root, in its own environment. Nothing of this
+deployment is installed there, and a test walks every module to keep it that
+way: the suite is run by teams whose servers we did not write.
+
+`pytest` starts fixture MCP servers on loopback ports and drives the shipped
+families at them in a child pytest, once against a compliant server and once
+per planted defect. A defect must fail the check that owns it and no other. No
+database, no credential and no network beyond loopback.
+
+The families themselves are not part of this gate. They run against a server:
+`pytest --pyargs mcp_conformance --mcp-endpoint <url> --mcp-bearer <token>`,
+and the report they write is what an operator reads before admitting a source.
+
+**Our own server is read the same way, in the live lane.**
+`apps/api/src/pathfinder/tests/integration/mcp/` is marked `live_wdk`, so it
+skips without `WDK_TEST_EMAIL`/`WDK_TEST_PASSWORD` and without
+`PATHFINDER_MCP_SERVICE_TOKENS` naming the value the served container carries.
+`test_conformance_ours.py` runs the suite as its own process against
+`PATHFINDER_MCP_URL` (default `http://localhost:8100/mcp`) with the WDK-backed
+account hook, and reads the admission record; `MCP_ADMISSION_REPORT` names where
+that record is written for a lane to collect. `.github/workflows/mcp-nightly.yml`
+serves the endpoint, runs the lane on a schedule, uploads the record and files
+an issue on failure. Like the WDK lane, it never blocks a pull request: an
+admitted source is quarantined by an issue, not by a red build.
+
+Only warm sites appear in that run's arguments. A catalog read of a site the
+container has not loaded builds a per-site index inside a 2g ceiling and the
+kernel kills the process, which is a memory decision and not a conformance
+result.
+
 # Frontend (`apps/web`)
 
 ```

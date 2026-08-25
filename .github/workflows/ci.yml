@@ -18,6 +18,7 @@ jobs:
       api: ${{ steps.filter.outputs.api }}
       assistant_core: ${{ steps.filter.outputs.assistant_core }}
       assistant_client: ${{ steps.filter.outputs.assistant_client }}
+      mcp_conformance: ${{ steps.filter.outputs.mcp_conformance }}
       web: ${{ steps.filter.outputs.web }}
       knowledge: ${{ steps.filter.outputs.knowledge }}
       wdk: ${{ steps.filter.outputs.wdk }}
@@ -33,7 +34,8 @@ jobs:
               - 'packages/assistant-core/**'
             assistant_core:
               - 'packages/assistant-core/**'
-              - 'packages/shared-py/**'
+            mcp_conformance:
+              - 'packages/mcp-conformance/**'
             # The client is built from the protocol document, so a change to
             # that page runs the consumer-side conformance suite.
             assistant_client:
@@ -129,6 +131,36 @@ jobs:
         working-directory: packages/assistant-core
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
+        run: uv run pytest
+
+  mcp-conformance:
+    name: MCP conformance suite
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.mcp_conformance == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v7
+
+      # Nothing of this deployment is installed here: the suite is run by teams
+      # whose servers we did not write, and a test walks every module to prove it.
+      - name: Install the package alone
+        working-directory: packages/mcp-conformance
+        run: uv sync
+
+      - name: Run ruff
+        working-directory: packages/mcp-conformance
+        run: uv run ruff check src tests
+
+      - name: Run mypy
+        working-directory: packages/mcp-conformance
+        run: uv run mypy --strict src
+
+      - name: Run tests
+        working-directory: packages/mcp-conformance
         run: uv run pytest
 
   assistant-client:

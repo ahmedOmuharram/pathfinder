@@ -25,6 +25,7 @@ from pathfinder.transport.http.deps import (
     DBSession,
     require_registered_wdk_identity,
 )
+from pathfinder.transport.http.schemas.site_id import SiteId
 
 # Both routes build or read a WDK strategy in the caller's own account.
 router = APIRouter(
@@ -39,7 +40,7 @@ class BuildGoldRequest(CamelModel):
     """Request to materialize a gold strategy AST on WDK and return gene IDs."""
 
     gold_id: str
-    site_id: str
+    site_id: SiteId
     record_type: str = Field(default="gene")
     step_tree: dict[str, Any]
     dataset_gene_ids: dict[str, list[str]] | None = Field(default=None)
@@ -82,7 +83,7 @@ class FetchGeneIdsRequest(CamelModel):
     """Fetch gene IDs from an existing PathFinder strategy."""
 
     strategy_id: UUID
-    site_id: str
+    site_id: SiteId
 
 
 @router.post("/strategy-gene-ids")

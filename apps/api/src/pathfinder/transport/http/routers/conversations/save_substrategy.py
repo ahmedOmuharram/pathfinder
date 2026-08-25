@@ -1,15 +1,15 @@
 """POST /conversations/{id}/save-substrategy — clone a subtree to a new WDK saved strategy."""
 
-from typing import Annotated
 from uuid import UUID
 
 from assistant_core.platform.pydantic_base import CamelModel
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 
 from pathfinder.services.conversations.service import ConversationService
 from pathfinder.transport.http.deps import (
     CurrentUser,
     DBSession,
+    RequiredSiteIdQuery,
     require_registered_wdk_identity,
 )
 from pathfinder.transport.http.schemas import (
@@ -35,7 +35,7 @@ router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 async def save_substrategy(
     conversation_id: UUID,
     request: SaveSubstrategyRequest,
-    site_id: Annotated[str, Query(alias="siteId")],
+    site_id: RequiredSiteIdQuery,
     session: DBSession,
     user_id: CurrentUser,
 ) -> SaveSubstrategyResponse:
@@ -62,7 +62,7 @@ async def save_substrategy(
     response_model=SavedStrategyConsumerCounts,
 )
 async def get_saved_strategy_consumer_counts(
-    site_id: Annotated[str, Query(alias="siteId")],
+    site_id: RequiredSiteIdQuery,
     session: DBSession,
     user_id: CurrentUser,
 ) -> SavedStrategyConsumerCounts:

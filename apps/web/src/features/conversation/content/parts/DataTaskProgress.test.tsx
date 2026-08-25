@@ -22,68 +22,6 @@ describe("DataTaskProgress", () => {
     expect(screen.getByText("65%")).toBeInTheDocument();
   });
 
-  it("renders single lane when no variantId", () => {
-    render(
-      <DataTaskProgress
-        data={{
-          taskId: "t1",
-          percent: 0.5,
-          message: "Processing step",
-        }}
-      />,
-    );
-    expect(screen.getByTestId("data-task-progress")).toBeInTheDocument();
-    expect(screen.queryAllByTestId("variant-lane")).toHaveLength(0);
-  });
-
-  it("renders one lane per variantId", () => {
-    render(
-      <DataTaskProgress
-        data={{
-          taskId: "t1",
-          percent: 0.3,
-          message: "Running variant v1",
-          toolSpecific: { variantId: "v1" },
-        }}
-        variants={
-          new Map([
-            [
-              "v1",
-              {
-                taskId: "t1",
-                percent: 0.3,
-                message: "Running variant v1",
-                toolSpecific: { variantId: "v1" },
-              },
-            ],
-            [
-              "v2",
-              {
-                taskId: "t1",
-                percent: 0.6,
-                message: "Running variant v2",
-                toolSpecific: { variantId: "v2" },
-              },
-            ],
-            [
-              "v3",
-              {
-                taskId: "t1",
-                percent: 0.9,
-                message: "Running variant v3",
-                toolSpecific: { variantId: "v3" },
-              },
-            ],
-          ])
-        }
-      />,
-    );
-    expect(screen.getAllByTestId("variant-lane")).toHaveLength(3);
-    expect(screen.getByText("v1")).toBeInTheDocument();
-    expect(screen.getByText("v2")).toBeInTheDocument();
-    expect(screen.getByText("v3")).toBeInTheDocument();
-  });
-
   it("progress bar width reflects percent", () => {
     render(
       <DataTaskProgress
@@ -100,32 +38,18 @@ describe("DataTaskProgress", () => {
     expect(bar).toHaveStyle({ width: "42%" });
   });
 
-  it("progress bar width reflects percent in variant lanes", () => {
+  it("renders one bar for a fan-out update, which the log reconciles to one part", () => {
     render(
       <DataTaskProgress
         data={{
           taskId: "t1",
-          percent: 0.75,
+          percent: 0.3,
           message: "Running variant v1",
           toolSpecific: { variantId: "v1" },
         }}
-        variants={
-          new Map([
-            [
-              "v1",
-              {
-                taskId: "t1",
-                percent: 0.75,
-                message: "Running variant v1",
-                toolSpecific: { variantId: "v1" },
-              },
-            ],
-          ])
-        }
       />,
     );
-    const lane = screen.getByTestId("variant-lane");
-    const bar = lane.querySelector("[data-testid='progress-bar-fill']");
-    expect(bar).toHaveStyle({ width: "75%" });
+    expect(screen.getAllByTestId("progress-bar-fill")).toHaveLength(1);
+    expect(screen.getByText("Running variant v1")).toBeInTheDocument();
   });
 });

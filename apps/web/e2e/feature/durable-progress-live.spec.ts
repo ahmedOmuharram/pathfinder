@@ -1,37 +1,9 @@
 import { test, expect } from "../fixtures/test";
-import type { BrowserContext } from "@playwright/test";
+import { sseDone, sseFrame, uiMessageStreamHeaders } from "../fixtures/sse";
+import type { BrowserContext, Page } from "@playwright/test";
 
 const TASK_ID = "00000000-0000-0000-0000-0000000000bb";
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
-
-function sseFrame(obj: unknown): string {
-  return `data: ${JSON.stringify(obj)}\n\n`;
-}
-
-function uiMessageStreamHeaders(): Record<string, string> {
-  return {
-    "content-type": "text/event-stream",
-    "cache-control": "no-cache",
-    "x-vercel-ai-ui-message-stream": "v1",
-  };
-}
-
-/**
- * The per-task channel is not the chat dialect. It frames every chunk as
- * `custom` and names the payload in `kind`, and it ends with a `done` event.
- */
-function taskEventFrame(kind: string, data: unknown): string {
-  return `event: stream\ndata: ${JSON.stringify({ type: "custom", kind, data })}\n\n`;
-}
-
-const TASK_DONE_FRAME = `event: stream\ndata: ${JSON.stringify({
-  type: "done",
-  reason: "completed",
-})}\n\n`;
-
-function taskStreamHeaders(): Record<string, string> {
-  return { "content-type": "text/event-stream", "cache-control": "no-cache" };
-}
 
 interface OpenStrategyResponse {
   conversationId?: string;
@@ -55,180 +27,169 @@ async function openStrategy(context: BrowserContext): Promise<string> {
   return id;
 }
 
+/** The turn that hands the tool to the worker: it closes at the interrupt. */
+function suspendingTurn(messageId: string, toolName: string): string {
+  return [
+    sseFrame({
+      type: "start",
+      messageId,
+      messageMetadata: {
+        phase: "verification",
+        model: "mock:deterministic",
+        traceId: "mock-trace",
+        createdAt: new Date().toISOString(),
+      },
+    }),
+    sseFrame({
+      type: "data-background-task-started",
+      data: { taskId: TASK_ID, toolName, estimatedDurationSeconds: 5 },
+    }),
+    sseFrame({ type: "finish", finishReason: "other" }),
+    sseDone(),
+  ].join("");
+}
+
+/**
+ * Serve the conversation tail. The mount reattach reads an empty tail; the
+ * card's own reattach, after the turn suspends, reads the task's gap.
+ */
+async function routeThreadTail(
+  page: Page,
+  gap: string,
+): Promise<() => number> {
+  let calls = 0;
+  await page.route("**/api/v1/conversations/*/events?*", async (route) => {
+    calls += 1;
+    if (calls === 1) {
+      await route.fulfill({ status: 204, body: "" });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: uiMessageStreamHeaders(),
+      body: gap,
+    });
+  });
+  return () => calls;
+}
+
+async function sendPrompt(
+  page: Page,
+  prompt: string,
+): Promise<void> {
+  const composer = page.getByTestId("message-input");
+  await expect(composer).toBeVisible({ timeout: 30_000 });
+  const submit = page.getByRole("button", { name: /Send/i });
+  await composer.click();
+  await composer.pressSequentially(prompt, { delay: 15 });
+  await expect(submit).toBeEnabled({ timeout: 15_000 });
+  await composer.press("Enter");
+}
+
 test.describe("Durable task live progress", () => {
-  test("progress card advances from the per-task SSE channel", async ({
+  test("the card's bar advances from the thread's own tail, not a per-task stream", async ({
     page,
     context,
   }) => {
     const strategyId = await openStrategy(context);
 
-    const chatStream = [
-      sseFrame({
-        type: "start",
-        messageId: "22222222-2222-2222-2222-222222222222",
-        messageMetadata: {
-          phase: "verification",
-          model: "mock:deterministic",
-          traceId: "mock-trace",
-          createdAt: new Date().toISOString(),
-        },
-      }),
-      sseFrame({
-        type: "data-background-task-started",
-        data: {
-          taskId: TASK_ID,
-          toolName: "run_control_tests_on_step",
-          estimatedDurationSeconds: 5,
-        },
-      }),
-      sseFrame({ type: "finish", finishReason: "stop" }),
-      "data: [DONE]\n\n",
-    ].join("");
-
     await page.route("**/api/v1/chat", async (route) => {
       await route.fulfill({
         status: 200,
         headers: uiMessageStreamHeaders(),
-        body: chatStream,
+        body: suspendingTurn(
+          "22222222-2222-2222-2222-222222222222",
+          "run_control_tests_on_step",
+        ),
       });
     });
 
-    await page.route("**/api/v1/conversations/*/events?*", async (route) => {
-      await route.fulfill({ status: 204, body: "" });
-    });
+    const tailCalls = await routeThreadTail(
+      page,
+      [
+        sseFrame({
+          type: "data-task-progress",
+          id: TASK_ID,
+          data: { taskId: TASK_ID, percent: 0.6, message: "Comparing controls" },
+        }),
+        sseDone(),
+      ].join(""),
+    );
 
-    const taskStream = [
-      taskEventFrame("data-task-progress", {
-        taskId: TASK_ID,
-        percent: 0.6,
-        message: "Comparing controls",
-      }),
-      TASK_DONE_FRAME,
-    ].join("");
-
-    let taskEventsRequested = false;
+    let perTaskRequested = false;
     await page.route(
       `**/api/v1/conversations/*/tasks/${TASK_ID}/events*`,
       async (route) => {
-        taskEventsRequested = true;
-        await route.fulfill({
-          status: 200,
-          headers: taskStreamHeaders(),
-          body: taskStream,
-        });
+        perTaskRequested = true;
+        await route.fulfill({ status: 204, body: "" });
       },
     );
 
     await page.goto(`/conversation/${strategyId}`);
-    const composer = page.getByTestId("message-input");
-    await expect(composer).toBeVisible({ timeout: 30_000 });
-    const submit = page.getByRole("button", { name: /Send/i });
-    await composer.click();
-    await composer.pressSequentially("kick off durable verification", { delay: 15 });
-    await expect(submit).toBeEnabled({ timeout: 15_000 });
-    await composer.press("Enter");
+    await sendPrompt(page, "kick off durable verification");
 
     const started = page.getByTestId("data-background-task-started");
     await expect(started).toBeVisible({ timeout: 20_000 });
 
-    await expect.poll(() => taskEventsRequested, { timeout: 15_000 }).toBe(true);
-
-    await expect(page.getByText("Comparing controls")).toBeVisible({
+    await expect(started.getByText("Comparing controls")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText("60%")).toBeVisible({ timeout: 15_000 });
+    await expect(started.getByText("60%")).toBeVisible({ timeout: 15_000 });
+    expect(perTaskRequested).toBe(false);
+    expect(tailCalls()).toBeGreaterThan(1);
   });
 
-  test("fan-out sweep renders one lane per variant from the per-task SSE", async ({
+  test("the outcome and the continuation arrive on that same connection", async ({
     page,
     context,
   }) => {
     const strategyId = await openStrategy(context);
 
-    const chatStream = [
-      sseFrame({
-        type: "start",
-        messageId: "33333333-3333-3333-3333-333333333333",
-        messageMetadata: {
-          phase: "verification",
-          model: "mock:deterministic",
-          traceId: "mock-trace",
-          createdAt: new Date().toISOString(),
-        },
-      }),
-      sseFrame({
-        type: "data-background-task-started",
-        data: {
-          taskId: TASK_ID,
-          toolName: "optimize_search_parameters",
-          estimatedDurationSeconds: 900,
-        },
-      }),
-      sseFrame({ type: "finish", finishReason: "stop" }),
-      "data: [DONE]\n\n",
-    ].join("");
-
     await page.route("**/api/v1/chat", async (route) => {
       await route.fulfill({
         status: 200,
         headers: uiMessageStreamHeaders(),
-        body: chatStream,
+        body: suspendingTurn(
+          "33333333-3333-3333-3333-333333333333",
+          "optimize_search_parameters",
+        ),
       });
     });
-    await page.route("**/api/v1/conversations/*/events?*", async (route) => {
-      await route.fulfill({ status: 204, body: "" });
-    });
 
-    const taskStream = [
-      taskEventFrame("data-task-progress", {
-        taskId: TASK_ID,
-        percent: 0.3,
-        message: "Variant A trial 1",
-        toolSpecific: { variantId: "variant-A" },
-      }),
-      taskEventFrame("data-task-progress", {
-        taskId: TASK_ID,
-        percent: 0.5,
-        message: "Variant B trial 1",
-        toolSpecific: { variantId: "variant-B" },
-      }),
-      TASK_DONE_FRAME,
-    ].join("");
-    await page.route(
-      `**/api/v1/conversations/*/tasks/${TASK_ID}/events*`,
-      async (route) => {
-        await route.fulfill({
-          status: 200,
-          headers: taskStreamHeaders(),
-          body: taskStream,
-        });
-      },
+    await routeThreadTail(
+      page,
+      [
+        sseFrame({
+          type: "data-task-progress",
+          id: TASK_ID,
+          data: { taskId: TASK_ID, percent: 0.9, message: "Scoring variants" },
+        }),
+        sseFrame({
+          type: "data-task-completed",
+          data: { taskId: TASK_ID, status: "success" },
+        }),
+        sseFrame({ type: "start", messageId: "44444444-4444-4444-4444-444444444444" }),
+        sseFrame({ type: "text-start", id: "c1" }),
+        sseFrame({ type: "text-delta", id: "c1", delta: "Variant B scored best." }),
+        sseFrame({ type: "text-end", id: "c1" }),
+        sseFrame({ type: "finish", finishReason: "stop" }),
+        sseDone(),
+      ].join(""),
     );
 
     await page.goto(`/conversation/${strategyId}`);
-    const composer = page.getByTestId("message-input");
-    await expect(composer).toBeVisible({ timeout: 30_000 });
-    await composer.click();
-    await composer.pressSequentially("optimize the search parameters", { delay: 15 });
-    await expect(page.getByRole("button", { name: /Send/i })).toBeEnabled({
-      timeout: 15_000,
-    });
-    await composer.press("Enter");
+    await sendPrompt(page, "optimize the search parameters");
 
     await expect(page.getByTestId("data-background-task-started")).toBeVisible({
       timeout: 20_000,
     });
-
-    await expect(page.getByTestId("variant-lane")).toHaveCount(2, {
+    await expect(page.getByTestId("data-task-completed")).toContainText(
+      "Task completed",
+      { timeout: 15_000 },
+    );
+    await expect(page.getByText("Variant B scored best.")).toBeVisible({
       timeout: 15_000,
     });
-    const laneA = page
-      .getByTestId("variant-lane")
-      .filter({ hasText: "Variant A trial 1" });
-    const laneB = page
-      .getByTestId("variant-lane")
-      .filter({ hasText: "Variant B trial 1" });
-    await expect(laneA.getByText("30%")).toBeVisible({ timeout: 15_000 });
-    await expect(laneB.getByText("50%")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("progress-bar-fill")).toHaveCount(0);
   });
 });

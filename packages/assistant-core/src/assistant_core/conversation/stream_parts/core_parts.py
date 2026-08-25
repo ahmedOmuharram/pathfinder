@@ -1,20 +1,20 @@
 """Stream parts of the assistant runtime: tasks, usage, turn state, consults."""
 
-from shared_py.stream_parts.background_task import (
+from assistant_core.conversation.stream_parts.registry import (
+    StreamPartRegistry,
+)
+from assistant_core.conversation.stream_parts.task_parts import (
     BackgroundTaskStarted,
     TaskCompleted,
     TaskProgress,
 )
-from shared_py.stream_parts.turn_usage import TurnUsage
-
-from assistant_core.conversation.stream_parts.registry import (
-    StreamPartRegistry,
-)
+from assistant_core.conversation.stream_parts.turn_usage import TurnUsage
 from assistant_core.graph.stream_events import (
     ConversationTitlePayload,
     LeadUsagePayload,
     SubAgentCallPayload,
     SubAgentStepPayload,
+    TurnFailedPayload,
     TurnStatusPayload,
     TurnStoppedPayload,
 )
@@ -32,8 +32,15 @@ def register_core_stream_parts(registry: StreamPartRegistry) -> None:
     registry.register("data-lead-usage", LeadUsagePayload)
     registry.register("data-turn-status", TurnStatusPayload)
     registry.register("data-turn-stopped", TurnStoppedPayload)
+    registry.register("data-turn-failed", TurnFailedPayload)
     registry.register("data-sub-agent-call", SubAgentCallPayload)
     registry.register("data-sub-agent-step", SubAgentStepPayload)
     registry.register("data-conversation-title", ConversationTitlePayload)
     registry.register_schema_only("consult_question", ConsultQuestion)
     registry.register_schema_only("user_question_answer", UserQuestionAnswer)
+
+
+STREAM_PARTS = StreamPartRegistry()
+"""The process-wide registry. Each product registers its own parts onto it."""
+
+register_core_stream_parts(STREAM_PARTS)

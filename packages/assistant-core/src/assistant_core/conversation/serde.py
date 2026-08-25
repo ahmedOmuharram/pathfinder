@@ -1,9 +1,8 @@
 """Checkpoint serializer with an explicit msgpack type allowlist.
 
-LangGraph decodes unregistered types with a deprecation warning today and
-will refuse them in a future release. Every type that reaches a checkpoint
-must therefore be on the allowlist, or upgrading LangGraph would make
-existing conversations unresumable.
+Every type that reaches a checkpoint must be on the allowlist. The serializer
+returns anything else as a raw payload, so an undeclared state type is a
+refusal here and never an unresumable conversation after a LangGraph upgrade.
 
 Core types are listed here. An assistant declares its own state types on its
 ``AssistantSpec``; one checkpoint table serves every assistant, so callers
@@ -50,7 +49,11 @@ def checkpoint_types(assistant_types: tuple[type, ...] = ()) -> tuple[type, ...]
 def build_checkpoint_serde(
     assistant_types: tuple[type, ...] = (),
 ) -> JsonPlusSerializer:
-    """A serializer that can decode allowlisted state under strict msgpack."""
-    return JsonPlusSerializer().with_msgpack_allowlist(
-        checkpoint_types(assistant_types),
+    """A serializer that decodes allowlisted state and refuses the rest.
+
+    The allowlist binds at construction; a serializer built without one allows
+    every module and cannot be narrowed afterwards.
+    """
+    return JsonPlusSerializer(
+        allowed_msgpack_modules=checkpoint_types(assistant_types),
     )

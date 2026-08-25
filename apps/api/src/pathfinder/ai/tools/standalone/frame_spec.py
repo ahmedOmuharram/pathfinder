@@ -12,9 +12,7 @@ from pydantic_ai import ModelRetry, RunContext
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import (
-    _resolve_record_type,
     ensure_search_registered,
-    read_search_definition,
     register_search,
 )
 from pathfinder.ai.tools.standalone._validation_helpers import validation_model_retry
@@ -61,6 +59,10 @@ from pathfinder.services.catalog.radio_pairs import (
     RadioPairIssue,
     check_radio_pairs,
     radio_pairs,
+)
+from pathfinder.services.catalog.searches import (
+    read_search_definition,
+    resolve_search_record_type,
 )
 from pathfinder.services.catalog.validation_callbacks import make_validation_callbacks
 from pathfinder.services.wdk import WDKSearch
@@ -161,7 +163,7 @@ async def _record_type(ctx: RunContext[AgentDeps], search_name: str) -> str:
     whatever search is named; the catalog resolves the name only without one.
     """
     graph = ctx.deps.strategy_session.get_graph(None)
-    return await _resolve_record_type(
+    return await resolve_search_record_type(
         ctx.deps.site_id,
         search_name,
         graph.record_type if graph is not None else None,

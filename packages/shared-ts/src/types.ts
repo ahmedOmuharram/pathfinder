@@ -84,6 +84,7 @@ import type {
   SubAgentStepPayload,
   TurnStatusPayload,
   TurnStoppedPayload,
+  TurnFailedPayload,
   ConversationTitlePayload,
   ConversationResponse,
   EnrichmentResultsChunk,
@@ -594,6 +595,7 @@ export type KnownDataPartKind =
   | "data-turn-usage"
   | "data-turn-status"
   | "data-turn-stopped"
+  | "data-turn-failed"
   | "data-lead-usage";
 
 /**
@@ -624,6 +626,7 @@ export interface DataPartPayloadMap {
   "data-turn-usage": TurnUsage;
   "data-turn-status": TurnStatusPayload;
   "data-turn-stopped": TurnStoppedPayload;
+  "data-turn-failed": TurnFailedPayload;
   "data-lead-usage": DataLeadUsagePayload;
 }
 

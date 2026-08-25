@@ -79,6 +79,31 @@ def test_detects_loop_on_repeated_tool_failures() -> None:
     loops = [a for a in anomalies if a.kind == "loop"]
     assert loops
     assert "create_plan" in loops[0].message
+    assert loops[0].details["guard_refusals"] == 0
+
+
+def test_the_loop_says_when_the_repetition_guard_refused_the_call() -> None:
+    """A guard refusal is a measured loop, so one is enough to report it."""
+    calls = [
+        _call(1, "get_strategy", "completed", result="{}"),
+        _call(
+            2,
+            "get_strategy",
+            "failed",
+            result=(
+                "You have called get_strategy 3 times with identical arguments "
+                "and no intervening state change."
+            ),
+        ),
+    ]
+
+    anomalies = diagnose(calls, {}, RunSummary())
+
+    loops = [a for a in anomalies if a.kind == "loop"]
+    assert len(loops) == 1
+    assert "repetition guard refused 1 identical call" in loops[0].message
+    assert loops[0].details["guard_refusals"] == 1
+    assert loops[0].evidence == ["tools/02-get_strategy.json"]
 
 
 def test_detects_silent_zero_from_ledger() -> None:
@@ -157,41 +182,6 @@ def test_single_service_error_below_threshold_not_flagged() -> None:
     ]
     anomalies = diagnose(calls, {}, RunSummary())
     assert not [a for a in anomalies if a.kind == "wdk_service_error"]
-
-
-def test_detects_outage_driven_rejection() -> None:
-    call = _call(
-        1,
-        "update_search_decision",
-        "completed",
-        args={
-            "search_name": "GenesByRNASeqFoo",
-            "selection_status": "rejected",
-            "rationale": "Dataset is currently unavailable due to server errors and "
-            "cannot be inspected for parameter vocabulary.",
-            "selection_reason": "Rejected due to service unavailability.",
-        },
-    )
-    anomalies = diagnose([call], {}, RunSummary())
-    rej = [a for a in anomalies if a.kind == "outage_driven_rejection"]
-    assert len(rej) == 1
-    assert "GenesByRNASeqFoo" in rej[0].message
-
-
-def test_scientific_rejection_not_flagged() -> None:
-    call = _call(
-        1,
-        "update_search_decision",
-        "completed",
-        args={
-            "search_name": "GenesByText",
-            "selection_status": "rejected",
-            "rationale": "Not the most specific search for the female-adult question.",
-            "selection_reason": "A better expression dataset exists.",
-        },
-    )
-    anomalies = diagnose([call], {}, RunSummary())
-    assert not [a for a in anomalies if a.kind == "outage_driven_rejection"]
 
 
 def test_detects_silent_constraint_violation() -> None:

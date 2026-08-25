@@ -185,7 +185,7 @@ export function ModelCatalogModal({
           </table>
         </div>
 
-        <div className="px-5 py-3 border-t border-border/40 text-[10px] text-muted-foreground/60">
+        <div className="px-5 py-3 border-t border-border/40 text-[10px] text-muted-foreground">
           Prices per 1M tokens (USD)
         </div>
       </div>
@@ -233,10 +233,10 @@ function ModelRow({
       <td className="py-2.5 px-3 text-right text-muted-foreground">
         {formatCompactClean(model.contextSize ?? 0)}
       </td>
-      <td className="py-2.5 px-3 text-right text-success/90">
+      <td className="py-2.5 px-3 text-right text-success">
         {formatPrice(model.inputPrice ?? 0)}
       </td>
-      <td className="py-2.5 px-3 text-right text-warning/90">
+      <td className="py-2.5 px-3 text-right text-warning">
         {formatPrice(model.outputPrice ?? 0)}
       </td>
       <td className="py-2.5 px-3 text-right text-sky-500/80">

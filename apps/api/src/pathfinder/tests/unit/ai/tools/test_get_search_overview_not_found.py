@@ -12,8 +12,9 @@ import pytest
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.tools.standalone import _catalog_models, catalog_discovery
+from pathfinder.ai.tools.standalone import catalog_discovery
 from pathfinder.platform.errors import WDKError
+from pathfinder.services.catalog import search_inspection, searches
 
 
 def _ctx() -> Any:
@@ -37,7 +38,7 @@ async def test_404_raises_model_retry_with_did_you_mean(
     async def _resolve(*_a: Any, **_k: Any) -> str:
         return "transcript"
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    monkeypatch.setattr(search_inspection, "resolve_search_record_type", _resolve)
 
     client = MagicMock()
     client.get_search_details = AsyncMock(
@@ -45,12 +46,12 @@ async def test_404_raises_model_retry_with_did_you_mean(
             "Resource 'search: GenesByText_Search' does not exist.", status=404
         )
     )
-    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _s: client)
+    monkeypatch.setattr(searches, "get_wdk_client", lambda _s: client)
 
     async def _valid(_site: str, _rt: str) -> list[Any]:
         return [_search("GenesByText"), _search("GenesByGoTerm")]
 
-    monkeypatch.setattr(catalog_discovery, "get_raw_searches", _valid)
+    monkeypatch.setattr(search_inspection, "get_raw_searches", _valid)
 
     ctx = _ctx()
     with pytest.raises(ModelRetry) as excinfo:
@@ -72,13 +73,13 @@ async def test_non_404_wdk_error_propagates(
     async def _resolve(*_a: Any, **_k: Any) -> str:
         return "transcript"
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    monkeypatch.setattr(search_inspection, "resolve_search_record_type", _resolve)
 
     client = MagicMock()
     client.get_search_details = AsyncMock(
         side_effect=WDKError("upstream 502", status=502)
     )
-    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _s: client)
+    monkeypatch.setattr(searches, "get_wdk_client", lambda _s: client)
 
     ctx = _ctx()
     with pytest.raises(WDKError):

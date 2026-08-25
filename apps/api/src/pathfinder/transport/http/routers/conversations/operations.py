@@ -1,13 +1,12 @@
-from typing import Annotated
 from uuid import UUID
 
 from assistant_core.platform.pydantic_base import CamelModel
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 
 from pathfinder.domain.strategy.operations import GraphOperation
 from pathfinder.services.conversations.responses import ConversationResponse
 from pathfinder.services.conversations.service import ConversationService
-from pathfinder.transport.http.deps import CurrentUser, DBSession
+from pathfinder.transport.http.deps import CurrentUser, DBSession, RequiredSiteIdQuery
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
@@ -23,7 +22,7 @@ class ApplyOperationRequest(CamelModel):
 async def apply_operation_endpoint(
     strategyId: UUID,
     request: ApplyOperationRequest,
-    site_id: Annotated[str, Query(alias="siteId")],
+    site_id: RequiredSiteIdQuery,
     session: DBSession,
     user_id: CurrentUser,
 ) -> ConversationResponse:

@@ -1,0 +1,180 @@
+"""Agreement between the tool names agents and extractors mention and the
+tool names their toolsets register."""
+
+from __future__ import annotations
+
+import importlib
+import re
+from collections.abc import Callable
+from typing import Any
+
+import pytest
+from pydantic_ai import Agent
+
+from pathfinder.ai.agents.execution import (
+    _EXECUTION_INSTRUCTIONS,
+    build_execution_agent,
+)
+from pathfinder.ai.agents.frame import _FRAME_INSTRUCTIONS, build_frame_agent
+from pathfinder.ai.agents.verification import (
+    _VERIFICATION_INSTRUCTIONS,
+    build_verification_agent,
+)
+from pathfinder.ai.context.extractors import (
+    _EXTRACTOR_REGISTRY,
+    _SEARCH_DISCOVERY_TOOLS,
+)
+from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
+from pathfinder.ai.lead.lead_agent import build_lead_agent
+from pathfinder.ai.tools.toolsets.verification import build_toolset
+from pathfinder.tests._support.sub_agents import agent_tool_names, toolset_tool_names
+
+# Every name a real tool answers to. An instruction may name any of these; a
+# token outside this set is prose, not a tool call.
+_TOOL_NAME_TOKENS = frozenset(
+    {
+        # Catalog and framing
+        "browse_search_categories",
+        "drop_criterion",
+        "get_parameter_options",
+        "get_record_types",
+        "get_search_overview",
+        "list_searches",
+        "list_transforms",
+        "lookup_phyletic_codes",
+        "search_example_plans",
+        "search_for_searches",
+        "set_criterion",
+        "set_structure",
+        # Strategy build and edit
+        "add_step_analysis",
+        "add_step_filter",
+        "add_step_report",
+        "apply_operations",
+        "build_strategy",
+        "clear_strategy",
+        "delete_step",
+        "insert_saved_strategy",
+        "rename_strategy",
+        "replace_subtree",
+        "update_combine_operator",
+        "update_leaf_params",
+        "update_step_metadata",
+        # Results, controls and workbench
+        "create_workbench_gene_set",
+        "export_gene_set",
+        "get_confidence_scores",
+        "get_download_url",
+        "get_enrichment_results",
+        "get_ensemble_analysis",
+        "get_estimated_size",
+        "get_evaluation_summary",
+        "get_experiment_config",
+        "get_result_gene_lists",
+        "get_sample_records",
+        "get_step_contributions",
+        "get_strategy",
+        "list_workbench_gene_sets",
+        "optimize_search_parameters",
+        "run_control_tests_on_search",
+        "run_control_tests_on_step",
+        "run_gene_set_enrichment",
+        # Gene lookup and research
+        "literature_search",
+        "lookup_gene_records",
+        "resolve_gene_ids_to_records",
+        "web_search",
+        # Lead orchestration
+        "build_control_set",
+        "classify_user_intent",
+        "compare_search_variants",
+        "compare_variants_scored",
+        "consult_user",
+        "frame_problem",
+        "get_live_strategy_state",
+        "import_control_ids_from_gene_set",
+        "import_control_ids_from_strategy",
+        "list_control_sets",
+        "read_ledger_section",
+        "recover_failed_steps",
+        "verify_strategy",
+        # Available in every phase
+        "remember",
+        "request_search_inspection",
+        "search_memory",
+        "think",
+        # Scratchpad
+        "delete_note",
+        "list_notes",
+        "note",
+        "pin_note",
+        "promote_to_memory",
+        "read_note",
+        "search_notes",
+        "unpin_note",
+        "update_note",
+    }
+)
+
+# A backticked identifier that a call or a bare mention closes.
+_BACKTICKED_NAME = re.compile(r"`{1,2}([a-z_][a-z0-9_]*)\s*(?:\(|`)")
+
+
+def _instructed_tool_names(instructions: str) -> set[str]:
+    """The real tool names an instruction text mentions."""
+    return set(_BACKTICKED_NAME.findall(instructions)) & _TOOL_NAME_TOKENS
+
+
+_SURFACES: dict[str, tuple[Callable[[], Agent[Any, Any]], str]] = {
+    "frame": (build_frame_agent, _FRAME_INSTRUCTIONS),
+    "execution": (build_execution_agent, _EXECUTION_INSTRUCTIONS),
+    "verification": (build_verification_agent, _VERIFICATION_INSTRUCTIONS),
+    "lead": (build_lead_agent, LEAD_INSTRUCTIONS),
+}
+
+
+def _all_registered_names() -> set[str]:
+    names: set[str] = set()
+    for build, _ in _SURFACES.values():
+        names |= agent_tool_names(build())
+    return names
+
+
+def test_verify_toolset_contains_instructed_gene_chain() -> None:
+    """VERIFY resolves control gene IDs through a chain its toolset registers."""
+    names = toolset_tool_names(build_toolset())
+    for tool in (
+        "literature_search",
+        "lookup_gene_records",
+        "resolve_gene_ids_to_records",
+    ):
+        assert tool in names, f"{tool} is instructed by VERIFY but not registered"
+
+
+@pytest.mark.parametrize("role", ["frame", "execution", "verification", "lead"])
+def test_every_instructed_tool_is_callable_by_its_agent(role: str) -> None:
+    build, instructions = _SURFACES[role]
+    instructed = _instructed_tool_names(instructions)
+    # An extraction that finds nothing passes the check below without testing it.
+    assert instructed, f"{role} instructions name no known tool; the check is void"
+    missing = sorted(instructed - agent_tool_names(build()))
+    assert not missing, f"{role} instructions name uncallable tools: {missing}"
+
+
+def test_tool_name_tokens_are_all_real_tools() -> None:
+    """The token list stays honest: no entry names a tool nobody registers."""
+    stale = sorted(_TOOL_NAME_TOKENS - _all_registered_names())
+    assert not stale, f"token list names unregistered tools: {stale}"
+
+
+def test_extractor_registry_names_only_registered_tools() -> None:
+    registered = _all_registered_names()
+    named = set(_EXTRACTOR_REGISTRY) | set(_SEARCH_DISCOVERY_TOOLS)
+    orphans = sorted(named - registered)
+    assert not orphans, f"extractors name tools no toolset registers: {orphans}"
+
+
+def test_update_search_decision_absent() -> None:
+    """The superseded discovery-decision tool no longer exists."""
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("pathfinder.ai.tools.standalone.catalog_selection")

@@ -1,10 +1,10 @@
 ---
 type: Decision
-title: The Lead agent belongs to the turn that runs it
-description: The module-level Lead agent became a factory the graph is built with, so each turn constructs its own instance and a per-request model override cannot reach another turn; caching one instance behind the factory was rejected because the override is process-wide state.
+title: Every agent belongs to the turn that runs it
+description: The module-level Lead agent became a factory the graph is built with, and the three phase sub-agents followed, so each turn and each dispatch constructs its own instance and a per-request model override cannot reach another run; caching one instance behind a factory was rejected because the override is process-wide state.
 tags: [assistant-core, ws2, agents, concurrency]
 generated: { by: claude-code/opus-5, at: 2026-08-21T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-21T00:00:00Z }
+verified: { by: claude-code/opus-5, at: 2026-08-24T00:00:00Z }
 status: stable
 ---
 
@@ -18,12 +18,22 @@ on that one shared object.
 Constructing the agent costs about 50 ms, which is why caching one instance
 behind the factory looks attractive.
 
+The three phase sub-agents were the same shape, one level down: `frame_agent`,
+`execution_agent` and `verification_agent` were built at import with their
+toolsets baked in, and every dispatch overrode the one instance. A toolset that
+depends on the user or the turn cannot reach an object that was built before
+either existed.
+
 # The decision
 
 `build_lead_agent()` is a factory, the graph builder takes it as
 `build_agent`, and the turn node calls it once per turn. `ai/graph/composition.py`
 is the single place that names PathFinder's factory and its pre-turn hook, so
 the five processes that build a graph cannot drift apart.
+
+`build_frame_agent()`, `build_execution_agent()` and `build_verification_agent()`
+are the same for the phases. `BUILD_SUB_AGENT_BY_ROLE` maps a role to its
+factory, and the streaming engine calls it once per dispatch.
 
 A cached instance was rejected. The model override is not a per-call argument;
 it is state entered on the agent for the duration of the run. One shared
@@ -35,8 +45,15 @@ The factory also removed a branch: with a fresh agent, `agent.model` is always
 the id the factory baked in, so the check for an already-installed
 `FunctionModel` could never fire and is gone.
 
+Each factory names its model as a module constant, and the role-to-model map
+reads those constants. A default-model read is a dictionary lookup on an HTTP
+request and after every sub-agent tool call, so it never builds an agent to ask
+what model that agent would have used.
+
 # Anchor
 
-`apps/api/src/pathfinder/ai/lead/lead_agent.py` holds the factory,
-`ai/graph/composition.py` the wiring. Done if a module-level `Agent` is
+`apps/api/src/pathfinder/ai/lead/lead_agent.py` holds the Lead's factory,
+`ai/graph/composition.py` the wiring, and `ai/agents/frame.py`,
+`execution.py` and `verification.py` the phase factories that
+`ai/lead/sub_agent_tools.py` maps by role. Done if a module-level `Agent` is
 reintroduced, or if a second `build_graph` caller supplies its own hooks.

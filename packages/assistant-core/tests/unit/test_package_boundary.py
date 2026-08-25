@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import importlib
 import pkgutil
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -19,10 +20,35 @@ import assistant_core
 
 CORE = assistant_core.__name__
 
-# The runtime shares the wire types the client also reads. Nothing else.
-ALLOWED_SHARED = {
-    "shared_py.stream_parts.background_task",
-    "shared_py.stream_parts.turn_usage",
+# The payloads the wire carries are model declarations, so they reach the
+# model library and nothing else.
+STREAM_PART_PAYLOAD_MODULES = {
+    f"{CORE}.conversation.stream_parts.task_parts",
+    f"{CORE}.conversation.stream_parts.turn_usage",
+}
+ALLOWED_STREAM_PART_PAYLOAD_IMPORTS = {"pydantic"}
+
+# A tool source is declared and admitted as configuration, so these modules
+# reach no agent framework and no MCP client.
+MCP_CONFIG_MODULES = {
+    f"{CORE}.mcp",
+    f"{CORE}.mcp.admission",
+    f"{CORE}.mcp.declaration",
+}
+ALLOWED_MCP_CONFIG_IMPORTS = {"pydantic"}
+
+# The wrapper stack composes the agent framework's own toolsets and checks a
+# payload against the schema its tool declared. It builds no MCP client.
+MCP_WRAPPING_MODULES = {
+    f"{CORE}.mcp.approval",
+    f"{CORE}.mcp.untrusted",
+    f"{CORE}.mcp.wrapping",
+}
+ALLOWED_MCP_WRAPPING_IMPORTS = {
+    "jsonschema",
+    "pydantic",
+    "pydantic_ai",
+    "pydantic_core",
 }
 
 
@@ -60,7 +86,7 @@ def test_no_runtime_module_imports_the_science(module: ModuleType) -> None:
     assert reached == set()
 
 
-def test_the_shared_types_the_runtime_reads_have_not_grown() -> None:
+def test_no_runtime_module_imports_the_product_shared_types() -> None:
     reached = {
         name
         for m in _core_modules()
@@ -68,4 +94,53 @@ def test_the_shared_types_the_runtime_reads_have_not_grown() -> None:
         if name.startswith("shared_py")
     }
 
-    assert reached == ALLOWED_SHARED
+    assert reached == set()
+
+
+def _distributions(names: set[str]) -> set[str]:
+    roots = {name.split(".")[0] for name in names}
+    return {root for root in roots if root not in sys.stdlib_module_names} - {CORE}
+
+
+def test_the_declaration_and_admission_shapes_reach_only_pydantic() -> None:
+    reached = {
+        name
+        for m in _core_modules()
+        if m.__name__ in MCP_CONFIG_MODULES
+        for name in _distributions(_imported_names(m))
+    }
+
+    assert reached == ALLOWED_MCP_CONFIG_IMPORTS
+
+
+def test_the_wrapper_stack_reaches_the_framework_and_the_schema_check_only() -> None:
+    reached = {
+        name
+        for m in _core_modules()
+        if m.__name__ in MCP_WRAPPING_MODULES
+        for name in _distributions(_imported_names(m))
+    }
+
+    assert reached == ALLOWED_MCP_WRAPPING_IMPORTS
+
+
+def test_the_stream_part_payloads_reach_only_the_model_library() -> None:
+    reached = {
+        name
+        for m in _core_modules()
+        if m.__name__ in STREAM_PART_PAYLOAD_MODULES
+        for name in _distributions(_imported_names(m))
+    }
+
+    assert reached == ALLOWED_STREAM_PART_PAYLOAD_IMPORTS
+
+
+def test_no_runtime_module_imports_the_test_server() -> None:
+    reached = {
+        m.__name__
+        for m in _core_modules()
+        for name in _imported_names(m)
+        if name == "fastmcp" or name.startswith("fastmcp.")
+    }
+
+    assert reached == set()

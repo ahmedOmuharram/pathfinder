@@ -32,7 +32,7 @@ export function TierPicker({ presets, activeTier, onSelect }: TierPickerProps) {
       <div className="mb-1.5 flex items-baseline justify-between">
         <span className="text-xs font-medium text-foreground">Preset</span>
         {activeTier === CUSTOM_TIER && (
-          <span className="text-[10px] text-muted-foreground/70">
+          <span className="text-[10px] text-muted-foreground">
             Custom — phases below don&apos;t match a preset
           </span>
         )}
@@ -58,7 +58,7 @@ export function TierPicker({ presets, activeTier, onSelect }: TierPickerProps) {
           );
         })}
       </div>
-      <p className="mt-1.5 text-[11px] text-muted-foreground/80">
+      <p className="mt-1.5 text-[11px] text-muted-foreground">
         Presets fill in every phase below. Changing any phase switches this to Custom.
       </p>
     </div>

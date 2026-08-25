@@ -77,7 +77,7 @@ export function ConversationSubtreeDialog({
                   onClick={onClose}
                   className={cn(
                     "flex min-w-0 items-start gap-2 rounded px-2 py-2 pr-10 text-sm transition-colors",
-                    isActive ? "bg-primary/15 text-primary" : "hover:bg-muted/60",
+                    isActive ? "bg-primary/15 text-foreground" : "hover:bg-muted/60",
                   )}
                   style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
                 >

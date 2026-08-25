@@ -32,6 +32,7 @@ from pathfinder.transport.http.schemas.experiments import (
     CreateBenchmarkRequest,
     CreateExperimentRequest,
 )
+from pathfinder.transport.http.schemas.site_id import SiteId
 from pathfinder.transport.http.sse_utils import (
     SSE_RESPONSES,
     typed_event_stream_response,
@@ -146,7 +147,7 @@ async def create_benchmark(
 async def seed_strategies(
     user_id: CurrentUser,
     session: DBSession,
-    site_id: str | None = None,
+    site_id: SiteId | None = None,
 ) -> StreamingResponse:
     """Seed demo strategies and control sets across VEuPathDB sites.
 

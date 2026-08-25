@@ -4,10 +4,11 @@ import re
 from collections import defaultdict
 from typing import Any
 
+from assistant_core.capabilities.repetition_guard import REPETITION_MARKER
+
 from pathfinder.devtools.models import (
     Anomaly,
     CapturedToolCall,
-    DecisionArgs,
     LedgerConstraintsProbe,
     RunSummary,
     SearchArgs,
@@ -20,10 +21,6 @@ SERVICE_ERROR_THRESHOLD = 2
 _SERVICE_ERROR_RE = re.compile(
     r"5\d\d (?:internal server error|server error)|server error '5|"
     r"temporarily unavailable",
-    re.IGNORECASE,
-)
-_OUTAGE_REASON_RE = re.compile(
-    r"server error|service (?:unavail|error)|unavailable|5\d\d|temporarily",
     re.IGNORECASE,
 )
 _ZERO_RESULT_RE = re.compile(
@@ -76,28 +73,49 @@ def _catch_22(calls: list[CapturedToolCall]) -> list[Anomaly]:
     return out
 
 
+def _guard_refused(call: CapturedToolCall) -> bool:
+    """Did the repetition guard produce this call's result?"""
+    return call.result is not None and REPETITION_MARKER in call.result
+
+
 def _loops(calls: list[CapturedToolCall]) -> list[Anomaly]:
-    by_tool: dict[str, list[CapturedToolCall]] = defaultdict(list)
+    failed_by_tool: dict[str, list[CapturedToolCall]] = defaultdict(list)
+    refused_by_tool: dict[str, list[CapturedToolCall]] = defaultdict(list)
     for call in calls:
+        if _guard_refused(call):
+            refused_by_tool[call.tool].append(call)
         if call.status == "failed":
-            by_tool[call.tool].append(call)
+            failed_by_tool[call.tool].append(call)
     out: list[Anomaly] = []
-    for tool, failed in sorted(by_tool.items()):
-        if len(failed) >= LOOP_THRESHOLD:
-            signatures = {(e.kind, e.param) for c in failed for e in c.errors}
-            out.append(
-                Anomaly(
-                    kind="loop",
-                    severity="critical",
-                    message=(
-                        f"{tool} failed {len(failed)} times "
-                        f"({len(signatures) or 'unclassified'} distinct error signatures) "
-                        f"— the agent is stuck retrying."
-                    ),
-                    evidence=_evidence(failed),
-                    details={"tool": tool, "failures": len(failed)},
-                )
+    for tool in sorted(set(failed_by_tool) | set(refused_by_tool)):
+        failed = failed_by_tool[tool]
+        refused = refused_by_tool[tool]
+        if len(failed) < LOOP_THRESHOLD and not refused:
+            continue
+        signatures = {(e.kind, e.param) for c in failed for e in c.errors}
+        refusal_note = (
+            f" The repetition guard refused {len(refused)} identical call(s)."
+            if refused
+            else ""
+        )
+        seen = {c.seq: c for c in failed + refused}
+        out.append(
+            Anomaly(
+                kind="loop",
+                severity="critical",
+                message=(
+                    f"{tool} failed {len(failed)} times "
+                    f"({len(signatures) or 'unclassified'} distinct error signatures) "
+                    f"— the agent is stuck retrying.{refusal_note}"
+                ),
+                evidence=_evidence([seen[key] for key in sorted(seen)]),
+                details={
+                    "tool": tool,
+                    "failures": len(failed),
+                    "guard_refusals": len(refused),
+                },
             )
+        )
     return out
 
 
@@ -130,36 +148,6 @@ def _wdk_service_errors(calls: list[CapturedToolCall]) -> list[Anomaly]:
                 ),
                 evidence=_evidence(hits),
                 details={"tool": tool, "search_name": search, "count": len(hits)},
-            )
-        )
-    return out
-
-
-def _outage_driven_rejection(calls: list[CapturedToolCall]) -> list[Anomaly]:
-    out: list[Anomaly] = []
-    for call in calls:
-        if call.tool != "update_search_decision" or call.status != "completed":
-            continue
-        decision = DecisionArgs.model_validate(call.args or {})
-        if decision.selection_status != "rejected":
-            continue
-        if not _OUTAGE_REASON_RE.search(
-            f"{decision.rationale} {decision.selection_reason}"
-        ):
-            continue
-        where = f" {decision.search_name!r}" if decision.search_name else ""
-        out.append(
-            Anomaly(
-                kind="outage_driven_rejection",
-                severity="warning",
-                message=(
-                    f"Search{where} was rejected for a service-outage reason, not a "
-                    f"scientific one — the plan silently drops a data dimension the "
-                    f"user asked for, yet the turn still reports success. Re-run when "
-                    f"WDK recovers."
-                ),
-                evidence=_evidence([call]),
-                details={"search_name": decision.search_name},
             )
         )
     return out
@@ -299,7 +287,6 @@ def diagnose(
         _catch_22(calls)
         + _loops(calls)
         + _wdk_service_errors(calls)
-        + _outage_driven_rejection(calls)
         + _silent_constraint_violation(ledgers, assistant_text)
         + _silent_zero(ledgers, assistant_text)
         + _budget(summary)

@@ -12,8 +12,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.tools.standalone import _catalog_models, catalog_discovery
+from pathfinder.ai.tools.standalone import catalog_discovery
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKStringParam
+from pathfinder.services.catalog import search_inspection, searches
 
 _GOAL = "kinase genes expressed in the schizont stage"
 
@@ -22,7 +23,7 @@ def _patch(monkeypatch: pytest.MonkeyPatch, captured: dict[str, str]) -> None:
     async def _resolve(*_a: Any, **_k: Any) -> str:
         return "transcript"
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    monkeypatch.setattr(search_inspection, "resolve_search_record_type", _resolve)
 
     search_data = MagicMock()
     search_data.url_segment = "GenesByGoTerm"
@@ -36,13 +37,13 @@ def _patch(monkeypatch: pytest.MonkeyPatch, captured: dict[str, str]) -> None:
 
     client = MagicMock()
     client.get_search_details = AsyncMock(return_value=details)
-    monkeypatch.setattr(_catalog_models, "get_wdk_client", lambda _site: client)
+    monkeypatch.setattr(searches, "get_wdk_client", lambda _site: client)
 
     def _overview(*, query: str, **_kw: Any) -> Any:
         captured["query"] = query
         return MagicMock()
 
-    monkeypatch.setattr(catalog_discovery, "format_search_overview", _overview)
+    monkeypatch.setattr(search_inspection, "format_search_overview", _overview)
 
 
 @pytest.mark.asyncio

@@ -90,9 +90,17 @@ def chat_turn_jobs(connector: InMemoryConnector) -> list[dict[str, Any]]:
     ]
 
 
-async def wait_until_chat_turn_deferred(connector: InMemoryConnector) -> None:
+async def wait_until_chat_turn_deferred(
+    connector: InMemoryConnector,
+    after: int = 0,
+) -> None:
+    """Wait for a chat-turn job beyond the ones already queued.
+
+    A conversation's second turn passes the count it observed before the
+    request, so it waits for its own job rather than the previous turn's.
+    """
     while True:
-        if chat_turn_jobs(connector):
+        if len(chat_turn_jobs(connector)) > after:
             return
         await asyncio.sleep(0.02)
 

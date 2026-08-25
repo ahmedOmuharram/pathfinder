@@ -1,13 +1,15 @@
 """Turn-level helpers for the Lead node.
 
-Memory retrieval at turn start and resolution of the approval the user
-answered.
+Memory retrieval at turn start, and the Lead's half of the approval cycle:
+which deferred call the turn waits on, and what the user's answer means for
+the sub-agent run under it. The cycle's shared mechanics are the runtime's.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from assistant_core.graph import approvals
 from assistant_core.graph.turn_state import PendingApproval
 from assistant_core.memory.retrieval import retrieve_relevant_memories
 from assistant_core.memory.store import MemoryStore, StoredMemory
@@ -44,7 +46,7 @@ async def retrieve_memories(
 ) -> list[StoredMemory]:
     """Fresh-turn cross-thread retrieval.
 
-    Returns ``[]`` on an approval-resume turn — the turn's memories are
+    Returns ``[]`` on an approval-resume turn: the turn's memories are
     already persisted on ``state.retrieved_memories``, so the lead node
     preserves them rather than re-querying (and does not re-emit the
     recalled-memories chunk).
@@ -89,12 +91,7 @@ def pending_approval(
     A dispatch outranks the Lead's own approval, because only the dispatch
     holds a suspended sub-agent run; an unapproved Lead tool is re-collected by
     pydantic-ai on the next run.
-
-    ``messages`` is the FULL run history: when the Lead's first action is the
-    deferred tool, ``new_messages()`` holds no leading ``ModelRequest`` and
-    pydantic-ai rejects the resume as an empty history.
     """
-    history = ModelMessagesTypeAdapter.dump_json(messages).decode()
     dispatches = [
         call
         for call in output.calls
@@ -102,29 +99,21 @@ def pending_approval(
     ]
     if len(dispatches) > 1:
         raise ConcurrentSubAgentApprovalsError([c.tool_call_id for c in dispatches])
+    user_message_id = deps.state.user_message_id
     if dispatches:
-        dispatch = dispatches[0]
-        sub_agent = deps.pending_sub_agent_approvals[dispatch.tool_call_id]
-        return PendingApproval(
+        sub_agent = deps.pending_sub_agent_approvals[dispatches[0].tool_call_id]
+        parked = approvals.parked_call(
+            call=dispatches[0],
             phase=SUB_AGENT_APPROVAL_PHASE[sub_agent.role],
-            tool_call_id=dispatch.tool_call_id,
-            tool_name=dispatch.tool_name,
-            tool_args=dispatch.args_as_dict(),
-            prior_messages_json=history,
-            sub_agent=sub_agent,
-            user_message_id=deps.state.user_message_id,
+            messages=messages,
         )
-    if not output.approvals:
+        return parked.model_copy(
+            update={"sub_agent": sub_agent, "user_message_id": user_message_id},
+        )
+    own = approvals.pending_approval(output=output, phase="lead", messages=messages)
+    if own is None:
         return None
-    own = output.approvals[0]
-    return PendingApproval(
-        phase="lead",
-        tool_call_id=own.tool_call_id,
-        tool_name=own.tool_name,
-        tool_args=own.args_as_dict(),
-        prior_messages_json=history,
-        user_message_id=deps.state.user_message_id,
-    )
+    return own.model_copy(update={"user_message_id": user_message_id})
 
 
 @dataclass(frozen=True)
@@ -147,11 +136,7 @@ def _answers_for(
         response = state.approval_responses.get(tool_call_id)
         if response is None:
             continue
-        answers[tool_call_id] = (
-            True
-            if response.approved
-            else ToolDenied(message=response.reason or "User denied the tool call.")
-        )
+        answers[tool_call_id] = approvals.approval_answer(response)
     return answers
 
 
@@ -186,7 +171,7 @@ def _sibling_answers(
     approval: PendingApproval,
 ) -> dict[str, bool | DeferredToolApprovalResult]:
     """Answers for the other calls the same Lead response left unresolved."""
-    history = ModelMessagesTypeAdapter.validate_json(approval.prior_messages_json)
+    history = approvals.resume_history(approval)
     last_response = next(
         (m for m in reversed(history) if isinstance(m, ModelResponse)),
         None,

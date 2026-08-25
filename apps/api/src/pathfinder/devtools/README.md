@@ -190,7 +190,6 @@ The engine (`diagnosis.py`) flags PathFinder's recurring failure modes:
 | `validation_catch_22` | a param is **required by one validator but rejected as unknown by another** — unsatisfiable. This is the `document_type` bug's exact signature. |
 | `loop` | one tool failed ≥5 times (consecutive or alternating error signatures) — the agent is stuck. |
 | `wdk_service_error` | the same search returned a WDK 5xx ≥2 times — the agent retried an unavailable search instead of routing around it. Usually an upstream outage, not a PathFinder bug. |
-| `outage_driven_rejection` | a search was **rejected for a service-outage reason, not a scientific one** — the plan silently drops a data dimension the user asked for while still reporting success. |
 | `silent_zero` | a step returned 0 results (`ledger.build.zeroResultSteps`) **and the reply never said so** — possible silent failure (e.g. missing JSESSIONID, wrong params). |
 | `silent_constraint_violation` | a user-explicit constraint was substituted or ungroundable, blocking, **and the reply never named it** — the plan deviated from what the user asked without saying so. |
 | `budget_burn` | the turn consumed an abnormal number of tokens (≥200k). |

@@ -6,6 +6,7 @@ import warnings
 from uuid import UUID
 
 from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.graph.stream_events import turn_failed_event
 from assistant_core.persistence.models import ConversationEvent
 from assistant_core.platform.db import async_session_factory
 from assistant_core.platform.logging import get_logger
@@ -84,6 +85,7 @@ async def _close_stalled_turn(job: Job) -> None:
     )
     for chunk in (
         ErrorChunk(error_text=_STALLED_TURN_ERROR),
+        turn_failed_event(error_text=_STALLED_TURN_ERROR),
         FinishChunk(finish_reason="error"),
         DoneChunk(),
     ):
@@ -99,13 +101,18 @@ async def _close_stalled_turn(job: Job) -> None:
 
 
 async def _chat_stream_is_open(conversation_id: UUID) -> bool:
-    """True when the newest chat chunk is not a turn terminator."""
+    """True when the newest turn-tagged chunk is not a terminator.
+
+    Rows that belong to no turn (task progress in the gap) do not speak
+    for the stream.
+    """
     async with async_session_factory() as session:
         newest = await session.scalar(
             select(ConversationEvent.chunk["type"].astext)
             .where(
                 ConversationEvent.conversation_id == conversation_id,
                 ConversationEvent.task_id.is_(None),
+                ConversationEvent.turn_id.is_not(None),
             )
             .order_by(ConversationEvent.id.desc())
             .limit(1),

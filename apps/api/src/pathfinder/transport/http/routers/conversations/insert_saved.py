@@ -1,15 +1,15 @@
 """POST /conversations/{id}/insert-saved — user-driven insert of a saved sub-strategy."""
 
-from typing import Annotated, Literal
+from typing import Literal
 from uuid import UUID
 
 from assistant_core.platform.pydantic_base import CamelModel
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 from pydantic import Field
 
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.services.conversations.service import ConversationService
-from pathfinder.transport.http.deps import CurrentUser, DBSession
+from pathfinder.transport.http.deps import CurrentUser, DBSession, RequiredSiteIdQuery
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
@@ -44,7 +44,7 @@ class InsertSavedResponse(CamelModel):
 async def insert_saved(
     conversation_id: UUID,
     request: InsertSavedRequest,
-    site_id: Annotated[str, Query(alias="siteId")],
+    site_id: RequiredSiteIdQuery,
     session: DBSession,
     user_id: CurrentUser,
 ) -> InsertSavedResponse:

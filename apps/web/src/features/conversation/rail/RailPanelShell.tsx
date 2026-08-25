@@ -33,7 +33,16 @@ export function RailPanelShell({
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+      {/* A rail panel can hold read-only text, so the scroller carries its own
+          tab stop; without one the keyboard cannot reach the overflow. */}
+      <div
+        className="min-h-0 flex-1 overflow-auto"
+        role="region"
+        aria-label={`${title} detail`}
+        tabIndex={0}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -47,7 +56,7 @@ interface RailEmptyStateProps {
 export function RailEmptyState({ icon, heading, description }: RailEmptyStateProps) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <div className="text-muted-foreground/60">{icon}</div>
+      <div className="text-muted-foreground">{icon}</div>
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">{heading}</p>
         <p className="text-xs text-muted-foreground">{description}</p>

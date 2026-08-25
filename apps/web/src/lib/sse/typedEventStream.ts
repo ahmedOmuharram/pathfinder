@@ -1,7 +1,7 @@
 /**
  * Fetch and auth for the typed-event SSE dialect used by the experiment,
- * sweep, seed and task routes. The frame reading is the client package's
- * legacy reader; chat uses the wire protocol instead.
+ * sweep and seed routes. The frame reading is the client package's legacy
+ * reader; a conversation and its durable tasks use the wire protocol instead.
  */
 
 import { readTypedEvents } from "@pathfinder/assistant-client/legacy";

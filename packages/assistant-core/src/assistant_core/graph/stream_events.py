@@ -3,12 +3,16 @@ frontend as data parts on the assistant message."""
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import JsonValue
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
+from assistant_core.conversation.stream_parts.task_parts import (
+    TaskCompleted,
+    TaskProgress,
+)
 from assistant_core.memory.store import StoredMemory
 from assistant_core.platform.pydantic_base import CamelModel
 
@@ -26,6 +30,44 @@ def background_task_started_event(
             "toolName": tool_name,
             "estimatedDurationSeconds": estimated_duration_seconds,
         },
+    )
+
+
+def task_progress_event(
+    *,
+    task_id: UUID,
+    percent: float,
+    message: str,
+    tool_specific: dict[str, Any] | None = None,
+) -> DataChunk:
+    """Report a durable task's progress on the thread. The id is the task id,
+    so repeated emissions reconcile into one persisted part."""
+    return DataChunk(
+        type="data-task-progress",
+        id=str(task_id),
+        data=TaskProgress(
+            task_id=str(task_id),
+            percent=percent,
+            message=message,
+            tool_specific=tool_specific,
+        ).model_dump(by_alias=True, mode="json", exclude_none=True),
+    )
+
+
+def task_completed_event(
+    *,
+    task_id: UUID,
+    status: Literal["success", "failed"],
+    error: str | None = None,
+) -> DataChunk:
+    """Report that a durable task reached a terminal outcome."""
+    return DataChunk(
+        type="data-task-completed",
+        data=TaskCompleted(
+            task_id=str(task_id),
+            status=status,
+            error=error,
+        ).model_dump(by_alias=True, mode="json", exclude_none=True),
     )
 
 
@@ -132,6 +174,24 @@ def turn_stopped_event() -> DataChunk:
     return DataChunk(
         type="data-turn-stopped",
         data=TurnStoppedPayload().model_dump(by_alias=True, mode="json"),
+    )
+
+
+class TurnFailedPayload(CamelModel):
+    """Payload for the turn-failed chunk. The chunk persists as a message part,
+    so a failure the ``error`` chunk reported still shows after a reload.
+    """
+
+    error_text: str
+
+
+def turn_failed_event(*, error_text: str) -> DataChunk:
+    return DataChunk(
+        type="data-turn-failed",
+        data=TurnFailedPayload(error_text=error_text).model_dump(
+            by_alias=True,
+            mode="json",
+        ),
     )
 
 

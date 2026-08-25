@@ -120,7 +120,7 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
             variant="ghost"
             size="sm"
             onClick={() => setShowDismissed((prev) => !prev)}
-            className="h-7 w-full justify-start gap-1.5 px-1.5 text-[11px] font-normal uppercase tracking-wider text-muted-foreground/70"
+            className="h-7 w-full justify-start gap-1.5 px-1.5 text-[11px] font-normal uppercase tracking-wider text-muted-foreground"
           >
             <Archive className="h-3 w-3" />
             <span>Dismissed ({data.dismissedConversations.length})</span>
@@ -135,7 +135,7 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
                   key={item.id}
                   data-testid="dismissed-item"
                   data-conversation-id={item.id}
-                  className="group relative rounded-md px-2.5 py-1.5 text-xs text-muted-foreground/80 opacity-80 hover:bg-muted/40"
+                  className="group relative rounded-md px-2.5 py-1.5 text-xs text-muted-foreground opacity-80 hover:bg-muted/40"
                 >
                   <div className="truncate pr-14 text-sm">{item.title}</div>
                   <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">

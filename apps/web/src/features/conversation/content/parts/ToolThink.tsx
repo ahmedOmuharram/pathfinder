@@ -7,8 +7,8 @@ export const ToolThink: ToolCallMessagePartComponent<{ thought?: string }, unkno
   if (thought === "") return null;
   return (
     <div data-testid="tool-think" className="my-1 text-xs text-muted-foreground">
-      <span className="font-mono text-[10px] text-muted-foreground/60">think</span>
-      <span className="mx-1 text-muted-foreground/40">:</span>
+      <span className="font-mono text-[10px] text-muted-foreground">think</span>
+      <span className="mx-1 text-muted-foreground">:</span>
       <span className="italic">{thought}</span>
     </div>
   );

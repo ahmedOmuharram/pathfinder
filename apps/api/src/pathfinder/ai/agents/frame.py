@@ -128,32 +128,42 @@ comparison. Do NOT build WDK steps - that is BUILD's job. The workspace below sh
 have assembled so far.
 """
 
-frame_agent: Agent[AgentDeps, FrameResult | DeferredToolRequests] = Agent(
-    "openai:gpt-5.6-luna",
-    output_type=[FrameResult, DeferredToolRequests],
-    deps_type=AgentDeps,
-    instructions=_FRAME_INSTRUCTIONS,
-    toolsets=[build_toolset(), build_scratchpad_toolset()],
-    capabilities=[
-        ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS),
-        Thinking(effort="medium"),
-        *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
-    ],
-    retries=3,
-    description=(
-        "FRAME agent: operationalize the goal into a realizable OperationalSpec "
-        "(criteria bound to real searches with resolved params), replacing "
-        "scoping + discovery + planning."
-    ),
-    name="frame",
-    defer_model_check=True,
-)
+FRAME_MODEL = "openai:gpt-5.6-luna"
+
+FrameAgent = Agent[AgentDeps, FrameResult | DeferredToolRequests]
 
 
-for _fn in (
-    base_system_prompt,
-    pinned_user_memories,
-    pinned_scratchpad,
-    pinned_frame_workspace,
-):
-    frame_agent.instructions(_fn)
+def build_frame_agent() -> FrameAgent:
+    """A FRAME agent for one dispatch.
+
+    Each dispatch gets its own instance, so an override entered for one run
+    never reaches another.
+    """
+    agent: FrameAgent = Agent(
+        FRAME_MODEL,
+        output_type=[FrameResult, DeferredToolRequests],
+        deps_type=AgentDeps,
+        instructions=_FRAME_INSTRUCTIONS,
+        toolsets=[build_toolset(), build_scratchpad_toolset()],
+        capabilities=[
+            ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS),
+            Thinking(effort="medium"),
+            *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
+        ],
+        retries=3,
+        description=(
+            "FRAME agent: operationalize the goal into a realizable "
+            "OperationalSpec (criteria bound to real searches with resolved "
+            "params), replacing scoping + discovery + planning."
+        ),
+        name="frame",
+        defer_model_check=True,
+    )
+    for fn in (
+        base_system_prompt,
+        pinned_user_memories,
+        pinned_scratchpad,
+        pinned_frame_workspace,
+    ):
+        agent.instructions(fn)
+    return agent

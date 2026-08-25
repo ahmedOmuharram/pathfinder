@@ -8,6 +8,7 @@ from assistant_core.platform.logging import get_logger
 from assistant_core.platform.pydantic_base import CamelModel
 from assistant_core.platform.types import JSONObject
 from fastapi import APIRouter, Depends, Query, Request
+from pydantic import Field
 
 from pathfinder.platform.errors import (
     InternalError,
@@ -56,6 +57,7 @@ from pathfinder.transport.http.schemas.gene_sets import (
     ReverseSearchResultItem,
     SetOperationRequest,
 )
+from pathfinder.transport.http.schemas.site_id import SiteId
 from pathfinder.transport.http.schemas.step_results import (
     ClassifiedRecord,
     DistributionResponse,
@@ -219,8 +221,8 @@ class GeneSetExportResponse(CamelModel):
 
 
 class GeneSetImportRequest(CamelModel):
-    name: str
-    site_id: str
+    name: str = Field(min_length=1, max_length=200)
+    site_id: SiteId
     raw_text: str
 
 

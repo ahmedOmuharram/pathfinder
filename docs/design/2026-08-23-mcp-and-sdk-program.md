@@ -382,6 +382,8 @@ Being honest about what the document does not yet say:
 
 Both are **additive** changes to PROTOCOL.md - a new section for the request side, and unifying the task dialect onto the existing `data-task-progress` part which is already in the vocabulary. Both are prerequisites for a non-JS consumer, and both should land as version 1.1 before the first external client is written rather than after.
 
+> **Closed, 2026-08-23.** Both landed as PROTOCOL.md 1.1.0, after this document was written. The request side is section 12, with the field split, the resume, the refusals and two captured examples. The durable-task lifecycle is on the thread, in the section 6 subsection that names it, coalesced; the per-task endpoint keeps working and is specified as a deprecated legacy channel in section 13. The paragraphs above are left as written, because they are the analysis that produced the work.
+
 ---
 
 ## 7. The asks

@@ -56,17 +56,17 @@ _CLARIFY_PROSE = (
 )
 _SUCCESS_PROSE = (
     "**Verified end-to-end.** The strategy framed, built, and verified "
-    "cleanly — root size looks right and the leaves are non-empty."
+    "cleanly: root size looks right and the leaves are non-empty."
 )
 _FEEDBACK_PROSE = (
     "**Verification found a problem.** One leaf **returned 0** rows, so the "
-    "combined result is empty — that pattern is too narrow. Loosen it and I "
+    "combined result is empty; that pattern is too narrow. Loosen it and I "
     "will re-verify."
 )
 _IMPACT_PROSE = (
     "Switching the combine to INTERSECT makes the **operator** **stricter**: "
     "the result **drops** to genes supported by *both* signals. That tightens "
-    "specificity at the cost of recall — expect a smaller candidate list."
+    "specificity at the cost of recall, so expect a smaller candidate list."
 )
 _VARIANT_PROSE = (
     "I ran both search variants and compared their result sets above. Tell me "
@@ -76,15 +76,19 @@ _CONTROLS_PROSE = (
     "I've saved your uploaded gene IDs as a control set. We can now score "
     "search variants against them whenever you're ready."
 )
+_LOOP_PROSE = (
+    "I kept re-reading the same catalog listing and made no progress, so I "
+    "stopped there."
+)
 
 LEAD = "lead"
 FRAME = "frame"
 VERIFICATION = "verification"
 EXECUTION = "execution"
 
-# Ordered — the first role whose markers intersect the agent's tool names wins.
+# Ordered: the first role whose markers intersect the agent's tool names wins.
 # Lead is first: its dispatch tools are unique to the Lead and never appear on a
-# sub-agent. (Do NOT key the Lead on consult_user — approval-required deferred
+# sub-agent. (Do NOT key the Lead on consult_user: approval-required deferred
 # tools are excluded from AgentInfo.function_tools.)
 _ROLES: tuple[RoleMarkers, ...] = (
     RoleMarkers(
@@ -119,6 +123,10 @@ _COMBINED_MARKERS = ("comprehensive kinase strategy", "all parameter types")
 _CLARIFY_MARKERS = ("human equivalent", "vary much")
 _VARIANT_MARKERS = ("compare two search variants", "compare search variants")
 _CONSULT_MARKERS = ("consult me before planning", "ask me design questions")
+# The FRAME arc that asks for one catalog listing over and over, which is what
+# the repetition guard exists to stop.
+_LOOP_MARKERS = ("read the catalog again and again",)
+_LOOP_CALL_ARGS = {"record_type": "transcript"}
 
 
 def _variant_text_params(expression: str) -> dict[str, Any]:
@@ -246,8 +254,22 @@ def _lead_sequence(messages: list[ModelMessage]) -> list[ToolCallPart]:
     return _routed_sequence(raw)
 
 
+def _prose_only_sequence(lowered: str) -> list[ToolCallPart] | None:
+    """The arcs that answer in prose and call no tool."""
+    if has_any(lowered, _IMPACT_MARKERS):
+        return [_lead_final(_IMPACT_PROSE, "await_user")]
+    if has_any(lowered, _CLARIFY_MARKERS):
+        return [_lead_final(_CLARIFY_PROSE, "await_user")]
+    return None
+
+
 def _routed_sequence(raw: str) -> list[ToolCallPart]:
     lowered = raw.lower()
+    if has_any(lowered, _LOOP_MARKERS):
+        return [
+            scripted_call("frame_problem", {"reason": "mock loop"}),
+            _lead_final(_LOOP_PROSE, "await_user"),
+        ]
     if has_any(lowered, _VARIANT_MARKERS):
         return [
             scripted_call("compare_search_variants", _variant_args()),
@@ -255,10 +277,9 @@ def _routed_sequence(raw: str) -> list[ToolCallPart]:
         ]
     if has_any(lowered, _CONSULT_MARKERS):
         return [scripted_call("consult_user", _consult_args())]
-    if has_any(lowered, _IMPACT_MARKERS):
-        return [_lead_final(_IMPACT_PROSE, "await_user")]
-    if has_any(lowered, _CLARIFY_MARKERS):
-        return [_lead_final(_CLARIFY_PROSE, "await_user")]
+    prose = _prose_only_sequence(lowered)
+    if prose is not None:
+        return prose
     build = (
         _FIX_MARKERS
         + _FEEDBACK_MARKERS
@@ -286,6 +307,8 @@ def _criterion_replies(messages: list[ModelMessage]) -> list[CriterionReply]:
 
 
 def _frame_script(messages: list[ModelMessage]) -> ToolCallPart:
+    if has_any(current_user_text.get().lower(), _LOOP_MARKERS):
+        return scripted_call("list_searches", _LOOP_CALL_ARGS)
     return frame_call(
         _active_spec(),
         called_tool_parts(messages),

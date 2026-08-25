@@ -1,35 +1,17 @@
 /**
  * Parameter sweep E2E test.
  *
- * The `VariantLane` component and `variant-lane` testid are not yet
- * implemented (planned for a future wave). This test exercises the
- * existing durable-task infrastructure applied to the
- * `optimize_search_parameters` tool: when the backend emits
- * `data-background-task-started` with `toolName: "optimize_search_parameters"`,
- * the UI renders the task-started indicator, tracks progress via the
- * per-task SSE endpoint, and reflects completion.
- *
- * Once `VariantLane` ships, this file should be extended to assert
- * per-variant lane rendering and per-lane progress bars.
+ * The durable-task lifecycle applied to `optimize_search_parameters`: the
+ * thread carries the started chunk, the task's progress and its outcome, and
+ * the card renders all three from the message's own parts.
  */
 
 import { test, expect } from "../fixtures/test";
+import { sseDone, sseFrame, uiMessageStreamHeaders } from "../fixtures/sse";
 import type { BrowserContext } from "@playwright/test";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 const TASK_ID = "00000000-0000-0000-0000-sweep0000001";
-
-function sseFrame(obj: unknown): string {
-  return `data: ${JSON.stringify(obj)}\n\n`;
-}
-
-function chatStreamHeaders(): Record<string, string> {
-  return {
-    "content-type": "text/event-stream",
-    "cache-control": "no-cache",
-    "x-vercel-ai-ui-message-stream": "v1",
-  };
-}
 
 interface OpenStrategyResponse {
   conversationId?: string;
@@ -64,84 +46,43 @@ test.describe("Parameter Sweep", () => {
 
     const chatStream = [
       sseFrame({
-        type: "messages/partial",
-        messageId: "sweep-msg-001",
+        type: "start",
+        messageId: "22222222-2222-2222-2222-222222222222",
+      }),
+      sseFrame({ type: "text-start", id: "t1" }),
+      sseFrame({
+        type: "text-delta",
+        id: "t1",
         delta: "Starting parameter optimization...",
       }),
+      sseFrame({ type: "text-end", id: "t1" }),
       sseFrame({
-        type: "messages/complete",
-        messageId: "sweep-msg-001",
-        role: "ai",
-        content: "Starting parameter optimization...",
+        type: "data-background-task-started",
+        data: {
+          taskId: TASK_ID,
+          toolName: "optimize_search_parameters",
+          estimatedDurationSeconds: 3,
+        },
       }),
-      "data: [DONE]\n\n",
+      sseFrame({
+        type: "data-task-progress",
+        data: { taskId: TASK_ID, percent: 0.6, message: "Testing variant 3/5" },
+      }),
+      sseFrame({
+        type: "data-task-completed",
+        data: { taskId: TASK_ID, status: "success" },
+      }),
+      sseFrame({ type: "finish", finishReason: "stop" }),
+      sseDone(),
     ].join("");
 
     await page.route("**/api/v1/chat", async (route) => {
       await route.fulfill({
         status: 200,
-        headers: chatStreamHeaders(),
+        headers: uiMessageStreamHeaders(),
         body: chatStream,
       });
     });
-
-    await page.route(
-      `**/api/v1/conversations/*/tasks/${TASK_ID}/events`,
-      async (route) => {
-        const payload = [
-          sseFrame({
-            type: "data-task-progress",
-            data: {
-              taskId: TASK_ID,
-              percent: 0.2,
-              message: "Testing variant 1/5",
-            },
-          }),
-          sseFrame({
-            type: "data-task-progress",
-            data: {
-              taskId: TASK_ID,
-              percent: 0.4,
-              message: "Testing variant 2/5",
-            },
-          }),
-          sseFrame({
-            type: "data-task-progress",
-            data: {
-              taskId: TASK_ID,
-              percent: 0.6,
-              message: "Testing variant 3/5",
-            },
-          }),
-          sseFrame({
-            type: "data-task-progress",
-            data: {
-              taskId: TASK_ID,
-              percent: 0.8,
-              message: "Testing variant 4/5",
-            },
-          }),
-          sseFrame({
-            type: "data-task-progress",
-            data: {
-              taskId: TASK_ID,
-              percent: 1.0,
-              message: "Testing variant 5/5",
-            },
-          }),
-          sseFrame({
-            type: "data-task-completed",
-            data: { taskId: TASK_ID, status: "success" },
-          }),
-          "data: [DONE]\n\n",
-        ].join("");
-        await route.fulfill({
-          status: 200,
-          headers: chatStreamHeaders(),
-          body: payload,
-        });
-      },
-    );
 
     await page.goto(`/conversation/${strategyId}`);
     const composer = page.getByPlaceholder("Ask about strategies", {
@@ -161,17 +102,15 @@ test.describe("Parameter Sweep", () => {
       timeout: 30_000,
     });
 
-    const taskIndicator = page.getByTestId("data-background-task-started");
-
-    const isTaskStartedVisible = await taskIndicator.isVisible().catch(() => false);
-
-    if (isTaskStartedVisible) {
-      await expect(taskIndicator).toContainText("optimize_search_parameters");
-    } else {
-      await expect(page.getByText("Starting parameter optimization...")).toBeVisible({
-        timeout: 15_000,
-      });
-    }
+    const started = page.getByTestId("data-background-task-started");
+    await expect(started).toBeVisible({ timeout: 15_000 });
+    await expect(started).toContainText(/optimize parameters/i);
+    await expect(page.getByTestId("data-task-progress").first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("data-task-completed")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("chat stream delivers assistant response for sweep request", async ({
@@ -182,23 +121,24 @@ test.describe("Parameter Sweep", () => {
 
     const chatStream = [
       sseFrame({
-        type: "messages/partial",
-        messageId: "sweep-simple-001",
+        type: "start",
+        messageId: "33333333-3333-3333-3333-333333333333",
+      }),
+      sseFrame({ type: "text-start", id: "t1" }),
+      sseFrame({
+        type: "text-delta",
+        id: "t1",
         delta: "[mock] optimize search parameters with 5 variants",
       }),
-      sseFrame({
-        type: "messages/complete",
-        messageId: "sweep-simple-001",
-        role: "ai",
-        content: "[mock] optimize search parameters with 5 variants",
-      }),
-      "data: [DONE]\n\n",
+      sseFrame({ type: "text-end", id: "t1" }),
+      sseFrame({ type: "finish", finishReason: "stop" }),
+      sseDone(),
     ].join("");
 
     await page.route("**/api/v1/chat", async (route) => {
       await route.fulfill({
         status: 200,
-        headers: chatStreamHeaders(),
+        headers: uiMessageStreamHeaders(),
         body: chatStream,
       });
     });

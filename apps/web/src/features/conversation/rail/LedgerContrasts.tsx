@@ -15,7 +15,7 @@ export function LedgerContrasts({ contrasts }: { contrasts: LedgerContrastPayloa
 
   return (
     <div className="mt-2 space-y-1">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         Contrast
       </div>
       {contrasts.map((c) => {
@@ -26,8 +26,8 @@ export function LedgerContrasts({ contrasts }: { contrasts: LedgerContrastPayloa
           c.reference === "";
         return (
           <div key={c.criterionId} className="text-[11px] leading-snug">
-            <span className="font-mono text-muted-foreground/70">{c.criterionId}</span>
-            <span className="mx-1 text-muted-foreground/40">·</span>
+            <span className="font-mono text-muted-foreground">{c.criterionId}</span>
+            <span className="mx-1 text-muted-foreground">·</span>
             <span className={incomplete ? "text-amber-600" : "text-foreground"}>
               {c.summary}
             </span>

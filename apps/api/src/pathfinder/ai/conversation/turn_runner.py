@@ -10,8 +10,14 @@ from uuid import UUID
 from assistant_core.conversation.event_writer import ChatWriter
 from assistant_core.graph.stream_events import (
     conversation_title_event,
+    turn_failed_event,
     turn_status_event,
     turn_stopped_event,
+)
+from assistant_core.mcp.admission import AdmissionRecord
+from assistant_core.mcp.resolution import (
+    ResolvedToolSources,
+    ToolSourceUnavailableError,
 )
 from assistant_core.platform.db import async_session_factory
 from assistant_core.platform.logging import get_logger
@@ -122,18 +128,53 @@ async def run_turn(
         conversation_id=body.conversation_id,
     )
     body = body.model_copy(update={"site_id": effective_site_id})
-    runtime_context = await spec.build_turn_context(
-        TurnContextRequest(
-            conversation=conversation,
-            site_id=effective_site_id,
+    async with contextlib.AsyncExitStack() as tool_source_sessions:
+        tool_sources: dict[str, Any] = {}
+        if spec.tool_sources:
+            resolved = await tool_source_sessions.enter_async_context(
+                ResolvedToolSources(
+                    declarations=spec.tool_sources,
+                    credential=deployment_credential,
+                ),
+            )
+            tool_sources = dict(resolved.by_name)
+        runtime_context = await spec.build_turn_context(
+            TurnContextRequest(
+                conversation=conversation,
+                site_id=effective_site_id,
+                user_id=user_id,
+                memory_store=memory_store,
+                cancel_event=asyncio.Event(),
+                phase_models=body.runtime_phase_models,
+                phase_reasoning=body.runtime_phase_reasoning,
+                tool_sources=tool_sources,
+            ),
+        )
+        await _run_turn_with_context(
+            body=body,
             user_id=user_id,
-            memory_store=memory_store,
-            cancel_event=asyncio.Event(),
-            phase_models=body.runtime_phase_models,
-            phase_reasoning=body.runtime_phase_reasoning,
-        ),
-    )
+            spec=spec,
+            compiled_graph=compiled_graph,
+            runtime_context=runtime_context,
+            writer=writer,
+        )
 
+
+def deployment_credential(record: AdmissionRecord) -> str | None:
+    """Refuse a credentialed source until a deployment configures one."""
+    msg = f"no credential is configured for tool source {record.source_id!r}"
+    raise ToolSourceUnavailableError(msg)
+
+
+async def _run_turn_with_context(
+    *,
+    body: ChatRequestBody,
+    user_id: UUID,
+    spec: AssistantSpec,
+    compiled_graph: Any,
+    runtime_context: Any,
+    writer: ChatWriter,
+) -> None:
     turn_message_id = writer.turn_id
     start_event_id = await writer.write(
         StartChunk(message_id=str(turn_message_id)).model_dump(
@@ -292,13 +333,14 @@ async def _drive_graph(
             user_id=str(graph_input.get("user_id")),
             error_type=type(exc).__name__,
         )
-        await writer.write(
-            ErrorChunk(error_text=f"{type(exc).__name__}: {exc}").model_dump(
-                by_alias=True,
-                mode="json",
-                exclude_none=True,
-            ),
-        )
+        error_text = f"{type(exc).__name__}: {exc}"
+        for chunk in (
+            ErrorChunk(error_text=error_text),
+            turn_failed_event(error_text=error_text),
+        ):
+            await writer.write(
+                chunk.model_dump(by_alias=True, mode="json", exclude_none=True),
+            )
     finally:
         cancel_watcher.cancel()
         killer.cancel()

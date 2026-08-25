@@ -17,12 +17,26 @@ describe("the vendored protocol capture", () => {
   });
 
   it("names the protocol version the document declares", () => {
-    expect(captured.version).toBe("1.0.0");
+    expect(captured.version).toBe("1.3.0");
   });
 
   it("carries one example per kind the reference assistant produces", () => {
-    expect(captured.examples).toHaveLength(18);
+    expect(captured.examples).toHaveLength(17);
     const kinds = captured.examples.map((example) => example.kind);
     expect(new Set(kinds).size).toBe(kinds.length);
+  });
+
+  it("separates the request's core fields from the product's own", () => {
+    const core = new Set(captured.request.coreFields);
+    const shared = captured.request.extensionFields.filter((field) => core.has(field));
+
+    expect(shared).toEqual([]);
+    expect(core.size).toBeGreaterThan(0);
+  });
+
+  it("captures a request example the client can send back", () => {
+    const names = captured.request.examples.map((example) => example.kind);
+
+    expect(names).toEqual(["submit-message", "approval-response"]);
   });
 });

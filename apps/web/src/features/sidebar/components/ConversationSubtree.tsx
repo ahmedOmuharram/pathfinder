@@ -87,14 +87,14 @@ export function ConversationSubtree({
                 className={cn(
                   "flex items-center gap-1.5 rounded py-0.5 pr-6 text-[11px] transition-colors",
                   isActive
-                    ? "bg-primary/15 text-primary"
+                    ? "bg-primary/15 text-foreground"
                     : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                 )}
                 style={{ paddingLeft: `${0.375 + (depth - 1) * 0.75}rem` }}
               >
                 <GitBranch className="h-3 w-3 shrink-0" aria-hidden />
                 <span className="truncate">{item.title}</span>
-                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
+                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
                   {formatSidebarTime(item.updatedAt)}
                 </span>
               </Link>
@@ -103,7 +103,7 @@ export function ConversationSubtree({
                   <button
                     type="button"
                     aria-label="Branch actions"
-                    className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground/70 opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
+                    className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
                   >
                     <MoreVertical className="h-3 w-3" aria-hidden />
                   </button>

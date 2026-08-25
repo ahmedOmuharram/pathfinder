@@ -1,41 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactElement } from "react";
+import type { UIMessage } from "ai";
+import type { TaskCompleted, TaskProgressChunk } from "@pathfinder/shared";
 
+import { ChatHelpersProvider, type ChatHelpers } from "../../runtime/chatHelpersContext";
 import { DataBackgroundTaskStarted } from "./DataBackgroundTaskStarted";
-import { streamTypedEvents } from "@/lib/sse/typedEventStream";
-import type { TaskEventChunk } from "./taskLiveState";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/plasmodb/conversation/conv-1",
 }));
-
-vi.mock("@/lib/sse/typedEventStream", () => ({
-  streamTypedEvents: vi.fn(),
-}));
-
-const mockedStream = vi.mocked(streamTypedEvents);
-
-function setStream(chunks: TaskEventChunk[]): void {
-  mockedStream.mockImplementation(() => {
-    async function* gen(): AsyncGenerator<TaskEventChunk> {
-      await Promise.resolve();
-      for (const chunk of chunks) yield chunk;
-    }
-    return gen();
-  });
-}
-
-function renderWithClient(ui: ReactElement) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-}
 
 const STARTED = {
   taskId: "t1",
@@ -43,123 +20,149 @@ const STARTED = {
   estimatedDurationSeconds: 120,
 } as const;
 
-describe("DataBackgroundTaskStarted", () => {
-  beforeEach(() => {
-    setStream([]);
-  });
+function progressPart(data: TaskProgressChunk): UIMessage["parts"][number] {
+  return { type: "data-task-progress", data } as UIMessage["parts"][number];
+}
 
+function completedPart(data: TaskCompleted): UIMessage["parts"][number] {
+  return { type: "data-task-completed", data } as UIMessage["parts"][number];
+}
+
+function makeChat(
+  parts: UIMessage["parts"][number][],
+  resumeStream: () => Promise<void>,
+  status: ChatHelpers["status"] = "ready",
+): ChatHelpers {
+  return {
+    id: "conv-1",
+    messages: [
+      {
+        id: "m1",
+        role: "assistant",
+        parts: [
+          { type: "data-background-task-started", data: STARTED },
+          ...parts,
+        ] as UIMessage["parts"],
+      },
+    ],
+    status,
+    error: undefined,
+    setMessages: () => {},
+    sendMessage: async () => {},
+    regenerate: async () => {},
+    stop: async () => {},
+    resumeStream,
+    addToolResult: async () => {},
+    addToolOutput: async () => {},
+    addToolApprovalResponse: () => {},
+    clearError: () => {},
+  };
+}
+
+function renderCard(
+  parts: UIMessage["parts"][number][],
+  options: { resumeStream?: () => Promise<void>; status?: ChatHelpers["status"] } = {},
+) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  const chat = makeChat(
+    parts,
+    options.resumeStream ?? (async () => {}),
+    options.status ?? "ready",
+  );
+  const ui = (
+    <QueryClientProvider client={client}>
+      <ChatHelpersProvider value={chat}>
+        <DataBackgroundTaskStarted data={STARTED} />
+      </ChatHelpersProvider>
+    </QueryClientProvider>
+  );
+  return { ...render(ui), ui };
+}
+
+describe("DataBackgroundTaskStarted", () => {
   it("humanizes the tool name and rounds the duration up to whole minutes", () => {
-    renderWithClient(<DataBackgroundTaskStarted data={STARTED} />);
+    renderCard([]);
     const card = screen.getByTestId("data-background-task-started");
     expect(card).toHaveTextContent("Run control tests");
     expect(card).toHaveTextContent("~2 min");
-
-    renderWithClient(
-      <DataBackgroundTaskStarted
-        data={{ ...STARTED, estimatedDurationSeconds: 200 }}
-      />,
-    );
-    expect(screen.getAllByTestId("data-background-task-started")[1]).toHaveTextContent(
-      "~4 min",
-    );
   });
 
-  it("drives the progress bar width from the streamed percent (0.6 → 60%)", async () => {
-    setStream([
-      {
-        type: "custom",
-        kind: "data-task-progress",
-        data: { taskId: "t1", percent: 0.6, message: "Comparing controls" },
-      },
+  it("drives the progress bar from the message's own progress part", () => {
+    renderCard([
+      progressPart({ taskId: "t1", percent: 0.6, message: "Comparing controls" }),
     ]);
-    renderWithClient(<DataBackgroundTaskStarted data={STARTED} />);
-    await screen.findByText("Comparing controls");
+    expect(screen.getByText("Comparing controls")).toBeInTheDocument();
     expect(screen.getByText("60%")).toBeInTheDocument();
     expect(screen.getByTestId("progress-bar-fill")).toHaveStyle({ width: "60%" });
   });
 
-  it("replaces progress with a success completion and removes the progress bar", async () => {
-    setStream([
-      {
-        type: "custom",
-        kind: "data-task-progress",
-        data: { taskId: "t1", percent: 0.6, message: "Comparing controls" },
-      },
-      { type: "custom", kind: "data-task-completed", data: { taskId: "t1", status: "success" } },
+  it("replaces progress with a success completion and removes the progress bar", () => {
+    renderCard([
+      progressPart({ taskId: "t1", percent: 0.6, message: "Comparing controls" }),
+      completedPart({ taskId: "t1", status: "success" }),
     ]);
-    renderWithClient(<DataBackgroundTaskStarted data={STARTED} />);
-    const completed = await screen.findByTestId("data-task-completed");
+    const completed = screen.getByTestId("data-task-completed");
     expect(completed).toHaveTextContent("Task completed");
-    await waitFor(() => {
-      expect(screen.queryAllByTestId("progress-bar-fill")).toHaveLength(0);
-    });
+    expect(screen.queryAllByTestId("progress-bar-fill")).toHaveLength(0);
     expect(screen.queryByText("Comparing controls")).toBeNull();
   });
 
-  it("renders a failed completion with the worker's error text", async () => {
-    setStream([
-      {
-        type: "custom",
-        kind: "data-task-completed",
-        data: { taskId: "t1", status: "failed", error: "WDK rejected the search" },
-      },
+  it("renders a failed completion with the worker's error text", () => {
+    renderCard([
+      completedPart({
+        taskId: "t1",
+        status: "failed",
+        error: "WDK rejected the search",
+      }),
     ]);
-    renderWithClient(<DataBackgroundTaskStarted data={STARTED} />);
-    const completed = await screen.findByTestId("data-task-completed");
+    const completed = screen.getByTestId("data-task-completed");
     expect(completed).toHaveTextContent("Task failed");
     expect(completed).toHaveTextContent("WDK rejected the search");
   });
 
-  it("shows one lane per fan-out variant with each variant's latest percent", async () => {
-    setStream([
-      {
-        type: "custom",
-        kind: "data-task-progress",
-        data: {
-          taskId: "t1",
-          percent: 0.3,
-          message: "Trial 1/3",
-          toolSpecific: { variantId: "v1" },
-        },
-      },
-      {
-        type: "custom",
-        kind: "data-task-progress",
-        data: {
-          taskId: "t1",
-          percent: 0.5,
-          message: "Variant B running",
-          toolSpecific: { variantId: "v2" },
-        },
-      },
-      {
-        type: "custom",
-        kind: "data-task-progress",
-        data: {
-          taskId: "t1",
-          percent: 0.9,
-          message: "v1 best so far",
-          toolSpecific: { variantId: "v1" },
-        },
-      },
+  it("ignores parts that belong to another task", () => {
+    renderCard([
+      progressPart({ taskId: "other", percent: 0.9, message: "Not this task" }),
+      completedPart({ taskId: "other", status: "success" }),
     ]);
-    renderWithClient(
-      <DataBackgroundTaskStarted
-        data={{ ...STARTED, toolName: "optimize_search_parameters" }}
-      />,
+    expect(screen.queryByText("Not this task")).toBeNull();
+    expect(screen.queryByTestId("data-task-completed")).toBeNull();
+  });
+
+  it("reattaches the thread exactly once while the task is unfinished", async () => {
+    const resumeStream = vi.fn(async () => {});
+    const { rerender, ui } = renderCard([], { resumeStream });
+    await waitFor(() => {
+      expect(resumeStream).toHaveBeenCalledTimes(1);
+    });
+    rerender(ui);
+    await waitFor(() => {
+      expect(resumeStream).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not reattach while the suspending turn is still streaming", async () => {
+    const resumeStream = vi.fn(async () => {});
+    renderCard([], { resumeStream, status: "streaming" });
+    await Promise.resolve();
+    expect(resumeStream).not.toHaveBeenCalled();
+  });
+
+  it("renders a reloaded finished card without reattaching the thread", async () => {
+    const resumeStream = vi.fn(async () => {});
+    renderCard(
+      [
+        progressPart({ taskId: "t1", percent: 1, message: "Scoring" }),
+        completedPart({ taskId: "t1", status: "success" }),
+      ],
+      { resumeStream },
     );
-    const lanes = await screen.findAllByTestId("variant-lane");
-    expect(lanes).toHaveLength(2);
-
-    const v1 = lanes.find((l) => within(l).queryByText("v1 best so far") !== null);
-    const v2 = lanes.find((l) => within(l).queryByText("Variant B running") !== null);
-    expect(v1).toBeDefined();
-    expect(v2).toBeDefined();
-
-    expect(within(v1!).getByText("90%")).toBeInTheDocument();
-    expect(within(v1!).getByTestId("progress-bar-fill")).toHaveStyle({ width: "90%" });
-    expect(within(v1!).queryByText("30%")).toBeNull();
-    expect(within(v2!).getByText("50%")).toBeInTheDocument();
-    expect(within(v2!).getByTestId("progress-bar-fill")).toHaveStyle({ width: "50%" });
+    expect(screen.getByTestId("data-task-completed")).toHaveTextContent(
+      "Task completed",
+    );
+    await Promise.resolve();
+    expect(resumeStream).not.toHaveBeenCalled();
   });
 });

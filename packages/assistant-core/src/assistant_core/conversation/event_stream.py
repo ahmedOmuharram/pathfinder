@@ -264,10 +264,8 @@ async def latest_turn_boundary(conversation_id: UUID) -> int:
     """Return the id of the most recent turn-terminator (`done` chunk).
 
     Used as the SSE replay baseline so a new client never tails into the
-    middle of a tool-call sequence still being written by a prior turn —
-    the failure mode that produces "Received tool-input-delta for missing
-    tool call with ID ..." on retry. Task-tagged rows are excluded so the
-    boundary tracks the chat stream alone.
+    middle of a chunk sequence a prior turn is still writing. Task-tagged
+    rows are excluded so the boundary tracks the chat stream alone.
     """
     async with async_session_factory() as session:
         row = await session.scalar(

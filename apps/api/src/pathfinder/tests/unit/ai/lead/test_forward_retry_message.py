@@ -44,7 +44,7 @@ def test_string_retry_surfaces_real_message() -> None:
         writer=writer,
         inner_calls=inner_calls,
         event=FunctionToolCallEvent(
-            part=ToolCallPart(tool_name="update_search_decision", tool_call_id="c1"),
+            part=ToolCallPart(tool_name="set_criterion", tool_call_id="c1"),
         ),
     )
     _forward_inner_event(
@@ -54,7 +54,7 @@ def test_string_retry_surfaces_real_message() -> None:
         event=FunctionToolResultEvent(
             part=RetryPromptPart(
                 content="Unknown search 'GenesByGOTerm'. Call get_search_overview first.",
-                tool_name="update_search_decision",
+                tool_name="set_criterion",
                 tool_call_id="c1",
             ),
         ),

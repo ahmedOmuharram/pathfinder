@@ -6,8 +6,10 @@ from pydantic_ai.toolsets.function import FunctionToolset
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.catalog import (
+    browse_search_categories,
     get_record_types,
     list_searches,
+    list_transforms,
     lookup_phyletic_codes,
     search_example_plans,
     search_for_searches,
@@ -59,7 +61,9 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
         tools=[
             get_record_types,
             search_for_searches,
+            browse_search_categories,
             list_searches,
+            list_transforms,
             search_example_plans,
             get_search_overview,
             get_parameter_options,

@@ -19,7 +19,7 @@ export function EmptyState({ siteId, recordType, conversationId }: EmptyStatePro
       className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center"
       data-testid="strategy-empty-state"
     >
-      <div className="text-muted-foreground/60">
+      <div className="text-muted-foreground">
         <Workflow className="h-12 w-12" aria-hidden />
       </div>
       <div className="space-y-1">

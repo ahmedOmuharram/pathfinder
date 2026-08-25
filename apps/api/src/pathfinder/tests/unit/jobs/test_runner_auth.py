@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
 import pytest
@@ -24,9 +24,12 @@ class _FakeContext:
 
 
 class _Observer:
-    observed_token: str | None = None
-    observed_application: str | None = None
-    call_count: int = 0
+    """What the faked worker saw, shared by the whole module."""
+
+    observed_token: ClassVar[str | None] = None
+    observed_application: ClassVar[str | None] = None
+    call_count: ClassVar[int] = 0
+    completions: ClassVar[list[dict[str, Any]]] = []
 
 
 class _FakeRepo:
@@ -113,21 +116,28 @@ async def _fake_build_worker_runtime_context(**kwargs: Any) -> _FakeContext:
     return _FakeContext()
 
 
+async def _record_chunk(
+    *,
+    conversation_id: UUID,
+    chunk: dict[str, Any],
+    turn_id: UUID | None = None,
+) -> int:
+    del conversation_id, turn_id
+    _Observer.completions.append(chunk)
+    return len(_Observer.completions)
+
+
 @pytest.fixture(autouse=True)
 def _reset_observer() -> None:
     _Observer.observed_token = "sentinel-unreset"
     _Observer.call_count = 0
+    _Observer.completions = []
 
 
-@pytest.mark.asyncio
-async def test_run_durable_task_sets_ctxvar_from_payload(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(
-        runner_mod.TOOL_REGISTRY,
-        "stub_tool",
-        _observing_impl,
-    )
+@pytest.fixture(autouse=True)
+def _stubbed_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every I/O seam the runner drives, replaced. The ctxvars are the subject."""
+    monkeypatch.setitem(runner_mod.TOOL_REGISTRY, "stub_tool", _observing_impl)
     monkeypatch.setattr(runner_mod, "BackgroundTaskRepository", _FakeRepo)
     monkeypatch.setattr(
         runner_mod,
@@ -149,7 +159,11 @@ async def test_run_durable_task_sets_ctxvar_from_payload(
         "_safe_resume_graph_with_error",
         _fake_resume_with_error,
     )
+    monkeypatch.setattr(runner_mod, "append_chunk", _record_chunk)
 
+
+@pytest.mark.asyncio
+async def test_run_durable_task_sets_ctxvar_from_payload() -> None:
     await run_durable_task(
         tool_name="stub_tool",
         task_id=str(uuid4()),
@@ -165,36 +179,7 @@ async def test_run_durable_task_sets_ctxvar_from_payload(
 
 
 @pytest.mark.asyncio
-async def test_run_durable_task_resets_ctxvar_after(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(
-        runner_mod.TOOL_REGISTRY,
-        "stub_tool",
-        _observing_impl,
-    )
-    monkeypatch.setattr(runner_mod, "BackgroundTaskRepository", _FakeRepo)
-    monkeypatch.setattr(
-        runner_mod,
-        "lifespan_memory_store",
-        _fake_lifespan_memory_store,
-    )
-    monkeypatch.setattr(
-        runner_mod,
-        "build_worker_runtime_context",
-        _fake_build_worker_runtime_context,
-    )
-    monkeypatch.setattr(
-        runner_mod,
-        "_safe_resume_graph_with_result",
-        _fake_resume_with_result,
-    )
-    monkeypatch.setattr(
-        runner_mod,
-        "_safe_resume_graph_with_error",
-        _fake_resume_with_error,
-    )
-
+async def test_run_durable_task_resets_ctxvar_after() -> None:
     assert veupathdb_auth_token_ctx.get() is None
 
     await run_durable_task(
@@ -209,36 +194,7 @@ async def test_run_durable_task_resets_ctxvar_after(
 
 
 @pytest.mark.asyncio
-async def test_run_durable_task_none_token_is_ok(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(
-        runner_mod.TOOL_REGISTRY,
-        "stub_tool",
-        _observing_impl,
-    )
-    monkeypatch.setattr(runner_mod, "BackgroundTaskRepository", _FakeRepo)
-    monkeypatch.setattr(
-        runner_mod,
-        "lifespan_memory_store",
-        _fake_lifespan_memory_store,
-    )
-    monkeypatch.setattr(
-        runner_mod,
-        "build_worker_runtime_context",
-        _fake_build_worker_runtime_context,
-    )
-    monkeypatch.setattr(
-        runner_mod,
-        "_safe_resume_graph_with_result",
-        _fake_resume_with_result,
-    )
-    monkeypatch.setattr(
-        runner_mod,
-        "_safe_resume_graph_with_error",
-        _fake_resume_with_error,
-    )
-
+async def test_run_durable_task_none_token_is_ok() -> None:
     await run_durable_task(
         tool_name="stub_tool",
         task_id=str(uuid4()),
@@ -248,3 +204,23 @@ async def test_run_durable_task_none_token_is_ok(
     )
 
     assert _Observer.observed_token is None
+
+
+@pytest.mark.asyncio
+async def test_run_durable_task_announces_completion_on_the_thread() -> None:
+    task_id = uuid4()
+
+    await run_durable_task(
+        tool_name="stub_tool",
+        task_id=str(task_id),
+        thread_id=str(uuid4()),
+        args={"kwargs": {}},
+        veupathdb_auth_token=None,
+    )
+
+    assert _Observer.completions == [
+        {
+            "type": "data-task-completed",
+            "data": {"taskId": str(task_id), "status": "success"},
+        },
+    ]

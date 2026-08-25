@@ -1,9 +1,7 @@
-"""A checkpoint must survive a STRICT msgpack decode with nothing else installed.
+"""A checkpoint must survive a round trip through the runtime's own serializer.
 
-LangGraph decodes an unregistered type today and warns; when it stops, a type
-missing from the allowlist makes every persisted thread unresumable. Each type
-here is encoded by the runtime's serializer and decoded by a strict one, so an
-unregistered type fails in this suite rather than after an upgrade.
+That serializer decodes the types its allowlist declares and nothing else, so a
+state type no spec declares fails here rather than on a persisted thread.
 """
 
 from __future__ import annotations
@@ -13,7 +11,10 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
-from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.checkpoint.serde.event_hooks import (
+    SerdeEvent,
+    register_serde_event_listener,
+)
 from pydantic import BaseModel
 from pydantic_ai.ui.vercel_ai.request_types import TextUIPart, ToolApprovalResponded
 from tests.synthetic import (
@@ -26,7 +27,6 @@ from tests.synthetic import (
 from assistant_core.conversation.serde import (
     CORE_CHECKPOINT_TYPES,
     build_checkpoint_serde,
-    checkpoint_types,
 )
 from assistant_core.graph.turn_state import (
     PendingApproval,
@@ -97,10 +97,21 @@ _SAMPLES: dict[type, object] = {
 
 
 def _strict_roundtrip(value: object, *, declared: tuple[type, ...] = ()) -> object:
-    strict = JsonPlusSerializer(allowed_msgpack_modules=None).with_msgpack_allowlist(
-        checkpoint_types(declared),
-    )
-    return strict.loads_typed(build_checkpoint_serde(declared).dumps_typed(value))
+    serde = build_checkpoint_serde(declared)
+    return serde.loads_typed(serde.dumps_typed(value))
+
+
+def _events_of(value: object) -> list[SerdeEvent]:
+    """What LangGraph reports while the runtime's own serializer decodes."""
+    serde = build_checkpoint_serde()
+    payload = serde.dumps_typed(value)
+    events: list[SerdeEvent] = []
+    unregister = register_serde_event_listener(events.append)
+    try:
+        serde.loads_typed(payload)
+    finally:
+        unregister()
+    return events
 
 
 def test_every_core_type_has_a_sample_in_this_suite() -> None:
@@ -127,3 +138,8 @@ def test_a_state_type_no_spec_declares_does_not_survive() -> None:
     restored = _strict_roundtrip(UnregisteredState(note="undeclared"))
 
     assert not isinstance(restored, UnregisteredState)
+
+
+def test_the_runtime_serializer_decodes_a_declared_type_silently() -> None:
+    """A serializer built from the allowlist reports nothing for a listed type."""
+    assert _events_of(_memory()) == []

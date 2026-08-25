@@ -13,6 +13,7 @@ dependencies = [
     "alembic>=1.18.0",
     "httpx>=0.28.1",
     "pydantic-ai>=2.22.0,<3",
+    "fastmcp-slim[server]>=3.3.0,<4",
     "langgraph==1.1.6",
     "langgraph-checkpoint-postgres==3.0.5",
     "psycopg[binary]>=3.2.0",
@@ -54,6 +55,7 @@ constraint-dependencies = [
 [tool.uv.sources]
 pathfinder-shared = { path = "../../packages/shared-py", editable = true }
 assistant-core = { path = "../../packages/assistant-core", editable = true }
+veupathdb-mcp-conformance = { path = "../../packages/mcp-conformance", editable = true }
 
 [build-system]
 requires = ["hatchling"]
@@ -228,6 +230,8 @@ dev = [
     "testcontainers>=4.14.0",
     "schemathesis>=4.16.1",
     "mutmut>=3.5.0",
+    # The served endpoint's admission run composes the suite as its own process.
+    "veupathdb-mcp-conformance",
 ]
 docs = [
     "furo>=2025.12.19",
@@ -334,8 +338,21 @@ source_modules = [
     "pathfinder.ai",
     "pathfinder.domain",
     "pathfinder.integrations",
+    "pathfinder.mcp",
     "pathfinder.persistence",
     "pathfinder.services",
 ]
 forbidden_modules = ["pathfinder.assistants"]
+
+# The MCP server is stateless and serves one call at a time, so it reaches the
+# services and nothing that carries a turn.
+[[tool.importlinter.contracts]]
+name = "The MCP server never imports the agents or the API transport"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["pathfinder.mcp"]
+forbidden_modules = [
+    "pathfinder.ai",
+    "pathfinder.transport",
+]
 

@@ -11,19 +11,24 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
 from assistant_core.graph.turn_state import SubAgentApprovalPending
 from assistant_core.memory.schemas import MemoryValue
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-from pathfinder.ai.agents.execution import execution_agent
-from pathfinder.ai.agents.frame import frame_agent
+from pathfinder.ai.agents.execution import EXECUTION_MODEL, build_execution_agent
+from pathfinder.ai.agents.frame import FRAME_MODEL, build_frame_agent
 from pathfinder.ai.agents.roles import PhaseRole
-from pathfinder.ai.agents.verification import verification_agent
+from pathfinder.ai.agents.tool_vocabulary import build_tool_repetition_guard
+from pathfinder.ai.agents.verification import (
+    VERIFICATION_MODEL,
+    build_verification_agent,
+)
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.models.mock import get_mock_model
-from pathfinder.ai.models.settings import baked_model_id, build_model_settings
+from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.ai.models.tiers import PhaseTierConfig, resolve_phase_tier_config
 from pathfinder.platform.config import get_settings
 
@@ -50,10 +55,19 @@ def phase_usage_limits(declared_criteria: int) -> UsageLimits:
     )
 
 
-SUB_AGENT_BY_ROLE: dict[PhaseRole, Any] = {
-    "frame": frame_agent,
-    "execution": execution_agent,
-    "verification": verification_agent,
+# A dispatch builds its own agent, so the map holds factories. The model each
+# factory bakes in is a constant, because a default-model read runs after every
+# inner tool call and must not construct an agent.
+BUILD_SUB_AGENT_BY_ROLE: dict[PhaseRole, Callable[[], Any]] = {
+    "frame": build_frame_agent,
+    "execution": build_execution_agent,
+    "verification": build_verification_agent,
+}
+
+SUB_AGENT_MODEL_BY_ROLE: dict[PhaseRole, str] = {
+    "frame": FRAME_MODEL,
+    "execution": EXECUTION_MODEL,
+    "verification": VERIFICATION_MODEL,
 }
 
 TOOL_TO_PHASE_ROLE: dict[str, PhaseRole] = {
@@ -75,11 +89,12 @@ SUB_AGENT_APPROVAL_PHASE: dict[str, PendingApprovalPhase] = {
 
 def phase_default_model_id(role: PhaseRole) -> str:
     """The phase's model when the user pinned nothing: the configured
-    ``(default_provider, default_tier)`` preset, else the agent's baked model."""
+    ``(default_provider, default_tier)`` preset, else the model its factory
+    bakes in."""
     cfg = _configured_tier_config(role)
     if cfg is not None:
         return cfg.model_id
-    return baked_model_id(SUB_AGENT_BY_ROLE[role])
+    return SUB_AGENT_MODEL_BY_ROLE[role]
 
 
 def _configured_tier_config(role: PhaseRole) -> PhaseTierConfig | None:
@@ -152,6 +167,9 @@ class LeadDeps:
     retrieved_memories: list[MemoryValue]
     record_sub_agent_usage: Callable[[SubAgentRunUsage], None] = field(
         default=lambda _u: None,
+    )
+    tool_repetition_guard: ToolRepetitionGuard = field(
+        default_factory=build_tool_repetition_guard,
     )
     # Suspended sub-agent runs, keyed by the dispatch tool call that stopped at
     # an approval. The Lead's node checkpoints the run the answer re-enters.

@@ -21,7 +21,6 @@ and values; none has a fix yet.
 - [The agent cannot find a saved strategy by name or id, and builds the leftover criterion alone](agent-cannot-see-saved-strategy-library.md) - 187K-token frame to ask for an id; given the id, a 1-step decoy strategy is built
 - [Enrichment "N genes analyzed" shows a term's background count](enrichment-genes-analyzed-shows-background-count.md) - 46-gene set reports 217 analyzed; percentInResult on the wire is result over background
 - [Every scored variant fails at persist time (typed ParamValues into WDKSearchConfig) and the UI prints pydantic dumps](scored-comparison-single-mode-persists-typed-params.md) - materialization single-mode branch skips encode_params; Lead then says "no control set" falsely
-- [One failed tool call leaves an output-error part the request parser refuses, and the conversation can never send again](output-error-tool-part-bricks-conversation-on-resend.md) - differential_sides max 2 fails a 3-way compare; resultProviderMetadata is not accepted by pydantic-ai's ToolOutputErrorPart
 - [The worker heartbeat stalls during a turn and the whole UI shows "Some services failed to start"](worker-heartbeat-starves-during-turn-and-ui-gate-goes-fatal.md) - heartbeat 153 s stale mid-frame; 30 s window; fatal gate on every page load
 - [A clarification turn forgets the original request and asks for the motif the user already gave](clarification-turn-forgets-the-original-request.md) - organism silently became Aedes aegypti; RNA-Seq and GO dropped; 297K-token frame
 - ["Please remember my preference" runs frame/build/verify and leaves a decoy strategy](remember-request-builds-a-strategy.md) - 182K tokens, WDK strategy 330534643, junk strategy memory; the remember tool was not called
@@ -29,18 +28,21 @@ and values; none has a fix yet.
 
 ## Chat
 
-- [10 e2e specs still fail, all deep in composite flows](e2e-suite-residual-failures-after-auth-overhaul.md) - 120 passed / 10 failed / 0 flaky; the feature project is fully green; what remains: two real accessibility findings, one shared rail-strategy-panel assertion across five journeys, three tail-of-run flakes
+- [What remains of the e2e reds is full-suite worker contention on a few feature specs](e2e-suite-residual-failures-after-auth-overhaul.md) - frame-nonconformant mocks and the rehydration 422 are fixed; auto-build, execution-phase and ai-workbench-integration pass standalone and starve only when a full parallel run holds every worker slot
 
-- [A failed turn shows "Response failed" while it streams, and nothing at all after a reload](failed-turn-shows-no-error-after-reload.md) - neither reducer turns the `error` chunk into a part; the nine-chunk log reduces to two parts on both sides
+- [A chat turn can run for half an hour and then error](chat-turn-hangs-for-half-an-hour.md) - the same prompt takes 12.7-29.6 s normally and 42.9 s under load, against 1039 s and 1909 s on fungidb and 939 s on tritrypdb; the turn holds its worker slot throughout, so every other conversation queues behind it
+
 - [FRAME's tool budget does not scale with the problem](frame-budget-does-not-scale.md) - nine criteria do not fit in 60 calls, and the bound ones are discarded
 
-- [A one-agent assistant cannot ask for approval; the tool call becomes a red error](single-agent-graph-cannot-ask-for-approval.md) - `single_agent_graph` resolves no deferred call, so `requires_approval=True` reaches the user as "`DeferredToolRequests` is not among output types"; `pending_approval` is declared and written by nothing
-- [Reading a thread with `graph.aget_state` decodes checkpoint values outside the msgpack allowlist](aget-state-bypasses-the-checkpoint-allowlist.md) - eleven warnings on a read that `astream` makes silently, including three types that are on the allowlist; `CombineOp` and `PhaseDisposition` are on it nowhere
+- [A parameter sweep's per-variant progress collapses to one lane on the thread](sweep-progress-collapses-to-one-lane-on-the-thread.md) - every variant writes `data-task-progress` under the same `id`, so the reducer keeps one part for the whole fan-out and the bar jumps between variants
+- [A resumed approval turn omits tool-input-start](resumed-approval-turn-omits-tool-input-start.md) - pydantic-ai's resume marks the id started so the adapter never backfills; the client tolerates it but PROTOCOL 6.2 describes start-first; one decision plus a conformance case
 
 ## Agents
 
-- [VERIFY's instructions name three tools it cannot call](verify-instructions-name-tools-it-cannot-call.md) - a controls-needing verification wastes a model turn on a nonexistent tool; three more tools are registered in no toolset while the context extractor names them
+- [Stating what you are working on builds a whole strategy, unasked, for half a dollar](a-context-statement-builds-a-strategy.md) - measured: a bare context sentence drove 26 tool calls, 231,891 tokens, $0.47 and a persisted WDK strategy on the real account; the general form of the remember-request defect
 
+
+- [A search selection carries six fields nothing writes](search-selection-fields-have-no-writer.md) - `SearchOverview` keeps `decided`, `selection_status`, `rationale`, `selection_reason`, `confidence` and `param_hints`, whose only writer was an unregistered tool; two catalog tools still filter on them, so the filter is always empty
 
 - [A numeric bound stated in the request is ignored, then reported as honoured](numeric-intent-ignored-then-reported-as-honoured.md) - the resolution half is closed; a reply can still restate a bound value with an interpretation the value does not support
 
@@ -48,7 +50,7 @@ and values; none has a fix yet.
 
 - [A verification digest can report success over a build that pushed nothing](verification-digest-can-contradict-the-ledger.md) - one message showed "build - failed" and "Verified end-to-end." together while the ledger read criteria 0 / pushed 0 / succeeded no; nothing checks the digest against the build
 
-- [The tool-repetition guard is registered on no agent](repetition-guard-runs-on-no-agent.md) - `Hooks(` appears nowhere, so the third identical read-only call is never blocked; re-wire it or delete it
+- [The services layer's purity has two exceptions](services-layer-purity-has-two-exceptions.md) - two experiment tool modules import pydantic_ai inside services, and the relocated catalog helper keeps an unreachable branch plus a tree-vocabulary filter that no-ops
 
 ## WDK integration
 
@@ -61,15 +63,33 @@ be assumed.
 
 - [A strategy's record class is read off its first leaf, and WDK reads it off the root](strategy-record-class-comes-from-the-leaves.md) - the one WDK rule that no test can hold today: the graph's single record type also addresses every step's search URL, so the fix is a per-node record class
 
+- [GenesByOrthologPattern's vocabulary fails validation, and the failure reads as "Search not found"](ortholog-pattern-vocabulary-is-unreadable-and-reported-as-not-found.md) - `WDKVocabTerm` requires a null third element and live plasmodb sends a parent term there; the refusal lists the search in its own did-you-mean, so no route reads that search's parameters
+
+- [An abandoned `search_example_plans` call outlives its caller and kills the wdk-mcp container](an-abandoned-search-example-plans-call-outlives-its-caller-and-kills-the-server.md) - a client read timeout does not stop the embedding pass, so three of them overlap inside the 2g ceiling; it is why the admission record cannot settle family 5
+
 ## Verification gates
+
+- [The opt-in llm test tier cannot even collect](llm-test-tier-cannot-collect.md) - its conftest imports a deleted symbol and every ladder excludes the tier, so the rot is invisible; repair or delete, plus a collection-only smoke
+
+- [The first chat POST of a fresh test process pays the PIGuard load](first-chat-post-of-a-fresh-process-pays-the-piguard-load.md) - the dispatcher awaits the injection scan before deferring, the scanner builds its onnx session on first use, and under load that beats the 5 s enqueue ceiling; the failing test floats to whichever is the process's first chat POST
 
 - [The web lint job is red on a formatting check CLAUDE.md's documented commands do not run](web-lint-job-is-red-on-formatting.md) - 645 files were wrapped narrower than the `printWidth: 88` the config declares, so `lint-web` cannot pass and the write-mode pre-commit hook can bury a change
 
 - [The API lint job is red on two checks CLAUDE.md's documented commands do not run](api-lint-job-is-red-on-alembic-and-pip-audit.md) - `ruff check .` over `alembic/`, and 44 advisories across 14 packages including the checkpoint path
 
-- [A thread streams two SSE dialects, and a conforming client can only read one](two-sse-dialects-serve-one-thread.md) - the task endpoint frames `event: stream` with a `custom` envelope and no cursor, so the long-running half of a turn is the half that cannot resume
+- [The api file-size gate is red on two service modules](file-size-gate-is-red-on-two-service-modules.md) - `param_dag.py` at 649 lines and `step_wdk_push.py` at 416 against a 400 cap; the hook runs on any api Python change, so it fails for work touching neither file
 
 - [Eval scoring answers "same shape or not"](eval-scoring-is-exact-match-only.md) - one wrong operator and a completely different search both report `structure` differs, so no trend can say how much worse
+
+- [The api and the runtime package lock different `langgraph-checkpoint` versions](two-locks-resolve-langgraph-checkpoint-differently.md) - 4.0.1 against 4.2.0 under the same two pins, and the two decode checkpoints differently, so the package suite can be green on behaviour the app never runs
+
+- [Two api integration tests fail under machine load](two-api-integration-tests-fail-under-machine-load.md) - a wall-clock bound at `assert 1.242 < 1.2` and a teardown that truncates a conversation an in-flight turn is still writing events for; both pass in a quiet session
+
+## Infrastructure
+
+- [A cold api spends about 73 minutes encoding indexes before it binds](api-cold-warm-up-takes-over-an-hour.md) - every rebuild with cold caches is an hour-plus outage window; persist the encoded indexes, bind early, or parallelize
+
+- [The worker's memory grows unbounded with sites touched](worker-memory-grows-unbounded-with-sites-touched.md) - 5.26 GiB after 4 h of turns; the api got OOM-killed for it; the 2g container ceilings have landed, eviction or one index-holding process has not
 
 ## Known and accepted
 

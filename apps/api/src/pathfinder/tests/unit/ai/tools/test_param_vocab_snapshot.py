@@ -16,6 +16,7 @@ from pathfinder.ai.agents.state import (
 from pathfinder.ai.agents.strategy_instructions import pinned_discovered_searches
 from pathfinder.ai.tools.standalone import catalog_discovery
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
+from pathfinder.services.catalog import search_inspection
 from pathfinder.services.catalog.param_formatting import ParameterInfo
 
 
@@ -42,7 +43,7 @@ def _patch_resolve_and_client(
     async def _resolve(*_args: Any, **_kw: Any) -> str:
         return "transcript"
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    monkeypatch.setattr(search_inspection, "resolve_search_record_type", _resolve)
 
     fake_details = MagicMock()
     fake_details.search_data.parameters = [_wdk_param(n) for n in param_names]
@@ -52,7 +53,7 @@ def _patch_resolve_and_client(
     def _get_client(_site_id: str) -> Any:
         return client
 
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", _get_client)
+    monkeypatch.setattr(search_inspection, "get_wdk_client", _get_client)
 
 
 def _registered_search(name: str) -> SearchOverview:
@@ -92,7 +93,7 @@ async def test_get_parameter_options_writes_param_vocab_snapshot(
         ],
     )
     monkeypatch.setattr(
-        catalog_discovery,
+        search_inspection,
         "format_typed_param",
         lambda *args, **kw: fake_info,
     )
@@ -164,7 +165,7 @@ async def test_param_vocab_snapshot_accumulates_across_calls(
     def _format(filtered_param: Any, **_kwargs: Any) -> ParameterInfo:
         return info_for[filtered_param.name]
 
-    monkeypatch.setattr(catalog_discovery, "format_typed_param", _format)
+    monkeypatch.setattr(search_inspection, "format_typed_param", _format)
 
     ctx = _ctx_with_state(state)
     await catalog_discovery.get_parameter_options(

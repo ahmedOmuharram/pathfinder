@@ -10,7 +10,7 @@ import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.conversation.event_writer import ChatEventWriter, append_chunk
 from assistant_core.persistence.models import Conversation, ConversationEvent
 from assistant_core.platform.db import async_session_factory
 from procrastinate.testing import InMemoryConnector
@@ -102,10 +102,16 @@ async def test_a_killed_turn_ends_with_an_error_and_a_terminator(
     await release_stalled_jobs()
 
     events = await _events(conversation_id)
-    assert [chunk["type"] for _, chunk in events[-3:]] == ["error", "finish", "done"]
-    assert "worker" in events[-3][1]["errorText"]
+    assert [chunk["type"] for _, chunk in events[-4:]] == [
+        "error",
+        "data-turn-failed",
+        "finish",
+        "done",
+    ]
+    assert "worker" in events[-4][1]["errorText"]
+    assert events[-3][1]["data"] == {"errorText": events[-4][1]["errorText"]}
     assert events[-2][1]["finishReason"] == "error"
-    assert [row_turn for row_turn, _ in events[-3:]] == [turn_id] * 3
+    assert [row_turn for row_turn, _ in events[-4:]] == [turn_id] * 4
 
 
 async def test_a_turn_that_already_ended_is_not_reopened(
@@ -132,3 +138,73 @@ async def test_a_turn_that_already_ended_is_not_reopened(
 
     events = await _events(conversation_id)
     assert [chunk["type"] for _, chunk in events] == ["start", "finish", "done"]
+
+
+async def test_gap_progress_does_not_reopen_an_ended_turn(
+    patch_app_db_engine: None,
+    db_cleaner: None,
+    in_memory_jobs: InMemoryConnector,
+) -> None:
+    """A progress chunk that belongs to no turn does not speak for the stream."""
+    del patch_app_db_engine, db_cleaner
+    user_id, conversation_id = await _seed_conversation()
+    turn_id = uuid4()
+    writer = ChatEventWriter(conversation_id=conversation_id, turn_id=turn_id)
+    await writer.write({"type": "start", "messageId": str(turn_id)})
+    await writer.write({"type": "finish", "finishReason": "stop"})
+    await writer.write({"type": "done"})
+    await append_chunk(
+        conversation_id=conversation_id,
+        chunk={"type": "data-task-progress", "data": {"percent": 0.5}},
+    )
+    await _stall_a_turn_job(
+        in_memory_jobs,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        turn_id=turn_id,
+    )
+
+    await release_stalled_jobs()
+
+    events = await _events(conversation_id)
+    assert [chunk["type"] for _, chunk in events] == [
+        "start",
+        "finish",
+        "done",
+        "data-task-progress",
+    ]
+
+
+async def test_a_stalled_turn_is_closed_when_gap_progress_is_newest(
+    patch_app_db_engine: None,
+    db_cleaner: None,
+    in_memory_jobs: InMemoryConnector,
+) -> None:
+    """The newest turn chunk decides, not the newest row of any kind."""
+    del patch_app_db_engine, db_cleaner
+    user_id, conversation_id = await _seed_conversation()
+    turn_id = uuid4()
+    writer = ChatEventWriter(conversation_id=conversation_id, turn_id=turn_id)
+    await writer.write({"type": "start", "messageId": str(turn_id)})
+    await writer.write({"type": "data-turn-status", "data": {"label": "Queued"}})
+    await append_chunk(
+        conversation_id=conversation_id,
+        chunk={"type": "data-task-progress", "data": {"percent": 0.5}},
+    )
+    await _stall_a_turn_job(
+        in_memory_jobs,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        turn_id=turn_id,
+    )
+
+    await release_stalled_jobs()
+
+    events = await _events(conversation_id)
+    assert [chunk["type"] for _, chunk in events[-4:]] == [
+        "error",
+        "data-turn-failed",
+        "finish",
+        "done",
+    ]
+    assert [row_turn for row_turn, _ in events[-4:]] == [turn_id] * 4

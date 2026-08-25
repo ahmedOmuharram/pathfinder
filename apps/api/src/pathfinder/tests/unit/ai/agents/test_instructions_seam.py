@@ -8,6 +8,7 @@ strategy vocabulary.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from types import ModuleType
 from typing import Any
 
@@ -15,9 +16,9 @@ import pytest
 
 import pathfinder.ai.agents._instructions as generic_mod
 import pathfinder.ai.agents.strategy_instructions as strategy_mod
-from pathfinder.ai.agents.execution import execution_agent
-from pathfinder.ai.agents.frame import frame_agent
-from pathfinder.ai.agents.verification import verification_agent
+from pathfinder.ai.agents.execution import build_execution_agent
+from pathfinder.ai.agents.frame import build_frame_agent
+from pathfinder.ai.agents.verification import build_verification_agent
 
 STRATEGY_RENDERERS = {
     "base_system_prompt",
@@ -57,10 +58,10 @@ INSTRUCTION_ORDER = {
     ],
 }
 
-AGENTS: dict[str, Any] = {
-    "frame": frame_agent,
-    "execution": execution_agent,
-    "verification": verification_agent,
+BUILDERS: dict[str, Callable[[], Any]] = {
+    "frame": build_frame_agent,
+    "execution": build_execution_agent,
+    "verification": build_verification_agent,
 }
 
 
@@ -80,10 +81,10 @@ def test_the_product_module_owns_every_strategy_renderer() -> None:
     assert _named(strategy_mod) >= STRATEGY_RENDERERS
 
 
-@pytest.mark.parametrize("role", sorted(AGENTS))
+@pytest.mark.parametrize("role", sorted(BUILDERS))
 def test_each_agent_pins_its_renderers_in_the_same_order(role: str) -> None:
     names = [
         item if isinstance(item, str) else item.__name__
-        for item in AGENTS[role]._instructions
+        for item in BUILDERS[role]()._instructions
     ]
     assert names[1:] == INSTRUCTION_ORDER[role]

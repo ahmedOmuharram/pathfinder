@@ -114,7 +114,7 @@ function PhaseRow({
         <div className="text-sm font-medium text-foreground">{PHASE_LABELS[role]}</div>
         <div className="text-xs text-muted-foreground">{PHASE_DESCRIPTIONS[role]}</div>
         {defaultModelId !== null && selectedModelId === null && (
-          <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+          <div className="mt-0.5 text-[10px] text-muted-foreground">
             Default: {defaultModelId}
           </div>
         )}
@@ -131,7 +131,7 @@ function PhaseRow({
           onChange={(effort) => onSelectReasoning(effort)}
         />
       ) : (
-        <div className="text-[10px] text-muted-foreground/60 self-center">
+        <div className="text-[10px] text-muted-foreground self-center">
           no reasoning
         </div>
       )}

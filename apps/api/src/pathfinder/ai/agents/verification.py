@@ -144,33 +144,40 @@ You do NOT decide whether the turn ends — the Lead does, based on the \
 Ledger.
 """
 
-verification_agent: Agent[
-    AgentDeps,
-    VerificationDelta | DeferredToolRequests,
-] = Agent(
-    "openai:gpt-5.6-luna",
-    output_type=[VerificationDelta, DeferredToolRequests],
-    deps_type=AgentDeps,
-    instructions=_VERIFICATION_INSTRUCTIONS,
-    toolsets=[build_toolset(), build_scratchpad_toolset()],
-    capabilities=[
-        ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS),
-        Thinking(effort="high"),
-        *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
-    ],
-    retries=3,
-    description="Inspects strategy results and validates correctness",
-    name="verification",
-    defer_model_check=True,
-)
+VERIFICATION_MODEL = "openai:gpt-5.6-luna"
+
+VerificationAgent = Agent[AgentDeps, VerificationDelta | DeferredToolRequests]
 
 
-for _fn in (
-    base_system_prompt,
-    pinned_graph_state,
-    pinned_user_memories,
-    pinned_scratchpad,
-    pinned_ledger,
-    pinned_discovered_searches,
-):
-    verification_agent.instructions(_fn)
+def build_verification_agent() -> VerificationAgent:
+    """A verification agent for one dispatch.
+
+    Each dispatch gets its own instance, so an override entered for one run
+    never reaches another.
+    """
+    agent: VerificationAgent = Agent(
+        VERIFICATION_MODEL,
+        output_type=[VerificationDelta, DeferredToolRequests],
+        deps_type=AgentDeps,
+        instructions=_VERIFICATION_INSTRUCTIONS,
+        toolsets=[build_toolset(), build_scratchpad_toolset()],
+        capabilities=[
+            ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS),
+            Thinking(effort="high"),
+            *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
+        ],
+        retries=3,
+        description="Inspects strategy results and validates correctness",
+        name="verification",
+        defer_model_check=True,
+    )
+    for fn in (
+        base_system_prompt,
+        pinned_graph_state,
+        pinned_user_memories,
+        pinned_scratchpad,
+        pinned_ledger,
+        pinned_discovered_searches,
+    ):
+        agent.instructions(fn)
+    return agent

@@ -6,10 +6,11 @@ from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
+from pathfinder.transport.http.schemas.site_id import SiteId
 
 
 class StepCountsRequest(CamelModel):
-    site_id: str
+    site_id: SiteId
     strategy_ast: StrategyAst
 
 
@@ -20,7 +21,7 @@ class StepCountsResponse(CamelModel):
 class OpenConversationRequest(CamelModel):
     conversation_id: UUID | None = Field(default=None)
     wdk_strategy_id: int | None = Field(default=None)
-    site_id: str | None = Field(default=None)
+    site_id: SiteId | None = Field(default=None)
 
 
 class OpenConversationResponse(CamelModel):
@@ -28,7 +29,7 @@ class OpenConversationResponse(CamelModel):
 
 
 class BeginConversationRequest(CamelModel):
-    site_id: str = Field(min_length=1, max_length=50)
+    site_id: SiteId
     experiment_id: str | None = None
     seed_text: str | None = Field(default=None, max_length=4000)
     # Names the assistant a NEW conversation is created under. An existing
@@ -44,7 +45,7 @@ class BeginConversationResponse(CamelModel):
 
 class CreateConversationRequest(CamelModel):
     name: str = Field(min_length=1, max_length=255)
-    site_id: str
+    site_id: SiteId
     strategy_ast: StrategyAst
 
 
@@ -57,7 +58,7 @@ class UpdateConversationRequest(CamelModel):
 
 class PushConversationRequest(CamelModel):
     name: str = Field(min_length=1, max_length=255)
-    site_id: str
+    site_id: SiteId
     strategy_ast: StrategyAst
     description: str | None = Field(default=None, max_length=2000)
 

@@ -107,7 +107,7 @@ function GeneRow({
               : gene.geneId}
         </p>
         <p className="truncate text-[10px] text-muted-foreground">{gene.geneId}</p>
-        <p className="truncate text-[10px] italic text-muted-foreground/70">
+        <p className="truncate text-[10px] italic text-muted-foreground">
           {gene.organism}
         </p>
       </div>

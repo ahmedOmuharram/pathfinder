@@ -8,8 +8,8 @@ double and identity requirement. Nothing here names a product.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -19,6 +19,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai.models import Model
+from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.ui.vercel_ai.request_types import TextUIPart, ToolApprovalResponded
 
 from assistant_core.conversation.stream_parts.registry import (
@@ -26,6 +27,7 @@ from assistant_core.conversation.stream_parts.registry import (
 )
 from assistant_core.graph.runtime import TurnContext
 from assistant_core.graph.turn_state import TurnState, UserQuestionAnswer
+from assistant_core.mcp.declaration import ToolSourceDeclarations
 from assistant_core.persistence.models import Conversation
 from assistant_core.platform.types import ReasoningEffort
 
@@ -99,6 +101,9 @@ class TurnContextRequest:
     cancel_event: asyncio.Event
     phase_models: dict[str, str]
     phase_reasoning: dict[str, ReasoningEffort]
+    # The declared tool sources this turn resolved, keyed by their local name.
+    # They hold their own credential; the assistant never reads one.
+    tool_sources: Mapping[str, AbstractToolset[Any]] = field(default_factory=dict)
 
 
 type GraphFactory = Callable[
@@ -126,6 +131,9 @@ class AssistantSpec(BaseModel):
     checkpoint_types: tuple[type, ...] = ()
     register_stream_parts: StreamPartHook | None = None
     memory_kinds: frozenset[str] = frozenset()
+    # The MCP servers this assistant asks for. The runtime resolves each one
+    # against what the deployment admits.
+    tool_sources: ToolSourceDeclarations = ()
     # Raises when the caller may not use this assistant. An assistant that
     # declares none is served to any authenticated caller.
     identity_gate: IdentityGate | None = None

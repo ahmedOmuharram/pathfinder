@@ -61,10 +61,6 @@ graph empty.
 ### Read-only inspection
 - ``get_strategy(graph_id?, summary_only?)`` — Inspect the current strategy. \
 Use after a build to confirm step ids before edits.
-- ``get_estimated_size(wdk_step_id, wdk_strategy_id?)`` — Result count for a \
-built step.
-- ``get_sample_records(wdk_step_id, limit?)`` — Sample records from an \
-executed step.
 
 ## Graph Integrity Rules (must-follow)
 
@@ -176,35 +172,45 @@ You do NOT author user-facing prose. The Lead synthesizes the user's \
 voice from your typed delta + the resulting Ledger.
 """
 
-execution_agent: Agent[AgentDeps, RecoveryDelta | DeferredToolRequests] = Agent(
-    "openai:gpt-5.6-luna",
-    output_type=[RecoveryDelta, DeferredToolRequests],
-    deps_type=AgentDeps,
-    instructions=_EXECUTION_INSTRUCTIONS,
-    toolsets=[build_toolset(), build_scratchpad_toolset()],
-    capabilities=[
-        ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS),
-        Thinking(effort="medium"),
-        *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
-    ],
-    retries=3,
-    description=(
-        "LLM recovery agent for execution. Most executions are now "
-        "declarative no-LLM materializations (Stage E); this agent only "
-        "runs when build_strategy_from_spec returns failures that need "
-        "targeted fixes."
-    ),
-    name="execution",
-    defer_model_check=True,
-)
+EXECUTION_MODEL = "openai:gpt-5.6-luna"
+
+ExecutionAgent = Agent[AgentDeps, RecoveryDelta | DeferredToolRequests]
 
 
-for _fn in (
-    base_system_prompt,
-    pinned_graph_state,
-    pinned_user_memories,
-    pinned_scratchpad,
-    pinned_ledger,
-    pinned_discovered_searches,
-):
-    execution_agent.instructions(_fn)
+def build_execution_agent() -> ExecutionAgent:
+    """An execution-recovery agent for one dispatch.
+
+    Each dispatch gets its own instance, so an override entered for one run
+    never reaches another.
+    """
+    agent: ExecutionAgent = Agent(
+        EXECUTION_MODEL,
+        output_type=[RecoveryDelta, DeferredToolRequests],
+        deps_type=AgentDeps,
+        instructions=_EXECUTION_INSTRUCTIONS,
+        toolsets=[build_toolset(), build_scratchpad_toolset()],
+        capabilities=[
+            ToolResilience(search_lookup_tools=SEARCH_LOOKUP_TOOLS),
+            Thinking(effort="medium"),
+            *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
+        ],
+        retries=3,
+        description=(
+            "LLM recovery agent for execution. Most executions are now "
+            "declarative no-LLM materializations (Stage E); this agent only "
+            "runs when build_strategy_from_spec returns failures that need "
+            "targeted fixes."
+        ),
+        name="execution",
+        defer_model_check=True,
+    )
+    for fn in (
+        base_system_prompt,
+        pinned_graph_state,
+        pinned_user_memories,
+        pinned_scratchpad,
+        pinned_ledger,
+        pinned_discovered_searches,
+    ):
+        agent.instructions(fn)
+    return agent

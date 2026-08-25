@@ -21,8 +21,10 @@ function decodeEvent<T>(payload: string): { value: T } | null {
 
 /**
  * Read the task-progress dialect: `event:`/`data:` frames, a `[DONE]` payload
- * that ends the read, and no cursor. The assistant wire protocol does not
- * define this shape, and its strict reader refuses it.
+ * that ends the read, and no cursor. Section 3 defines two frame shapes and
+ * this is a third, so the protocol's own reader refuses it.
+ *
+ * Deprecated since 1.1.0: the thread carries the same lifecycle with cursors.
  */
 export async function* readTypedEvents<T>(
   stream: ReadableStream<Uint8Array>,

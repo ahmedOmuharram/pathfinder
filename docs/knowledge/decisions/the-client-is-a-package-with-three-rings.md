@@ -29,8 +29,15 @@ optional peer: a consumer that never imports `./ai-sdk` never resolves it.
 progress endpoint frames `event: stream\ndata: <json>\n\n` and carries no
 cursor. That is a third frame shape, and section 3 says a client must reject
 any third shape - so the protocol's own reader refuses it, and a test asserts
-the refusal. Its reader lives in `./legacy` until the two dialects are one
-([the backlog item](../backlog/two-sse-dialects-serve-one-thread.md)).
+the refusal.
+
+**Amended at protocol 1.1.0: the ring is deprecated.** A durable task's whole
+lifecycle is on the thread now, so the core ring reads everything this one
+reads ([the decision](durable-task-progress-belongs-in-the-thread-log.md)). The
+ring stays, because the per-task channel stays and reports progress at the
+worker's rate rather than the log's coalesced rate, and because its reader
+serves the experiment, sweep and seed routes too, which carry no thread
+events. The conversation and its durable tasks read the core ring only.
 
 **No React, in any ring.** The hook layer, the chat-helpers context and the
 per-task view-model folds stay in `apps/web`. The package is consumed as raw

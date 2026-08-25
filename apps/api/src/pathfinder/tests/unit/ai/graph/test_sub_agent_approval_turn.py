@@ -25,9 +25,7 @@ from pydantic_ai.ui.vercel_ai.request_types import ToolApprovalResponded
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.agents.execution import execution_agent
-from pathfinder.ai.agents.verification import verification_agent
-from pathfinder.ai.graph import lead_node
+from pathfinder.ai.graph import _lead_model
 from pathfinder.ai.graph._lead_capture import _LeadRunCapture
 from pathfinder.ai.graph.lead_node import _drive_lead_stream
 from pathfinder.ai.graph.runtime import AgentDeps, Context
@@ -40,6 +38,7 @@ from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
+from pathfinder.tests._support.sub_agents import pinned_sub_agent
 
 _OPTIMIZE_ARGS: dict[str, Any] = {
     "target": {
@@ -258,7 +257,10 @@ def deleted_step_ids() -> list[str]:
 
 
 @pytest.fixture
-def stub_execution_toolset(deleted_step_ids: list[str]) -> Iterator[None]:
+def stub_execution_toolset(
+    monkeypatch: pytest.MonkeyPatch,
+    deleted_step_ids: list[str],
+) -> Iterator[None]:
     """The execution agent with one approval-gated tool that records its calls."""
 
     async def delete_step(ctx: RunContext[AgentDeps], step_id: str) -> str:
@@ -269,20 +271,22 @@ def stub_execution_toolset(deleted_step_ids: list[str]) -> Iterator[None]:
     toolset = FunctionToolset[AgentDeps](
         tools=[Tool(delete_step, requires_approval=True)],
     )
-    with execution_agent.override(
+    with pinned_sub_agent(
+        monkeypatch,
+        "execution",
         toolsets=[toolset],
         instructions=_TEST_INSTRUCTIONS,
     ):
         yield
 
 
-def _lead_model(
+def _script_lead(
     monkeypatch: pytest.MonkeyPatch,
     tool_name: str,
     seen_prompts: list[str] | None = None,
 ) -> None:
     monkeypatch.setattr(
-        lead_node,
+        _lead_model,
         "get_mock_model",
         lambda: _one_call_model(
             tool_name=tool_name,
@@ -297,7 +301,7 @@ async def test_the_turn_ends_deferred_on_the_sub_agents_approval(
     writer: _Collector,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _lead_model(monkeypatch, "verify_strategy")
+    _script_lead(monkeypatch, "verify_strategy")
     monkeypatch.setattr(
         sub_agent_tools,
         "get_mock_model",
@@ -310,7 +314,9 @@ async def test_the_turn_ends_deferred_on_the_sub_agents_approval(
     state = _state()
     deps = _deps(state)
 
-    with verification_agent.override(
+    with pinned_sub_agent(
+        monkeypatch,
+        "verification",
         toolsets=[verification.build_toolset()],
         instructions=_TEST_INSTRUCTIONS,
     ):
@@ -345,7 +351,7 @@ async def test_the_answer_finishes_the_sub_agent_and_the_lead_replies(
     monkeypatch: pytest.MonkeyPatch,
     deleted_step_ids: list[str],
 ) -> None:
-    _lead_model(monkeypatch, "recover_failed_steps")
+    _script_lead(monkeypatch, "recover_failed_steps")
     monkeypatch.setattr(
         sub_agent_tools,
         "get_mock_model",
@@ -404,7 +410,7 @@ async def test_an_answer_naming_the_dispatch_call_still_answers_the_tool(
 ) -> None:
     """A client that answers the Lead's dispatch call (the chat debugger does)
     answers the approvals that call is waiting on."""
-    _lead_model(monkeypatch, "recover_failed_steps")
+    _script_lead(monkeypatch, "recover_failed_steps")
     monkeypatch.setattr(
         sub_agent_tools,
         "get_mock_model",
@@ -445,7 +451,7 @@ async def test_a_second_approval_defers_the_turn_again(
     monkeypatch: pytest.MonkeyPatch,
     deleted_step_ids: list[str],
 ) -> None:
-    _lead_model(monkeypatch, "recover_failed_steps")
+    _script_lead(monkeypatch, "recover_failed_steps")
     monkeypatch.setattr(sub_agent_tools, "get_mock_model", _two_delete_model)
     state = _state()
     deps = _deps(state)
@@ -484,7 +490,7 @@ async def test_a_typed_denial_denies_the_tool_and_reaches_the_lead(
 ) -> None:
     """Typing instead of clicking denies the tool once and delivers the text."""
     seen_prompts: list[str] = []
-    _lead_model(monkeypatch, "recover_failed_steps", seen_prompts)
+    _script_lead(monkeypatch, "recover_failed_steps", seen_prompts)
     monkeypatch.setattr(
         sub_agent_tools,
         "get_mock_model",
@@ -525,7 +531,7 @@ async def test_a_typed_approval_runs_the_tool_and_delivers_no_prompt(
     deleted_step_ids: list[str],
 ) -> None:
     seen_prompts: list[str] = []
-    _lead_model(monkeypatch, "recover_failed_steps", seen_prompts)
+    _script_lead(monkeypatch, "recover_failed_steps", seen_prompts)
     monkeypatch.setattr(
         sub_agent_tools,
         "get_mock_model",
@@ -563,7 +569,7 @@ async def test_a_turn_with_no_answer_never_re_runs_the_dispatch(
 ) -> None:
     """An unresolved dispatch call would be re-executed by pydantic-ai, so a
     turn that answers nothing keeps the card and runs no sub-agent."""
-    _lead_model(monkeypatch, "recover_failed_steps")
+    _script_lead(monkeypatch, "recover_failed_steps")
     monkeypatch.setattr(
         sub_agent_tools,
         "get_mock_model",
@@ -631,7 +637,7 @@ async def test_a_consult_beside_a_dispatch_loses_neither(
 ) -> None:
     """A response that defers both a consult and a dispatch: the sub-agent's
     approval is the pending one, and the consult answer still lands."""
-    monkeypatch.setattr(lead_node, "get_mock_model", _consult_and_dispatch_model)
+    monkeypatch.setattr(_lead_model, "get_mock_model", _consult_and_dispatch_model)
     monkeypatch.setattr(
         sub_agent_tools,
         "get_mock_model",
@@ -677,7 +683,7 @@ async def test_a_click_after_a_typed_reply_delivers_no_stale_text(
     """The typed reply is spent on the denial that raised the second approval,
     so answering that one carries no leftover message."""
     seen_prompts: list[str] = []
-    _lead_model(monkeypatch, "recover_failed_steps", seen_prompts)
+    _script_lead(monkeypatch, "recover_failed_steps", seen_prompts)
     monkeypatch.setattr(sub_agent_tools, "get_mock_model", _two_delete_model)
     state = _state()
     first = await _drive(state=state, deps=_deps(state), writer=writer)

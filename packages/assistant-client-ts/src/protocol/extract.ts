@@ -3,12 +3,20 @@ export interface CapturedExample {
   json: string;
 }
 
+export interface CapturedRequest {
+  coreFields: string[];
+  extensionFields: string[];
+  examples: CapturedExample[];
+}
+
 export interface CapturedProtocol {
   version: string;
   chunkKinds: string[];
   dataPartKinds: string[];
   envelopeKinds: string[];
   finishReasons: string[];
+  taskLifecycle: string[];
+  request: CapturedRequest;
   examples: CapturedExample[];
 }
 
@@ -59,8 +67,8 @@ function extractFinishReasons(markdown: string): string[] {
 
 const EXAMPLE_PATTERN = /####\s+`([^`]+)`\s*\n+```json\n([\s\S]*?)\n```/g;
 
-function extractExamples(markdown: string): CapturedExample[] {
-  const body = section(markdown, "examples");
+function extractExamples(markdown: string, name: string): CapturedExample[] {
+  const body = section(markdown, name);
   const examples: CapturedExample[] = [];
   for (const match of body.matchAll(EXAMPLE_PATTERN)) {
     const kind = match[1];
@@ -70,9 +78,20 @@ function extractExamples(markdown: string): CapturedExample[] {
     examples.push({ kind, json });
   }
   if (examples.length === 0) {
-    throw new ProtocolExtractionError("PROTOCOL.md captures no examples");
+    throw new ProtocolExtractionError(`PROTOCOL.md ${name} captures nothing`);
   }
   return examples;
+}
+
+function extractRequest(markdown: string): CapturedRequest {
+  return {
+    coreFields: tableKeys(section(markdown, "request_core"), "request core field"),
+    extensionFields: tableKeys(
+      section(markdown, "request_extensions"),
+      "request extension field",
+    ),
+    examples: extractExamples(markdown, "request_examples"),
+  };
 }
 
 /** Read the wire contract out of the document that defines it. */
@@ -83,6 +102,8 @@ export function extractProtocol(markdown: string): CapturedProtocol {
     dataPartKinds: tableKeys(section(markdown, "data_parts"), "data part"),
     envelopeKinds: tableKeys(section(markdown, "envelopes"), "envelope"),
     finishReasons: extractFinishReasons(markdown),
-    examples: extractExamples(markdown),
+    taskLifecycle: tableKeys(section(markdown, "task_lifecycle"), "task lifecycle"),
+    request: extractRequest(markdown),
+    examples: extractExamples(markdown, "examples"),
   };
 }

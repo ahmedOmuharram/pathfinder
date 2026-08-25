@@ -15,6 +15,7 @@ from pathfinder.services.experiment.types import (
     OptimizationObjective,
 )
 from pathfinder.services.wdk import WDKSortDirection
+from pathfinder.transport.http.schemas.site_id import SiteId
 
 
 class ThresholdKnobRequest(CamelModel):
@@ -51,7 +52,7 @@ class CreateExperimentRequest(CamelModel):
     Supports three modes: ``single`` (default), ``multi-step``, and ``import``.
     """
 
-    site_id: str
+    site_id: SiteId
     record_type: str
     mode: ExperimentMode = Field(default="single")
     search_name: str = Field(default="")

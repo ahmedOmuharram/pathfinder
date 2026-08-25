@@ -24,7 +24,7 @@ export function ResultLabel({ step, snapshot }: ResultLabelProps) {
     return (
       <span
         data-testid="step-draft-label"
-        className="font-mono text-xs text-muted-foreground/70"
+        className="font-mono text-xs text-muted-foreground"
       >
         Draft
       </span>
@@ -52,7 +52,7 @@ export function ResultLabel({ step, snapshot }: ResultLabelProps) {
   }
 
   return (
-    <span className="font-mono text-xs text-muted-foreground/70">
+    <span className="font-mono text-xs text-muted-foreground">
       ? {pluralizedRecord(step, 0)}
     </span>
   );

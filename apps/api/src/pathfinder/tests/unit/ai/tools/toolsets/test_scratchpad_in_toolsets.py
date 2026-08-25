@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -9,9 +10,9 @@ from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.toolsets.prepared import PreparedToolset
 from pydantic_ai.toolsets.wrapper import WrapperToolset
 
-from pathfinder.ai.agents.execution import execution_agent
-from pathfinder.ai.agents.frame import frame_agent
-from pathfinder.ai.agents.verification import verification_agent
+from pathfinder.ai.agents.execution import build_execution_agent
+from pathfinder.ai.agents.frame import build_frame_agent
+from pathfinder.ai.agents.verification import build_verification_agent
 from pathfinder.ai.scratchpad.toolset import build_scratchpad_toolset
 
 _SCRATCHPAD_TOOL_NAMES = (
@@ -62,16 +63,19 @@ def _flat_tool_names_from_agent(agent: Agent[Any, Any]) -> set[str]:
 
 
 @pytest.mark.parametrize(
-    "agent",
+    "build",
     [
-        frame_agent,
-        execution_agent,
-        verification_agent,
+        build_frame_agent,
+        build_execution_agent,
+        build_verification_agent,
     ],
     ids=["frame", "execution", "verification"],
 )
-def test_phase_agent_exposes_scratchpad_tools(agent: Agent[object, object]) -> None:
+def test_phase_agent_exposes_scratchpad_tools(
+    build: Callable[[], Agent[Any, Any]],
+) -> None:
     """Each phase agent composes the scratchpad toolset alongside its phase tools."""
+    agent = build()
     names = _flat_tool_names_from_agent(agent)
     for required in _SCRATCHPAD_TOOL_NAMES:
         assert required in names, (
@@ -80,20 +84,21 @@ def test_phase_agent_exposes_scratchpad_tools(agent: Agent[object, object]) -> N
 
 
 @pytest.mark.parametrize(
-    "agent",
+    "build",
     [
-        frame_agent,
-        execution_agent,
-        verification_agent,
+        build_frame_agent,
+        build_execution_agent,
+        build_verification_agent,
     ],
     ids=["frame", "execution", "verification"],
 )
 def test_phase_toolset_does_not_embed_scratchpad(
-    agent: Agent[object, object],
+    build: Callable[[], Agent[Any, Any]],
 ) -> None:
     """Scratchpad tools come from the scratchpad toolset only — not duplicated
     into the phase toolset. Guards against DRY-violating re-imports.
     """
+    agent = build()
     phase_toolsets = _caller_toolsets(agent)
     # There must be exactly 2 caller-provided toolsets: the phase-specific
     # one and the scratchpad one. The scratchpad one owns every scratchpad

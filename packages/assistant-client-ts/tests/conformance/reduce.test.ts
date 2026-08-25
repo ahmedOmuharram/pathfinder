@@ -311,4 +311,25 @@ describe("section 6, error is not a turn's verdict", () => {
 
     expect(message.errors).toEqual([]);
   });
+
+  it("keeps the failure of a dead turn as a part a reload can show", () => {
+    const errorText = "The worker running this turn stopped before it finished.";
+    const message = reduceTurn(
+      turn(
+        { type: "start", messageId: "a1" },
+        { type: "text-start", id: "t" },
+        { type: "text-delta", id: "t", delta: "Looking at PlasmoDB kinases" },
+        { type: "text-end", id: "t" },
+        { type: "error", errorText },
+        { type: "data-turn-failed", data: { errorText } },
+        { type: "finish", finishReason: "error" },
+      ),
+    );
+
+    expect(message.parts).toEqual([
+      { type: "text", text: "Looking at PlasmoDB kinases", state: "done" },
+      { type: "data-turn-failed", data: { errorText } },
+    ]);
+    expect(message.errors).toEqual([errorText]);
+  });
 });

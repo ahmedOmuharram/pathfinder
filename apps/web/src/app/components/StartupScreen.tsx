@@ -29,7 +29,7 @@ export function StartupScreen({ status }: { status: StartupStatus }) {
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <p className="mt-3 text-sm text-muted-foreground">Starting up...</p>
         {status.notReady.length > 0 && (
-          <p className="mt-1 text-xs text-muted-foreground/70">
+          <p className="mt-1 text-xs text-muted-foreground">
             Waiting for {status.notReady.join(", ")}
           </p>
         )}
@@ -52,7 +52,7 @@ export function StartupScreen({ status }: { status: StartupStatus }) {
       <div>
         <p className="text-sm font-medium">{title}</p>
         <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">{detail}</p>
-        <p className="mx-auto mt-2 max-w-sm text-xs text-muted-foreground/70">
+        <p className="mx-auto mt-2 max-w-sm text-xs text-muted-foreground">
           Please report this to an administrator.
         </p>
       </div>

@@ -18,9 +18,11 @@ from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKParameter,
     WDKStringParam,
 )
+from pathfinder.services.catalog import search_inspection
 from pathfinder.services.catalog.param_formatting import (
     ParameterInfo,
     ParameterNotOnSearch,
+    ParentContextRequired,
 )
 
 
@@ -49,7 +51,7 @@ def _patch_resolve_and_client(
     async def _resolve(*_args: Any, **_kw: Any) -> str:
         return record_type
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    monkeypatch.setattr(search_inspection, "resolve_search_record_type", _resolve)
 
     fake_details = MagicMock()
     fake_details.search_data.parameters = [_wdk_param(n) for n in param_names]
@@ -59,7 +61,7 @@ def _patch_resolve_and_client(
     def _get_client(_site_id: str) -> Any:
         return client
 
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", _get_client)
+    monkeypatch.setattr(search_inspection, "get_wdk_client", _get_client)
 
 
 def _patch_context_client(
@@ -70,13 +72,13 @@ def _patch_context_client(
     async def _resolve(*_args: Any, **_kw: Any) -> str:
         return "transcript"
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    monkeypatch.setattr(search_inspection, "resolve_search_record_type", _resolve)
     details = MagicMock()
     details.search_data.parameters = [_wdk_param(n) for n in param_names]
     client = MagicMock()
     client.get_search_details_with_params = AsyncMock(return_value=details)
     client.get_search_details = AsyncMock(return_value=details)
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
+    monkeypatch.setattr(search_inspection, "get_wdk_client", lambda _s: client)
     return client
 
 
@@ -90,9 +92,9 @@ async def test_known_parameter_returns_normally(
         record_type="transcript",
         param_names=["min_pct_idents", "min_overlap_size"],
     )
-    fake_info = MagicMock()
+    fake_info = MagicMock(kind="parameter_info")
     monkeypatch.setattr(
-        catalog_discovery,
+        search_inspection,
         "format_typed_param",
         lambda *args, **kw: fake_info,
     )
@@ -171,9 +173,9 @@ async def test_second_identical_read_returns_already_read_notice(
         record_type="transcript",
         param_names=["go_term", "taxon"],
     )
-    fake_info = MagicMock()
+    fake_info = MagicMock(kind="parameter_info")
     monkeypatch.setattr(
-        catalog_discovery,
+        search_inspection,
         "format_typed_param",
         lambda *args, **kw: fake_info,
     )
@@ -205,9 +207,9 @@ async def test_failed_read_is_not_marked_so_retry_works(
         record_type="transcript",
         param_names=["go_term", "taxon"],
     )
-    fake_info = MagicMock()
+    fake_info = MagicMock(kind="parameter_info")
     monkeypatch.setattr(
-        catalog_discovery,
+        search_inspection,
         "format_typed_param",
         lambda *args, **kw: fake_info,
     )
@@ -254,7 +256,9 @@ class TestInheritsBoundParentContext:
     ) -> None:
         client = _patch_context_client(monkeypatch, ["samples_percentile_generic"])
         monkeypatch.setattr(
-            catalog_discovery, "format_typed_param", lambda *a, **k: MagicMock()
+            search_inspection,
+            "format_typed_param",
+            lambda *a, **k: MagicMock(kind="parameter_info"),
         )
 
         await catalog_discovery.get_parameter_options(
@@ -273,7 +277,9 @@ class TestInheritsBoundParentContext:
     ) -> None:
         client = _patch_context_client(monkeypatch, ["samples_percentile_generic"])
         monkeypatch.setattr(
-            catalog_discovery, "format_typed_param", lambda *a, **k: MagicMock()
+            search_inspection,
+            "format_typed_param",
+            lambda *a, **k: MagicMock(kind="parameter_info"),
         )
 
         await catalog_discovery.get_parameter_options(
@@ -294,7 +300,9 @@ class TestInheritsBoundParentContext:
             monkeypatch, record_type="transcript", param_names=["go_term"]
         )
         monkeypatch.setattr(
-            catalog_discovery, "format_typed_param", lambda *a, **k: MagicMock()
+            search_inspection,
+            "format_typed_param",
+            lambda *a, **k: MagicMock(kind="parameter_info"),
         )
 
         result = await catalog_discovery.get_parameter_options(
@@ -312,9 +320,9 @@ class TestInheritsBoundParentContext:
 
         def _format(*_a: Any, **kw: Any) -> Any:
             seen.update(kw)
-            return MagicMock()
+            return MagicMock(kind="parameter_info")
 
-        monkeypatch.setattr(catalog_discovery, "format_typed_param", _format)
+        monkeypatch.setattr(search_inspection, "format_typed_param", _format)
 
         await catalog_discovery.get_parameter_options(
             self._ctx_with_bound_profileset(),
@@ -342,7 +350,7 @@ def _patch_with_dependency(
     async def _resolve(*_args: Any, **_kw: Any) -> str:
         return "transcript"
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    monkeypatch.setattr(search_inspection, "resolve_search_record_type", _resolve)
     parent_param = _wdk_param(parent)
     parent_param.dependent_params = [child]
     details = MagicMock()
@@ -350,7 +358,7 @@ def _patch_with_dependency(
     client = MagicMock()
     client.get_search_details = AsyncMock(return_value=details)
     client.get_search_details_with_params = AsyncMock(return_value=details)
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
+    monkeypatch.setattr(search_inspection, "get_wdk_client", lambda _s: client)
     return client
 
 
@@ -376,7 +384,7 @@ class TestADependentReadNeedsItsParent:
             parameter_id="samples_percentile_generic",
         )
 
-        assert isinstance(result, catalog_discovery.ParentContextRequired)
+        assert isinstance(result, ParentContextRequired)
 
     @pytest.mark.asyncio
     async def test_it_names_the_parent_to_bind(
@@ -392,7 +400,7 @@ class TestADependentReadNeedsItsParent:
             parameter_id="samples_percentile_generic",
         )
 
-        assert isinstance(result, catalog_discovery.ParentContextRequired)
+        assert isinstance(result, ParentContextRequired)
         assert result.parent_parameter_ids == ["profileset_generic"]
 
     @pytest.mark.asyncio
@@ -402,9 +410,9 @@ class TestADependentReadNeedsItsParent:
         _patch_with_dependency(
             monkeypatch, "samples_percentile_generic", "profileset_generic"
         )
-        fake_info = MagicMock()
+        fake_info = MagicMock(kind="parameter_info")
         monkeypatch.setattr(
-            catalog_discovery, "format_typed_param", lambda *a, **kw: fake_info
+            search_inspection, "format_typed_param", lambda *a, **kw: fake_info
         )
 
         result = await catalog_discovery.get_parameter_options(
@@ -423,9 +431,9 @@ class TestADependentReadNeedsItsParent:
         _patch_resolve_and_client(
             monkeypatch, record_type="transcript", param_names=["organism"]
         )
-        fake_info = MagicMock()
+        fake_info = MagicMock(kind="parameter_info")
         monkeypatch.setattr(
-            catalog_discovery, "format_typed_param", lambda *a, **kw: fake_info
+            search_inspection, "format_typed_param", lambda *a, **kw: fake_info
         )
 
         result = await catalog_discovery.get_parameter_options(
@@ -477,13 +485,13 @@ def _patch_phyletic_client(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _resolve(*_args: Any, **_kw: Any) -> str:
         return "transcript"
 
-    monkeypatch.setattr(catalog_discovery, "_resolve_record_type", _resolve)
+    monkeypatch.setattr(search_inspection, "resolve_search_record_type", _resolve)
     details = MagicMock()
     details.search_data.parameters = _PHYLETIC_PARAMS
     client = MagicMock()
     client.get_search_details = AsyncMock(return_value=details)
     client.get_search_details_with_params = AsyncMock(return_value=details)
-    monkeypatch.setattr(catalog_discovery, "get_wdk_client", lambda _s: client)
+    monkeypatch.setattr(search_inspection, "get_wdk_client", lambda _s: client)
 
 
 class TestReadingOnePhyleticList:

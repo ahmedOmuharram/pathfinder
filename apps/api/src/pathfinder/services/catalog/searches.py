@@ -3,8 +3,10 @@ candidate collection live in sibling modules."""
 
 import re
 from collections.abc import Awaitable, Callable
+from typing import Literal
 
 from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
 
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
@@ -12,6 +14,7 @@ from pathfinder.domain.strategy.tree import collect_plan_leaves
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
+from pathfinder.integrations.veupathdb.factory import get_wdk_client
 from pathfinder.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
 from pathfinder.services.catalog.models import SearchMatch
 from pathfinder.services.catalog.scoring import (
@@ -30,6 +33,58 @@ logger = get_logger(__name__)
 
 # A search name is unique across all record types on a site.
 ResolveRecordType = Callable[[str], Awaitable[str | None]]
+
+_MIN_QUERY_TOKENS = 2
+
+
+class SearchQueryRejection(CamelModel):
+    """Why a query cannot rank the catalog, in the shape the caller returns."""
+
+    error: Literal["query_required", "query_too_vague"]
+    message: str
+    query: str | None = None
+    examples: list[str] | None = None
+
+
+class VagueSearchQueryError(Exception):
+    """A catalog query that carries too little signal to rank searches."""
+
+    def __init__(self, rejection: SearchQueryRejection) -> None:
+        self.rejection = rejection
+        super().__init__(rejection.message)
+
+
+def _query_tokens(text: str) -> list[str]:
+    return re.findall(r"[A-Za-z0-9][A-Za-z0-9._-]{2,}", (text or "").lower())
+
+
+def _query_rejection(query: str, *, has_keywords: bool) -> SearchQueryRejection | None:
+    """Refuse a query with too few terms to separate one search from another.
+
+    Keywords carry the specificity on their own, so they allow a short query.
+    """
+    q = (query or "").strip()
+    if not q and not has_keywords:
+        return SearchQueryRejection(
+            error="query_required",
+            message="search_for_searches(query=...) requires a non-empty query.",
+        )
+    if len(_query_tokens(q)) < _MIN_QUERY_TOKENS and not has_keywords:
+        return SearchQueryRejection(
+            error="query_too_vague",
+            message=(
+                "search_for_searches(query=...) requires 2+ specific keywords. "
+                "Be descriptive."
+            ),
+            query=q,
+            examples=[
+                "vector salivary gland",
+                "gametocyte RNA-seq",
+                "drug resistance markers",
+                "liver stage expression",
+            ],
+        )
+    return None
 
 
 async def get_raw_record_types(site_id: str) -> list[WDKRecordType]:
@@ -134,9 +189,12 @@ async def search_for_searches(
     """Find searches that match a query or keywords.
 
     A category restricts the candidates to that category plus the
-    universal searches.
+    universal searches. A query too vague to rank raises ``VagueSearchQueryError``.
     """
     kw_list = keywords or []
+    rejection = _query_rejection(query, has_keywords=bool(kw_list))
+    if rejection is not None:
+        raise VagueSearchQueryError(rejection)
     discovery = get_discovery_service()
 
     record_types = await resolve_record_types(discovery, site_id, record_type)
@@ -187,6 +245,28 @@ async def search_for_searches(
             break
 
     return result
+
+
+async def read_search_definition(
+    site_id: str, record_type: str, search_name: str
+) -> WDKSearch:
+    """The expanded WDK definition of one search: its metadata and parameters."""
+    details = await get_wdk_client(site_id).get_search_details(
+        record_type, search_name, expand_params=True
+    )
+    return details.search_data
+
+
+async def resolve_search_record_type(
+    site_id: str, search_name: str, record_type: str | None
+) -> str:
+    """Return the record type of a search, reading the catalog when none is given."""
+    if record_type:
+        return record_type
+    ctx = SearchContext(
+        site_id=site_id, search_name=search_name, record_type="transcript"
+    )
+    return await find_record_type_for_search(ctx)
 
 
 async def find_record_type_for_search(ctx: SearchContext) -> str:

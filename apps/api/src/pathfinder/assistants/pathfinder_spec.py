@@ -35,6 +35,7 @@ from pathfinder.domain.strategy.build_outcome import (
 )
 from pathfinder.domain.strategy.constraints import ConstraintKind, ConstraintSource
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
+from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.staleness import StaleBuild
 from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph, StrategyAst
 from pathfinder.persistence.models import ConversationStrategyView
@@ -59,6 +60,7 @@ PATHFINDER_CHECKPOINT_TYPES: tuple[type, ...] = (
     StepPushFailure,
     ConstraintKind,
     ConstraintSource,
+    CombineOp,
     OperationalSpec,
     StaleBuild,
     StrategyDomainState,

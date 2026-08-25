@@ -9,7 +9,6 @@ from assistant_core.platform.types import JSONObject
 from pydantic_ai import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.tools.query_validation import search_query_error
 from pathfinder.ai.tools.standalone._catalog_models import _UNIVERSAL_SEARCHES
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.tool_errors import ToolErrorPayload
@@ -18,6 +17,7 @@ from pathfinder.services.catalog.public_strategy_search import (
     rank_public_strategies,
     rank_public_strategies_semantic,
 )
+from pathfinder.services.catalog.searches import VagueSearchQueryError
 from pathfinder.services.wdk import get_strategy_api
 
 logger = get_logger(__name__)
@@ -66,18 +66,17 @@ async def search_for_searches(
         category: Filter to a specific search subcategory from the site ontology.
         limit: Max results to return.
     """
-    kw = keywords or []
-    err = search_query_error(query, has_keywords=bool(kw))
-    if err is not None:
-        return [err]
-    matches = await catalog.search_for_searches(
-        ctx.deps.site_id,
-        record_type=record_type,
-        query=query,
-        keywords=kw,
-        category=category,
-        limit=limit,
-    )
+    try:
+        matches = await catalog.search_for_searches(
+            ctx.deps.site_id,
+            record_type=record_type,
+            query=query,
+            keywords=keywords or [],
+            category=category,
+            limit=limit,
+        )
+    except VagueSearchQueryError as exc:
+        return [cast("JSONObject", exc.rejection.model_dump(exclude_none=True))]
     results: list[JSONObject] = cast("list[JSONObject]", [m.to_dict() for m in matches])
 
     decided = ctx.deps.agent_state.decided_search_names()

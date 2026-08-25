@@ -9,6 +9,8 @@ import {
   useExternalStoreRuntime,
 } from "@assistant-ui/react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
+import { reduceSnapshot } from "@pathfinder/assistant-client";
+import type { DataPart, TextPart } from "@pathfinder/assistant-client";
 import type { DataPartKind } from "@pathfinder/shared";
 
 import { AssistantMessage, UserMessage } from "./MessageRenderer";
@@ -84,13 +86,35 @@ describe("message dispatch", () => {
       <Thread
         content={[
           {
+            type: "data-memory-retrieved",
+            data: {
+              memories: [{ key: "k1", kind: "gene_set", name: "Kinases", score: 1 }],
+            },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("data-memory-retrieved")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("renders no standalone card for the task parts the started card owns", () => {
+    render(
+      <Thread
+        content={[
+          {
+            type: "data-task-progress",
+            data: { taskId: "t1", percent: 0.5, message: "Halfway" },
+          },
+          {
             type: "data-task-completed",
             data: { taskId: "t1", status: "success" },
           },
         ]}
       />,
     );
-    expect(screen.getByTestId("data-task-completed")).toBeInTheDocument();
+    expect(screen.queryByTestId("data-task-progress")).toBeNull();
+    expect(screen.queryByTestId("data-task-completed")).toBeNull();
     expect(toastError).not.toHaveBeenCalled();
   });
 
@@ -106,6 +130,32 @@ describe("message dispatch", () => {
       />,
     );
     expect(screen.getByTestId("data-strategy-link")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("shows the failure of a dead turn rebuilt from the log", () => {
+    const errorText = "The worker running this turn stopped before it finished.";
+    const messages = reduceSnapshot([
+      { type: "user-message", message: { id: "u1", role: "user", parts: [] } },
+      { type: "start", messageId: "a1" },
+      { type: "text-start", id: "t" },
+      { type: "text-delta", id: "t", delta: "Looking at PlasmoDB kinases" },
+      { type: "text-end", id: "t" },
+      { type: "error", errorText },
+      { type: "data-turn-failed", data: { errorText } },
+      { type: "finish", finishReason: "error" },
+      { type: "done" },
+    ]);
+
+    const rebuilt = (messages[1]?.parts ?? []).filter(
+      (part): part is TextPart | DataPart =>
+        part.type === "text" || part.type.startsWith("data-"),
+    );
+
+    render(<Thread content={rebuilt} />);
+
+    expect(screen.getByTestId("failure-notice")).toBeInTheDocument();
+    expect(screen.getByText(errorText)).toBeInTheDocument();
     expect(toastError).not.toHaveBeenCalled();
   });
 

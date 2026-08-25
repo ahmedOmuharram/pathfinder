@@ -1,11 +1,8 @@
-"""Repetition-guard tests after Stage E.
+"""The repetition guard over PathFinder's own vocabulary.
 
-The auto-eject path (SPAM_PRONE_TOOLS, eject_to_discovery) was deleted
-in Stage E because execution is now declarative — read-only spam during
-execution can't happen by construction. The remaining behavior: block
-the 3rd CONSECUTIVE IDENTICAL read-only call (same name, same args, no
-intervening state change) on agents that still go through the LLM
-(discovery + planning).
+The mechanism refuses the Nth consecutive identical read-only call and ends
+the run if the model makes that call again. These cases drive it with the
+tool names the agents really carry.
 """
 
 from __future__ import annotations
@@ -32,22 +29,45 @@ def test_third_consecutive_identical_call_blocks() -> None:
     guard = build_tool_repetition_guard()
     for _ in range(DEFAULT_REPETITION_THRESHOLD - 1):
         assert guard.check("get_strategy", {}) is None
-    warning = guard.check("get_strategy", {})
-    assert warning is not None
-    assert "loop" in warning.lower()
+
+    block = guard.check("get_strategy", {})
+
+    assert block is not None
+    assert block.escalated is False
+    assert "loop" in block.message.lower()
     assert guard.total_blocked == 1
+
+
+def test_the_first_block_leaves_the_run_going() -> None:
+    guard = build_tool_repetition_guard()
+    for _ in range(DEFAULT_REPETITION_THRESHOLD):
+        guard.check("get_strategy", {}, tool_call_id="c1")
+
+    assert guard.stopped_call_id == ""
+
+
+def test_making_the_refused_call_again_ends_the_run() -> None:
+    guard = build_tool_repetition_guard()
+    for _ in range(DEFAULT_REPETITION_THRESHOLD):
+        guard.check("get_strategy", {}, tool_call_id="c1")
+
+    block = guard.check("get_strategy", {}, tool_call_id="c2")
+
+    assert block is not None
+    assert block.escalated is True
+    assert "stops here" in block.message
+    assert guard.stopped_call_id == "c2"
 
 
 def test_changing_args_resets_counter() -> None:
     guard = build_tool_repetition_guard()
     assert guard.check("get_strategy", {}) is None
-    assert guard.check("get_strategy", {"step": 1}) is None
-    assert guard.check("get_strategy", {"step": 2}) is None
+    assert guard.check("get_strategy", {"graph_id": "g1"}) is None
+    assert guard.check("get_strategy", {"graph_id": "g2"}) is None
 
 
 def test_interleaved_calls_do_not_block() -> None:
-    """Without the spam-eject path, alternating calls do not trip the
-    guard — only consecutive identical calls do."""
+    """Only consecutive identical calls trip the guard."""
     guard = build_tool_repetition_guard()
     assert guard.check("get_strategy", {}) is None
     assert guard.check("search_memory", {"q": "a"}) is None
@@ -56,11 +76,11 @@ def test_interleaved_calls_do_not_block() -> None:
     assert guard.check("get_strategy", {}) is None
 
 
-def test_graph_modifying_tool_resets_counter() -> None:
+def test_a_state_changing_tool_resets_counter() -> None:
     guard = build_tool_repetition_guard()
     for _ in range(DEFAULT_REPETITION_THRESHOLD - 1):
         guard.check("get_strategy", {})
-    assert guard.check("update_step", {"step": 1}) is None
+    assert guard.check("update_leaf_params", {"step_id": "s1"}) is None
     assert guard.check("get_strategy", {}) is None
     assert guard.check("get_strategy", {}) is None
 
@@ -68,18 +88,17 @@ def test_graph_modifying_tool_resets_counter() -> None:
 def test_changing_args_on_readonly_resets_counter() -> None:
     guard = build_tool_repetition_guard()
     for _ in range(DEFAULT_REPETITION_THRESHOLD - 1):
-        assert guard.check("get_plan", {}) is None
-    assert guard.check("get_plan", {"id": 1}) is None
-    assert guard.check("get_plan", {"id": 1}) is None
-    assert guard.check("get_plan", {"id": 1}) is not None
+        assert guard.check("get_estimated_size", {}) is None
+    assert guard.check("get_estimated_size", {"wdk_step_id": 1}) is None
+    assert guard.check("get_estimated_size", {"wdk_step_id": 1}) is None
+    assert guard.check("get_estimated_size", {"wdk_step_id": 1}) is not None
 
 
 def test_unclassified_tool_resets_counter() -> None:
-    """Unknown tools (neither read-only nor graph-modifying) reset the
-    counter — they're considered state-changing by default."""
+    """A tool outside the vocabulary counts as progress."""
     guard = build_tool_repetition_guard()
     guard.check("get_strategy", {})
     guard.check("get_strategy", {})
-    assert guard.check("set_problem_frame", {"frame": "x"}) is None
+    assert guard.check("set_criterion", {"criterion_id": "c1"}) is None
     assert guard.check("get_strategy", {}) is None
     assert guard.check("get_strategy", {}) is None
