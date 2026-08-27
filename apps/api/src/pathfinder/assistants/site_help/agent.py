@@ -1,11 +1,15 @@
-"""The site-help agent: one agent, two read-only catalog tools."""
+"""The site-help agent: two local catalog tools, plus what the turn resolved."""
 
 from __future__ import annotations
+
+from typing import Any
 
 from assistant_core.graph.runtime import AssistantDeps
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic_ai import Agent, ModelRetry, Tool
 from pydantic_ai.models import Model
+from pydantic_ai.tools import RunContext
+from pydantic_ai.toolsets import AbstractToolset
 
 from pathfinder.assistants.site_help.mock import build_site_help_mock
 from pathfinder.platform.config import get_settings
@@ -14,7 +18,14 @@ from pathfinder.services.catalog.sites import get_record_types, list_sites
 
 SITE_HELP_MODEL = "openai:gpt-5.6-luna"
 
-type SiteHelpAgent = Agent[AssistantDeps, str]
+
+class SiteHelpDeps(AssistantDeps):
+    """The runtime's dependencies, plus the sources this turn resolved."""
+
+    tool_sources: AbstractToolset[Any] | None = None
+
+
+type SiteHelpAgent = Agent[SiteHelpDeps, str]
 
 SITE_HELP_INSTRUCTIONS = (
     "You help researchers find their way around the VEuPathDB family of "
@@ -23,9 +34,23 @@ SITE_HELP_INSTRUCTIONS = (
     "and `describe_site` to report one site's record types and how many "
     "searches each of them offers. Both tools read the live catalog: quote "
     "what they return and never invent a site, a record type or a count.\n\n"
-    "You do not build strategies, run searches or change anything. When a "
-    "request needs that, say so and point at the site the work belongs on."
+    "Where this deployment reaches the VEuPathDB WDK server, three more tools "
+    "answer: `wdk_list_record_types` and `wdk_search_for_searches` read one "
+    "site's catalog, and `wdk_run_control_tests_on_search` measures a search "
+    "against known genes. Call the one the question needs. This deployment "
+    "asks the user to approve a call that writes, so never ask for consent in "
+    "prose: make the call and report what comes back, including a refusal. A "
+    "tool you cannot see is one this deployment does not offer: say so rather "
+    "than describing what it would return.\n\n"
+    "You do not build strategies for the user and you change nothing they "
+    "saved. When a request needs that, say so and point at the site the work "
+    "belongs on."
 )
+
+
+def turn_tool_sources(ctx: RunContext[SiteHelpDeps]) -> AbstractToolset[Any] | None:
+    """The servers this turn resolved, as the tools of this run."""
+    return ctx.deps.tool_sources
 
 
 class SiteSummary(CamelModel):
@@ -104,9 +129,10 @@ def build_site_help_agent() -> SiteHelpAgent:
     return Agent(
         _model(),
         output_type=str,
-        deps_type=AssistantDeps,
+        deps_type=SiteHelpDeps,
         instructions=SITE_HELP_INSTRUCTIONS,
         tools=[Tool(list_veupathdb_sites), Tool(describe_site)],
+        toolsets=[turn_tool_sources],
         retries=2,
         description="Points users around the VEuPathDB sites",
         name="site_help",
@@ -120,8 +146,10 @@ __all__ = [
     "RecordTypeSummary",
     "SiteDetail",
     "SiteHelpAgent",
+    "SiteHelpDeps",
     "SiteSummary",
     "build_site_help_agent",
     "describe_site",
     "list_veupathdb_sites",
+    "turn_tool_sources",
 ]

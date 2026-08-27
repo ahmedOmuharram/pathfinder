@@ -132,6 +132,76 @@ describe("section 2, a snapshot rebuilds the whole conversation", () => {
     ]);
   });
 
+  it("keeps one node per id when the log replays a user message", () => {
+    // The shape a regenerate leaves behind: one envelope, an answer, the same
+    // envelope again, a second answer.
+    const replayed = "43f33eec-e6d5-44bb-b6d3-b367e7dfc888";
+    const messages = reduceSnapshot([
+      userEnvelope(replayed, "find kinase drug targets"),
+      { type: "start", messageId: "5e47a007-a91b-4f64-af61-9216871155c2" },
+      { type: "text-start", id: "t1" },
+      { type: "text-delta", id: "t1", delta: "first attempt" },
+      { type: "text-end", id: "t1" },
+      { type: "error", errorText: "combine node needs an operator" },
+      { type: "finish", finishReason: "stop" },
+      { type: "done" },
+      userEnvelope(replayed, "find kinase drug targets"),
+      { type: "start", messageId: "1d25d96f-53e0-4154-a1c9-1454efb439f6" },
+      { type: "text-start", id: "t2" },
+      { type: "text-delta", id: "t2", delta: "second attempt" },
+      { type: "text-end", id: "t2" },
+      { type: "finish", finishReason: "stop" },
+      { type: "done" },
+    ]);
+
+    expect(messages.map((message) => message.id)).toEqual([
+      replayed,
+      "5e47a007-a91b-4f64-af61-9216871155c2",
+      "1d25d96f-53e0-4154-a1c9-1454efb439f6",
+    ]);
+    expect(messages[0]?.parts).toEqual([
+      { type: "text", text: "find kinase drug targets" },
+    ]);
+    expect(messages[2]?.parts).toEqual([
+      { type: "text", text: "second attempt", state: "done" },
+    ]);
+  });
+
+  it("keeps the first message an id names, not the last", () => {
+    const messages = reduceSnapshot([
+      userEnvelope("u1", "the question"),
+      userEnvelope("u1", "a later edit of it"),
+    ]);
+
+    expect(messages).toEqual([
+      { id: "u1", role: "user", parts: [{ type: "text", text: "the question" }] },
+    ]);
+  });
+
+  it("merges two turns that share one message id, as it always has", () => {
+    // A turn resumed after a durable task reopens with the same `start` id.
+    const messages = reduceSnapshot([
+      { type: "start", messageId: "a1" },
+      { type: "text-start", id: "t1" },
+      { type: "text-delta", id: "t1", delta: "before" },
+      { type: "text-end", id: "t1" },
+      { type: "finish", finishReason: "other" },
+      { type: "done" },
+      { type: "start", messageId: "a1" },
+      { type: "text-start", id: "t2" },
+      { type: "text-delta", id: "t2", delta: "after" },
+      { type: "text-end", id: "t2" },
+      { type: "finish", finishReason: "stop" },
+      { type: "done" },
+    ]);
+
+    expect(messages.map((message) => message.id)).toEqual(["a1"]);
+    expect(messages[0]?.parts).toEqual([
+      { type: "text", text: "before", state: "done" },
+      { type: "text", text: "after", state: "done" },
+    ]);
+  });
+
   it("reads an empty log as an empty conversation", () => {
     expect(reduceSnapshot([])).toEqual([]);
   });

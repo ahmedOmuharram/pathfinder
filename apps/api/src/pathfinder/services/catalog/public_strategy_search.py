@@ -81,6 +81,10 @@ def rank_public_strategies(
 
 _DEFAULT_SEMANTIC_MIN_SCORE = 0.4
 
+# Strategies embedded per call. The pass keeps one batch of vectors, and it
+# stops at a batch boundary rather than at the end of the list.
+EMBED_BATCH = 64
+
 
 def _strategy_doc(strategy: WDKStrategySummary) -> str:
     return f"{strategy.name}. {strategy.description}. {strategy.name_of_first_step}".strip()
@@ -104,18 +108,24 @@ async def rank_public_strategies_semantic(
     Bridges paraphrase gaps that lexical token overlap misses ("immunization
     targets" vs "vaccine antigens"). The embedding function is injected so this
     stays in the services layer (no AI-layer import) and is pure to test.
+
+    The strategies are embedded a batch at a time and scored as they arrive, so
+    the pass holds one batch of vectors and an ``embed`` that refuses stops it
+    at a batch boundary rather than at the end of the list.
     """
     if not strategies or not query.strip():
         return []
-    texts = [SEARCH_QUERY_PREFIX + query]
-    texts.extend(SEARCH_DOCUMENT_PREFIX + _strategy_doc(s) for s in strategies)
-    vectors = await embed(texts)
-    query_vec = vectors[0]
+    query_vec = (await embed([SEARCH_QUERY_PREFIX + query]))[0]
     scored: list[tuple[WDKStrategySummary, float]] = []
-    for strategy, doc_vec in zip(strategies, vectors[1:], strict=False):
-        sim = _cosine(query_vec, doc_vec)
-        if sim >= min_score:
-            scored.append((strategy, sim))
+    for start in range(0, len(strategies), EMBED_BATCH):
+        batch = strategies[start : start + EMBED_BATCH]
+        vectors = await embed(
+            [SEARCH_DOCUMENT_PREFIX + _strategy_doc(s) for s in batch]
+        )
+        for strategy, doc_vec in zip(batch, vectors, strict=False):
+            sim = _cosine(query_vec, doc_vec)
+            if sim >= min_score:
+                scored.append((strategy, sim))
     scored.sort(key=lambda pair: pair[1], reverse=True)
     return [
         s.model_dump(by_alias=True, exclude_none=True, mode="json")

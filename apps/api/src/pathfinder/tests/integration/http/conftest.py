@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Iterable, Iterator
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 import httpx
@@ -137,14 +137,19 @@ def first_frame_client_for(
     return _client(_ends_at_first_frame(app), user_id, wdk_token)
 
 
-def chat_body(conversation_id: UUID) -> dict[str, Any]:
-    message_id = str(uuid4())
+def chat_body(
+    conversation_id: UUID,
+    *,
+    message_id: str | None = None,
+    trigger: Literal["submit-message", "regenerate-message"] = "submit-message",
+) -> dict[str, Any]:
+    resolved_id = message_id if message_id is not None else str(uuid4())
     return {
-        "trigger": "submit-message",
-        "id": message_id,
+        "trigger": trigger,
+        "id": resolved_id,
         "messages": [
             {
-                "id": message_id,
+                "id": resolved_id,
                 "role": "user",
                 "parts": [{"type": "text", "text": "list the kinases"}],
             },

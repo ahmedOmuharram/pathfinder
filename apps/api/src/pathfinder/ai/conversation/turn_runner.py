@@ -14,11 +14,7 @@ from assistant_core.graph.stream_events import (
     turn_status_event,
     turn_stopped_event,
 )
-from assistant_core.mcp.admission import AdmissionRecord
-from assistant_core.mcp.resolution import (
-    ResolvedToolSources,
-    ToolSourceUnavailableError,
-)
+from assistant_core.mcp.resolution import ResolvedToolSources
 from assistant_core.platform.db import async_session_factory
 from assistant_core.platform.logging import get_logger
 from assistant_core.spec import (
@@ -48,6 +44,7 @@ from pathfinder.persistence.repositories import (
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
+from pathfinder.platform.tool_sources import source_credential
 
 _CANCEL_POLL_INTERVAL_SECONDS = 1.0
 
@@ -134,7 +131,7 @@ async def run_turn(
             resolved = await tool_source_sessions.enter_async_context(
                 ResolvedToolSources(
                     declarations=spec.tool_sources,
-                    credential=deployment_credential,
+                    credential=source_credential,
                 ),
             )
             tool_sources = dict(resolved.by_name)
@@ -158,12 +155,6 @@ async def run_turn(
             runtime_context=runtime_context,
             writer=writer,
         )
-
-
-def deployment_credential(record: AdmissionRecord) -> str | None:
-    """Refuse a credentialed source until a deployment configures one."""
-    msg = f"no credential is configured for tool source {record.source_id!r}"
-    raise ToolSourceUnavailableError(msg)
 
 
 async def _run_turn_with_context(

@@ -94,6 +94,25 @@ LISTEN/NOTIFY, so an in-memory substitute will not do.
 that changes without the page changing fails
 `tests/integration/conversation/test_protocol_document.py`.
 
+# Assistant client (`packages/assistant-client-ts`)
+
+```
+yarn typecheck
+yarn lint
+yarn format:check
+yarn test
+yarn build
+```
+
+Run these from the package root. The suite is the protocol's consumer side, so
+a `PROTOCOL.md` change fails it until `yarn sync:protocol` regenerates the
+vendored capture and a reducer answers the new kind.
+
+`yarn build` is a gate because nothing else reads `dist/`. The app resolves the
+package through its tsconfig `paths` and its vitest aliases, both of which name
+`src`, so only this command and a `yarn pack` exercise the artifact a host
+installs.
+
 # MCP conformance suite (`packages/mcp-conformance`)
 
 ```

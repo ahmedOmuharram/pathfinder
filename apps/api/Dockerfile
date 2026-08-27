@@ -23,6 +23,9 @@ COPY packages/shared-py/pyproject.toml packages/shared-py/
 COPY packages/shared-py/src packages/shared-py/src
 COPY packages/assistant-core/pyproject.toml packages/assistant-core/
 COPY packages/assistant-core/src packages/assistant-core/src
+COPY packages/mcp-conformance/pyproject.toml packages/mcp-conformance/
+COPY packages/mcp-conformance/README.md packages/mcp-conformance/
+COPY packages/mcp-conformance/src packages/mcp-conformance/src
 
 # Install dependencies without the project itself (no source code needed).
 # Cache mount preserves uv's download cache across builds — even when deps
@@ -99,13 +102,11 @@ WORKDIR /app/apps/api
 # Expose port
 EXPOSE 8000
 
-# Health check — /health/ready is faithful: returns 503 until every
-# subsystem (DB, Redis, embedding model, PIGuard, every site catalog) is
-# actually ready. start-period is the genuine bootstrap window: lifespan
-# awaits migrations + model loads + 15 site catalogs (~140s worst case),
-# and we don't want Docker marking unhealthy during that legitimate boot.
-HEALTHCHECK --interval=10s --timeout=10s --start-period=180s --retries=5 \
-    CMD curl -f http://localhost:8000/health/ready || exit 1
+# Health check — the server binds before the warm-up finishes and loads a
+# catalog on demand, so serving is what a compose dependent needs. Warm-up
+# progress is reported per subsystem by /health/ready, which the UI polls.
+HEALTHCHECK --interval=10s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the application
 CMD [".venv/bin/uvicorn", "pathfinder.main:app", "--host", "0.0.0.0", "--port", "8000"]

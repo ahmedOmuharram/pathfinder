@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from assistant_core.graph.runtime import AssistantDeps, TurnContext
 from assistant_core.graph.single_agent import single_agent_graph
 from assistant_core.graph.turn_state import TurnState
 from assistant_core.models.scripted import (
@@ -29,8 +28,10 @@ from pydantic_ai import Agent, Tool
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 
+from pathfinder.assistants.site_help.agent import SiteHelpDeps
 from pathfinder.assistants.site_help.spec import (
     SITE_HELP_ASSISTANT_ID,
+    SiteHelpTurnContext,
     build_deps,
     build_initial_state,
     build_turn_context,
@@ -76,11 +77,11 @@ def build_confirming_mock() -> FunctionModel:
     return _MODEL.as_function_model()
 
 
-def build_confirming_agent() -> Agent[AssistantDeps, str]:
+def build_confirming_agent() -> Agent[SiteHelpDeps, str]:
     return Agent(
         build_confirming_mock(),
         output_type=str,
-        deps_type=AssistantDeps,
+        deps_type=SiteHelpDeps,
         instructions="Help the user, and confirm anything destructive.",
         tools=[Tool(delete_saved_gene_set, requires_approval=True)],
         name="confirming",
@@ -90,11 +91,11 @@ def build_confirming_agent() -> Agent[AssistantDeps, str]:
 
 def _build_graph(
     checkpointer: BaseCheckpointSaver[Any],
-) -> CompiledStateGraph[TurnState, TurnContext, TurnState, TurnState]:
+) -> CompiledStateGraph[TurnState, SiteHelpTurnContext, TurnState, TurnState]:
     return single_agent_graph(
         checkpointer=checkpointer,
         state_type=TurnState,
-        context_type=TurnContext,
+        context_type=SiteHelpTurnContext,
         build_agent=build_confirming_agent,
         build_deps=build_deps,
         charge_usage=charge_usage,

@@ -24,6 +24,10 @@ This is not a replacement for `CLAUDE.md` (rules an agent must follow every sess
 
 - [WDK](wdk/) - how WDK works, how PathFinder maps onto it, and the rules that must hold
 
+## EDA
+
+- [EDA](eda/) - VEuPathDB's Exploratory Data Analysis platform, how it reaches WDK steps, and the PathFinder integration concept
+
 ## History
 
 - [log.md](log.md) - dated record of significant changes to this bundle

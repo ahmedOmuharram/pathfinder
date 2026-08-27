@@ -34,9 +34,10 @@ class _CountingModel:
     def __init__(self, width: int = 8) -> None:
         self.width = width
         self.batches: list[list[str]] = []
+        self.batch_sizes: list[int] = []
 
     def embed(self, texts: list[str], batch_size: int = 8) -> Iterator[NDArray[Any]]:
-        del batch_size
+        self.batch_sizes.append(batch_size)
         self.batches.append(list(texts))
         for text in texts:
             yield _vector_for(text, self.width)
@@ -233,3 +234,17 @@ async def test_the_embed_leaves_the_event_loop_free(
     assert blocking.released
     assert ticks == 3
     assert index.embeddings is not None
+
+
+async def test_the_model_encodes_one_document_at_a_time(
+    model: _CountingModel,
+) -> None:
+    """A model batch pads every text to the longest one in it.
+
+    One long description in a batch of eight makes the other seven pay its
+    length, in both time and in the arena the session allocates.
+    """
+    index = SemanticSearchIndex(site_id="testdb")
+    await index.build({"transcript": [_search("A"), _search("B")]})
+
+    assert model.batch_sizes == [1]

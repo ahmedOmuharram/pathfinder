@@ -2,22 +2,38 @@
 
 from __future__ import annotations
 
-from assistant_core.graph.runtime import AssistantDeps
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ToolReturnPart
+from pydantic_ai.toolsets import FunctionToolset
 
-from pathfinder.assistants.site_help.agent import SiteSummary, build_site_help_agent
+from pathfinder.assistants.site_help.agent import (
+    SiteHelpDeps,
+    SiteSummary,
+    build_site_help_agent,
+)
 from pathfinder.assistants.site_help.mock import (
     CHECK_MARKER,
     CHECK_REPLY,
     LIST_SITES_TOOL,
+    NOTHING_TO_PROCEED_REPLY,
+    PROCEED_PREFIX,
+    PROCEED_PROMPT,
+    RECORD_TYPES_PROMPT,
+    RECORD_TYPES_REPLY,
     SITES_REPLY,
+    WDK_RECORD_TYPES_TOOL,
     build_site_help_mock,
 )
 
 
-def _deps() -> AssistantDeps:
-    return AssistantDeps(site_id="plasmodb")
+async def wdk_list_record_types(site_id: str) -> list[str]:
+    """Stands in for the served tool of the same name."""
+    del site_id
+    return ["transcript"]
+
+
+def _deps(tool_sources: FunctionToolset[SiteHelpDeps] | None = None) -> SiteHelpDeps:
+    return SiteHelpDeps(site_id="plasmodb", tool_sources=tool_sources)
 
 
 def _tool_returns(messages: list[object]) -> list[ToolReturnPart]:
@@ -49,11 +65,45 @@ async def test_a_question_about_the_sites_calls_the_catalog_tool() -> None:
     assert {"plasmodb", "toxodb", "vectorbase"} <= ids
 
 
+async def test_a_tool_the_turn_s_source_serves_is_one_the_agent_can_call() -> None:
+    """A source resolved for this turn reaches the agent through its deps."""
+    served: FunctionToolset[SiteHelpDeps] = FunctionToolset([wdk_list_record_types])
+
+    result = await build_site_help_agent().run(
+        RECORD_TYPES_PROMPT,
+        deps=_deps(served),
+    )
+
+    returns = _tool_returns(list(result.all_messages()))
+    assert [part.tool_name for part in returns] == [WDK_RECORD_TYPES_TOOL]
+    assert result.output == RECORD_TYPES_REPLY
+
+
 async def test_anything_else_falls_through_to_the_echo() -> None:
     result = await build_site_help_agent().run("tell me about kinases", deps=_deps())
 
     assert result.output == "[mock] tell me about kinases"
     assert _tool_returns(list(result.all_messages())) == []
+
+
+async def test_a_bare_approval_names_the_request_the_history_carries() -> None:
+    """The arc answers from the run's earlier messages, not from its prompt."""
+    agent = build_site_help_agent()
+    first = await agent.run("which sites are there", deps=_deps())
+
+    result = await agent.run(
+        PROCEED_PROMPT,
+        deps=_deps(),
+        message_history=list(first.all_messages()),
+    )
+
+    assert result.output == f"{PROCEED_PREFIX}which sites are there"
+
+
+async def test_a_bare_approval_with_no_history_has_nothing_to_proceed_with() -> None:
+    result = await build_site_help_agent().run(PROCEED_PROMPT, deps=_deps())
+
+    assert result.output == NOTHING_TO_PROCEED_REPLY
 
 
 async def test_an_agent_with_no_site_help_tool_gets_the_last_prompt_line() -> None:

@@ -4,7 +4,7 @@ title: The client package has three rings, and the innermost one has no dependen
 description: packages/assistant-client-ts splits into a dependency-free protocol core, one AI-SDK-coupled transport module, and a legacy module for the task dialect the protocol does not define. React stays in the app. Publishing one module that imports the AI SDK everywhere was rejected, because a host that does not use the SDK would inherit it to parse a frame.
 tags: [assistant-client, ws-v, protocol, sse, packaging]
 generated: { by: claude-code/opus-5, at: 2026-08-23T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-23T00:00:00Z }
+verified: { by: claude-code/opus-5, at: 2026-08-25T00:00:00Z }
 status: stable
 ---
 
@@ -43,6 +43,18 @@ events. The conversation and its durable tasks read the core ring only.
 per-task view-model folds stay in `apps/web`. The package is consumed as raw
 TypeScript source through path mappings, the way `@pathfinder/shared` is.
 
+**The rings are published from `dist`, and the repository still reads `src`.**
+`tsc -p tsconfig.build.json` emits JavaScript and declarations for the three
+entries into `dist/`; `exports` names `types` and `import` per ring against
+those files, `files` ships `dist` alone, and `prepack` rebuilds so a pack is
+never stale. `apps/web` resolves the package through its own tsconfig `paths` and
+its vitest aliases, both of which name `packages/assistant-client-ts/src`.
+`exports` therefore governs the packed artifact only: `next build`, `tsc` and
+the app's suite all pass with no `dist` on disk. The build keeps the
+core ring's claim literal: `importHelpers` is off, so the emitted core imports
+nothing but its own relative modules, and a consumer that installs the tarball
+alone gets exactly one package in `node_modules`.
+
 # Why
 
 The reuse unit the platform assessment names is a headless client that a React
@@ -71,3 +83,10 @@ document change fails the gate rather than passing silently.
 **Porting the per-task view-model folds.** Rejected: they fold PathFinder's own
 progress payloads for rendering, name no frame, and would have arrived in the
 package as callbacks with one caller.
+
+**A condition or `publishConfig` that points `exports` at `src` in the
+repository and at `dist` when published.** Rejected: it gives one import two
+meanings, so the app and a host would exercise different files under the same
+specifier, and the conformance suite would then prove nothing about the
+artifact a host installs. The path mappings already resolve the repository's
+own imports, so one honest `exports` map suffices.

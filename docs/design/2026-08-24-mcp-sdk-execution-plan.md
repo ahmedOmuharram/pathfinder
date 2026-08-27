@@ -1,6 +1,16 @@
 # The MCP and SDK program: execution plan (2026-08-24)
 
-> Status: **PLAN, ready to execute.** This document turns the design decided in
+> Status: **EXECUTED, batches A through G, closed 2026-08-25.** What each batch
+> landed is recorded in `docs/knowledge/log.md`: batch A under 2026-08-24, and
+> batches B through G under 2026-08-25. Batches A through F carry an accepted
+> `model=fable` review; batch G ran the pilot turn and this reconciliation. The
+> plan below is left as written, because it is the document the batches executed
+> from; where a batch decided differently, the log entry says so. What did not
+> land: section 5's decision points 1, 2, 6 and 7 are the owner's. Point 4 was
+> settled on 2026-08-27 by fork (a), an in-process budget:
+> `docs/knowledge/decisions/per-site-catalogs-are-evicted-and-the-warm-up-does-not-block-the-bind.md`.
+>
+> This document turns the design decided in
 > `docs/design/2026-08-23-mcp-and-sdk-program.md` into batches an implementation
 > agent can execute and a reviewer can verify. It plans code in this repository
 > only; the reference Java server (design doc section 5) and everything behind

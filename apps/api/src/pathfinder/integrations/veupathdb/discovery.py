@@ -23,10 +23,20 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKSearchResponse,
 )
+from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.tasks import spawn
 
 logger = get_logger(__name__)
+
+# A cold build fetches a whole catalog and encodes its semantic index. The
+# allocations of concurrent builds sum, so a process builds one at a time.
+_CATALOG_BUILD = asyncio.Semaphore(1)
+
+# A loaded catalog holds about four times its serialized length, measured on a
+# warm site. The floor covers a catalog whose snapshot is not yet known.
+_RESIDENT_PER_PAYLOAD_BYTE = 4
+_EMPTY_CATALOG_BYTES = 1024 * 1024
 
 
 class SearchCatalog:
@@ -39,12 +49,26 @@ class SearchCatalog:
         self._search_details: dict[str, WDKSearchResponse] = {}
         self._dataset_summaries: dict[str, str] = {}
         self._dataset_contacts: dict[str, str] = {}
-        self._semantic_index: object | None = None
+        self._semantic_index: SemanticSearchIndex | None = None
         self._search_categories: dict[str, str] = {}
         self._search_category_labels: dict[str, str] = {}
         self._available_categories: set[str] = set()
-        self._loaded = False
-        self._lock = asyncio.Lock()
+        self._payload_bytes = 0
+
+    @property
+    def memory_bytes(self) -> int:
+        """Accounted resident cost of this catalog, for the eviction budget."""
+        index = self._semantic_index
+        index_bytes = (
+            int(index.embeddings.nbytes)
+            if index is not None and index.embeddings is not None
+            else 0
+        )
+        return (
+            _EMPTY_CATALOG_BYTES
+            + self._payload_bytes * _RESIDENT_PER_PAYLOAD_BYTE
+            + index_bytes
+        )
 
     # ------------------------------------------------------------------
     # Snapshot helpers
@@ -59,6 +83,7 @@ class SearchCatalog:
         self._search_categories = snapshot.search_categories
         self._search_category_labels = snapshot.search_category_labels
         self._available_categories = set(snapshot.available_categories)
+        self._payload_bytes = snapshot.payload_bytes
 
     def _to_snapshot(self) -> CatalogSnapshot:
         """Capture current in-memory state as a serializable snapshot."""
@@ -78,77 +103,81 @@ class SearchCatalog:
 
     async def _fetch_from_api(self, client: VEuPathDBClient) -> None:
         """Fetch catalog data from the live WDK API and save to disk cache."""
-        record_types = await client.get_record_types(expanded=True)
-        expanded_supported = any(rt.searches is not None for rt in record_types)
+        async with _CATALOG_BUILD:
+            record_types = await client.get_record_types(expanded=True)
+            expanded_supported = any(rt.searches is not None for rt in record_types)
 
-        self._record_types = []
-        self._searches = {}
-        await self._populate_from_record_types(
-            client, record_types, expanded_supported=expanded_supported
-        )
+            self._record_types = []
+            self._searches = {}
+            await self._populate_from_record_types(
+                client, record_types, expanded_supported=expanded_supported
+            )
 
-        ds = await load_dataset_metadata(client, self.site_id)
-        self._dataset_summaries = ds.summaries
-        self._dataset_contacts = ds.contacts
+            ds = await load_dataset_metadata(client, self.site_id)
+            self._dataset_summaries = ds.summaries
+            self._dataset_contacts = ds.contacts
 
-        onto = await load_ontology_categories(client, self.site_id)
-        self._search_categories = onto.search_categories
-        self._search_category_labels = onto.search_category_labels
-        self._available_categories = onto.available_categories
+            onto = await load_ontology_categories(client, self.site_id)
+            self._search_categories = onto.search_categories
+            self._search_category_labels = onto.search_category_labels
+            self._available_categories = onto.available_categories
 
-        await self._build_semantic_index()
-        save_catalog_cache(self.site_id, self._to_snapshot())
+            await self._build_semantic_index()
+            snapshot = self._to_snapshot()
+            save_catalog_cache(self.site_id, snapshot)
+            self._payload_bytes = snapshot.payload_bytes
 
     async def load(self, client: VEuPathDBClient) -> None:
         """Load the catalog from the disk cache, or from the API on a miss.
 
-        A stale cache is served at once and refreshed in the background.
+        A stale cache is served at once and refreshed in the background. One
+        load per site is the caller's invariant.
         """
-        async with self._lock:
-            if self._loaded:
-                return
+        snapshot = try_load_catalog_cache(self.site_id)
 
-            snapshot = try_load_catalog_cache(self.site_id)
+        if snapshot is not None:
+            self._restore_from_snapshot(snapshot)
+            await self._build_semantic_index()
 
-            if snapshot is not None:
-                self._restore_from_snapshot(snapshot)
-                await self._build_semantic_index()
-                self._loaded = True
-
-                if snapshot.is_stale:
-                    logger.info(
-                        "Search catalog restored from stale cache, refreshing in background",
-                        site_id=self.site_id,
-                    )
-                    spawn(
-                        self._background_refresh(client),
-                        name=f"catalog-refresh-{self.site_id}",
-                    )
-                else:
-                    logger.info(
-                        "Search catalog restored from cache",
-                        site_id=self.site_id,
-                        record_types=len(self._record_types),
-                        total_searches=sum(len(s) for s in self._searches.values()),
-                    )
-                return
-
-            logger.info("Loading search catalog from API", site_id=self.site_id)
-            try:
-                await self._fetch_from_api(client)
-                self._loaded = True
+            if snapshot.is_stale and not get_settings().catalog_refresh_enabled:
                 logger.info(
-                    "Search catalog loaded from API and cached",
+                    "Search catalog restored from stale cache; this process serves it "
+                    "and does not rebuild",
+                    site_id=self.site_id,
+                )
+            elif snapshot.is_stale:
+                logger.info(
+                    "Search catalog restored from stale cache, refreshing in background",
+                    site_id=self.site_id,
+                )
+                spawn(
+                    self._background_refresh(client),
+                    name=f"catalog-refresh-{self.site_id}",
+                )
+            else:
+                logger.info(
+                    "Search catalog restored from cache",
                     site_id=self.site_id,
                     record_types=len(self._record_types),
                     total_searches=sum(len(s) for s in self._searches.values()),
-                    datasets=len(self._dataset_summaries),
                 )
-            except (AppError, OSError, RuntimeError) as e:
-                logger.exception(
-                    "Failed to load catalog", site_id=self.site_id, error=str(e)
-                )
-                raise
+            return
+
+        logger.info("Loading search catalog from API", site_id=self.site_id)
+        try:
+            await self._fetch_from_api(client)
+            logger.info(
+                "Search catalog loaded from API and cached",
+                site_id=self.site_id,
+                record_types=len(self._record_types),
+                total_searches=sum(len(s) for s in self._searches.values()),
+                datasets=len(self._dataset_summaries),
+            )
+        except (AppError, OSError, RuntimeError) as e:
+            logger.exception(
+                "Failed to load catalog", site_id=self.site_id, error=str(e)
+            )
+            raise
 
     async def _background_refresh(self, client: VEuPathDBClient) -> None:
         """Re-fetch catalog from the API in the background, replacing in-memory state."""
@@ -226,7 +255,7 @@ class SearchCatalog:
         """Get searches for a record type."""
         return self._searches.get(record_type, [])
 
-    def get_semantic_index(self) -> object | None:
+    def get_semantic_index(self) -> SemanticSearchIndex | None:
         """Get the semantic search index, or None if not available."""
         return self._semantic_index
 

@@ -41,12 +41,20 @@ function envelopeMessage(chunk: ProtocolChunk): PromptMessage | undefined {
 
 class ThreadBuilder {
   private readonly messages: ThreadMessage[] = [];
+  private readonly taken = new Set<string>();
   private pending: ProtocolChunk[] = [];
   private pendingId: string | undefined;
 
+  /** A thread holds each id once, so a log that repeats one keeps the first. */
+  private push(message: ThreadMessage): void {
+    if (this.taken.has(message.id)) return;
+    this.taken.add(message.id);
+    this.messages.push(message);
+  }
+
   flush(): void {
     if (this.pending.length === 0) return;
-    this.messages.push(reduceTurn(this.pending));
+    this.push(reduceTurn(this.pending));
     this.pending = [];
     this.pendingId = undefined;
   }
@@ -54,7 +62,7 @@ class ThreadBuilder {
   addEnvelope(chunk: ProtocolChunk): void {
     this.flush();
     const message = envelopeMessage(chunk);
-    if (message !== undefined) this.messages.push(message);
+    if (message !== undefined) this.push(message);
   }
 
   addTurnChunk(chunk: ProtocolChunk): void {

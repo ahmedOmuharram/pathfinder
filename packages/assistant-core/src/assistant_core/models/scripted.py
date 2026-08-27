@@ -62,28 +62,42 @@ def detect_role(info: AgentInfo, roles: Sequence[RoleMarkers]) -> str:
     return UNKNOWN_ROLE
 
 
-def last_user_text(messages: list[ModelMessage]) -> str:
-    text = ""
-    for msg in messages:
-        if isinstance(msg, ModelRequest):
-            for part in msg.parts:
-                if isinstance(part, UserPromptPart) and isinstance(part.content, str):
-                    text = part.content
-    return text
-
-
-def joined_user_text(messages: list[ModelMessage]) -> str:
-    """All user-prompt text across the run, joined. An attached file rides as
-    its own text part, so a block can land in a different part from the typed
-    message. Scan them all."""
-    chunks = [
+def user_texts(messages: list[ModelMessage]) -> list[str]:
+    """Every user message the run carries, in order."""
+    return [
         part.content
         for msg in messages
         if isinstance(msg, ModelRequest)
         for part in msg.parts
         if isinstance(part, UserPromptPart) and isinstance(part.content, str)
     ]
-    return "\n".join(chunks)
+
+
+def last_user_text(messages: list[ModelMessage]) -> str:
+    texts = user_texts(messages)
+    return texts[-1] if texts else ""
+
+
+def joined_user_text(messages: list[ModelMessage]) -> str:
+    """All user-prompt text across the run, joined. An attached file rides as
+    its own text part, so a block can land in a different part from the typed
+    message. Scan them all."""
+    return "\n".join(user_texts(messages))
+
+
+def current_turn(messages: list[ModelMessage]) -> list[ModelMessage]:
+    """The messages of the turn in progress.
+
+    A thread's earlier turns ride in the run's history, so a script that asks
+    what THIS turn did reads it here rather than from the whole run.
+    """
+    start = 0
+    for index, msg in enumerate(messages):
+        if isinstance(msg, ModelRequest) and any(
+            isinstance(part, UserPromptPart) for part in msg.parts
+        ):
+            start = index
+    return messages[start:]
 
 
 def called_tool_parts(messages: list[ModelMessage]) -> list[ToolCallPart]:

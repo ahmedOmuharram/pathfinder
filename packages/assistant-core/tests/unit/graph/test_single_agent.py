@@ -8,29 +8,35 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
-from pydantic_ai import Agent
+from pydantic_ai import Agent, Tool
 from pydantic_ai.messages import (
     ModelMessage,
+    ModelRequest,
     ModelResponse,
     TextPart,
     ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
+from pydantic_ai.ui.vercel_ai.request_types import ToolApprovalResponded
 
 from assistant_core.graph import turn_message
 from assistant_core.graph.runtime import AssistantDeps, TurnContext
 from assistant_core.graph.single_agent import single_agent_graph
 from assistant_core.graph.turn_state import TurnState
 from assistant_core.platform.db import async_session_factory
-from assistant_core.spec import turn_input
+from assistant_core.spec import TurnStart, turn_input
 
 type ProbeAgent = Agent[AssistantDeps, str]
+type ProbeTool = Callable[..., Any] | Tool[AssistantDeps]
 
 
 class _Charges:
@@ -96,7 +102,7 @@ def _tool_then_text_model(tool_name: str, text: str) -> FunctionModel:
     return FunctionModel(_respond, stream_function=_stream, model_name="test:tool")
 
 
-def _agent(model: FunctionModel, tools: list[Callable[[], Any]]) -> ProbeAgent:
+def _agent(model: FunctionModel, tools: list[ProbeTool]) -> ProbeAgent:
     return Agent(
         model,
         output_type=str,
@@ -119,7 +125,7 @@ def _context(cancel: asyncio.Event) -> TurnContext:
 async def _run(
     model: FunctionModel,
     *,
-    tools: list[Callable[[], Any]] | None = None,
+    tools: list[ProbeTool] | None = None,
     cancel: asyncio.Event | None = None,
     charges: _Charges | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -228,6 +234,29 @@ async def test_the_turn_s_tokens_and_cost_land_on_the_state() -> None:
     ]
 
 
+async def test_a_cancelled_turn_leaves_the_thread_where_it_was() -> None:
+    """A run that reports no result keeps nothing, and the turn before it is
+    still the history the next turn reads."""
+    seen = _Seen()
+    cancel = asyncio.Event()
+
+    async def stop_now() -> str:
+        """Stop the turn that is running."""
+        cancel.set()
+        return "stopping"
+
+    thread = _Thread(_recall_or_stop_model(seen), tools=[stop_now], cancel=cancel)
+
+    await thread.turn(_FIRST_PROMPT)
+    await thread.turn(_STOP_PROMPT)
+    chunks = await thread.turn(_SECOND_PROMPT)
+
+    last = seen.runs[-1]
+    assert _rendered(last) == f"{_FIRST_PROMPT} Noted. {_SECOND_PROMPT}"
+    assert _calls(last) == []
+    assert _text(chunks) == f"The code word is {_CODE_WORD}."
+
+
 async def test_a_cancelled_turn_makes_no_further_model_call_and_finalizes() -> None:
     """The tool sets the cancel; the answer the next model call would have
     produced is never streamed, and the turn still accounts for what it used."""
@@ -248,6 +277,294 @@ async def test_a_cancelled_turn_makes_no_further_model_call_and_finalizes() -> N
     assert "text-delta" not in types
     assert types[-1] == "data-turn-usage"
     assert values["turn_total_tokens"] > 0
+
+
+@dataclass
+class _Seen:
+    """Every message list the model was asked to answer, in order."""
+
+    runs: list[list[ModelMessage]] = field(default_factory=list)
+
+
+def _rendered(messages: list[ModelMessage]) -> str:
+    return " ".join(
+        str(part.content)
+        for message in messages
+        for part in message.parts
+        if isinstance(part, UserPromptPart | TextPart)
+    )
+
+
+def _calls(messages: list[ModelMessage]) -> list[ToolCallPart]:
+    return [
+        part
+        for message in messages
+        if isinstance(message, ModelResponse)
+        for part in message.parts
+        if isinstance(part, ToolCallPart)
+    ]
+
+
+def _returns(messages: list[ModelMessage]) -> list[ToolReturnPart]:
+    return [
+        part
+        for message in messages
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+        if isinstance(part, ToolReturnPart)
+    ]
+
+
+def _text(chunks: list[dict[str, Any]]) -> str:
+    return "".join(
+        str(c["delta"]) for c in chunks if c["type"] == "text-delta"
+    )
+
+
+_CODE_WORD = "kinase"
+_FIRST_PROMPT = f"Remember that the code word is {_CODE_WORD}."
+_SECOND_PROMPT = "What is the code word?"
+
+
+def _recall_model(seen: _Seen) -> FunctionModel:
+    """The second answer exists only when the first turn reaches the model."""
+
+    def _answer(messages: list[ModelMessage]) -> str:
+        seen.runs.append(list(messages))
+        prior = messages[:-1]
+        if not prior:
+            return "Noted."
+        if _CODE_WORD in _rendered(prior):
+            return f"The code word is {_CODE_WORD}."
+        return "I do not know the code word."
+
+    def _respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        del info
+        return ModelResponse(parts=[TextPart(content=_answer(messages))])
+
+    async def _stream(
+        messages: list[ModelMessage],
+        info: AgentInfo,
+    ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
+        del info
+        yield _answer(messages)
+
+    return FunctionModel(_respond, stream_function=_stream, model_name="test:recall")
+
+
+_WIPE_TOOL = "wipe"
+_WIPE_CALL_ID = "call-wipe"
+_WIPE_PROMPT = "please wipe the workspace"
+
+
+async def wipe() -> str:
+    """Delete the workspace."""
+    return "wiped"
+
+
+def _approval_model(seen: _Seen) -> FunctionModel:
+    """Calls the approval-gated tool for the wipe prompt, else answers text."""
+
+    def _part(messages: list[ModelMessage]) -> ToolCallPart | TextPart:
+        seen.runs.append(list(messages))
+        if _has_tool_call(messages):
+            return TextPart(content="Done.")
+        if _WIPE_PROMPT in _rendered(messages[-1:]):
+            return ToolCallPart(
+                tool_name=_WIPE_TOOL,
+                args={},
+                tool_call_id=_WIPE_CALL_ID,
+            )
+        return TextPart(content="Nothing to do.")
+
+    def _respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        del info
+        return ModelResponse(parts=[_part(messages)])
+
+    async def _stream(
+        messages: list[ModelMessage],
+        info: AgentInfo,
+    ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
+        del info
+        part = _part(messages)
+        if isinstance(part, TextPart):
+            yield part.content
+            return
+        yield {
+            0: DeltaToolCall(
+                name=part.tool_name,
+                json_args="{}",
+                tool_call_id=part.tool_call_id,
+            ),
+        }
+
+    return FunctionModel(_respond, stream_function=_stream, model_name="test:approval")
+
+
+_STOP_PROMPT = "stop this turn"
+_STOP_TOOL = "stop_now"
+
+
+def _recall_or_stop_model(seen: _Seen) -> FunctionModel:
+    """Answers from the thread, unless the prompt asks the tool to stop it."""
+
+    def _part(messages: list[ModelMessage]) -> ToolCallPart | TextPart:
+        seen.runs.append(list(messages))
+        if _has_tool_call(messages):
+            return TextPart(content="Stopped.")
+        if _STOP_PROMPT in _rendered(messages[-1:]):
+            return ToolCallPart(
+                tool_name=_STOP_TOOL,
+                args={},
+                tool_call_id="call-stop",
+            )
+        prior = messages[:-1]
+        if not prior:
+            return TextPart(content="Noted.")
+        if _CODE_WORD in _rendered(prior):
+            return TextPart(content=f"The code word is {_CODE_WORD}.")
+        return TextPart(content="I do not know the code word.")
+
+    def _respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        del info
+        return ModelResponse(parts=[_part(messages)])
+
+    async def _stream(
+        messages: list[ModelMessage],
+        info: AgentInfo,
+    ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
+        del info
+        part = _part(messages)
+        if isinstance(part, TextPart):
+            yield part.content
+            return
+        yield {
+            0: DeltaToolCall(
+                name=part.tool_name,
+                json_args="{}",
+                tool_call_id=part.tool_call_id,
+            ),
+        }
+
+    return FunctionModel(_respond, stream_function=_stream, model_name="test:stop")
+
+
+class _Thread:
+    """One conversation, driven a turn at a time through one compiled graph."""
+
+    def __init__(
+        self,
+        model: FunctionModel,
+        *,
+        tools: list[ProbeTool] | None = None,
+        cancel: asyncio.Event | None = None,
+    ) -> None:
+        self.context = _context(cancel or asyncio.Event())
+        self.graph = single_agent_graph(
+            checkpointer=InMemorySaver(),
+            state_type=TurnState,
+            context_type=TurnContext,
+            build_agent=lambda: _agent(model, tools or []),
+            build_deps=_deps,
+            charge_usage=_Charges(),
+        )
+        self.conversation_id = uuid4()
+        self.config: dict[str, Any] = {
+            "configurable": {"thread_id": str(self.conversation_id)},
+        }
+
+    async def turn(
+        self,
+        prompt: str = "",
+        *,
+        approvals: dict[str, ToolApprovalResponded] | None = None,
+    ) -> list[dict[str, Any]]:
+        # Every turn of a thread is driven under a cancel of its own.
+        self.context.cancel_event.clear()
+        start = TurnStart(
+            conversation_id=self.conversation_id,
+            user_id=self.context.user_id,
+            site_id=self.context.site_id,
+            mode="chat",
+            turn_message_id=uuid4(),
+            turn_start_event_id=0,
+            is_resume=approvals is not None,
+            user_message_id=uuid4(),
+            user_prompt=prompt,
+            approval_responses=approvals or {},
+        )
+        chunks: list[dict[str, Any]] = []
+        async for _mode, payload in self.graph.astream(
+            turn_input(TurnState(**start.state_kwargs())),
+            config=self.config,
+            context=self.context,
+            stream_mode=["custom"],
+        ):
+            chunks.append(payload["chunk"])
+        return chunks
+
+
+async def test_the_second_turn_answers_from_the_first_turn_s_messages() -> None:
+    """The thread's own transcript reaches the model, so a follow-up resolves."""
+    seen = _Seen()
+    thread = _Thread(_recall_model(seen))
+
+    await thread.turn(_FIRST_PROMPT)
+    chunks = await thread.turn(_SECOND_PROMPT)
+
+    second = seen.runs[1]
+    assert [type(message) for message in second] == [
+        ModelRequest,
+        ModelResponse,
+        ModelRequest,
+    ]
+    assert _rendered(second) == f"{_FIRST_PROMPT} Noted. {_SECOND_PROMPT}"
+    assert _text(chunks) == f"The code word is {_CODE_WORD}."
+
+
+async def test_a_superseded_approval_leaves_no_unanswered_call_in_the_history() -> None:
+    """pydantic-ai refuses a new prompt over a history that holds an unprocessed
+    call, so the thread carries whole exchanges and stops at the last answer."""
+    seen = _Seen()
+    thread = _Thread(
+        _approval_model(seen),
+        tools=[Tool(wipe, requires_approval=True)],
+    )
+
+    await thread.turn("what else can you do")
+    await thread.turn(_WIPE_PROMPT)
+    await thread.turn("and now")
+
+    last = seen.runs[-1]
+    assert [type(message) for message in last] == [
+        ModelRequest,
+        ModelResponse,
+        ModelRequest,
+    ]
+    assert _rendered(last) == "what else can you do Nothing to do. and now"
+    assert _calls(last) == []
+
+
+async def test_an_answered_call_and_its_result_reach_the_next_turn() -> None:
+    """A settled approval advances the thread, paired with the call it answers."""
+    seen = _Seen()
+    thread = _Thread(
+        _approval_model(seen),
+        tools=[Tool(wipe, requires_approval=True)],
+    )
+
+    await thread.turn(_WIPE_PROMPT)
+    await thread.turn(
+        approvals={
+            _WIPE_CALL_ID: ToolApprovalResponded(id=_WIPE_CALL_ID, approved=True),
+        },
+    )
+    await thread.turn("what did you do")
+
+    last = seen.runs[-1]
+    assert [call.tool_call_id for call in _calls(last)] == [_WIPE_CALL_ID]
+    assert [ret.tool_call_id for ret in _returns(last)] == [_WIPE_CALL_ID]
+    assert _WIPE_PROMPT in _rendered(last)
 
 
 async def test_a_cancelled_turn_still_reports_the_tool_that_already_ran() -> None:

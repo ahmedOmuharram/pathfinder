@@ -41,9 +41,11 @@ from assistant_core.models.scripted import (
     ScriptedModel,
     ScriptedPart,
     called_tool_parts,
+    current_turn,
     last_user_text,
     scripted_text,
     tool_return_parts,
+    user_texts,
 )
 from assistant_core.platform.db import async_session_factory
 from assistant_core.spec import (
@@ -73,6 +75,10 @@ APPROVAL_PROMPT = "please wipe"
 STOP_PROMPT = "please stop"
 LOOP_PROMPT = "please peek"
 PLAIN_PROMPT = "which sites do you serve"
+
+# The recall arc answers from the thread, so it is empty until a turn 2.
+RECALL_PROMPT = "what did I ask for first"
+RECALL_PREFIX = "You first asked: "
 
 # The tools a declared MCP source contributes, under its local name's prefix.
 SOURCE_READ_TOOL = "catalog_read_thing"
@@ -162,10 +168,13 @@ def _loop_part(messages: list[ModelMessage]) -> ScriptedPart:
 
 
 def _next_part(messages: list[ModelMessage]) -> ScriptedPart:
-    text = last_user_text(messages)
+    turn = current_turn(messages)
+    text = last_user_text(turn)
+    if RECALL_PROMPT in text:
+        return scripted_text(f"{RECALL_PREFIX}{user_texts(messages)[0]}")
     if LOOP_PROMPT in text:
-        return _loop_part(messages)
-    called = {part.tool_name for part in called_tool_parts(messages)}
+        return _loop_part(turn)
+    called = {part.tool_name for part in called_tool_parts(turn)}
     for arc in _ARCS:
         if arc.marker in text and arc.tool_name not in called:
             return ToolCallPart(
@@ -173,7 +182,7 @@ def _next_part(messages: list[ModelMessage]) -> ScriptedPart:
                 args=arc.args,
                 tool_call_id=arc.call_id,
             )
-    returns = tool_return_parts(messages)
+    returns = tool_return_parts(turn)
     if returns:
         return scripted_text(f"Result: {returns[-1].content}.")
     return scripted_text(f"You said: {text}")

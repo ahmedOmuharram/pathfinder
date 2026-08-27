@@ -41,6 +41,7 @@ TURN_FIELDS = {
     "approval_responses",
     "user_question_answers",
     "retrieved_memories",
+    "thread_messages_json",
 }
 
 DOMAIN_FIELDS = {

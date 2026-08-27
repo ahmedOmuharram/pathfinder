@@ -46,9 +46,10 @@ is the wrong failure.
 A declaration naming a source the host did not install resolves to nothing, and
 an unadmitted source requires approval for every call
 (`docs/design/2026-08-23-mcp-and-sdk-program.md` section 2.2, rule 2). A
-deployment that installs no set admits nothing, which is what both installed
-assistants need today: neither declares a source. A test that installs a set
-restores the empty one, because the seam is process-wide by design.
+deployment that installs no set admits nothing; site_help declares the wdk
+source and runs without it when nothing is admitted, and PathFinder declares
+none. A test that installs a set restores the empty one, because the seam is
+process-wide by design.
 
 # Anchor
 

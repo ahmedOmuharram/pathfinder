@@ -108,6 +108,12 @@ class Settings(RuntimeSettings):
         description="Optional path to a YAML file for site list and base URLs; defaults to bundled sites.yaml if unset.",
     )
     veupathdb_cache_ttl: int = 3600
+    # Accounted megabytes of per-site catalogs and semantic indexes one process
+    # holds. The least recently used site leaves when the budget is reached.
+    site_catalog_budget_mb: int = 512
+    # Whether this process rebuilds a stale catalog. A process that only serves
+    # reads the snapshot the refreshing process saved.
+    catalog_refresh_enabled: bool = True
     veupathdb_auth_token: str | None = Field(default=None, repr=False)
 
     # Semantic Scholar
@@ -124,6 +130,11 @@ class Settings(RuntimeSettings):
     # because a credential sent to an MCP server must not authenticate to the API.
     pathfinder_mcp_base_url: str = ""
     pathfinder_mcp_service_tokens: str = Field(default="", repr=False)
+
+    # The veupathdb-wdk-mcp endpoint this deployment's assistants call, and the
+    # credential it presents there. An empty URL admits the server for nobody.
+    pathfinder_wdk_mcp_url: str = ""
+    pathfinder_wdk_mcp_token: str = Field(default="", repr=False)
 
     # Conversation provider. "mock" gives deterministic offline runs.
     pathfinder_chat_provider: str = ""

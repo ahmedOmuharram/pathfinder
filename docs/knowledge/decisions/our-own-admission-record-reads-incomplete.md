@@ -32,16 +32,15 @@ isolation checks therefore skip, and so does the idempotency comparison, since
 `idempotentHint` is meaningful only on a write and neither served write is
 idempotent.
 
-**No slow tool is named either.** The only served read slow enough to overrun a
-budget is also the one that allocates the most, and a client that abandons it
-does not stop it: three abandoned calls killed the container inside its 2g
-ceiling, which is [its own backlog
-item](../backlog/an-abandoned-search-example-plans-call-outlives-its-caller-and-kills-the-server.md).
-Family 5 keeps the handshake-budget check and reports its three timeout checks
-unsettled, because a check that takes the server under test down measures the
-harness and not the server.
+**The slow tool is `search_example_plans`**, driven past a five second budget.
+It was unnamed while an abandoned call outlived its caller and three of them
+killed the container inside its 2g ceiling; the pass now embeds a batch at a
+time, refuses once the caller has disconnected, and holds its site's lock, so
+three abandoned calls leave the server serving
+([per-site catalogs are evicted under a budget](per-site-catalogs-are-evicted-and-the-warm-up-does-not-block-the-bind.md)).
+Family 5 settles all four of its checks.
 
-Six skips out of thirty-two checks leave the verdict `incomplete`.
+Three skips out of thirty-two checks leave the verdict `incomplete`.
 
 # What was rejected
 

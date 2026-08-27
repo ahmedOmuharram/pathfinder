@@ -20,6 +20,23 @@ lifecycle - started, progress, completed - is on the thread, so the core ring
 reads it with one reader and one cursor. Take `./legacy` only to follow a task
 at the worker's own rate instead of the log's coalesced rate.
 
+## Building and packing
+
+`yarn build` runs `tsc -p tsconfig.build.json` and emits JavaScript and
+declarations for the three entries into `dist/`. `exports` names those files,
+`files` ships `dist` alone, and `prepack` rebuilds from scratch, so
+`yarn pack` always packs the current source.
+
+```bash
+yarn build                        # dist/index.js, dist/ai-sdk.js, dist/legacy.js + .d.ts
+yarn pack --out /tmp/client.tgz   # rebuilds first
+```
+
+The packed artifact is what a host installs. Inside this repository the app
+resolves the package through its tsconfig `paths` and its vitest aliases, both
+of which name `src`, so `dist` does not have to exist for the app to build or
+to test.
+
 ## Reading a thread
 
 ```ts
@@ -59,4 +76,5 @@ yarn test                           # conformance + unit
 yarn typecheck
 yarn lint
 yarn format:check
+yarn build
 ```

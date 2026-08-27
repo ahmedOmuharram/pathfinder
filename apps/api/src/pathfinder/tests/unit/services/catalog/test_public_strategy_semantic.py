@@ -25,8 +25,9 @@ async def test_ranks_by_cosine_similarity() -> None:
     strategies = [_strat(1, "A"), _strat(2, "B"), _strat(3, "C")]
 
     async def fake_embed(texts: Sequence[str]) -> list[list[float]]:
-        assert texts[0].startswith("search_query:")
-        return [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.7, 0.7]]
+        if texts[0].startswith("search_query:"):
+            return [[1.0, 0.0]]
+        return [[1.0, 0.0], [0.0, 1.0], [0.7, 0.7]]
 
     out = await rank_public_strategies_semantic(
         strategies, "q", embed=fake_embed, limit=3, min_score=-1.0
@@ -38,8 +39,10 @@ async def test_ranks_by_cosine_similarity() -> None:
 async def test_below_threshold_dropped() -> None:
     strategies = [_strat(1, "A"), _strat(2, "B")]
 
-    async def fake_embed(_texts: Sequence[str]) -> list[list[float]]:
-        return [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]]  # B orthogonal -> cosine 0
+    async def fake_embed(texts: Sequence[str]) -> list[list[float]]:
+        if texts[0].startswith("search_query:"):
+            return [[1.0, 0.0]]
+        return [[1.0, 0.0], [0.0, 1.0]]  # B orthogonal -> cosine 0
 
     out = await rank_public_strategies_semantic(
         strategies, "q", embed=fake_embed, limit=3, min_score=0.4

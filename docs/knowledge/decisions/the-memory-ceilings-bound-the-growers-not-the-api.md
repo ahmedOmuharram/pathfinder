@@ -13,11 +13,13 @@ status: stable
 `worker` and `wdk-mcp` each declare `mem_limit: 2g` in `docker-compose.yml`
 and `PodmanArgs=--memory=2g` in their quadlets. The api declares no ceiling.
 
-Both capped services hold per-site catalogs and semantic indexes that load on
-demand and are never evicted, so they are the two processes whose memory is
-monotone in the sites a session touches. The api's own appetite is bounded by
-its site list, because it preloads every site at startup and then stops
-growing.
+Both capped services load per-site catalogs and semantic indexes on demand, so
+they are the two processes whose memory follows the sites a session touches.
+The api's own appetite is bounded by its site list, because it preloads every
+site at startup and then stops growing. The catalogs are now held under a
+budget and built one at a time - see
+[per-site catalogs are evicted under a budget](per-site-catalogs-are-evicted-and-the-warm-up-does-not-block-the-bind.md)
+- so the ceilings are the backstop and no longer the only bound.
 
 The measured budget on the 11.42 GiB dev VM:
 
@@ -48,7 +50,7 @@ the roughly 3 GiB a cold catalog build needs and still leaves the worker more
 than its own 1.13 GiB baseline. At 2g a call that names a site whose cached
 catalog has expired rebuilds that catalog inside the call, exceeds the
 ceiling, and the container restarts in about three seconds without answering.
-A warm site costs about 60 MiB and answers in under a second. The trade is
+A warm site costs about 60 MiB and answers in under a second. The trade was
 deliberate: a kill on the new server costs one retry, a kill on the api costs
-the application. Eviction is what removes the trade, and the worker-memory
-backlog item carries it.
+the application. The eviction budget and the one-build-at-a-time gate have
+since removed the trade, and this ceiling stays as the backstop.

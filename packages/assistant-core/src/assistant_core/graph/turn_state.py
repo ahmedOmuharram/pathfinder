@@ -101,6 +101,11 @@ class TurnState(BaseModel):
     turn_total_tokens: int = 0
     turn_total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
 
+    # The thread's own messages, as the last settled turn left them. Serialized
+    # with ``ModelMessagesTypeAdapter``; the graph that runs one agent reads it
+    # as the run's history.
+    thread_messages_json: str = ""
+
     pending_approval: PendingApproval | None = None
     approval_responses: dict[str, ToolApprovalResponded] = Field(
         default_factory=dict,

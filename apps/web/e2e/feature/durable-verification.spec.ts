@@ -1,13 +1,11 @@
 /**
  * Durable verification TaskCard E2E (scope-reduced).
  *
- * Per Phase 7 plan notes: exercising the full interrupt + worker + resume
- * flow in Playwright exceeds the 30s per-test budget. This test instead
- * verifies the frontend behaviour that Phase 7 adds: when the backend emits
- * `data-background-task-started` during a chat SSE stream, the UI mounts
- * `TaskCardPart`, subscribes to the per-task SSE endpoint, and reflects
- * `data-task-progress` + `data-task-completed` chunks into the visible
- * card.
+ * Exercising the full interrupt + worker + resume flow in Playwright
+ * exceeds the per-test budget, so this test verifies the frontend half:
+ * the thread stream carries `data-background-task-started`,
+ * `data-task-progress` and `data-task-completed`, and the card renders
+ * all three from the message's own parts.
  *
  * Full interrupt+worker+resume coverage lives in the backend integration
  * tests (see `test_dispatcher_interrupt.py`, the `durable/` suite, and

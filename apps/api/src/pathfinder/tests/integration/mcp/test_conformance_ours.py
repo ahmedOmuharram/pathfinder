@@ -53,18 +53,19 @@ CONTROL_GENE_COUNT = 3
 
 RUN_SECONDS = 900.0
 
-# Three gaps, each for its own measured reason: one account cannot own the
-# resource a second identity must read, no served write is idempotent, and no
-# served call can be driven past a budget without the abandoned work outliving
-# the caller. The suite reports each as a skip, and the verdict is incomplete.
+# The slow read that drives family 5, and the budget the client gives it. The
+# call answers in about 21 seconds warm, so five seconds is driven past.
+SLOW_TOOL = "search_example_plans"
+SLOW_TOOL_BUDGET_SECONDS = 5
+
+# Two gaps, each for its own measured reason: one account cannot own the
+# resource a second identity must read, and no served write is idempotent. The
+# suite reports each as a skip, and the verdict is incomplete.
 UNSETTLED_CHECKS = frozenset(
     {
         "test_auth.py::test_one_identity_cannot_read_another_identity_resource",
         "test_auth.py::test_the_isolation_case_names_a_resource_that_exists",
         "test_annotations.py::test_an_idempotent_tool_answers_the_same_twice",
-        "test_timeouts.py::test_a_call_past_its_budget_times_out_on_the_client",
-        "test_timeouts.py::test_the_timeout_fires_at_the_budget_and_not_later",
-        "test_timeouts.py::test_the_session_survives_a_call_that_timed_out",
     }
 )
 
@@ -178,8 +179,9 @@ def sample_arguments(step: OwnedStep, controls: list[str]) -> dict[str, Any]:
 def conformance_command(samples: Path, report: Path) -> list[str]:
     """The run a foreign operator makes, with this deployment's answers filled in.
 
-    No `--mcp-slow-tool` is named. The one read slow enough to overrun a budget is
-    also the one that allocates the most, and abandoning it outlives the caller.
+    `search_example_plans` is the read slow enough to overrun a five second
+    budget, so it drives family 5: the server frees an abandoned call with its
+    caller and keeps serving.
     """
     return [
         sys.executable,
@@ -199,6 +201,10 @@ def conformance_command(samples: Path, report: Path) -> list[str]:
         str(samples),
         "--mcp-report",
         str(report),
+        "--mcp-slow-tool",
+        SLOW_TOOL,
+        "--mcp-max-call-seconds",
+        str(SLOW_TOOL_BUDGET_SECONDS),
     ]
 
 

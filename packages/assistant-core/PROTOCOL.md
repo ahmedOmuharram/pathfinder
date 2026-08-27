@@ -26,6 +26,10 @@ The log is the source of truth for what the assistant said. A client MUST be
 able to rebuild the full conversation from the log alone; nothing the user sees
 is carried only by a live connection.
 
+One message id names one message. A rebuilt conversation therefore holds each
+id once, and a client that meets an id twice in a log MUST keep the first
+message that id names rather than refuse the thread.
+
 ## 2. Transport
 
 An event stream MUST be served as `text/event-stream`. The runtime's own
@@ -589,7 +593,9 @@ turn does is decided by the last entry in `messages`.
 
 A normal turn ends `messages` with a `user` message. The runtime persists that
 message, writes it to the log as a `user-message` envelope, and starts the
-turn.
+turn. It writes that envelope once per id: a request that ends at a message the
+log already holds, which is what a regenerate sends, starts its turn and adds
+no second envelope.
 
 An approval answer ends `messages` with an `assistant` message instead: the one
 that carries the tool part in state `approval-responded`, whose `approval`

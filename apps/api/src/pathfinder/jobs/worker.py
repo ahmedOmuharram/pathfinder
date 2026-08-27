@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from assistant_core.mcp.admission import install_admitted_sources
 from assistant_core.memory.embedding import embed_text
 from assistant_core.platform.logging import setup_logging
 
@@ -18,6 +19,7 @@ from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.impls import register_all_tools
 from pathfinder.jobs.logging_filters import install_procrastinate_redaction
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.tool_sources import admitted_tool_sources
 
 
 async def _warm_up() -> None:
@@ -38,6 +40,8 @@ async def amain() -> None:
     setup_logging()
     install_procrastinate_redaction()
     logging.getLogger(__name__).info("Pathfinder worker starting")
+    # Turns run here, so this is the process where a declaration resolves.
+    install_admitted_sources(admitted_tool_sources())
     register_all_tools()
     await _warm_up()
     async with procrastinate_app.open_async():

@@ -30,6 +30,9 @@ services:
       VEUPATHDB_OAUTH_URL: ${VEUPATHDB_OAUTH_URL:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
       LOG_FORMAT: ${LOG_FORMAT:-}
+      # Accounted megabytes of per-site catalogs and semantic indexes one
+      # process holds before the least recently used site is evicted.
+      SITE_CATALOG_BUDGET_MB: ${SITE_CATALOG_BUDGET_MB:-512}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
       # Set PIGUARD_ENABLED=false to skip the prompt-injection model load + per-message scan.
@@ -41,6 +44,11 @@ services:
       # Dev WDK login for the chat debugger (pathfinder.devtools.chat); set in .env.dev.
       WDK_DEV_EMAIL: ${WDK_DEV_EMAIL:-}
       WDK_DEV_PASSWORD: ${WDK_DEV_PASSWORD:-}
+      # The veupathdb-wdk-mcp endpoint an assistant's declaration resolves to,
+      # and the credential presented there. Set the same secret in this
+      # deployment's PATHFINDER_MCP_SERVICE_TOKENS; an empty one admits nothing.
+      PATHFINDER_WDK_MCP_URL: ${PATHFINDER_WDK_MCP_URL:-http://wdk-mcp:8100/mcp}
+      PATHFINDER_WDK_MCP_TOKEN: ${PATHFINDER_WDK_MCP_TOKEN:-}
     volumes:
       # Devtools chat-debugger run artifacts (pathfinder.devtools.chat) land on
       # the host so they can be inspected outside the container.
@@ -48,6 +56,9 @@ services:
       # Per-site embedding index cache. Shared with the worker and kept across
       # recreates, so only a changed catalog is re-encoded.
       - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
+      # Per-site catalog snapshots. Without this every recreate serves the
+      # image's snapshots, finds them stale, and refetches and re-encodes.
+      - catalogs_cache:/app/apps/api/src/data/catalogs
 
   worker:
     build:
@@ -58,8 +69,8 @@ services:
     # restart covers the boot window before the API applies the DB schema, and
     # any later crash of the worker loop.
     restart: unless-stopped
-    # Per-site catalogs and indexes are never evicted, so the ceiling makes the
-    # kill land on the worker, which restarts clean.
+    # The catalog budget bounds the growers inside the process; the ceiling is
+    # the backstop, and a kill lands on the worker, which restarts clean.
     mem_limit: 2g
     healthcheck:
       disable: true
@@ -86,13 +97,26 @@ services:
       VEUPATHDB_OAUTH_URL: ${VEUPATHDB_OAUTH_URL:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
       LOG_FORMAT: ${LOG_FORMAT:-}
+      # Accounted megabytes of per-site catalogs and semantic indexes one
+      # process holds before the least recently used site is evicted.
+      SITE_CATALOG_BUDGET_MB: ${SITE_CATALOG_BUDGET_MB:-512}
+      # Only the api rebuilds a stale catalog. A build inside a served call
+      # exceeds this container's ceiling, and the api saves what it refreshes
+      # to the shared volume.
+      CATALOG_REFRESH_ENABLED: "false"
       # Jobs the worker runs in parallel, across every queue.
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
       # Age at which a job still in 'doing' is failed so its lock releases.
       WORKER_STALLED_JOB_TIMEOUT_SECONDS: ${WORKER_STALLED_JOB_TIMEOUT_SECONDS:-3600}
+      # The veupathdb-wdk-mcp endpoint an assistant's declaration resolves to,
+      # and the credential presented there. Set the same secret in this
+      # deployment's PATHFINDER_MCP_SERVICE_TOKENS; an empty one admits nothing.
+      PATHFINDER_WDK_MCP_URL: ${PATHFINDER_WDK_MCP_URL:-http://wdk-mcp:8100/mcp}
+      PATHFINDER_WDK_MCP_TOKEN: ${PATHFINDER_WDK_MCP_TOKEN:-}
     volumes:
       - ./apps/api/.pf-runs:/data/pf-runs
       - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
+      - catalogs_cache:/app/apps/api/src/data/catalogs
 
   wdk-mcp:
     build:
@@ -100,8 +124,8 @@ services:
       dockerfile: apps/api/Dockerfile
     command: .venv/bin/python -m pathfinder.mcp
     restart: unless-stopped
-    # Per-site catalogs and indexes load on demand and are never evicted, so
-    # the ceiling makes exhaustion kill this server and not its neighbours.
+    # The catalog budget bounds the on-demand per-site loads; the ceiling is
+    # the backstop, so exhaustion kills this server and not its neighbours.
     mem_limit: 2g
     ports:
       - "${MCP_PORT:-8100}:8100"
@@ -128,6 +152,13 @@ services:
       VEUPATHDB_OAUTH_URL: ${VEUPATHDB_OAUTH_URL:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
       LOG_FORMAT: ${LOG_FORMAT:-}
+      # Accounted megabytes of per-site catalogs and semantic indexes one
+      # process holds before the least recently used site is evicted.
+      SITE_CATALOG_BUDGET_MB: ${SITE_CATALOG_BUDGET_MB:-512}
+      # Only the api rebuilds a stale catalog. A build inside a served call
+      # exceeds this container's ceiling, and the api saves what it refreshes
+      # to the shared volume.
+      CATALOG_REFRESH_ENABLED: "false"
       # The URL a client reads the RFC 9728 document at. It must be reachable
       # by the client, not by this container.
       PATHFINDER_MCP_BASE_URL: ${PATHFINDER_MCP_BASE_URL:-http://localhost:8100}
@@ -136,6 +167,7 @@ services:
       PATHFINDER_MCP_SERVICE_TOKENS: ${PATHFINDER_MCP_SERVICE_TOKENS:-}
     volumes:
       - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
+      - catalogs_cache:/app/apps/api/src/data/catalogs
 
   web:
     build:
@@ -170,3 +202,4 @@ services:
 volumes:
   postgres_data:
   embeddings_cache:
+  catalogs_cache:

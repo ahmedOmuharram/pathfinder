@@ -6,20 +6,28 @@ from uuid import uuid4
 
 import pytest
 import structlog
+from assistant_core.platform.db import async_session_factory
 
 from pathfinder.assistants.site_help.mock import SITES_REPLY
+from pathfinder.devtools.capture import RunCapture
 from pathfinder.devtools.chat import (
+    DEV_USER_ID,
     MissingCredentialsError,
     RunArgs,
+    _body_ctx,
     _gate_from_checkpoint,
     _route_framework_logs_to_stderr,
     _wdk_token,
+    _worker_payload,
     parse_respond_args,
     parse_run_args,
     run_once,
     run_respond,
 )
+from pathfinder.devtools.gates import user_body
+from pathfinder.persistence.repositories.user import UserRepository
 from pathfinder.platform.config import get_settings
+from pathfinder.services.conversations.begin import begin_conversation
 
 
 def test_parse_run_args_maps_phase_models_and_run_dir(tmp_path: Path) -> None:
@@ -237,3 +245,46 @@ async def test_run_once_mock_writes_artifacts_and_exits_clean(tmp_path: Path) ->
     summary = json.loads((run_dir / "summary.json").read_text())
     assert summary["status"] == "ok"
     assert (run_dir / "diagnosis.json").exists()
+
+
+@pytest.mark.usefixtures("patch_app_db_engine", "db_cleaner")
+async def test_the_worker_payload_names_the_thread_s_assistant(tmp_path: Path) -> None:
+    """A worker run of the second assistant must not defer PathFinder's turn."""
+    conversation_id = uuid4()
+    args = parse_run_args(
+        [
+            "which sites can I search",
+            "--site",
+            "plasmodb",
+            "--mock",
+            "--assistant",
+            "site_help",
+            "--quiet",
+            "--conversation-id",
+            str(conversation_id),
+            "--run-dir",
+            str(tmp_path / "run"),
+        ]
+    )
+    async with async_session_factory() as session:
+        await UserRepository(session).get_or_create(DEV_USER_ID)
+        await begin_conversation(
+            session=session,
+            conversation_id=conversation_id,
+            user_id=DEV_USER_ID,
+            site_id="plasmodb",
+            assistant_id="site_help",
+        )
+        await session.commit()
+    capture = RunCapture(
+        conversation_id=conversation_id,
+        turn_id=uuid4(),
+        run_dir=args.run_dir,
+        quiet=True,
+    )
+
+    body = user_body(_body_ctx(args), message_id=capture.turn_id, text=args.prompt)
+
+    payload = await _worker_payload(args, capture, body, wdk_token=None)
+
+    assert payload.assistant_id == "site_help"

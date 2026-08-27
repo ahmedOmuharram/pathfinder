@@ -21,6 +21,7 @@ PILOT = site_help.__name__
 
 REACHED = {
     "pathfinder.platform.config",
+    "pathfinder.platform.tool_sources",
     "pathfinder.services.catalog.searches",
     "pathfinder.services.catalog.sites",
     "pathfinder.services.quota",

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import { redirect, useParams } from "next/navigation";
 import { useState } from "react";
+import { ErrorBoundary } from "react-error-boundary";
 
 import type { Strategy } from "@pathfinder/shared";
 import { strategyQueryOptions } from "@/lib/api/strategy";
@@ -13,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { ChatThread } from "./ChatThread";
+import { ChatViewError } from "./ChatViewError";
 import { RightRail } from "./rail/RightRail";
 import { ChatHelpersProvider } from "./runtime/chatHelpersContext";
 import { useChatRuntime } from "./runtime/useChatRuntime";
@@ -28,6 +30,7 @@ export function ChatView({
 }) {
   const params = useParams<{ siteId?: string }>();
   const siteSegment = params.siteId ?? "";
+  const conversationsHref = `/${siteSegment}/conversation`;
   const chatResetCounter = useSessionStore((s) => s.chatResetCounter);
 
   const detailQuery = useQuery(strategyQueryOptions(conversationId));
@@ -37,7 +40,7 @@ export function ChatView({
   });
 
   if (!allowMissing && detailQuery.isFetched && detailQuery.data === null) {
-    redirect(`/${siteSegment}/conversation`);
+    redirect(conversationsHref);
   }
 
   if (detailQuery.isPending || messagesQuery.isPending) {
@@ -52,14 +55,22 @@ export function ChatView({
   const siteId = strategy?.siteId ?? "";
 
   return (
-    <ChatViewBody
-      key={`${conversationId}:${chatResetCounter}`}
-      conversationId={conversationId}
-      initialMessages={messagesQuery.data ?? []}
-      resumable={resumable}
-      strategy={strategy}
-      siteId={siteId}
-    />
+    // A thread that cannot render leaves the rest of the app reachable.
+    <ErrorBoundary
+      resetKeys={[conversationId, chatResetCounter]}
+      fallbackRender={({ error }) => (
+        <ChatViewError error={error} conversationsHref={conversationsHref} />
+      )}
+    >
+      <ChatViewBody
+        key={`${conversationId}:${chatResetCounter}`}
+        conversationId={conversationId}
+        initialMessages={messagesQuery.data ?? []}
+        resumable={resumable}
+        strategy={strategy}
+        siteId={siteId}
+      />
+    </ErrorBoundary>
   );
 }
 

@@ -12,7 +12,6 @@ and values; none has a fix yet.
 - [Stopping during build persists a half-built strategy; editor shows a raw 422](stop-during-build-leaves-half-persisted-strategy.md) - recordType "" and no WDK ids on disk; every count "..."; step-counts 422 MISSING_RECORD_TYPE
 - [edit_strategy drops a criterion the user asked to keep and says "preserved"](edit-strategy-drops-criteria-and-claims-preserved.md) - "change X, keep the rest" re-framed to 2 of 3 criteria; the reply asserted the rest was kept
 - [get_live_strategy_state quotes stale ancestor counts after an editor edit](live-state-quotes-stale-ancestor-counts-after-editor-edit.md) - UI shows 7, Lead says 15; the "live" read is the last persisted count
-- [A regenerated turn replays the user message under its old id and the conversation can never be opened again](duplicate-user-message-id-crashes-conversation.md) - assistant-ui MessageRepository throws on the duplicate; whole chat view is an error page
 - ["Add a step at the end" rebuilds the whole strategy and silently reverts a hand edit](edit-turn-rebuilds-whole-strategy-and-drops-hand-edits.md) - percentile 90 went back to 80, every WDK step id changed, reply says nothing
 - [Verification launches an unrequested enrichment task and its result is lost on resume](verification-durable-task-result-lost-on-resume.md) - phase card stays "started", ledger shows the previous turn's verdict, reply has no verification
 - [Branching from an earlier message copies the latest strategy, not the one at that message](branch-copies-latest-strategy-not-strategy-at-branch-point.md) - transcript says 3 steps, panel shows 4
@@ -52,6 +51,8 @@ and values; none has a fix yet.
 
 - [The services layer's purity has two exceptions](services-layer-purity-has-two-exceptions.md) - two experiment tool modules import pydantic_ai inside services, and the relocated catalog helper keeps an unreachable branch plus a tree-vocabulary filter that no-ops
 
+- [The eval extractor doubles a turn on a legacy duplicate envelope](eval-extraction-doubles-a-turn-on-legacy-duplicate-envelopes.md) - read_turns opens a turn per user-message envelope; four legacy conversations extract a phantom turn with a doubled request
+
 ## WDK integration
 
 Ranked by consequence, and each item states its own blast radius rather than leaving it to
@@ -65,7 +66,8 @@ be assumed.
 
 - [GenesByOrthologPattern's vocabulary fails validation, and the failure reads as "Search not found"](ortholog-pattern-vocabulary-is-unreadable-and-reported-as-not-found.md) - `WDKVocabTerm` requires a null third element and live plasmodb sends a parent term there; the refusal lists the search in its own did-you-mean, so no route reads that search's parameters
 
-- [An abandoned `search_example_plans` call outlives its caller and kills the wdk-mcp container](an-abandoned-search-example-plans-call-outlives-its-caller-and-kills-the-server.md) - a client read timeout does not stop the embedding pass, so three of them overlap inside the 2g ceiling; it is why the admission record cannot settle family 5
+
+- [Thirteen shipped embedding caches are in a format the loader rejects](thirteen-shipped-embedding-caches-are-in-a-format-the-loader-rejects.md) - 7184 of 7699 shipped catalog entries have no usable row, so a fresh deployment encodes them all before readiness closes; only plasmodb carries the content-addressed shape
 
 ## Verification gates
 
@@ -73,6 +75,7 @@ be assumed.
 
 - [The first chat POST of a fresh test process pays the PIGuard load](first-chat-post-of-a-fresh-process-pays-the-piguard-load.md) - the dispatcher awaits the injection scan before deferring, the scanner builds its onnx session on first use, and under load that beats the 5 s enqueue ceiling; the failing test floats to whichever is the process's first chat POST
 
+- [apps/web whole-dir eslint cannot complete on this host](web-eslint-whole-dir-oom.md) - OOM at 4 GiB and at 10 GiB heaps while npx eslint src/ passes; CI runs the failing form on 7 GiB, so the step can never pass
 - [The web lint job is red on a formatting check CLAUDE.md's documented commands do not run](web-lint-job-is-red-on-formatting.md) - 645 files were wrapped narrower than the `printWidth: 88` the config declares, so `lint-web` cannot pass and the write-mode pre-commit hook can bury a change
 
 - [The API lint job is red on two checks CLAUDE.md's documented commands do not run](api-lint-job-is-red-on-alembic-and-pip-audit.md) - `ruff check .` over `alembic/`, and 44 advisories across 14 packages including the checkpoint path
@@ -85,11 +88,9 @@ be assumed.
 
 - [Two api integration tests fail under machine load](two-api-integration-tests-fail-under-machine-load.md) - a wall-clock bound at `assert 1.242 < 1.2` and a teardown that truncates a conversation an in-flight turn is still writing events for; both pass in a quiet session
 
-## Infrastructure
+## Initiatives
 
-- [A cold api spends about 73 minutes encoding indexes before it binds](api-cold-warm-up-takes-over-an-hour.md) - every rebuild with cold caches is an hour-plus outage window; persist the encoded indexes, bind early, or parallelize
-
-- [The worker's memory grows unbounded with sites touched](worker-memory-grows-unbounded-with-sites-touched.md) - 5.26 GiB after 4 h of turns; the api got OOM-killed for it; the 2g container ceilings have landed, eviction or one index-holding process has not
+- [Execute the EDA integration plan](execute-eda-integration-plan.md) - the seven-batch plan at [eda/plan/](../eda/plan/index.md) is written; conversational analysis authoring, durable computes, the co-edited notebook tab with visualizations, and step export remain to be built
 
 ## Known and accepted
 

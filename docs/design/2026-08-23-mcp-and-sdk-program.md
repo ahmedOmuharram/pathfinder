@@ -424,6 +424,24 @@ Section 2.6 says no for v1 and gives the three things that would have to be reco
 
 ## 8. Phasing
 
+> **Executed, 2026-08-25.** The in-repo half of this program ran as
+> `docs/design/2026-08-24-mcp-sdk-execution-plan.md`, batches A through G;
+> what each batch landed is in `docs/knowledge/log.md` under 2026-08-24 and
+> 2026-08-25. P1's exit criteria are met and each is named by a test:
+> `packages/assistant-core/src/assistant_core/mcp/` holds the declarations,
+> the admission record, the approval predicate, the untrusted-output wrapper
+> and the per-turn resolution. P2 serves the sixteen tools of section 3.1 from
+> a container of their own and ships `packages/mcp-conformance`, which answers
+> `incomplete` against our own endpoint with its six unsettled checks pinned
+> by name rather than skipped. P4's in-repo half is proven: `site_help`
+> answers a turn whose tools this deployment served over the network,
+> approval included. P3 and P5 are VEuPathDB's, and section 7's asks are
+> unanswered, so the table below stands as written. One correction the work
+> found: the P1 prerequisite named at the end of 8.2 had already closed before
+> this program started - the runtime owns the deferred-tool cycle in
+> `assistant_core/graph/approvals.py`, PROTOCOL.md 1.2.0 records it, and the
+> backlog file that paragraph cites no longer exists.
+
 ### 8.1 How much less speculative this is than on 2026-08-17
 
 The assessment put WS4 behind WS3, behind WS2, behind WS1. All three prerequisites landed, and the status addendum records each with its evidence:
@@ -482,6 +500,18 @@ Read on 2026-08-23 at `apps/api/.venv/lib/python3.14/site-packages/`. Versions: 
 ## Appendix B. Found while reading, not fixed
 
 Nothing in this appendix was changed. Each is a candidate backlog item.
+
+> **Status, 2026-08-25.** Items 1 and 2 closed in batch A: every tool an
+> instruction or an extractor names is registered, `update_search_decision` is
+> deleted with its module, and an agreement suite fails on the next drift.
+> Item 3 closed in batch B - the three sub-agents are per-dispatch factories.
+> Item 4 had already closed before this program: the runtime owns the
+> deferred-tool cycle and the backlog file that line cites no longer exists.
+> Item 7 closed at PROTOCOL 1.1.0, and batch F4 took the card off the second
+> dialect. Items 5 and 6 stand as written: MCP output passes a scan seam whose
+> default is pass-through and no scanner is wired to it, and pydantic-ai still
+> discards `CallToolResult.meta`, which is why a declared part is read from the
+> tool's `_meta` and not the result's.
 
 1. **Three standalone tools are defined but registered in no toolset.** `browse_search_categories` (`ai/tools/standalone/catalog.py:106`) and `list_transforms` (`catalog.py:147`) are named in `ai/context/extractors.py:197,199` - a tool-name list used by the context extractor - but neither appears in the FRAME, EXECUTION or VERIFICATION tool lists nor on the Lead. The extractor therefore lists tools that can never produce an observation. `update_search_decision` (`catalog_selection.py:44`) is referenced nowhere outside its own module.
 2. **The VERIFY agent's instructions name two tools it cannot call.** `ai/agents/verification.py:65-68` tells the model to resolve gene names via `literature_search` then `lookup_gene_records` then `resolve_gene_ids_to_records` before passing controls. The verification toolset (`ai/tools/toolsets/verification.py:93-122`) contains none of those three, and `resolve_gene_ids_to_records` (`gene.py:45`) is in no toolset at all. A model that follows the instruction gets a tool-not-found retry. Costs at least one wasted model turn whenever controls are needed, and it is a plausible contributor to control-test friction.

@@ -32,3 +32,11 @@ sides of the protocol.
 
 **What you would get.** A resume sequence the document and the producer
 state identically, and a client buildable from the page alone.
+
+**Measured again over a network tool source.** A site-help turn whose
+approval-gated tool is served over MCP reads the same way: turn 1 is
+tool-input-start, tool-input-available, tool-approval-request; turn 2 is
+tool-input-available, tool-output-available. The shape is the runtime's, not
+one tool kind's. Pinned as it stands by
+`tests/integration/http/test_site_help_tool_source.py::test_the_answered_card_runs_the_source_s_tool_on_the_next_request`,
+which fails when the start is restored.

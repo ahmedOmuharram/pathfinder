@@ -1,5 +1,6 @@
 """FastAPI application entrypoint."""
 
+import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import cast
@@ -77,12 +78,13 @@ async def _warm_up_subsystems() -> None:
     """Load the models and preload the catalogs.
 
     Each step is independent. A failure marks its subsystem as not ready and
-    the rest continue.
+    the rest continue. The model loads hold the CPU for seconds, so they run on
+    a thread and the server keeps answering while they run.
     """
     readiness = get_readiness()
     try:
         logger.info("[warm-up] Loading embedding model")
-        warm_up_model()
+        await asyncio.to_thread(warm_up_model)
         readiness.mark_ready("embedding_model")
     except (AppError, OSError, RuntimeError, ValueError) as e:
         logger.exception("[warm-up] Embedding model failed")
@@ -91,7 +93,7 @@ async def _warm_up_subsystems() -> None:
     if get_settings().piguard_enabled:
         try:
             logger.info("[warm-up] Loading PIGuard ONNX model")
-            warm_up_piguard()
+            await asyncio.to_thread(warm_up_piguard)
             readiness.mark_ready("piguard")
         except (AppError, OSError, RuntimeError) as e:
             logger.exception("[warm-up] PIGuard failed")
@@ -134,12 +136,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     seed_prompts()
 
-    await _warm_up_subsystems()
-
     from pathfinder.jobs.app import procrastinate_app  # noqa: PLC0415
     from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
         lifespan_notify_dispatcher,
     )
+    from pathfinder.platform.tasks import spawn  # noqa: PLC0415
+
+    # uvicorn binds only after this handler yields, so the warm-up runs beside
+    # the server and ``/health/ready`` reports which catalogs are still loading.
+    warm_up = spawn(_warm_up_subsystems(), name="warm-up")
 
     # The API process never runs a turn; it opens the checkpointer so the
     # tables exist before the worker writes them.
@@ -156,7 +161,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.notify_dispatcher = notify_dispatcher
         readiness.mark_ready("graph_checkpointer")
 
-        from pathfinder.platform.tasks import spawn  # noqa: PLC0415
         from pathfinder.services.export.sweeper import (  # noqa: PLC0415
             run_sweeper_loop,
         )
@@ -169,6 +173,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
         if export_sweeper_task is not None:
             export_sweeper_task.cancel()
+        if warm_up is not None:
+            warm_up.cancel()
 
     reset_readiness()
     await close_all_clients()

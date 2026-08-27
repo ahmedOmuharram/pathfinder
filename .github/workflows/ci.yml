@@ -191,6 +191,12 @@ jobs:
         working-directory: packages/assistant-client-ts
         run: yarn test
 
+      # The published artifact is JS and declarations under dist/, which the
+      # repository itself never resolves: only this step reads it.
+      - name: Build the package
+        working-directory: packages/assistant-client-ts
+        run: yarn build
+
   lint-api:
     name: Lint API
     runs-on: ubuntu-latest

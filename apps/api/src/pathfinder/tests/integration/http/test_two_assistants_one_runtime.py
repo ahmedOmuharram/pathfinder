@@ -22,7 +22,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import pathfinder.assistants.registry as registry_mod
 from pathfinder.assistants.registry import get_assistant_registry
-from pathfinder.assistants.site_help.mock import SITES_REPLY
+from pathfinder.assistants.site_help.mock import (
+    PROCEED_PREFIX,
+    PROCEED_PROMPT,
+    SITES_REPLY,
+)
 from pathfinder.tests.integration.chat._helpers import (
     chat_post_body,
     chat_turn_jobs,
@@ -311,6 +315,36 @@ async def test_the_site_help_turn_answers_from_the_real_sites_service(
     site_ids = {site["site_id"] for site in outputs[0]["output"]}
     assert {"plasmodb", "toxodb", "vectorbase"} <= site_ids
     assert _text(chunks) == SITES_REPLY
+
+
+async def test_a_second_site_help_turn_answers_from_the_first(
+    app: FastAPI,
+    patch_app_db_engine: None,
+    db_session: AsyncSession,
+    in_memory_jobs: InMemoryConnector,
+) -> None:
+    """A bare "yes" names the request the thread made a turn earlier."""
+    del patch_app_db_engine
+    owner = await make_user(db_session)
+    conversation_id = uuid4()
+    await _turn(
+        app,
+        owner.id,
+        in_memory_jobs,
+        conversation_id=conversation_id,
+        prompt=_SITES_PROMPT,
+        assistant_id=_SITE_HELP,
+    )
+
+    chunks = await _turn(
+        app,
+        owner.id,
+        in_memory_jobs,
+        conversation_id=conversation_id,
+        prompt=PROCEED_PROMPT,
+    )
+
+    assert _text(chunks) == f"{PROCEED_PREFIX}{_SITES_PROMPT}"
 
 
 async def test_the_turn_leaves_an_assistant_message_with_its_usage(

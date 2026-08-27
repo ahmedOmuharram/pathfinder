@@ -3,8 +3,12 @@ from __future__ import annotations
 from typing import Any, Protocol
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 
+from assistant_core.conversation.ui_message_reducer import (
+    USER_MESSAGE_CHUNK_TYPE,
+    user_message_chunk,
+)
 from assistant_core.persistence.models import ConversationEvent
 from assistant_core.platform.db import async_session_factory
 
@@ -36,6 +40,37 @@ async def append_chunk(
         )
         await session.commit()
         return event_id
+
+
+async def append_user_message_once(
+    *,
+    conversation_id: UUID,
+    turn_id: UUID,
+    message_id: UUID,
+    parts: list[dict[str, Any]],
+) -> int | None:
+    """Append the user's envelope unless the log already carries that id.
+
+    A client rebuilds its thread from the log, so one id names one message.
+    A turn that replays a logged message adds nothing and returns ``None``.
+    """
+    async with async_session_factory() as session:
+        logged = await session.scalar(
+            select(ConversationEvent.id)
+            .where(
+                ConversationEvent.conversation_id == conversation_id,
+                ConversationEvent.chunk["type"].astext == USER_MESSAGE_CHUNK_TYPE,
+                ConversationEvent.chunk["message"]["id"].astext == str(message_id),
+            )
+            .limit(1),
+        )
+    if logged is not None:
+        return None
+    return await append_chunk(
+        conversation_id=conversation_id,
+        chunk=user_message_chunk(message_id=str(message_id), parts=parts),
+        turn_id=turn_id,
+    )
 
 
 class ChatWriter(Protocol):

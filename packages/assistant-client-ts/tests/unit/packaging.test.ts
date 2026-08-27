@@ -24,14 +24,17 @@ const RINGS = [
   { subpath: "./legacy", entry: "legacy" },
 ] as const;
 
-const SOURCES = readdirSync(join(PACKAGE_ROOT, "src"), { recursive: true })
-  .map((name) => String(name))
-  .filter((name) => name.endsWith(".ts"));
+const SOURCES = readdirSync(join(PACKAGE_ROOT, "src"), {
+  recursive: true,
+  encoding: "utf8",
+}).filter((name) => name.endsWith(".ts"));
+
+const SPECIFIER = /(?:from\s+"([^"]+)"|import\(\s*"([^"]+)")/g;
 
 function bareSpecifiers(relativePath: string): string[] {
   const source = readFileSync(join(PACKAGE_ROOT, "src", relativePath), "utf8");
-  return [...source.matchAll(/from\s+"([^"]+)"/g)]
-    .map((match) => match[1] ?? "")
+  return [...source.matchAll(SPECIFIER)]
+    .map((match) => match[1] ?? match[2] ?? "")
     .filter((specifier) => !specifier.startsWith("."));
 }
 

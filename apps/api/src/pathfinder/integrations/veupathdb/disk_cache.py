@@ -31,35 +31,47 @@ class CatalogSnapshot(BaseModel):
     search_categories: dict[str, str]
     search_category_labels: dict[str, str] = Field(default_factory=dict)
     available_categories: list[str]
+    # Serialized length of this snapshot, the scale of the strings a loaded
+    # catalog holds. Excluded from the file it describes.
+    payload_bytes: int = Field(default=0, exclude=True)
 
     @property
     def is_stale(self) -> bool:
         return (time.time() - self.cached_at) > _CACHE_TTL_SECONDS
 
 
-def catalog_cache_path(site_id: str) -> Path:
-    return _CATALOG_CACHE_DIR / f"{site_id}.json"
+def catalog_cache_path(site_id: str, cache_dir: Path | None = None) -> Path:
+    return (cache_dir or _CATALOG_CACHE_DIR) / f"{site_id}.json"
 
 
-def try_load_catalog_cache(site_id: str) -> CatalogSnapshot | None:
+def try_load_catalog_cache(
+    site_id: str, cache_dir: Path | None = None
+) -> CatalogSnapshot | None:
     """Loads a cached snapshot. A missing or unreadable file returns None."""
-    path = catalog_cache_path(site_id)
+    path = catalog_cache_path(site_id, cache_dir)
     if not path.exists():
         return None
     try:
         raw = path.read_text()
-        return CatalogSnapshot.model_validate_json(raw)
+        snapshot = CatalogSnapshot.model_validate_json(raw)
     except OSError, ValueError, json.JSONDecodeError:
         logger.debug("Catalog cache load failed", path=str(path))
         return None
+    snapshot.payload_bytes = len(raw.encode())
+    return snapshot
 
 
-def save_catalog_cache(site_id: str, snapshot: CatalogSnapshot) -> None:
+def save_catalog_cache(
+    site_id: str, snapshot: CatalogSnapshot, cache_dir: Path | None = None
+) -> None:
     """Writes a catalog snapshot to disk."""
-    _CATALOG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    path = catalog_cache_path(site_id)
+    directory = cache_dir or _CATALOG_CACHE_DIR
+    directory.mkdir(parents=True, exist_ok=True)
+    path = catalog_cache_path(site_id, cache_dir)
+    payload = snapshot.model_dump_json(by_alias=True)
+    snapshot.payload_bytes = len(payload.encode())
     try:
-        path.write_text(snapshot.model_dump_json(by_alias=True))
+        path.write_text(payload)
     except OSError:
         logger.warning("Failed to save catalog cache", path=str(path), exc_info=True)
 

@@ -1,6 +1,218 @@
 # Log
 
+## 2026-08-28
+
+* **The EDA integration has a verified implementation plan.** [eda/plan/](eda/plan/)
+  holds an [overview](eda/plan/overview.md) - the layering, the co-edited-SSOT
+  design (one analysis per thread, agent tools and tab clicks patching the
+  same upstream document, both surfaces re-rendering from
+  `data-eda.analysis-state` snapshots with a per-binding revision counter),
+  the pinned shared contract, and the three-ring verification protocol - plus
+  seven batch documents with per-implementer TDD task cards (17 implementers,
+  10 verifiers, lead-closed batches). Drafted by two agents, then reconciled
+  by the lead: the `PATCH /conversations/{id}/eda` route became a five-action
+  union (`bind`, `set-filters`, `run-compute` as idempotent submit-or-poll,
+  `export-step`, `unbind`) whose handlers call the same service bodies the
+  agent tools call; the part payloads were settled on batch 3's models and
+  every frontend fixture realigned; `VolcanoThresholds` gained its one
+  definition; the duplicate distribution response collapsed onto the part's
+  shape; and a boxplot chart with no data source and no consumer left the
+  contract. Decisions taken with the user: both seams in one plan, ECharts
+  for the statistical charts (canvas for the 5.5k-point volcano; networks
+  stay on ReactFlow), co-edited state over read-only viewing. Execution is
+  the [one backlog initiative](backlog/execute-eda-integration-plan.md).
+
+## 2026-08-27
+
+* **The availability cluster is closed: what a process holds is bounded, the
+  server binds before the warm-up finishes, and an abandoned MCP call stops
+  with its caller.** Three measured defects had one shared cause. Twelve of the
+  fourteen catalog snapshots the image ships were 84.8 days old, and nothing
+  persisted a refreshed one: every process start restored fourteen stale
+  snapshots, spawned fourteen background refreshes at once, and each refetched
+  a site and re-encoded its index - which is where the worker's 5.26 GiB, the
+  api's hour-plus cold start and the `wdk-mcp` kill on a stale-cache site all
+  came from. `catalogs_cache` now mounts over `apps/api/src/data/catalogs` in
+  all three services, beside the `embeddings_cache` volume that already held
+  the encoded rows, so a refresh is paid once and not once per recreate; a
+  process-wide semaphore admits one `_fetch_from_api` at a time and a
+  `KeyedLock` one build per site, so the peak is one build and not fourteen;
+  `CATALOG_REFRESH_ENABLED` is `false` on `worker` and on `wdk-mcp`, because a
+  build of one site was measured at 2.977 GiB and neither 2 GiB container
+  survives it, and a sweep inside `wdk-mcp` restores a fresh-snapshot site in
+  0.3 s for about 10 MiB; and `DiscoveryService` holds its catalogs in a
+  `cachetools.LRUCache` over
+  `SITE_CATALOG_BUDGET_MB` accounted megabytes (512 by default), so the held
+  set is bounded by policy rather than by a kill. The accounting is measured,
+  not guessed: a 7.9 MB plasmodb snapshot restores in 0.4 s with nothing
+  encoded and costs 27.6 to 29.9 MiB resident, so a catalog is charged
+  `1 MiB + 4 * payload + index.nbytes`. The lifespan now spawns
+  `_warm_up_subsystems` instead of awaiting it and the model loads inside it
+  run on a thread, so uvicorn binds while the catalogs load behind it: measured
+  against the 73 minutes the item recorded, a recreate bound 43 s after
+  container start and all fourteen catalogs preloaded in 5 s with nothing
+  encoded, and the api settled at 2.21 GiB against the 5.66 to 8.83 GiB read
+  off the same container before. The container healthcheck is `/health`,
+  because a compose dependent needs a server that answers and a catalog loads
+  on demand. `/health/ready` still reports per-subsystem and per-site progress for
+  the UI's startup gate. On the MCP side a stateless streamable-HTTP call runs
+  in the session manager's own task group, so an abandoned call is cancelled by
+  nothing and the tool has to ask: `rank_public_strategies_semantic` embeds 64
+  strategies per call and scores each batch as it arrives, and
+  `search_example_plans` passes an embedding function that refuses once
+  `Request.is_disconnected()` is true, holding that site's lock for the whole
+  call so a second caller queues. Measured against the served endpoint: three
+  calls abandoned at a five second budget all stopped about seven seconds after
+  their clients left, the container kept `RestartCount` 0 at 1.089 GiB, the
+  next call answered 200, and a patient client got its ranking in 46.2 s.
+  `_encode` in the semantic index batches the same way, and the model now takes
+  one document per batch: fastembed pads a batch to its longest text, and
+  encoding 64 toxodb descriptions cost 166.5 s and 886 MiB at `batch_size=8`
+  against 128.9 s and 186 MiB at `batch_size=1`. The eight-site sweep the
+  kernel killed on its third site now finishes at 1375.8 MiB. Family 5 of the
+  admission record names `search_example_plans` as the slow tool with a five
+  second budget and settles all four of its checks, so three entries leave
+  `UNSETTLED_CHECKS`. Recorded as
+  [per-site catalogs are evicted under a budget, and the warm-up does not block
+  the bind](decisions/per-site-catalogs-are-evicted-and-the-warm-up-does-not-block-the-bind.md),
+  which names what was rejected: one process holding every index and serving
+  the rest over MCP, parallel per-site encoding, a rebuild inside a capped
+  container, `/health/ready` as the container healthcheck, and a budget sized
+  from process RSS. One finding did not fit the fix and is now its own item:
+  thirteen of the fourteen shipped `.npz` caches carry the retired
+  `embeddings`-plus-`hash` shape that `_load_cached_rows` skips, so 7184 of the
+  7699 shipped catalog entries have no usable row and a fresh deployment
+  encodes them all before readiness closes.
+
+* **The EDA bundle grew from orientation to a full specification.** Four
+  parallel research passes deepened [EDA](eda/) from 4 documents to 13, every
+  claim verified against commit-pinned upstream source or live calls on three
+  deployments, then re-verified by a second pass. New:
+  [data model](eda/data-model.md) (66664 variables scanned; the single-entity
+  GET is lossy; `isCategory` never on the wire),
+  [subsetting semantics](eda/subsetting-and-tabular.md) (cross-entity
+  propagation proven in both directions and across sibling subtrees;
+  root-vocab is not subset-sensitive; a 20-row preview tier),
+  [filter algebra](eda/filters.md) (all 7 deployed types with exact error
+  classes; out-of-vocabulary values return 200 count 0),
+  [derived variables and merging](eda/derived-variables-and-merging.md)
+  (12 plugins, 10 proven live; `relativeObservationMinTimeInterval` is dead
+  upstream; `resultsAll` gates merge output with 403),
+  [computes and jobs](eda/computes-and-jobs.md) (job id is a client-derivable
+  MD5 shared across users; a real DESeq run observed queued to complete),
+  [visualizations](eda/visualizations.md) (volcano thresholds are
+  client-side, network thresholds server-side),
+  [notebook presets](eda/notebook-presets.md) (the compute bridge is
+  volcano-only by construction; the delayed answer is HTTP 202
+  WDK-DELAYED-RESULT and the WDK call auto-starts the job; WGCNA exports
+  genes through plain SQL, not EDA),
+  [genomics and WDK relations](eda/genomics-and-wdk-relations.md) (four
+  relations, not one; per-dataset searches derive from
+  SHA-1(datasetName)[:10]; the EDAUD_ sentinel vocabulary term 400s), and
+  [architecture fit](eda/pathfinder-architecture-fit.md) (layer placement,
+  the durable-tool mapping named mechanism by mechanism, EDA as a second
+  admitted MCP source, hand-written Pydantic mirrors with pinned wire
+  samples). The four baseline documents were corrected where the deeper pass
+  falsified them, most notably: `differentialexpression` takes
+  identifier+value variables, not a collection; the per-dataset searches use
+  `GenesByEdaSubsetGeneric`; user studies have an empty `sha1hash`.
+
+* **A one-agent assistant reads the thread it is having.** `single_agent_graph`
+  built every run from `state.user_prompt` alone and passed no history unless
+  the turn answered an approval, so a site-help thread answered "Yes, please
+  proceed." with "What would you like me to proceed with?". The turn state now
+  carries the thread's own pydantic-ai messages as JSON, written from the run's
+  result and trimmed to the last complete exchange, and the graph reads them
+  back as the run's `message_history`
+  ([a one-agent turn runs over the thread's own messages](decisions/the-thread-carries-its-own-messages-across-turns.md)).
+  The trim is what keeps a parked approval out of the carried history:
+  pydantic-ai refuses a new prompt over a history holding an unprocessed call,
+  and the card keeps its own resume history regardless. Rebuilding the messages
+  from the durable chunk log was rejected, because the wire carries chunks
+  rather than the call-to-result pairing a provider needs; a runtime window or
+  summarizer was rejected too, since no thread has yet measured too expensive
+  and pydantic-ai already puts that bound on the agent. The runtime's scripted
+  test model gained `current_turn`, so a script that asks what THIS turn did
+  stops reading the turns before it.
+
 ## 2026-08-25
+
+* **A regenerated turn no longer wedges its conversation, and a thread that
+  cannot render no longer takes the page with it.** The dispatcher wrote the
+  user's envelope on every turn, so a regenerate - which sends the thread back
+  ending at the same user message - put that id in the log twice, and
+  assistant-ui refused to build a thread that names one message twice. It now
+  appends through `append_user_message_once`, which reads the log first and
+  writes nothing when the id is already there, and the id decides rather than
+  the client's `trigger`, as section 12.3 requires
+  ([one id names one message in the log](decisions/one-id-names-one-message-in-the-log.md)).
+  Four conversations on the dev database already held a repeat, so
+  `reduceSnapshot` keeps the first message an id names and drops a later one:
+  the reported conversation's 1,624-chunk log rebuilds as three messages, one
+  question and both answers, with no repeated id. A unique index and a repair
+  pass were both rejected, because neither can be applied to a log that already
+  repeats an id without editing what was said. `ChatView` also wraps its body
+  in an error boundary, so any thread that throws renders the error and a
+  site-scoped way back to the conversation list instead of an application-error
+  page.
+
+* **MCP program batch G: an assistant that is not PathFinder answers with tools
+  served over the network, and the program is reconciled.** `site_help`
+  declares one source - two catalog reads and one control-test measurement from
+  `veupathdb-wdk-mcp`, `required=False`, so a deployment that admits no such
+  server still serves the assistant - and reaches it through its own typed
+  per-turn channel rather than a widened runtime factory, because the graph is
+  compiled before the turn's sources resolve
+  ([a declared source reaches a one-agent assistant through its deps](decisions/a-declared-source-reaches-a-one-agent-assistant-through-its-deps.md)).
+  A site-help turn driven through the worker answered from a tool the wdk-mcp
+  container served over the compose network, and the source's one writing tool
+  parks a card that the next request's answer runs - which is the program's
+  whole claim: an assistant declares a source and the runtime does the rest.
+  Two runtime defects are backlog items, neither in the source path:
+  `single_agent_graph` builds every run from `state.user_prompt` alone, so a
+  one-agent assistant forgets the previous turn; and a resumed approval turn
+  emits `tool-input-available` with no `tool-input-start`, which the strict
+  client tolerates and PROTOCOL 6.2 does not describe. A third finding - a
+  suite-order red blamed on the runtime - was disproven by the review: the
+  test double's in-process uvicorn installed process signal handlers that
+  latch sse_starlette's process-global shutdown flag; the double no longer
+  captures signals, and the ladder is order-independent again.
+
+  The closing sweep found the bundle already honest: the six items the program
+  touched are deleted or edited to their residual, the backlog index and its
+  directory agree file for file, and every decision the program recorded is
+  indexed. The three dated documents that outlived their claims are annotated,
+  not rewritten. The execution plan's status line reads executed and points
+  here; the design document's section 8 and appendix B carry dated notes, since
+  four of appendix B's seven findings have closed and one of them closed before
+  the program began; and the platform assessment's addendum carries the WS4
+  entry with the two corrections its own debts paragraph needed - a failed turn
+  is visible after a reload, and the max-lines gate is red on two modules
+  rather than five.
+
+* **MCP program batches E and F: the suite a foreign team can run, and the
+  packages publish alone.** `packages/mcp-conformance` ships 32 checks in six
+  families as a pytest plugin that never imports pathfinder or
+  assistant_core, proven by fifteen planted defects that each name their
+  exact failing checks; run against our own served endpoint it answers
+  `incomplete` honestly - 26 passed, none failed, six unsettled checks
+  pinned by name - and its first real run surfaced three defects
+  (an ortholog vocabulary shape the domain model refuses, an abandoned slow
+  call that outlives its client and OOM-kills the server, the file-size gate
+  red at HEAD), each now a measured backlog item. Nightly, CI and pre-commit
+  lanes carry it. On the packaging side, assistant-core shed its last
+  product dependency and installs into a clean venv with pathfinder absent;
+  the client builds a dist whose tarball proves the three rings (core and
+  legacy import with zero dependencies, the ai-sdk ring requires `ai` and
+  only `ai`); `data-turn-failed` joined the protocol at 1.3.0 so a reloaded
+  thread finally says the turn died, deduplicated against the live error
+  card; and the task card left the per-task SSE dialect - the thread carries
+  the whole lifecycle, the reattach fires at task start because a
+  completion-fired design is provably impossible, and the fan-out lane
+  collapse that removal exposed is a filed item, not a surprise. One review
+  round each: the conformance dev-dependency had broken the api image build
+  (three COPY lines), and one spec header still described the deleted
+  subscription. Fable review: both accepted.
 
 * **MCP program batch D: veupathdb-wdk-mcp is served.** Sixteen tools over
   streamable HTTP in a container of their own on the api image, binding in

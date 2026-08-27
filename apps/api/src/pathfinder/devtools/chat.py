@@ -18,6 +18,7 @@ from assistant_core.graph.turn_state import (
     PendingApproval,
     UserQuestionAnswer,
 )
+from assistant_core.mcp.admission import install_admitted_sources
 from assistant_core.memory.lifespan import lifespan_memory_store
 from assistant_core.persistence.models import ConversationEvent
 from assistant_core.platform.db import async_session_factory
@@ -54,6 +55,7 @@ from pathfinder.persistence.repositories.background_tasks import (
 )
 from pathfinder.persistence.repositories.user import UserRepository
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.tool_sources import admitted_tool_sources
 from pathfinder.services.conversations.begin import begin_conversation
 
 DEV_USER_ID = UUID("00000000-0000-0000-0000-0000000000c1")
@@ -386,6 +388,8 @@ async def _exec_one(
             stack.enter_context(capture_llm(capture.run_dir))
         await stack.enter_async_context(attach_wdk_auth(wdk_token))
         await stack.enter_async_context(attach_user_id(DEV_USER_ID))
+        # The debugger drives the turn itself, so it admits what the worker does.
+        install_admitted_sources(admitted_tool_sources())
         registry = get_assistant_registry()
         spec = await resolve_run_assistant(body.conversation_id, args.assistant)
         saver = await stack.enter_async_context(
@@ -416,19 +420,32 @@ async def _defer_chat_turn(payload: ChatTurnPayload) -> None:
         )
 
 
+async def _worker_payload(
+    args: RunArgs,
+    capture: RunCapture,
+    body: ChatRequestBody,
+    *,
+    wdk_token: str | None,
+) -> ChatTurnPayload:
+    """The job the worker runs. It names the assistant the thread is served by."""
+    spec = await resolve_run_assistant(args.conversation_id, args.assistant)
+    return ChatTurnPayload(
+        body=body,
+        user_id=DEV_USER_ID,
+        turn_id=capture.turn_id,
+        veupathdb_auth_token=wdk_token,
+        capture_dir=str(args.run_dir),
+        assistant_id=spec.assistant_id,
+    )
+
+
 async def _exec_via_worker(
     args: RunArgs, capture: RunCapture, body: ChatRequestBody, *, wdk_token: str | None
 ) -> None:
     """Defers a real chat turn job to the worker, reports task progress while it runs,
     then replays the persisted events."""
     before = await latest_turn_boundary(args.conversation_id)
-    payload = ChatTurnPayload(
-        body=body,
-        user_id=DEV_USER_ID,
-        turn_id=capture.turn_id,
-        veupathdb_auth_token=wdk_token,
-        capture_dir=str(args.run_dir),
-    )
+    payload = await _worker_payload(args, capture, body, wdk_token=wdk_token)
     await _defer_chat_turn(payload)
     if not args.quiet:
         print("deferred to worker; waiting…")

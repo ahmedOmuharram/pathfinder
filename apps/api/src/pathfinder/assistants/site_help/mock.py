@@ -1,7 +1,9 @@
 """Site help's script for the deterministic test model.
 
-Three arcs for the site-help agent: a fixed reply to the check prompt, one
-tool call for a question about the sites, and an echo for anything else.
+Six arcs for the site-help agent: a fixed reply to the check prompt, one
+local tool call for a question about the sites, one call to each of the two
+tools a declared source serves, an answer that names what the thread asked
+for earlier, and an echo for anything else.
 """
 
 from __future__ import annotations
@@ -11,24 +13,45 @@ from assistant_core.models.scripted import (
     RoleScript,
     ScriptedModel,
     ScriptedPart,
+    current_turn,
     has_any,
     last_user_text,
     scripted_call,
     scripted_text,
     tool_return_parts,
+    user_texts,
 )
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 
 SITE_HELP = "site_help"
 LIST_SITES_TOOL = "list_veupathdb_sites"
 DESCRIBE_SITE_TOOL = "describe_site"
 
+# The prefix is the tool source's declared name, so a served tool answers
+# under it.
+WDK_RECORD_TYPES_TOOL = "wdk_list_record_types"
+WDK_CONTROL_TESTS_TOOL = "wdk_run_control_tests_on_search"
+WDK_CONTROL_TESTS_CALL_ID = "call_wdk_control_tests"
+
 CHECK_MARKER = "site help check"
 CHECK_REPLY = "Site help is online."
 SITES_REPLY = "Those are the VEuPathDB sites I can point you around."
+RECORD_TYPES_PROMPT = "what record types does plasmodb serve"
+RECORD_TYPES_REPLY = "Those are the record types that site serves."
+CONTROL_TESTS_PROMPT = "run a control test on the molecular weight search"
+CONTROL_TESTS_REPLY = "The control test is done."
+SCRIPT_SITE = "plasmodb"
+CONTROL_TESTS_SEARCH = "GenesByMolecularWeight"
+
+PROCEED_PROMPT = "Yes, please proceed."
+PROCEED_PREFIX = "Proceeding with: "
+NOTHING_TO_PROCEED_REPLY = "What would you like me to proceed with?"
 
 _SITES_MARKERS = ("which sites", "what sites", "list the sites")
+_RECORD_TYPE_MARKERS = ("record types",)
+_CONTROL_TEST_MARKERS = ("control test",)
+_PROCEED_MARKERS = ("please proceed", "go ahead")
 
 _ROLES: tuple[RoleMarkers, ...] = (
     RoleMarkers(
@@ -38,16 +61,58 @@ _ROLES: tuple[RoleMarkers, ...] = (
 )
 
 
-def _site_help_script(messages: list[ModelMessage]) -> ScriptedPart:
-    if any(part.tool_name == LIST_SITES_TOOL for part in tool_return_parts(messages)):
-        return scripted_text(SITES_REPLY)
-    text = last_user_text(messages)
-    lowered = text.lower()
+_REPLY_AFTER: dict[str, str] = {
+    LIST_SITES_TOOL: SITES_REPLY,
+    WDK_RECORD_TYPES_TOOL: RECORD_TYPES_REPLY,
+    WDK_CONTROL_TESTS_TOOL: CONTROL_TESTS_REPLY,
+}
+
+
+def _control_tests_call() -> ToolCallPart:
+    """One fixed call id, so a test can answer the approval card it raises."""
+    return ToolCallPart(
+        tool_name=WDK_CONTROL_TESTS_TOOL,
+        args={
+            "site_id": SCRIPT_SITE,
+            "target_search_name": CONTROL_TESTS_SEARCH,
+            "target_parameters": {},
+            "positive_controls": ["PF3D7_1222600"],
+        },
+        tool_call_id=WDK_CONTROL_TESTS_CALL_ID,
+    )
+
+
+def _proceed_reply(messages: list[ModelMessage]) -> str:
+    """Name the request the thread already made, when the thread carries one."""
+    earlier = user_texts(messages)[:-1]
+    if not earlier:
+        return NOTHING_TO_PROCEED_REPLY
+    return f"{PROCEED_PREFIX}{earlier[-1]}"
+
+
+def _marker_script(messages: list[ModelMessage], lowered: str) -> ScriptedPart | None:
+    """The part the markers in the user's text select, or None for no marker."""
     if CHECK_MARKER in lowered:
         return scripted_text(CHECK_REPLY)
+    if has_any(lowered, _PROCEED_MARKERS):
+        return scripted_text(_proceed_reply(messages))
     if has_any(lowered, _SITES_MARKERS):
         return scripted_call(LIST_SITES_TOOL, {})
-    return scripted_text(f"[mock] {text}")
+    if has_any(lowered, _CONTROL_TEST_MARKERS):
+        return _control_tests_call()
+    if has_any(lowered, _RECORD_TYPE_MARKERS):
+        return scripted_call(WDK_RECORD_TYPES_TOOL, {"site_id": SCRIPT_SITE})
+    return None
+
+
+def _site_help_script(messages: list[ModelMessage]) -> ScriptedPart:
+    turn = current_turn(messages)
+    for part in tool_return_parts(turn):
+        if part.tool_name in _REPLY_AFTER:
+            return scripted_text(_REPLY_AFTER[part.tool_name])
+    text = last_user_text(turn)
+    marked = _marker_script(messages, text.lower())
+    return marked if marked is not None else scripted_text(f"[mock] {text}")
 
 
 def _unknown_agent_script(messages: list[ModelMessage]) -> ScriptedPart:
@@ -74,9 +139,21 @@ def build_site_help_mock() -> FunctionModel:
 __all__ = [
     "CHECK_MARKER",
     "CHECK_REPLY",
+    "CONTROL_TESTS_PROMPT",
+    "CONTROL_TESTS_REPLY",
+    "CONTROL_TESTS_SEARCH",
     "DESCRIBE_SITE_TOOL",
     "LIST_SITES_TOOL",
+    "NOTHING_TO_PROCEED_REPLY",
+    "PROCEED_PREFIX",
+    "PROCEED_PROMPT",
+    "RECORD_TYPES_PROMPT",
+    "RECORD_TYPES_REPLY",
+    "SCRIPT_SITE",
     "SITES_REPLY",
     "SITE_HELP_SCRIPT",
+    "WDK_CONTROL_TESTS_CALL_ID",
+    "WDK_CONTROL_TESTS_TOOL",
+    "WDK_RECORD_TYPES_TOOL",
     "build_site_help_mock",
 ]

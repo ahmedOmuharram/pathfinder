@@ -8,7 +8,6 @@ import asyncio
 
 from assistant_core.platform.logging import get_logger
 
-from pathfinder.integrations.embeddings.semantic_index import SemanticSearchIndex
 from pathfinder.integrations.veupathdb.discovery_service import DiscoveryService
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 from pathfinder.platform.errors import AppError
@@ -52,7 +51,7 @@ async def apply_semantic_bonus(
     try:
         catalog = await discovery.get_catalog(site_id)
         index = catalog.get_semantic_index()
-        if not isinstance(index, SemanticSearchIndex):
+        if index is None:
             return
 
         rt_set = set(record_types)

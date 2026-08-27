@@ -6,8 +6,10 @@ from assistant_core.conversation.event_stream import (
     iter_sse,
     latest_turn_boundary,
 )
-from assistant_core.conversation.event_writer import ChatEventWriter
-from assistant_core.conversation.ui_message_reducer import user_message_chunk
+from assistant_core.conversation.event_writer import (
+    ChatEventWriter,
+    append_user_message_once,
+)
 from assistant_core.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
 from assistant_core.graph.stream_events import turn_status_event
 from assistant_core.persistence.models import ConversationEvent
@@ -61,9 +63,9 @@ async def dispatch(
     """Scan user input, persist it, enqueue a turn job, tail the event stream.
 
     Two trigger modes:
-    - Normal turn: ``messages[-1]`` is a user message → persist + chunk it.
+    - Normal turn: ``messages[-1]`` is a user message -> persist + chunk it.
     - Approval resume: SDK v6 fired the request after
-      ``chat.addToolApprovalResponse`` (no new user message) — skip the
+      ``chat.addToolApprovalResponse`` (no new user message) - skip the
       user-message persistence and chunk; the worker reads
       ``state.approval_responses`` from the request body and resumes the
       deferred tool.
@@ -96,14 +98,14 @@ async def dispatch(
         )
         await session.commit()
 
-        await ChatEventWriter(
+        # A regenerate sends the thread back ending at the same user message.
+        # The log carries that message once, because a client rebuilds its
+        # thread from the log and one id names one message.
+        await append_user_message_once(
             conversation_id=body.conversation_id,
             turn_id=body.last_user_message_id,
-        ).write(
-            user_message_chunk(
-                message_id=str(body.last_user_message_id),
-                parts=[{"type": "text", "text": body.last_user_text}],
-            ),
+            message_id=body.last_user_message_id,
+            parts=[{"type": "text", "text": body.last_user_text}],
         )
 
     after = await latest_turn_boundary(body.conversation_id)

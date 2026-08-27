@@ -31,6 +31,9 @@ logger = get_logger(__name__)
 
 _STORE_NDIM = 2
 
+# Entries encoded per worker-thread call.
+_ENCODE_BATCH = 64
+
 # Pre-computed embeddings shipped with the repo.
 _BUNDLED_CACHE_DIR = (
     Path(__file__).resolve().parent.parent.parent / "data" / "embeddings"
@@ -118,19 +121,29 @@ def _save_cache(site_id: str, rows: dict[str, NDArray[Any]]) -> None:
 
 
 def _embed(texts: list[str]) -> list[NDArray[Any]]:
-    """Encode texts with the fastembed model."""
+    """Encode texts with the fastembed model, one document at a time.
+
+    A model batch pads every text to the longest one in it, so a single long
+    description costs the whole batch in time and in arena.
+    """
     model = get_embedding_model()
-    rows = list(model.embed(texts, batch_size=8))
+    rows = list(model.embed(texts, batch_size=1))
     gc.collect()
     return rows
 
 
 async def _encode(entries: list[SearchIndexEntry]) -> list[NDArray[Any]]:
-    """Encode entry texts in a worker thread so the event loop stays free."""
-    if not entries:
-        return []
-    texts = [f"{SEARCH_DOCUMENT_PREFIX}{e.enriched_text}" for e in entries]
-    return await asyncio.to_thread(_embed, texts)
+    """Encode entry texts in a worker thread so the event loop stays free.
+
+    One batch of texts is in flight at a time, so a cancelled build stops at
+    the next batch instead of encoding the whole site.
+    """
+    rows: list[NDArray[Any]] = []
+    for start in range(0, len(entries), _ENCODE_BATCH):
+        chunk = entries[start : start + _ENCODE_BATCH]
+        texts = [f"{SEARCH_DOCUMENT_PREFIX}{e.enriched_text}" for e in chunk]
+        rows.extend(await asyncio.to_thread(_embed, texts))
+    return rows
 
 
 @dataclass

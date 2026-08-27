@@ -45,6 +45,7 @@ from assistant_core.graph.approvals import (
 from assistant_core.graph.emit import emit_chunk, emit_turn_usage
 from assistant_core.graph.runtime import GuardedDeps, TurnContext
 from assistant_core.graph.stream_events import turn_status_event
+from assistant_core.graph.thread_history import dump_thread_history, thread_history
 from assistant_core.graph.turn_agent import TurnAgentFactory
 from assistant_core.graph.turn_message import write_turn_message
 from assistant_core.graph.turn_state import PendingApproval, TurnState
@@ -67,6 +68,7 @@ class _RunCapture:
     provider_name: str | None = None
     provider_url: str | None = None
     pending_approval: PendingApproval | None = None
+    messages: list[ModelMessage] = field(default_factory=list)
 
     def cost_usd(self) -> Decimal:
         return cost_for_run(
@@ -91,18 +93,20 @@ def _turn_for(state: TurnState) -> _AgentTurn:
     """A turn that answers the parked call, else one that answers the user.
 
     A message that answers nothing supersedes the card: the deferred call is
-    never made, so the turn is a fresh one.
+    never made, so the turn is a fresh one over the thread's own messages.
     """
     approval = state.pending_approval
-    if approval is None:
-        return _AgentTurn(prompt=state.user_prompt)
-    results = approval_results(approval, state.approval_responses)
-    if results is None:
-        return _AgentTurn(prompt=state.user_prompt)
+    if approval is not None:
+        results = approval_results(approval, state.approval_responses)
+        if results is not None:
+            return _AgentTurn(
+                history=resume_history(approval),
+                results=results,
+                hint=deferred_hint(approval),
+            )
     return _AgentTurn(
-        history=resume_history(approval),
-        results=results,
-        hint=deferred_hint(approval),
+        prompt=state.user_prompt,
+        history=thread_history(state.thread_messages_json),
     )
 
 
@@ -115,6 +119,7 @@ def _absorb(
     capture.model_name = response.model_name
     capture.provider_name = response.provider_name
     capture.provider_url = response.provider_url
+    capture.messages = list(result.all_messages())
     output = result.output
     if isinstance(output, DeferredToolRequests):
         # One agent is one role, so the parked approval names the only node
@@ -122,8 +127,19 @@ def _absorb(
         capture.pending_approval = pending_approval(
             output=output,
             phase=_AGENT_NODE,
-            messages=list(result.all_messages()),
+            messages=capture.messages,
         )
+
+
+def _advanced_history(state: TurnState, capture: _RunCapture) -> str:
+    """The thread's messages after this turn.
+
+    A run that produced no result kept none, so the thread stays where the
+    last settled turn left it.
+    """
+    if not capture.messages:
+        return state.thread_messages_json
+    return dump_thread_history(capture.messages)
 
 
 async def _stream_answer[DepsT: GuardedDeps](
@@ -218,6 +234,7 @@ def single_agent_graph[
             "turn_total_tokens": total_tokens,
             "turn_total_cost_usd": total_cost,
             "pending_approval": capture.pending_approval,
+            "thread_messages_json": _advanced_history(state, capture),
         }
 
     async def finalize_node(state: StateT, runtime: Runtime[ContextT]) -> None:
