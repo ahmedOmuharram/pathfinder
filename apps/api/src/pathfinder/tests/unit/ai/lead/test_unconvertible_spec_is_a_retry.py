@@ -47,6 +47,8 @@ def _ctx(spec: OperationalSpec) -> Any:
     ctx = MagicMock()
     ctx.deps.state.domain.operational_spec = spec
     ctx.deps.runtime.user_id = uuid4()
+    # A build only runs where there is no strategy; an existing one is an edit.
+    ctx.deps.runtime.strategy_session.get_graph.return_value = None
     return ctx
 
 

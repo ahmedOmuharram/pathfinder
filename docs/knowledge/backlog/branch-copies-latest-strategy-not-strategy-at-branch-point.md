@@ -30,6 +30,18 @@ rather than the revision that was current at `parentMessageId`; the strategy rev
 recorded on each message (`data-strategy-revision`) is not used to reconstruct the earlier
 graph.
 
+**Mechanism sharpened (thread-surgery audit, 2026-08-28).** The two halves of the
+fork disagree with each other, not just with the transcript.
+`_copy_checkpoint_state` (`services/conversations/fork.py:129-198`) copies only
+checkpoints whose `ts` precedes the message after the anchor, so the fork's latest
+checkpoint carries `operational_spec`/`spec_before_turn` as they stood at the
+branch point, while `fork.py:346-354` copies the latest
+`conversation_strategies` AST and duplicates the latest WDK strategy. The fork's
+next turn therefore starts with a checkpointed spec describing one tree and a
+live strategy describing another; the pre-turn staleness read papers over it from
+the live side. Revert has the mirror defect, filed as
+[revert-leaves-the-strategy-at-post-turn-state](revert-leaves-the-strategy-at-post-turn-state.md).
+
 **Fix (to decide).** Store the full strategy snapshot per revision (or per build), and have
 branch (and edit/revert) materialise the revision referenced by the branched message into
 the new conversation and into a new WDK strategy. If a revision cannot be reconstructed,

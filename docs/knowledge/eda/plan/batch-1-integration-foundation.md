@@ -5,7 +5,7 @@ description: The typed EDA wire mirror, the async client over its REST surface, 
 tags: [eda, pathfinder, plan, batch, integrations, domain, pydantic, fixtures]
 generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-status: draft
+status: accepted
 ---
 
 # EDA batch 1: integration foundation
@@ -1709,6 +1709,10 @@ class EdaForbiddenError(EdaError)      # 403 - permission, or a dataset id where
 class EdaNotFoundError(EdaError)       # 404
 class EdaServerError(EdaError)         # 500 - so far only an unparseable date
 class EdaComputeNotReadyError(EdaError)  # 400 "Compute results are not available..."
+# A wire 401 has NO dedicated class: it carries through as the base EdaError
+# with status 401. The missing-token case never reaches the wire - the client
+# raises WDKLoginRequiredError before sending anything. The acceptance suite
+# pins both readings.
 
 # integrations/eda/client.py
 class EdaClient:
@@ -2394,6 +2398,8 @@ class EdaClient:
         self._lock = asyncio.Lock()
 
     def install_transport(self, transport: httpx.BaseTransport) -> None:
+        # Part of the pinned interface: every hermetic test in this plan,
+        # including the frozen acceptance suite, injects its wire through it.
         """Pin the transport a test drives. Production leaves it unset."""
         self._transport = transport
 
@@ -4303,7 +4309,8 @@ def test_an_out_of_vocabulary_value_on_the_recorded_tree_is_caught() -> None:
 
   This test lives under `tests/unit/integrations/`, not under
   `tests/unit/domain/`, so it never makes the domain suite depend on the
-  integration layer. Run `uv run mypy --strict` on it: the two explicit
+  integration layer. Run `uv run pyright` on it (mypy excludes the test
+  tree by config, so pyright is the enforcing checker): the two explicit
   annotations (`study: StudyFacts`, `entity: EntityFacts`) are the actual
   assertion. A structural mismatch is a type error, not a runtime failure.
 
@@ -4334,7 +4341,9 @@ The session lead closes batch 1 when all of these are true.
    finds nothing outside a Pydantic validator that a verifier explicitly
    approved in writing.
 6. `test_models_satisfy_domain_protocols.py` exists and type-checks under
-   `mypy --strict`.
+   `uv run pyright` - pyright, not mypy: `apps/api/pyproject.toml` excludes
+   `src/pathfinder/tests/` from mypy, so pyright is the checker that enforces
+   the Protocol proof over the test tree.
 7. No new setting in `platform/config.py`; `SiteInfo.eda_base_url` is the one
    answer to where EDA lives.
 8. Both verifier reports are PASS on every task, with evidence lines, and the
@@ -4342,3 +4351,8 @@ The session lead closes batch 1 when all of these are true.
    document.
 9. Zero debt: no dead code, no unused argument, no temporary logging, no new
    TODO. The recap leads with that sentence or the batch stays open.
+10. The acceptance module for this batch passes unmodified:
+    `uv run pytest -m eda_acceptance src/pathfinder/tests/acceptance/eda/test_batch1_integration.py -v --override-ini addopts=''`.
+    Note: the `domain/eda.py` predicates ship in this batch but are
+    acceptance-gated at batch 2's close (they live in
+    `test_batch2_services.py` beside the services that call them).

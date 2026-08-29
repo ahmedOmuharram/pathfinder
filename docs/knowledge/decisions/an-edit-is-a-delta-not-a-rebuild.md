@@ -1,0 +1,76 @@
+---
+type: Decision
+title: An edit turn is a batch of graph operations over the live strategy, never a rebuild of it
+description: The Lead's `edit_strategy` dispatch computes a spec diff, turns it into `GraphOperation`s and hands them to the existing commit pipeline, so an untouched step keeps its WDK id and its hand-edited values. `build_strategy` refuses a thread that already has a strategy.
+tags: [agents, strategy, wdk, graph-ownership]
+generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
+verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
+status: stable
+---
+
+# The decision
+
+An edit does not produce a tree. It produces the smallest batch of operations
+that turns the strategy the turn started from into the one the request asks for.
+
+- `domain/strategy/spec_to_operations.py::operations_for` takes the computed
+  `SpecDiff`, the two specs and the live graph, and returns
+  `list[GraphOperation]`. A `kept` criterion emits nothing. A `changed` one
+  emits `UpdateStepParamsOp` on its own step id, or `ReplaceSubtreeOp` when the
+  search name changed or a value was removed, because an update merges. A
+  `dropped` one emits `DeleteStepOp` with the resolution
+  `operations/resolutions.py` computes. An `added` one emits `AddLeafOp` plus
+  `AddCombineOp`, or `AddTransformOp`, anchored on the step the after-structure
+  puts it above.
+- `ai/lead/edit_dispatch.py::run_edit` reads the strategy revision before FRAME
+  runs, refuses the commit if it moved, and hands the batch to
+  `services/strategies/commit.py::apply_operations_and_commit`, which patches
+  only the steps whose inputs changed and re-PUTs the step tree only when the
+  topology changed.
+- `build_strategy` refuses a thread whose graph has steps.
+
+The operations are planned against a working copy of the graph and applied to it
+as they are planned, so each anchor is read from the state the earlier
+operations left. An edit the algebra cannot express raises `UnsupportedEditError`
+and the dispatch turns it into a `ModelRetry`; nothing is approximated.
+
+# What it addresses
+
+A measured run asked to add one transform at the end of a three-step strategy.
+The turn re-framed, rebuilt every step, changed all four WDK step ids, orphaned
+the previous three server-side, and put a hand-edited
+`min_expression_percentile` back from 90 to 80 without saying so. A second
+measurement on the real 15-node thread showed a rebuild of a reconstructed spec
+preserving 0 of 15 step ids.
+
+# The alternatives that were rejected
+
+**Keep building, but carry criterion ids onto the nodes.** That makes a rebuild
+id-preserving, and it is still a rebuild: `_replace_graph_contents` clears the
+graph, so anything the researcher added on the canvas that the spec does not
+describe is gone, and every step is re-pushed whether it changed or not.
+
+**A `mode="edit"` flag on `frame_problem`.** Rejected: the precondition (a
+non-empty entry spec), the revision guard and the diff gate all become
+conditionals inside one function, and the Lead can pick the wrong mode
+silently. A separate tool states the distinction in the tool list.
+
+**Let the model call `apply_operations` itself.** It already exists and the
+graph editor reaches the same pipeline over HTTP. Rejected because it asks the
+model to author the operation algebra from a sentence; the diff already knows
+what changed, and the algebra is derived from it rather than typed.
+
+# What it costs
+
+The mapping is not total. An edit that re-nests the steps that stay - moving a
+criterion from one branch of a combine to another - has no in-place expression
+and is refused. The refusal is loud and names what it could not place.
+
+`build_strategy` is now unreachable on a thread with a strategy, so a genuine
+"start over" needs the user's answer in prose first. See
+[the Lead cannot start a strategy over](../backlog/the-lead-cannot-start-a-strategy-over.md).
+
+# Anchors
+
+`domain/strategy/spec_to_operations.py`, `ai/lead/edit_dispatch.py`,
+`services/strategies/commit.py`.

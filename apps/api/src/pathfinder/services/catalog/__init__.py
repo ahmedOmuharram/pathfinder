@@ -5,6 +5,14 @@ Single source of truth for catalog/discovery logic used by both:
 - AI tools (`ai/tools/catalog_tools.py`, etc.)
 """
 
+from pathfinder.services.catalog.eda_backed import (
+    EdaBackedSearch,
+    eda_backed_guidance,
+    eda_backed_search,
+    is_eda_backed,
+    is_upload_sentinel_vocabulary,
+    list_eda_backed,
+)
 from pathfinder.services.catalog.models import RecordTypeInfo, SearchMatch
 from pathfinder.services.catalog.parameters import (
     expand_search_details_with_params,
@@ -38,6 +46,7 @@ from pathfinder.services.catalog.sites import (
 )
 
 __all__ = [
+    "EdaBackedSearch",
     "RecordTypeInfo",
     "SearchInspection",
     "SearchMatch",
@@ -45,6 +54,8 @@ __all__ = [
     "UnknownSearchError",
     "VagueSearchQueryError",
     "browse_search_categories",
+    "eda_backed_guidance",
+    "eda_backed_search",
     "expand_search_details_with_params",
     "get_raw_record_types",
     "get_raw_searches",
@@ -53,6 +64,9 @@ __all__ = [
     "get_search_parameters",
     "get_search_parameters_tool",
     "inspect_search",
+    "is_eda_backed",
+    "is_upload_sentinel_vocabulary",
+    "list_eda_backed",
     "list_searches",
     "list_sites",
     "list_transforms",

@@ -30,6 +30,7 @@ import {
   useDeleteStrategyMutation,
   useUpdateStrategyMetaMutation,
 } from "@/features/strategy/mutations";
+import { chatUrl, strategyCanvasUrl } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 import { CanvasDescriptionSheet } from "./CanvasDescriptionSheet";
 import { DeleteStrategyConfirm } from "./DeleteStrategyConfirm";
@@ -77,7 +78,7 @@ export function CanvasTopbar({
   const siteId = strategy.siteId;
 
   const handleBack = (): void => {
-    router.push(`/${siteId}/conversation/${conversationId}`);
+    router.push(chatUrl(siteId, conversationId));
   };
 
   const handleDelete = (): void => {
@@ -98,7 +99,7 @@ export function CanvasTopbar({
   const handleCopyUrl = (): void => {
     if (typeof window === "undefined") return;
     const origin = window.location.origin;
-    const url = `${origin}/${siteId}/conversation/${conversationId}/strategy`;
+    const url = `${origin}${strategyCanvasUrl(siteId, conversationId)}`;
     void navigator.clipboard.writeText(url);
     toast.success("Strategy URL copied");
   };

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
@@ -80,61 +80,114 @@ class OperationalSpec(CamelModel):
         return all(c.bound and not c.open_params for c in self.criteria)
 
 
+class SpecTree(NamedTuple):
+    """The tree a spec converts to, and the step each criterion became."""
+
+    root: StrategyStepNode
+    step_id_by_criterion: dict[str, str]
+
+
 def operational_spec_to_step_tree(spec: OperationalSpec) -> StrategyStepNode:
     """Pure FRAME→BUILD seam: convert the spec's structure into the declarative
     builder's ``StrategyStepNode`` tree. Raises if any referenced criterion is
     missing or unbound."""
+    return build_step_tree(spec).root
+
+
+def build_step_tree(spec: OperationalSpec) -> SpecTree:
+    """Convert the spec and report the step id it minted for each criterion."""
     if spec.structure is None:
         msg = "spec has no structure"
         raise ValueError(msg)
     by_id = {c.id: c for c in spec.criteria}
-    return _node_to_step(spec.structure.root, by_id)
+    minted: dict[str, str] = {}
+    return SpecTree(
+        root=_node_to_step(spec.structure.root, by_id, minted),
+        step_id_by_criterion=minted,
+    )
 
 
-def _node_to_step(node: StructureNode, by_id: dict[str, Criterion]) -> StrategyStepNode:
+def renumber_criteria(
+    spec: OperationalSpec, step_id_by_criterion: dict[str, str]
+) -> OperationalSpec:
+    """Re-key the spec on the step ids a build produced.
+
+    A criterion and the step it built are then the same address, so a later
+    edit changes that step rather than rebuilding the strategy around it.
+    """
+    renumbered = spec.model_copy(deep=True)
+    for criterion in renumbered.criteria:
+        criterion.id = step_id_by_criterion.get(criterion.id, criterion.id)
+    for slot in renumbered.open_slots:
+        slot.criterion_id = step_id_by_criterion.get(
+            slot.criterion_id, slot.criterion_id
+        )
+    if renumbered.structure is not None:
+        _renumber_structure(renumbered.structure.root, step_id_by_criterion)
+    return renumbered
+
+
+def _renumber_structure(node: StructureNode, mapping: dict[str, str]) -> None:
+    if node.criterion_id is not None:
+        node.criterion_id = mapping.get(node.criterion_id, node.criterion_id)
+    for child in node.inputs:
+        _renumber_structure(child, mapping)
+
+
+def _bound_criterion(
+    node: StructureNode, by_id: dict[str, Criterion], label: str
+) -> Criterion:
+    crit = by_id.get(node.criterion_id or "")
+    if crit is None or not crit.bound:
+        msg = f"{label} {node.criterion_id!r} is missing or unbound"
+        raise ValueError(msg)
+    return crit
+
+
+def _node_to_step(
+    node: StructureNode, by_id: dict[str, Criterion], minted: dict[str, str]
+) -> StrategyStepNode:
     if node.kind == "leaf":
-        crit = by_id.get(node.criterion_id or "")
-        if crit is None or not crit.bound:
-            msg = f"criterion {node.criterion_id!r} is missing or unbound"
-            raise ValueError(msg)
-        return StrategyStepNode(
+        crit = _bound_criterion(node, by_id, "criterion")
+        step = StrategyStepNode(
             search_name=crit.search_name,
             parameters=dict(crit.resolved_params),
             display_name=crit.text[:60],
         )
+        minted[crit.id] = step.id
+        return step
     if node.kind == "transform":
-        crit = by_id.get(node.criterion_id or "")
-        if crit is None or not crit.bound:
-            msg = f"transform criterion {node.criterion_id!r} is missing or unbound"
-            raise ValueError(msg)
+        crit = _bound_criterion(node, by_id, "transform criterion")
         if not node.inputs:
             msg = f"transform criterion {node.criterion_id!r} has no input step"
             raise ValueError(msg)
-        return StrategyStepNode(
+        step = StrategyStepNode(
             search_name=crit.search_name,
             parameters=dict(crit.resolved_params),
             display_name=crit.text[:60],
-            primary_input=_node_to_step(node.inputs[0], by_id),
+            primary_input=_node_to_step(node.inputs[0], by_id, minted),
         )
+        minted[crit.id] = step.id
+        return step
     # Combining n criteria takes n-1 nodes. A spec that emits one per criterion
     # carries a spare with nothing to combine against, and one operand is that
     # operand.
     if len(node.inputs) == 1:
-        return _node_to_step(node.inputs[0], by_id)
+        return _node_to_step(node.inputs[0], by_id, minted)
     if node.operator is None or len(node.inputs) < _MIN_COMBINE_INPUTS:
         msg = "combine node needs an operator and at least two inputs"
         raise ValueError(msg)
     combined = StrategyStepNode(
         search_name=COMBINE_SEARCH_NAME,
         operator=node.operator,
-        primary_input=_node_to_step(node.inputs[0], by_id),
-        secondary_input=_node_to_step(node.inputs[1], by_id),
+        primary_input=_node_to_step(node.inputs[0], by_id, minted),
+        secondary_input=_node_to_step(node.inputs[1], by_id, minted),
     )
     for extra in node.inputs[2:]:
         combined = StrategyStepNode(
             search_name=COMBINE_SEARCH_NAME,
             operator=node.operator,
             primary_input=combined,
-            secondary_input=_node_to_step(extra, by_id),
+            secondary_input=_node_to_step(extra, by_id, minted),
         )
     return combined

@@ -79,9 +79,7 @@ describe("useStepsById", () => {
   });
 
   it("keeps every step when ids are distinct", () => {
-    const result = useStepsById(
-      strategy([step("a"), step("b"), step("c")]),
-    );
+    const result = useStepsById(strategy([step("a"), step("b"), step("c")]));
 
     expect(Object.keys(result)).toHaveLength(3);
   });

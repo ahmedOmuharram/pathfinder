@@ -24,6 +24,7 @@ import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStra
 import { dismissConversation } from "@pathfinder/shared/generated/hooks/useDismissConversation";
 import { restoreStrategy } from "@pathfinder/shared/generated/hooks/useRestoreStrategy";
 import { toUserMessage } from "@/lib/api/errors";
+import { chatRoot } from "@/lib/routes";
 
 interface UseDeleteWorkflowArgs {
   siteId: string;
@@ -67,7 +68,7 @@ export function useDeleteWorkflow({
     const target = deleteTarget;
     try {
       if (activeChatId === target.id) {
-        router.push(`/${siteId}/conversation`);
+        router.push(chatRoot(siteId));
       }
 
       if (options.deleteLinkedStrategy === true) {

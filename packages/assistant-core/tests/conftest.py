@@ -1,14 +1,9 @@
 import os
 from collections.abc import AsyncGenerator, Generator
-from pathlib import Path
 from uuid import UUID
 
-# The default fastembed cache is a temporary directory that can disappear
-# during a download, so tests use a durable one.
-os.environ.setdefault(
-    "FASTEMBED_CACHE_DIR",
-    str(Path.home() / ".cache" / "pathfinder" / "fastembed"),
-)
+# The suite has no API key, so every embedding call is the deterministic one.
+os.environ["EMBEDDING_BACKEND"] = "fake"
 
 import pytest
 from sqlalchemy import insert
@@ -23,6 +18,7 @@ from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 from tests._host_schema import HOST_USERS
 
+from assistant_core.embeddings.embedder import reset_embedder
 from assistant_core.persistence.models import Base, Conversation
 from assistant_core.platform import db as session_module
 from assistant_core.platform.config import RuntimeSettings, use_settings_source
@@ -115,6 +111,33 @@ def patch_app_db_engine(
     session_module._session_factory_instance = session_maker
     url = _test_database_url()
     use_settings_source(lambda: RuntimeSettings(database_url=url))
+
+
+@pytest.fixture
+async def embedding_index_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
+    """Empty the shared vector store around a test that asserts on it.
+
+    The two tables are a content-addressed cache, so ``db_cleaner`` leaves
+    them: a suite that re-embeds every text per test is a slow suite.
+    """
+    await _truncate_embedding_index(db_engine)
+    yield
+    await _truncate_embedding_index(db_engine)
+
+
+async def _truncate_embedding_index(db_engine: AsyncEngine) -> None:
+    async with db_engine.begin() as conn:
+        await conn.exec_driver_sql(
+            "TRUNCATE TABLE embedding_index_entries, embedding_vectors",
+        )
+
+
+@pytest.fixture
+def use_fake_embedder() -> Generator[None]:
+    """Build a fresh deterministic embedder for this test."""
+    reset_embedder()
+    yield
+    reset_embedder()
 
 
 @pytest.fixture

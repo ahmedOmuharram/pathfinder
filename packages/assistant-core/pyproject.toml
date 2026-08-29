@@ -14,7 +14,9 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "sqlalchemy[asyncio]>=2.0.49",
     "asyncpg>=0.31.0",
-    "fastembed>=0.8.0",
+    "pgvector>=0.5.0",
+    "numpy>=2.0.0",
+    "openai>=2.0.0",
     "structlog>=25.0.0",
     "opentelemetry-api>=1.39.0",
 ]
@@ -44,6 +46,10 @@ asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 pythonpath = ["src", "."]
+addopts = "-m 'not live_embeddings'"
+markers = [
+    "live_embeddings: one real call to the embeddings API (opt-in; run via `uv run pytest tests/live -m live_embeddings --override-ini addopts=''`)",
+]
 
 [tool.ruff]
 line-length = 88

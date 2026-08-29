@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException
 
+from pathfinder.domain.strategy.operations.apply import ApplyError
 from pathfinder.platform.errors import AppError, ErrorCode, ProblemDetail
 
 _logger = structlog.get_logger(__name__)
@@ -71,6 +72,23 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         title=exc.title,
         detail=exc.detail,
         errors=exc.errors,
+    )
+
+
+async def apply_error_handler(request: Request, exc: ApplyError) -> JSONResponse:
+    """Render an operation the graph rejected. The op algebra names the cause."""
+    _logger.warning(
+        "Graph operation rejected",
+        method=request.method,
+        path=request.url.path,
+        detail=str(exc),
+    )
+    return problem_response(
+        request,
+        status=HTTPStatus.UNPROCESSABLE_ENTITY,
+        code=ErrorCode.VALIDATION_ERROR,
+        title="Operation rejected",
+        detail=str(exc),
     )
 
 

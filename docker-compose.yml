@@ -33,6 +33,8 @@ services:
       # Accounted megabytes of per-site catalogs and semantic indexes one
       # process holds before the least recently used site is evicted.
       SITE_CATALOG_BUDGET_MB: ${SITE_CATALOG_BUDGET_MB:-512}
+      # This is the process that syncs the embedding indexes.
+      EMBEDDING_INDEX_SYNC_ENABLED: "true"
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
       # Set PIGUARD_ENABLED=false to skip the prompt-injection model load + per-message scan.
@@ -41,6 +43,10 @@ services:
       OTEL_INCLUDE_CONTENT: ${OTEL_INCLUDE_CONTENT:-false}
       # Seconds of silence after which the chat SSE stream sends a comment frame.
       SSE_KEEPALIVE_SECONDS: ${SSE_KEEPALIVE_SECONDS:-15}
+      # Silence after which a worker counts as dead and its turn is failed.
+      # A busy worker starves its own heartbeat, so this clears the worst
+      # measured gap by a wide margin.
+      WORKER_DEAD_HEARTBEAT_SECONDS: ${WORKER_DEAD_HEARTBEAT_SECONDS:-300}
       # Dev WDK login for the chat debugger (pathfinder.devtools.chat); set in .env.dev.
       WDK_DEV_EMAIL: ${WDK_DEV_EMAIL:-}
       WDK_DEV_PASSWORD: ${WDK_DEV_PASSWORD:-}
@@ -53,9 +59,6 @@ services:
       # Devtools chat-debugger run artifacts (pathfinder.devtools.chat) land on
       # the host so they can be inspected outside the container.
       - ./apps/api/.pf-runs:/data/pf-runs
-      # Per-site embedding index cache. Shared with the worker and kept across
-      # recreates, so only a changed catalog is re-encoded.
-      - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
       # Per-site catalog snapshots. Without this every recreate serves the
       # image's snapshots, finds them stale, and refetches and re-encodes.
       - catalogs_cache:/app/apps/api/src/data/catalogs
@@ -104,10 +107,17 @@ services:
       # exceeds this container's ceiling, and the api saves what it refreshes
       # to the shared volume.
       CATALOG_REFRESH_ENABLED: "false"
+      # Only the api syncs an embedding index. This process searches what the
+      # api wrote.
+      EMBEDDING_INDEX_SYNC_ENABLED: "false"
       # Jobs the worker runs in parallel, across every queue.
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
       # Age at which a job still in 'doing' is failed so its lock releases.
       WORKER_STALLED_JOB_TIMEOUT_SECONDS: ${WORKER_STALLED_JOB_TIMEOUT_SECONDS:-3600}
+      # Silence after which a worker counts as dead and its jobs are failed.
+      # A busy worker starves its own heartbeat, so this clears the worst
+      # measured gap by a wide margin.
+      WORKER_DEAD_HEARTBEAT_SECONDS: ${WORKER_DEAD_HEARTBEAT_SECONDS:-300}
       # The veupathdb-wdk-mcp endpoint an assistant's declaration resolves to,
       # and the credential presented there. Set the same secret in this
       # deployment's PATHFINDER_MCP_SERVICE_TOKENS; an empty one admits nothing.
@@ -115,7 +125,6 @@ services:
       PATHFINDER_WDK_MCP_TOKEN: ${PATHFINDER_WDK_MCP_TOKEN:-}
     volumes:
       - ./apps/api/.pf-runs:/data/pf-runs
-      - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
       - catalogs_cache:/app/apps/api/src/data/catalogs
 
   wdk-mcp:
@@ -159,6 +168,9 @@ services:
       # exceeds this container's ceiling, and the api saves what it refreshes
       # to the shared volume.
       CATALOG_REFRESH_ENABLED: "false"
+      # Only the api syncs an embedding index. This process searches what the
+      # api wrote.
+      EMBEDDING_INDEX_SYNC_ENABLED: "false"
       # The URL a client reads the RFC 9728 document at. It must be reachable
       # by the client, not by this container.
       PATHFINDER_MCP_BASE_URL: ${PATHFINDER_MCP_BASE_URL:-http://localhost:8100}
@@ -166,7 +178,6 @@ services:
       # "app_id:secret[,app_id:secret...]". Empty admits user bearers only.
       PATHFINDER_MCP_SERVICE_TOKENS: ${PATHFINDER_MCP_SERVICE_TOKENS:-}
     volumes:
-      - embeddings_cache:/app/apps/api/src/pathfinder/data/embeddings
       - catalogs_cache:/app/apps/api/src/data/catalogs
 
   web:
@@ -201,5 +212,4 @@ services:
 
 volumes:
   postgres_data:
-  embeddings_cache:
   catalogs_cache:

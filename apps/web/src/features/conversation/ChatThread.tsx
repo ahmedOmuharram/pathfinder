@@ -10,6 +10,7 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { strategyQueryOptions } from "@/lib/api/strategy";
+import { chatUrl } from "@/lib/routes";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { ChatEmptyState } from "./ChatEmptyState";
@@ -24,7 +25,7 @@ function ChatUrlSync({ conversationId }: { conversationId: string }) {
   const siteId = useSessionStore((s) => s.selectedSite);
   useAuiEvent("thread.runStart", () => {
     if (typeof window === "undefined") return;
-    const target = `/${siteId}/conversation/${conversationId}`;
+    const target = chatUrl(siteId, conversationId);
     if (!window.location.pathname.startsWith(target)) {
       window.history.replaceState(null, "", target);
     }

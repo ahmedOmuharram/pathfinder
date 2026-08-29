@@ -32,8 +32,10 @@ from pydantic_ai.models.function import FunctionModel
 from pathfinder.ai.models.mock_specs import (
     CriterionReply,
     SpecPlan,
+    alt_organism_for,
     combined_spec,
     criterion_replies,
+    edit_frame_call,
     frame_call,
     go_spec,
     interpro_spec,
@@ -79,6 +81,10 @@ _CONTROLS_PROSE = (
 _LOOP_PROSE = (
     "I kept re-reading the same catalog listing and made no progress, so I "
     "stopped there."
+)
+_EDIT_PROSE = (
+    "**Substituted the organism** on the seed criterion. Every other criterion "
+    "is unchanged, and the steps behind them keep the ids they had."
 )
 
 LEAD = "lead"
@@ -126,6 +132,8 @@ _CONSULT_MARKERS = ("consult me before planning", "ask me design questions")
 # The FRAME arc that asks for one catalog listing over and over, which is what
 # the repetition guard exists to stop.
 _LOOP_MARKERS = ("read the catalog again and again",)
+# An edit turn names a substitution and asks for the rest to stand.
+_EDIT_MARKERS = ("keep the rest", "swap the organism", "substitute the organism")
 _LOOP_CALL_ARGS = {"record_type": "transcript"}
 
 
@@ -263,8 +271,13 @@ def _prose_only_sequence(lowered: str) -> list[ToolCallPart] | None:
     return None
 
 
-def _routed_sequence(raw: str) -> list[ToolCallPart]:
-    lowered = raw.lower()
+def _one_tool_sequence(lowered: str) -> list[ToolCallPart] | None:
+    """The arcs that dispatch one tool and then answer."""
+    if has_any(lowered, _EDIT_MARKERS):
+        return [
+            scripted_call("edit_strategy", {"reason": "mock edit: swap the organism"}),
+            _lead_final(_EDIT_PROSE, "await_user"),
+        ]
     if has_any(lowered, _LOOP_MARKERS):
         return [
             scripted_call("frame_problem", {"reason": "mock loop"}),
@@ -277,6 +290,14 @@ def _routed_sequence(raw: str) -> list[ToolCallPart]:
         ]
     if has_any(lowered, _CONSULT_MARKERS):
         return [scripted_call("consult_user", _consult_args())]
+    return None
+
+
+def _routed_sequence(raw: str) -> list[ToolCallPart]:
+    lowered = raw.lower()
+    dispatched = _one_tool_sequence(lowered)
+    if dispatched is not None:
+        return dispatched
     prose = _prose_only_sequence(lowered)
     if prose is not None:
         return prose
@@ -309,6 +330,14 @@ def _criterion_replies(messages: list[ModelMessage]) -> list[CriterionReply]:
 def _frame_script(messages: list[ModelMessage]) -> ToolCallPart:
     if has_any(current_user_text.get().lower(), _LOOP_MARKERS):
         return scripted_call("list_searches", _LOOP_CALL_ARGS)
+    work_order = last_user_text(messages)
+    if work_order.startswith("EDIT work order"):
+        return edit_frame_call(
+            work_order,
+            alt_organism_for(current_scope_id.get()),
+            called_tool_parts(messages),
+            _criterion_replies(messages),
+        )
     return frame_call(
         _active_spec(),
         called_tool_parts(messages),

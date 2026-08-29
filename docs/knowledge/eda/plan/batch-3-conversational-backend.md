@@ -5,7 +5,7 @@ description: The agent toolset that lets a researcher explore an EDA study in co
 tags: [eda, pathfinder, plan, batch, agent-tools, stream-parts, durable-tools, persistence, prompts]
 generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-status: draft
+status: accepted
 ---
 
 # EDA batch 3: conversational backend
@@ -148,7 +148,7 @@ from pathfinder.services.eda.catalog import (
     search_studies, get_study_detail_for_dataset, resolve_dataset,
 )
 from pathfinder.services.eda.authoring import (
-    SubsetPreview, SubsetRejected,
+    SubsetPreview, SubsetRejectedError,
     apply_filters, open_analysis, preview_subset, validate_subset,
 )
 from pathfinder.integrations.eda.models import (  # types only, via services
@@ -485,6 +485,9 @@ class EdaSubsetPreviewPart(CamelModel):
     analysis_id: str
     entity_counts: list[EdaEntityCount] = Field(default_factory=list)
     distribution: EdaDistributionSeries | None = None
+    distribution_note: str | None = None
+    # batch 2's SubsetPreview.distribution_note, passed through: why no
+    # distribution was drawn (no binWidth, a date variable, an unknown id)
 
 
 class EdaVolcanoPoint(CamelModel):
@@ -1622,7 +1625,7 @@ async def set_eda_filters(
      `ctx.deps.state` (see below), return `EdaFiltersResult(decide=...,
      filters_template=[], guidance=...)`. No `ToolReturn`, no chunk: nothing was
      recorded.
-  3. `filters is not None`: `apply_filters(...)`, catching `SubsetRejected` and
+  3. `filters is not None`: `apply_filters(...)`, catching `SubsetRejectedError` and
      re-raising as `ModelRetry` with the joined error strings plus the fixed
      sentence "The valid values are listed above; do not request the sheet
      again." Then return a `ToolReturn` whose `return_value` reports
@@ -1810,7 +1813,7 @@ def test_the_toolset_carries_exactly_the_seven_contract_tools() -> None:
 def test_the_durable_tool_is_registered_sequential() -> None:
     """A durable tool suspends the graph; a parallel sibling's return is orphaned."""
     tools = _function_toolset(build_toolset()).tools
-    assert tools["run_eda_compute"].tool_def.sequential is True
+    assert tools["run_eda_compute"].sequential is True  # the live idiom, see test_verification_toolset.py
 
 
 def test_the_lead_agent_carries_the_eda_toolset() -> None:
@@ -1928,15 +1931,14 @@ def build_toolset() -> AbstractToolset[LeadDeps]:
 ```
 
 - [ ] **Wire it into the Lead.** In `ai/lead/lead_agent.py`, add
-      `toolsets=[build_eda_toolset()]` to the `Agent(...)` call, importing
-      `build_toolset` under a name that does not collide with the three phase
-      toolsets already imported elsewhere. CLAUDE.md forbids `import as`, so
-      import the module and call `eda_toolset.build_toolset()`:
+      `toolsets=[eda.build_toolset()]` to the `Agent(...)` call. CLAUDE.md
+      forbids `import as`, and `eda` collides with nothing in that module, so
+      import the module and call through it:
 
 ```python
-from pathfinder.ai.tools.toolsets import eda as eda_toolset
+from pathfinder.ai.tools.toolsets import eda
 ...
-        toolsets=[eda_toolset.build_toolset()],
+        toolsets=[eda.build_toolset()],
 ```
 
 - [ ] **Write the instructions.** Append this section to `LEAD_INSTRUCTIONS`,
@@ -2001,7 +2003,7 @@ Rules that are not negotiable:
   ```bash
   docker compose --env-file .env.dev up -d --build api worker web
   docker compose exec worker grep -c "sample-level data" \
-    /app/src/pathfinder/ai/lead/_lead_instructions.py
+    /app/apps/api/src/pathfinder/ai/lead/_lead_instructions.py
   ```
 
   A count of 0 means the old container is still running; add
@@ -2055,6 +2057,9 @@ class ConversationAnalysesRepository:
     async def bind(self, *, conversation_id: UUID, site_id: str,
                    dataset_id: str, analysis_id: str) -> None
     async def unbind(self, *, conversation_id: UUID) -> None
+    async def increment(self, *, conversation_id: UUID) -> int
+        # atomic UPDATE ... SET revision = revision + 1 RETURNING revision;
+        # every authoring mutation calls it and puts the result in the part
 
 # services/eda/binding.py
 async def bind_conversation_analysis(*, conversation_id: UUID, site_id: str,
@@ -2793,6 +2798,10 @@ async def create_eda_step(
      `@model_validator` is what refuses a mismatch, and `wdk_parameters()` is
      what produces the two strings.
   7. Build the step: `StrategyStepNode(search_name=..., parameters={...})`
+     The search names and the two parameter names come from
+     `services/catalog/eda_backed.py` (`SUBSET_QUERY`, `COMPUTE_QUERY`,
+     `EDA_DATASET_ID_PARAM`, `EDA_ANALYSIS_SPEC_PARAM`), never re-declared:
+     batch 2 pinned them there for exactly this consumer.
      where each value is the `ParamValue` shape leaf parameters take. Read
      `pathfinder/domain/parameters/values.py` and use the single-value member;
      do not pass a bare string where a `ParamValue` belongs.
@@ -3352,7 +3361,7 @@ async def test_the_impl_polls_to_completion_and_returns_a_summary(
     client.install_transport(_statuses("queued", "in-progress", "complete"))
     monkeypatch.setattr(eda_compute_impl, "get_eda_client", lambda _s: client)
     monkeypatch.setattr(eda_compute_impl, "_POLL_SECONDS", 0.0)
-    monkeypatch.setattr(eda_compute_impl, "bound_analysis_for_worker", _bound)
+    monkeypatch.setattr(eda_compute_impl, "bound_conversation_analysis", _bound)
 
     progress = _Progress()
     result = await run_eda_compute_impl(
@@ -3381,7 +3390,7 @@ async def test_progress_reports_queued_then_running_then_complete(
     client.install_transport(_statuses("queued", "in-progress", "complete"))
     monkeypatch.setattr(eda_compute_impl, "get_eda_client", lambda _s: client)
     monkeypatch.setattr(eda_compute_impl, "_POLL_SECONDS", 0.0)
-    monkeypatch.setattr(eda_compute_impl, "bound_analysis_for_worker", _bound)
+    monkeypatch.setattr(eda_compute_impl, "bound_conversation_analysis", _bound)
 
     progress = _Progress()
     await run_eda_compute_impl(
@@ -3411,7 +3420,7 @@ async def test_a_failed_job_raises_with_the_status_named(
     client.install_transport(_statuses("queued", "failed"))
     monkeypatch.setattr(eda_compute_impl, "get_eda_client", lambda _s: client)
     monkeypatch.setattr(eda_compute_impl, "_POLL_SECONDS", 0.0)
-    monkeypatch.setattr(eda_compute_impl, "bound_analysis_for_worker", _bound)
+    monkeypatch.setattr(eda_compute_impl, "bound_conversation_analysis", _bound)
 
     with pytest.raises(RuntimeError) as excinfo:
         await run_eda_compute_impl(
@@ -3449,7 +3458,7 @@ async def test_a_config_the_predicates_reject_never_reaches_the_wire(
     client = EdaClient(base_url="https://plasmodb.org/eda")
     client.install_transport(httpx.MockTransport(handler))
     monkeypatch.setattr(eda_compute_impl, "get_eda_client", lambda _s: client)
-    monkeypatch.setattr(eda_compute_impl, "bound_analysis_for_worker", _bound_de)
+    monkeypatch.setattr(eda_compute_impl, "bound_conversation_analysis", _bound_de)
 
     bad = dict(_ARGS)
     bad["group_a_labels"] = ["NOT_A_VALUE"]
@@ -3476,7 +3485,7 @@ async def test_a_cached_job_completes_without_a_poll(
     client.install_transport(_statuses("complete"))
     monkeypatch.setattr(eda_compute_impl, "get_eda_client", lambda _s: client)
     monkeypatch.setattr(eda_compute_impl, "_POLL_SECONDS", 0.0)
-    monkeypatch.setattr(eda_compute_impl, "bound_analysis_for_worker", _bound)
+    monkeypatch.setattr(eda_compute_impl, "bound_conversation_analysis", _bound)
 
     progress = _Progress()
     result = await run_eda_compute_impl(
@@ -3494,7 +3503,7 @@ async def test_a_cached_job_completes_without_a_poll(
   `worker_context` is a `Context` for the worker; build it the way
   `apps/api/src/pathfinder/tests/integration/jobs/` already does for the other
   impls, and read one of those files before writing the fixture.
-  `bound_analysis_for_worker` and `_bound`/`_bound_de` return the
+  `bound_conversation_analysis` and `_bound`/`_bound_de` return the
   `(site_id, dataset_id, analysis_id)` triple the impl needs; the impl reads it
   from `conversation_analyses` in production, so it must be a module-level name
   a test can replace.
@@ -3521,14 +3530,14 @@ from assistant_core.memory.store import MemoryStore
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.integrations.eda.factory import get_eda_client
 from pathfinder.jobs.progress import TaskProgressEmitter
-from pathfinder.services.eda.binding import bound_analysis_for_worker
+from pathfinder.services.eda.binding import bound_conversation_analysis
 from pathfinder.services.eda.catalog import get_study_detail_for_dataset
 from pathfinder.services.eda.compute import (
     RUNNING_STATUSES,
     lookup_job,
     read_statistics,
     retained_summary,
-    submit_job,
+    submit_compute,
 )
 
 _COMPUTE_NAME = "differentialexpression"
@@ -3561,7 +3570,7 @@ async def run_eda_compute_impl(
 ) -> dict[str, Any]:
     """Drive one differential-expression job and summarise its statistics."""
     del task_id, memory_store
-    binding = await bound_analysis_for_worker(
+    binding = await bound_conversation_analysis(
         conversation_id=context.conversation_id
     )
     ...
@@ -3569,7 +3578,7 @@ async def run_eda_compute_impl(
 
   The body, in order, and every step is required:
 
-  1. `bound_analysis_for_worker` gives the site, dataset and analysis. When
+  1. `bound_conversation_analysis` gives the site, dataset and analysis. When
      there is none, raise `ValueError` naming `open_eda_analysis` - the runner
      turns an exception into a `failed` task and a message on the thread.
   2. Build the `EdaDifferentialExpressionConfig` from the six arguments through
@@ -3581,7 +3590,7 @@ async def run_eda_compute_impl(
      submit and produce a `failed` job minutes later.
   4. `progress.update(percent=0.0, message="Checking for a cached result", ...)`
      then `lookup_job(...)`. A `complete` status skips straight to step 7.
-  5. `submit_job(...)` with `autostart=True`.
+  5. `submit_compute(...)` with `autostart=True`.
   6. Poll: while the status is in `RUNNING_STATUSES` and the poll count is
      under `_MAX_POLLS`, `asyncio.sleep(_POLL_SECONDS)` then
      `poll_job(...)`. Report progress each time: `_QUEUED_PERCENT` while
@@ -3632,7 +3641,7 @@ async def run_eda_compute_impl(
       `register_tool("run_eda_compute", run_eda_compute_impl)` to
       `register_all_tools()`, keeping the existing order.
 
-- [ ] **Add `bound_analysis_for_worker`.** It belongs in
+- [ ] **Add `bound_conversation_analysis`.** It belongs in
       `services/eda/binding.py` beside the other three, and it returns the same
       `ConversationAnalysisView | None`. The worker's `Context` carries
       `conversation_id`; confirm that by reading
@@ -3705,7 +3714,7 @@ async def test_a_failed_job_appends_a_task_completed_event_with_the_error(...) -
   ```bash
   docker compose --env-file .env.dev up -d --build api worker web
   docker compose exec worker grep -c "run_eda_compute" \
-    /app/src/pathfinder/jobs/impls/__init__.py
+    /app/apps/api/src/pathfinder/jobs/impls/__init__.py
   cd apps/api && uv run pytest src/pathfinder/tests/integration/jobs/ -v
   ```
 
@@ -3764,7 +3773,8 @@ cd ../assistant-core && uv run pytest && uv run mypy --strict src/
 13. **Reject a viz part whose cap can drop a retained point.** Retained points
     must be ordered first before the slice.
 14. **Reject a `conversation_analyses` row that stores the descriptor.** The
-    column set is exactly the five names.
+    column set is exactly the six names (`conversation_id`, `site_id`,
+    `dataset_id`, `analysis_id`, `revision`, `created_at`).
 15. **Reject a second row per conversation.** The primary key is
     `conversation_id` alone, and `bind` upserts.
 16. **Reject a migration whose `down_revision` is not the real head**, and one
@@ -3834,7 +3844,7 @@ uv run pytest src/pathfinder/tests/ -v
 8. **Reject a progress sequence that is not monotonic.**
 9. **Reject an impl that does not try `lookup_job` first.** The job id is a
    client-derivable input hash, so a cache hit costs one call and no wait.
-10. **Reject an impl that retries `submit_job`.** `autostart=true` starts work.
+10. **Reject an impl that retries `submit_compute`.** `autostart=true` starts work.
 11. **Reject a terminal status other than `complete` being swallowed.**
     `failed`, `expired` and `no-such-job` each mean something different and the
     message must say which.

@@ -5,7 +5,7 @@ description: The study catalog with its embedding index, analysis authoring with
 tags: [eda, pathfinder, plan, batch, services, catalog, embeddings, authoring, compute]
 generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-status: draft
+status: accepted
 ---
 
 # EDA batch 2: services and catalog
@@ -110,8 +110,8 @@ cd apps/api && uv run pytest src/pathfinder/tests/unit/ -v \
 @dataclass
 class StudyIndexEntry:
     dataset_id: str
-    study_id: str
     enriched_text: str
+    # no study id here: the index never resolves, only ranks
     @property
     def cache_key(self) -> str
 
@@ -142,7 +142,8 @@ def study_cache_key(*, base_url: str, study: EdaStudyOverview) -> str
 async def list_studies(site_id: str) -> list[EdaStudyOverview]
 async def search_studies(site_id: str, query: str, limit: int = 10) -> list[StudyCard]
 async def resolve_dataset(site_id: str, dataset_id: str) -> EdaPermissionEntry
-async def get_study_detail(site_id: str, study_id: str) -> EdaStudyDetail
+async def get_study_detail(site_id: str, study: EdaStudyOverview) -> EdaStudyDetail
+    # cached under study_cache_key: only the overview carries the version signal
 async def get_study_detail_for_dataset(site_id: str, dataset_id: str
                                        ) -> tuple[EdaPermissionEntry, EdaStudyDetail]
 def clear_study_caches() -> None
@@ -431,7 +432,7 @@ async def resolve_dataset(site_id: str, dataset_id: str) -> EdaPermissionEntry:
     return entry
 
 
-async def get_study_detail(site_id: str, study_id: str) -> EdaStudyDetail:
+async def get_study_detail(site_id: str, study: EdaStudyOverview) -> EdaStudyDetail:
     """The full entity tree, cached per site for the turn."""
     cache = _site_cache(site_id)
     detail = cache.details.get(study_id)
@@ -1049,13 +1050,6 @@ class EdaStepRequest(CamelModel):
 
 # services/eda/compute.py
 @dataclass(frozen=True, slots=True)
-class ComputeOutcome:
-    job_id: str
-    status: EdaJobStatus
-    queue_position: int | None
-    statistics: VolcanoStatsResponse | None
-
-@dataclass(frozen=True, slots=True)
 class RetainedSummary:
     total_rows: int
     unparseable_rows: int
@@ -1077,7 +1071,7 @@ def retained_point_ids(stats: VolcanoStatsResponse, *,
 async def lookup_job(site_id: str, *, compute_name: str, study_id: str,
                      config: EdaDifferentialExpressionConfig,
                      filters: Sequence[EdaFilter]) -> EdaComputeJob
-async def submit_job(...) -> EdaComputeJob            # autostart=True
+async def submit_compute(...) -> EdaComputeJob            # autostart=True
 async def poll_job(site_id: str, *, job_id: str) -> EdaComputeJob
 async def read_statistics(...) -> VolcanoStatsResponse
 ```
@@ -1850,7 +1844,7 @@ async def test_apply_filters_refuses_an_invalid_array_before_patching(
 
     token = veupathdb_auth_token_ctx.set("t")
     try:
-        with pytest.raises(authoring.SubsetRejected) as excinfo:
+        with pytest.raises(authoring.SubsetRejectedError) as excinfo:
             await authoring.apply_filters(
                 "plasmodb",
                 analysis_id="t4fszEJ",
@@ -1871,7 +1865,7 @@ async def test_apply_filters_refuses_an_invalid_array_before_patching(
 - [ ] **Implementation.** Append to `authoring.py`:
 
 ```python
-class SubsetRejected(Exception):
+class SubsetRejectedError(Exception):
     """The filter array does not describe the subset it claims to."""
 
     def __init__(self, errors: Sequence[str]) -> None:
@@ -1912,7 +1906,7 @@ async def apply_filters(
     """Replace the analysis's subset. The upstream document stays the SSOT."""
     errors = await validate_subset(site_id, dataset_id=dataset_id, filters=filters)
     if errors:
-        raise SubsetRejected(errors)
+        raise SubsetRejectedError(errors)
     return await _patch(
         site_id,
         analysis_id=analysis_id,
@@ -1933,7 +1927,7 @@ async def apply_computation(
     _entry, study = await get_study_detail_for_dataset(site_id, dataset_id)
     errors = validate_compute_config(study, computation.descriptor.configuration)
     if errors:
-        raise SubsetRejected(errors)
+        raise SubsetRejectedError(errors)
     return await _patch(
         site_id,
         analysis_id=analysis_id,
@@ -2362,7 +2356,7 @@ async def test_a_submit_starts_a_job(
     client.install_transport(httpx.MockTransport(handler))
     monkeypatch.setattr(compute, "get_eda_client", lambda _s: client)
 
-    job = await compute.submit_job(
+    job = await compute.submit_compute(
         "plasmodb",
         compute_name="differentialexpression",
         study_id=_STUDY,
@@ -2395,7 +2389,7 @@ async def test_the_lookup_and_the_submit_address_the_same_job_id(
         config=_config(),
         filters=[],
     )
-    await compute.submit_job(
+    await compute.submit_compute(
         "plasmodb",
         compute_name="differentialexpression",
         study_id=_STUDY,
@@ -2464,7 +2458,7 @@ async def test_the_live_thresholds_reproduce_the_measured_counts(
     """1543 genes pass at effectSize 1 and significance 0.05: 529 up, 1014 down."""
     handle = veupathdb_auth_token_ctx.set(require_wdk_creds)
     try:
-        job = await compute.submit_job(
+        job = await compute.submit_compute(
             "plasmodb",
             compute_name="differentialexpression",
             study_id=_STUDY,
@@ -2527,7 +2521,7 @@ async def lookup_job(
     )
 
 
-async def submit_job(
+async def submit_compute(
     site_id: str,
     *,
     compute_name: str,
@@ -2622,7 +2616,6 @@ async def read_statistics(
 # services/catalog/eda_backed.py
 EDA_ANALYSIS_SPEC_PARAM = "eda_analysis_spec"
 EDA_DATASET_ID_PARAM = "eda_dataset_id"
-GENERIC_SUBSET_QUERY = "GenesByEdaSubsetGeneric"
 COMPUTE_QUERY = "GenesByEdaVizWithCompute"
 SUBSET_QUERY = "GenesByEdaSubset"
 WGCNA_QUERY = "GenesByWGCNAModule"
@@ -2710,7 +2703,7 @@ def test_the_generic_subset_search_needs_the_dataset_id_set() -> None:
     """GenesByEdaSubsetGeneric hides the parameter; the caller must supply it."""
     described = eda_backed_search(
         _search(
-            name="GenesByEdaSubset",
+            name="GenesByPhenotypeEdaSubset_X",
             params=["eda_dataset_id", "eda_analysis_spec"],
             query="GenesByEdaSubsetGeneric",
         )
@@ -2777,7 +2770,7 @@ def test_a_name_filter_would_find_far_fewer_than_the_predicate() -> None:
                 query="GenesByEdaVizWithCompute")
         for i in range(52)
     ] + [
-        _search(name="GenesByEdaSubset",
+        _search(name="GenesByPhenotypeEdaSubset_X",
                 params=["eda_dataset_id", "eda_analysis_spec"],
                 query="GenesByEdaSubsetGeneric")
     ]
@@ -2805,7 +2798,6 @@ from pathfinder.services.catalog.searches import get_raw_searches
 EDA_ANALYSIS_SPEC_PARAM = "eda_analysis_spec"
 EDA_DATASET_ID_PARAM = "eda_dataset_id"
 
-GENERIC_SUBSET_QUERY = "GenesByEdaSubsetGeneric"
 SUBSET_QUERY = "GenesByEdaSubset"
 COMPUTE_QUERY = "GenesByEdaVizWithCompute"
 WGCNA_QUERY = "GenesByWGCNAModule"
@@ -2899,7 +2891,7 @@ async def list_eda_backed(
 def test_an_eda_backed_search_names_the_two_parameters_it_needs() -> None:
     described = eda_backed_search(
         _search(
-            name="GenesByEdaSubset",
+            name="GenesByPhenotypeEdaSubset_X",
             params=["eda_dataset_id", "eda_analysis_spec"],
             query="GenesByEdaSubsetGeneric",
         )
@@ -2933,7 +2925,7 @@ def test_the_subset_guidance_does_not_mention_a_compute() -> None:
 
     described = eda_backed_search(
         _search(
-            name="GenesByEdaSubset",
+            name="GenesByPhenotypeEdaSubset_X",
             params=["eda_dataset_id", "eda_analysis_spec"],
             query="GenesByEdaSubsetGeneric",
         )
@@ -3005,7 +2997,7 @@ from pathfinder.services.catalog.eda_backed import is_upload_sentinel_vocabulary
 
 
 def _terms(*pairs: tuple[str, str]) -> list[WDKVocabTerm]:
-    return [WDKVocabTerm(term=t, display=d) for t, d in pairs]
+    return [WDKVocabTerm((t, d, None)) for t, d in pairs]  # the WDK wire triple
 
 
 def test_the_live_sentinel_is_recognised() -> None:

@@ -90,7 +90,6 @@ class Settings(RuntimeSettings):
     api_secret_key: str = Field(default="", repr=False)
     api_docs_enabled: bool = True
 
-    openai_api_key: str = Field(default="", repr=False)
     anthropic_api_key: str = Field(default="", repr=False)
     gemini_api_key: str = Field(default="", repr=False)
 
@@ -114,6 +113,9 @@ class Settings(RuntimeSettings):
     # Whether this process rebuilds a stale catalog. A process that only serves
     # reads the snapshot the refreshing process saved.
     catalog_refresh_enabled: bool = True
+    # Whether this process syncs an embedding index. A process that only reads
+    # searches what the syncing process wrote.
+    embedding_index_sync_enabled: bool = True
     veupathdb_auth_token: str | None = Field(default=None, repr=False)
 
     # Semantic Scholar
@@ -153,6 +155,15 @@ class Settings(RuntimeSettings):
         ge=300,
         description=(
             "Age at which a job still in 'doing' is failed so its lock releases."
+        ),
+    )
+    worker_dead_heartbeat_seconds: int = Field(
+        default=300,
+        ge=60,
+        description=(
+            "Silence after which a worker counts as dead and the jobs it holds "
+            "are failed so their locks release. A busy worker starves its own "
+            "heartbeat, so this stays well above the worst measured gap."
         ),
     )
 

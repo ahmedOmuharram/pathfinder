@@ -27,6 +27,7 @@ class ErrorCode(StrEnum):
 
     # Strategy
     STRATEGY_NOT_FOUND = "STRATEGY_NOT_FOUND"
+    STRATEGY_AST_CORRUPT = "STRATEGY_AST_CORRUPT"
     INVALID_STRATEGY = "INVALID_STRATEGY"
     STEP_NOT_FOUND = "STEP_NOT_FOUND"
     INCOMPATIBLE_STEPS = "INCOMPATIBLE_STEPS"
@@ -41,6 +42,10 @@ class ErrorCode(StrEnum):
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
     ASSISTANT_NOT_FOUND = "ASSISTANT_NOT_FOUND"
     ASSISTANT_MISMATCH = "ASSISTANT_MISMATCH"
+
+    # EDA
+    EDA_NO_OPEN_ANALYSIS = "EDA_NO_OPEN_ANALYSIS"
+    EDA_COMPUTE_NOT_RUN = "EDA_COMPUTE_NOT_RUN"
 
     # Specialists / launchers
     SPECIALIST_PRECONDITION_FAILED = "SPECIALIST_PRECONDITION_FAILED"
@@ -146,6 +151,25 @@ class ValidationError(AppError):
             status=422,
             detail=detail,
             errors=errors,
+        )
+
+
+class StrategyAstCorruptError(AppError):
+    """A stored strategy AST does not parse, so the thread's graph is unreadable.
+
+    Rebuilding the thread from an empty graph would overwrite the researcher's
+    steps, so the read stops here instead.
+    """
+
+    def __init__(self, conversation_id: str, reasons: str) -> None:
+        super().__init__(
+            code=ErrorCode.STRATEGY_AST_CORRUPT,
+            title="Stored strategy is unreadable",
+            status=500,
+            detail=(
+                f"conversation {conversation_id} holds a strategy_ast that "
+                f"does not parse: {reasons}"
+            ),
         )
 
 

@@ -41,10 +41,9 @@ test.describe("Operator change persists to AST", () => {
     // The persisted AST must now carry INTERSECT — the assertion the
     // flagship journey is missing.
     await expect
-      .poll(
-        async () => (await combineNode(await apiClient.get(astUrl))).operator,
-        { timeout: 30_000 },
-      )
+      .poll(async () => (await combineNode(await apiClient.get(astUrl))).operator, {
+        timeout: 30_000,
+      })
       .toBe("INTERSECT");
 
     // The flip edits the existing combine rather than replacing it.

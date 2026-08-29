@@ -6,10 +6,13 @@ from uuid import UUID, uuid4
 from langgraph.store.base import Item, SearchItem
 from langgraph.store.postgres.aio import AsyncPostgresStore
 
-from assistant_core.embeddings.prefixes import SEARCH_QUERY_PREFIX
+from assistant_core.embeddings.embedder import EmbeddingUnavailableError
 from assistant_core.memory.embedding import format_embedded_string
 from assistant_core.memory.schemas import MemoryValue
 from assistant_core.platform.context import calling_application
+from assistant_core.platform.logging import get_logger
+
+logger = get_logger(__name__)
 
 MemoryNamespace = tuple[str, str, str, str, str]
 
@@ -122,11 +125,16 @@ class MemoryStore:
         query: str,
         top_k: int = 8,
     ) -> list[StoredMemory]:
-        items = await self.store.asearch(
-            self._ns(user_id, kind),
-            query=f"{SEARCH_QUERY_PREFIX}{query}",
-            limit=top_k,
-        )
+        """The nearest memories, or none when the embedding API is unreachable."""
+        try:
+            items = await self.store.asearch(
+                self._ns(user_id, kind),
+                query=query,
+                limit=top_k,
+            )
+        except EmbeddingUnavailableError as exc:
+            logger.warning("Memory search returned nothing", error=str(exc))
+            return []
         return [_to_stored_search(i) for i in items]
 
 

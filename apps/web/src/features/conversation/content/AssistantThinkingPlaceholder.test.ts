@@ -49,9 +49,7 @@ describe("selectStatusLabel", () => {
     expect(
       selectStatusLabel({
         status: { type: "running" },
-        content: [
-          { type: "data", name: "turn-status", data: { label: "Queued" } },
-        ],
+        content: [{ type: "data", name: "turn-status", data: { label: "Queued" } }],
       }),
     ).toBe("Queued");
   });

@@ -25,7 +25,10 @@ async def _defer_locked_turn(connector: InMemoryConnector, lock: str) -> int:
 
 
 async def _start_job(connector: InMemoryConnector, job_id: int) -> None:
+    """Put the job in ``doing`` on a worker that is answering."""
+    worker = await connector.register_worker_one()
     connector.jobs[job_id]["status"] = "doing"
+    connector.jobs[job_id]["worker_id"] = worker["worker_id"]
     connector.events[job_id].append(
         {"type": "started", "at": datetime.datetime.now(tz=datetime.UTC)},
     )
@@ -83,6 +86,18 @@ class TestStalledTimeoutSetting:
     def test_it_rejects_a_value_below_the_floor(self) -> None:
         with pytest.raises(ValueError, match="worker_stalled_job_timeout_seconds"):
             Settings(worker_stalled_job_timeout_seconds=299)
+
+
+class TestDeadHeartbeatSetting:
+    """The window clears the worst measured heartbeat starvation gap."""
+
+    def test_it_defaults_to_five_minutes(self) -> None:
+        get_settings.cache_clear()
+        assert get_settings().worker_dead_heartbeat_seconds == 300
+
+    def test_it_rejects_a_value_below_the_floor(self) -> None:
+        with pytest.raises(ValueError, match="worker_dead_heartbeat_seconds"):
+            Settings(worker_dead_heartbeat_seconds=59)
 
 
 class TestPeriodicRegistration:

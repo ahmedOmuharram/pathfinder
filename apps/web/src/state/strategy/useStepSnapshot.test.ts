@@ -5,10 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { Step } from "@pathfinder/shared";
 import { useStrategyStore } from "./store";
-import {
-  STEP_LIFECYCLE_STATE_NAMES,
-  seedStepMachine,
-} from "./stepMachine";
+import { STEP_LIFECYCLE_STATE_NAMES, seedStepMachine } from "./stepMachine";
 import { useStepSnapshot } from "./useStepSnapshot";
 
 function makeStep(overrides: Partial<Step> = {}): Step {
@@ -156,17 +153,13 @@ describe("useStepSnapshot", () => {
   });
 
   it("marks a draft step as a draft", () => {
-    const { result } = renderHook(() =>
-      useStepSnapshot(makeStep({ status: "draft" })),
-    );
+    const { result } = renderHook(() => useStepSnapshot(makeStep({ status: "draft" })));
 
     expect(result.current.isDraft).toBe(true);
   });
 
   it("does not mark a built step as a draft", () => {
-    const { result } = renderHook(() =>
-      useStepSnapshot(makeStep({ status: "built" })),
-    );
+    const { result } = renderHook(() => useStepSnapshot(makeStep({ status: "built" })));
 
     expect(result.current.isDraft).toBe(false);
   });
@@ -174,9 +167,7 @@ describe("useStepSnapshot", () => {
   it("does not mark a ready step as a draft", () => {
     // READY is complete-but-unpushed. Treating it as a draft would tell the
     // researcher to finish a step that is already finished.
-    const { result } = renderHook(() =>
-      useStepSnapshot(makeStep({ status: "ready" })),
-    );
+    const { result } = renderHook(() => useStepSnapshot(makeStep({ status: "ready" })));
 
     expect(result.current.isDraft).toBe(false);
   });

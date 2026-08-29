@@ -53,6 +53,58 @@ class _RaisingGraph:
         raise RuntimeError(_ERROR_TEXT)
 
 
+class _RaisingGraphMidToolCall:
+    """Fails while a tool call is open, the way a killed tool call leaves it."""
+
+    def astream(
+        self,
+        graph_input: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+        stream_mode: list[str],
+    ) -> AsyncIterator[tuple[str, Any]]:
+        del graph_input, config, context, stream_mode
+        return self._iter()
+
+    async def _iter(self) -> AsyncIterator[tuple[str, Any]]:
+        yield (
+            "custom",
+            {
+                "chunk": {
+                    "type": "tool-input-start",
+                    "toolCallId": "call-1",
+                    "toolName": "search_eda_studies",
+                },
+            },
+        )
+        yield (
+            "custom",
+            {
+                "chunk": {
+                    "type": "tool-input-available",
+                    "toolCallId": "call-1",
+                    "toolName": "search_eda_studies",
+                    "input": {"limit": 5},
+                },
+            },
+        )
+        yield (
+            "custom",
+            {
+                "chunk": {
+                    "type": "tool-input-start",
+                    "toolCallId": "call-2",
+                    "toolName": "list_sites",
+                },
+            },
+        )
+        yield (
+            "custom",
+            {"chunk": {"type": "tool-output-available", "toolCallId": "call-2"}},
+        )
+        raise RuntimeError(_ERROR_TEXT)
+
+
 def _body(conversation_id: UUID) -> ChatRequestBody:
     return ChatRequestBody.model_validate(
         {
@@ -104,6 +156,45 @@ async def test_a_raising_graph_writes_the_failure_part_beside_the_error(
         "data-turn-failed",
     ]
     assert writer.chunks[2]["data"] == {"errorText": writer.chunks[1]["errorText"]}
+
+
+@pytest.mark.asyncio
+async def test_a_raising_graph_ends_the_tool_calls_it_left_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _no_poll(**_kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(tr, "_watch_for_cancel", _no_poll)
+
+    @dataclass
+    class _RuntimeCtx:
+        cancel_event: asyncio.Event
+
+    conversation_id = uuid4()
+    turn_id = uuid4()
+    writer = _StubWriter(conversation_id=conversation_id, turn_id=turn_id)
+
+    await tr._drive_graph(
+        body=_body(conversation_id),
+        graph_input={"turn_message_id": turn_id, "user_id": uuid4()},
+        compiled_graph=_RaisingGraphMidToolCall(),
+        runtime_context=_RuntimeCtx(cancel_event=asyncio.Event()),
+        title_task=None,
+        writer=writer,
+    )
+
+    assert [chunk["type"] for chunk in writer.chunks] == [
+        "tool-input-start",
+        "tool-input-available",
+        "tool-input-start",
+        "tool-output-available",
+        "tool-output-error",
+        "error",
+        "data-turn-failed",
+    ]
+    assert writer.chunks[4]["toolCallId"] == "call-1"
+    assert writer.chunks[4]["errorText"] == writer.chunks[5]["errorText"]
 
 
 def test_the_log_of_a_failed_turn_reduces_to_a_visible_failure() -> None:

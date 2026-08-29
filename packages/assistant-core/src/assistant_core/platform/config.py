@@ -31,6 +31,18 @@ class RuntimeSettings(BaseSettings):
     log_level: str = "INFO"
     log_format: Literal["json", "console"] = "json"
 
+    # The credential the embedding API and the OpenAI models share.
+    openai_api_key: str = Field(default="", repr=False)
+
+    # Which embedder the process builds. "fake" is deterministic and offline.
+    embedding_backend: Literal["openai", "fake"] = "openai"
+    embedding_model: str = "text-embedding-3-large"
+    # Requests in flight at once, and the largest request the batcher builds.
+    embedding_request_concurrency: int = Field(default=8, ge=1)
+    embedding_batch_size: int = Field(default=256, ge=1)
+    # Characters of one input the embedder reads. A longer text is cut.
+    embedding_input_char_limit: int = Field(default=2000, ge=1)
+
 
 @lru_cache
 def _default_settings() -> RuntimeSettings:

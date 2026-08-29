@@ -135,6 +135,9 @@ def _shortlist(options: list[VocabOption], query: str) -> list[VocabOption]:
 
 def _note(info: ParameterInfo, shown: int, total: int) -> str | None:
     parts: list[str] = []
+    # An empty vocabulary offers nothing, so its note is the reason it is empty.
+    if not shown and info.allowed_values_note:
+        parts.append(info.allowed_values_note)
     if total > shown:
         parts.append(
             f"{total} values; the {shown} most relevant to the request by name are "

@@ -7,6 +7,7 @@ import { ChatView } from "./ChatView";
 
 const CHAT_ID_FROM_PATH = /\/conversation\/([^/]+)/;
 const STRATEGY_PATH = /\/conversation\/[^/]+\/strategy(\/|$)/;
+const EDA_PATH = /\/conversation\/[^/]+\/eda(\/|$)/;
 
 function extractChatId(pathname: string): string | null {
   const match = pathname.match(CHAT_ID_FROM_PATH);
@@ -15,6 +16,10 @@ function extractChatId(pathname: string): string | null {
 
 export function isStrategyRoute(pathname: string): boolean {
   return STRATEGY_PATH.test(pathname);
+}
+
+export function isEdaRoute(pathname: string): boolean {
+  return EDA_PATH.test(pathname);
 }
 
 export interface ChatResolution {
@@ -52,9 +57,8 @@ export function ChatShell() {
     setGeneratedChatId(crypto.randomUUID());
   }
 
-  // /conversation/[id]/strategy and nested routes own the main pane; let
-  // the route's `page.tsx` render the strategy canvas instead of the chat.
-  if (isStrategyRoute(pathname)) return null;
+  // A route that owns the main pane renders its own page instead of the thread.
+  if (isStrategyRoute(pathname) || isEdaRoute(pathname)) return null;
 
   const { conversationId, allowMissing, resumable } = computeChatResolution({
     pathname,

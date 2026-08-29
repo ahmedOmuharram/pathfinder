@@ -6,6 +6,7 @@ export const RIGHT_RAIL_PANELS = [
   "memories",
   "scratchpad",
   "ledger",
+  "eda",
 ] as const;
 
 export type RightRailPanel = (typeof RIGHT_RAIL_PANELS)[number];
@@ -16,6 +17,7 @@ interface LastSeen {
   scratchpadCount: number;
   taskCount: number;
   memoryCount: number;
+  edaCount: number;
 }
 
 const DEFAULT_LAST_SEEN: LastSeen = {
@@ -24,6 +26,7 @@ const DEFAULT_LAST_SEEN: LastSeen = {
   scratchpadCount: 0,
   taskCount: 0,
   memoryCount: 0,
+  edaCount: 0,
 };
 
 interface RightRailState {

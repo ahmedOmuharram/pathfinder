@@ -47,9 +47,50 @@ section; the resumed Lead loop re-frames and rebuilds the strategy from scratch 
 steps, sometimes a different tree). And the client does not subscribe to resumed-graph
 chunks for the open conversation, so nothing renders until reload.
 
+**Root cause, pinned (thread-surgery audit, 2026-08-28).** `@durable_tool` calls
+`interrupt()` (`ai/tools/durable.py:88`) beneath two LLM runs inside one LangGraph
+node: the verify sub-agent's run, inside the Lead's `run_stream_events`
+(`ai/graph/lead_node.py:221-229`), inside `lead_node`. LangGraph's contract is that
+a resume "resumes from the start of the node, re-executing all logic" and matches
+resume values to `interrupt()` calls by their order in the node
+(`langgraph/types.py:705-722`, langgraph 1.1.6). The worker's
+`Command(resume={status, result})` (`jobs/runner.py:345-349`) therefore re-runs the
+Lead from `state.user_prompt` as a fresh LLM call; the suspended verify run's
+in-flight messages live only in process memory, with no durable analogue of
+`PendingApproval.prior_messages_json`, so nothing can re-enter that call. The
+resume value is delivered only if the replayed Lead happens to call some durable
+tool again, and the replay also re-executes the side effects that precede the
+interrupt: `create_background_task` (`durable.py:65`) and `task.defer_async`
+(`durable.py:84`) fire a second task row and a second worker job. This explains
+both measurements above: run 1's replayed Lead answered without re-invoking verify
+(result unconsumed, card stuck, stale ledger via `sub_agent_dispatch.py:371` never
+running), run 2's replayed Lead re-framed and re-built on live WDK (all-new step
+ids, 136.8K tokens) before verifying again.
+
+**What the E-era changed.** The third mechanism (nothing renders until reload) is
+addressed: the lifecycle is on the thread (PROTOCOL 6.1) and
+`DataBackgroundTaskStarted.tsx:64-76` re-attaches with `chat.resumeStream()` while
+a task's completion is unseen. The first two mechanisms, the unrequested
+enrichment and the resume-into-replay, are unchanged.
+
+**EDA consequence, measured (2026-08-28, batch-3 verifier).** `run_eda_compute`
+is a fourth `@durable_tool` under the same replay. Over the batch's resume
+fixtures, `Command(resume)` re-ran the decorator: `durable:run_eda_compute`
+jobs went 1 to 2 and `background_tasks` rows 1 to 2 (statuses `complete`,
+`pending`), with one `data-background-task-started` chunk. In production the
+worker would execute the duplicate: the impl re-runs (a cache hit on the
+input-hash job id), calls `apply_computation` again, bumps the analysis
+revision again, and appends a SECOND `data-eda.analysis-state` and a second
+`data-task-completed` before "no pending graph state to resume". The fix
+below therefore also decides whether the thread's analysis revision can be
+trusted to count real mutations.
+
 **Fix (to decide).** Resume must deliver `{result, status}` into the suspended tool call
 and let verification complete and write the ledger; the transcript's phase card must
-resolve; the task card must show or link the result. Separately, gate enrichment behind an
+resolve; the task card must show or link the result. That means either parking the
+suspended sub-agent run durably (the approval pattern: serialize its messages and
+re-enter with `deferred_tool_results`, no node replay) or moving the durable call
+out of the nondeterministic node. Separately, gate enrichment behind an
 explicit ask or a verification playbook that only runs it for a new build with a control
 set, not for a one-step edit.
 

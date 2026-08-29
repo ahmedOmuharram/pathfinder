@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKEnumParam,
     WDKNumberParam,
@@ -21,9 +22,12 @@ def _vocab(*terms: str) -> list[tuple[str, str, None]]:
 
 def _overview(params: list[WDKParameter]) -> SearchOverviewResult:
     return format_search_overview(
-        search_name="GenesByGoTerm",
-        display_name="Genes by GO Term",
-        description="Find genes by GO term",
+        definition=WDKSearch(
+            url_segment="GenesByGoTerm",
+            display_name="Genes by GO Term",
+            description="Find genes by GO term",
+            param_names=[p.name for p in params],
+        ),
         record_type="transcript",
         infos=format_param_info_typed(params),
         query="kinase genes",

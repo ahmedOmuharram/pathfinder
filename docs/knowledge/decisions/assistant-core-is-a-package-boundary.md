@@ -56,9 +56,9 @@ held both halves in one file: `ai/graph/runtime.py` (`TurnContext` and
 `AssistantDeps` to core, `Context`, `AgentDeps` and `build_node_deps` product),
 `ai/graph/stream_events.py` (the runtime chunk builders to core, enrichment,
 strategy revision and ledger to product), and
-`integrations/embeddings/semantic_index.py`, whose fastembed singleton was the
-runtime's one indirect route to a WDK type and is now
-`integrations/embeddings/model.py`.
+`integrations/embeddings/semantic_index.py`, whose embedding model was the
+runtime's one indirect route to a WDK type and moved into the runtime's own
+`embeddings/` package.
 
 `PreTurnHook` and `TurnAgentFactory` became generic aliases parameterized by the
 state, context and agent types, so core states the hook shape and the product

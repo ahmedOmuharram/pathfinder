@@ -16,7 +16,10 @@ vi.mock("use-debounce", () => ({
 
 import { useStepCounts } from "./useStepCounts";
 
-const PLAN: StrategyAst = { recordType: "gene", root: { id: "a", searchName: "GenesByTaxon" } };
+const PLAN: StrategyAst = {
+  recordType: "gene",
+  root: { id: "a", searchName: "GenesByTaxon" },
+};
 
 function run(applyStepCounts: (c: Record<string, number | null | undefined>) => void) {
   return renderHook(() =>

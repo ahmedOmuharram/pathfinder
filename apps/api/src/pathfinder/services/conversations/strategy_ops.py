@@ -8,17 +8,11 @@ mutation, distinct from plain conversation CRUD.
 from dataclasses import dataclass
 from uuid import UUID
 
-from assistant_core.persistence.models import Conversation
 from assistant_core.platform.db import async_session_factory
 from assistant_core.platform.types import JSONObject
 
 from pathfinder.domain.strategy.operations import GraphOperation
 from pathfinder.domain.strategy.ops import CombineOp
-from pathfinder.domain.strategy.strategy_ast import (
-    PersistedStrategyGraph,
-    StrategyAst,
-)
-from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.platform.errors import ErrorCode, NotFoundError, ValidationError
 from pathfinder.services.conversations.authz import (
@@ -40,7 +34,10 @@ from pathfinder.services.strategies.save_substrategy import (
     SavedSubstrategyResult,
     save_subtree_as_strategy,
 )
-from pathfinder.services.strategies.session_factory import build_strategy_session
+from pathfinder.services.strategies.session_factory import (
+    build_strategy_session,
+    persisted_graph,
+)
 
 
 @dataclass(frozen=True)
@@ -57,18 +54,6 @@ class InsertSavedParams:
     target_step_id: str
     saved_wdk_strategy_id: int
     operator: CombineOp
-
-
-def _persisted_graph(
-    conversation: Conversation,
-    strategy: ConversationStrategyView,
-) -> PersistedStrategyGraph:
-    return PersistedStrategyGraph(
-        id=str(conversation.id),
-        name=conversation.name,
-        strategy_ast=StrategyAst.model_validate(strategy.strategy_ast),
-        wdk_strategy_id=strategy.wdk_strategy_id,
-    )
 
 
 async def get_ast(
@@ -126,16 +111,11 @@ async def apply_operation(
     conversation, strategy = await get_owned_thread_or_404(
         repo, conversation_id, user_id
     )
-    if not strategy.strategy_ast:
-        raise NotFoundError(
-            code=ErrorCode.STRATEGY_NOT_FOUND,
-            title="Strategy AST missing",
-        )
     ctx = StrategyMutationContext(
         site_id=site_id,
         strategy_session=build_strategy_session(
             site_id=site_id,
-            strategy_graph=_persisted_graph(conversation, strategy),
+            strategy_graph=persisted_graph(conversation, strategy),
         ),
         conversation_id=conversation_id,
         db_session_factory=async_session_factory,
@@ -166,7 +146,7 @@ async def save_substrategy(
         )
     session = build_strategy_session(
         site_id=params.site_id,
-        strategy_graph=_persisted_graph(conversation, strategy),
+        strategy_graph=persisted_graph(conversation, strategy),
     )
     graph = session.get_graph(None)
     if graph is None or params.step_id not in graph.steps:
@@ -210,7 +190,7 @@ async def insert_saved(
         )
     session = build_strategy_session(
         site_id=params.site_id,
-        strategy_graph=_persisted_graph(conversation, strategy),
+        strategy_graph=persisted_graph(conversation, strategy),
     )
     return await insert_saved_into_conversation(
         session=session,

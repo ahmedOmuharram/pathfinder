@@ -127,7 +127,7 @@ describe("normalizeLedgerPayload", () => {
 
   it("leaves populated lists untouched", () => {
     const raw = ledgerMissing([]);
-    (raw["frame"] as Record<string, unknown>)["contrasts"] =[
+    (raw["frame"] as Record<string, unknown>)["contrasts"] = [
       { criterionId: "c1", summary: "up in female vs male" },
     ];
 
@@ -140,7 +140,7 @@ describe("normalizeLedgerPayload", () => {
 
   it("does not treat a non-list value as a list", () => {
     const raw = ledgerMissing([]);
-    (raw["frame"] as Record<string, unknown>)["contrasts"] ="nonsense";
+    (raw["frame"] as Record<string, unknown>)["contrasts"] = "nonsense";
 
     expect(normalizeLedgerPayload(raw)?.frame.contrasts).toEqual([]);
   });

@@ -4,6 +4,11 @@ from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
+from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
+from pathfinder.services.catalog.eda_backed import (
+    eda_backed_guidance,
+    eda_backed_search,
+)
 from pathfinder.services.catalog.param_formatting import (
     FilterFieldInfo,
     ParameterInfo,
@@ -46,6 +51,8 @@ class SearchOverviewResult(CamelModel):
     required: list[ParamOverviewEntry] = Field(default_factory=list)
     optional: list[ParamOverviewEntry] = Field(default_factory=list)
     dependencies: dict[str, DependencyEntry] = Field(default_factory=dict)
+    # Empty for a search that carries no EDA analysis document.
+    eda_guidance: str = ""
 
 
 def _build_dependency_section(
@@ -71,9 +78,7 @@ def _build_dependency_section(
 
 def format_search_overview(
     *,
-    search_name: str,
-    display_name: str,
-    description: str,
+    definition: WDKSearch,
     record_type: str,
     infos: list[ParameterInfo],
     query: str,
@@ -83,6 +88,7 @@ def format_search_overview(
     Hidden parameters are excluded. ``query`` ranks a vocabulary too large to
     travel whole.
     """
+    described = eda_backed_search(definition)
     by_name = {info.name: info for info in infos}
     required: list[ParamOverviewEntry] = []
     optional: list[ParamOverviewEntry] = []
@@ -110,11 +116,12 @@ def format_search_overview(
             optional.append(entry)
 
     return SearchOverviewResult(
-        search_name=search_name,
-        display_name=display_name,
-        description=description,
+        search_name=definition.url_segment,
+        display_name=definition.display_name or definition.url_segment,
+        description=definition.description or definition.summary,
         record_type=record_type,
         required=required,
         optional=optional,
         dependencies=_build_dependency_section(infos),
+        eda_guidance="" if described is None else eda_backed_guidance(described),
     )

@@ -1,0 +1,147 @@
+/**
+ * The EDA route fixtures must satisfy the generated wire schemas.
+ *
+ * A recorded payload that the app would reject is a fixture that proves
+ * nothing, and the SSE part path does no validation of its own, so a bad part
+ * payload is invisible in a journey. This file parses every fixture the three
+ * journeys serve. It uses the bare Playwright runner, not `../fixtures/test`,
+ * because that fixture set carries an auto-use cleanup that logs in and clears
+ * server state: a schema check must not depend on a running API.
+ */
+
+import { test, expect } from "@playwright/test";
+import type { ZodType } from "zod";
+import { conversationEdaResponseSchema } from "@pathfinder/shared/generated/zod/conversationEdaResponseSchema";
+import { conversationResponseSchema } from "@pathfinder/shared/generated/zod/conversationResponseSchema";
+import { edaAnalysisPatchResponseSchema } from "@pathfinder/shared/generated/zod/edaAnalysisPatchResponseSchema";
+import { edaAnalysisStateSchema } from "@pathfinder/shared/generated/zod/edaAnalysisStateSchema";
+import { edaCountResponseSchema } from "@pathfinder/shared/generated/zod/edaCountResponseSchema";
+import { edaDistributionSeriesSchema } from "@pathfinder/shared/generated/zod/edaDistributionSeriesSchema";
+import { edaStudyDetailResponseSchema } from "@pathfinder/shared/generated/zod/edaStudyDetailResponseSchema";
+import { edaStudyListResponseSchema } from "@pathfinder/shared/generated/zod/edaStudyListResponseSchema";
+import { edaSubsetPreviewPartSchema } from "@pathfinder/shared/generated/zod/edaSubsetPreviewPartSchema";
+import { edaVizPartSchema } from "@pathfinder/shared/generated/zod/edaVizPartSchema";
+
+import {
+  analysisState,
+  COMPUTE_JOB,
+  COUNTS_FEBRILE,
+  COUNTS_UNFILTERED,
+  exportedStrategy,
+  FEBRILE_DISTRIBUTION,
+  FILTERED_ANALYSIS,
+  STUDY_DETAIL,
+  STUDY_ROW,
+  SUBSET_PREVIEW,
+  VOLCANO_VIZ,
+} from "../fixtures/eda";
+
+const CONVERSATION_ID = "11111111-2222-4333-8444-555555555555";
+
+interface Case {
+  name: string;
+  schema: ZodType<unknown>;
+  payload: unknown;
+}
+
+const CASES: Case[] = [
+  {
+    name: "GET /eda/studies",
+    schema: edaStudyListResponseSchema,
+    payload: { studies: [STUDY_ROW] },
+  },
+  {
+    name: "GET /eda/studies/{datasetId}",
+    schema: edaStudyDetailResponseSchema,
+    payload: STUDY_DETAIL,
+  },
+  {
+    name: "POST /eda/distribution",
+    schema: edaDistributionSeriesSchema,
+    payload: FEBRILE_DISTRIBUTION,
+  },
+  {
+    name: "GET /conversations/{id}/eda, unbound",
+    schema: conversationEdaResponseSchema,
+    payload: { analysis: null, descriptor: null },
+  },
+  {
+    name: "GET /conversations/{id}/eda, bound",
+    schema: conversationEdaResponseSchema,
+    payload: { analysis: FILTERED_ANALYSIS, descriptor: null },
+  },
+  {
+    name: "data-eda.analysis-state, unfiltered",
+    schema: edaAnalysisStateSchema,
+    payload: analysisState(),
+  },
+  {
+    name: "data-eda.analysis-state, filtered",
+    schema: edaAnalysisStateSchema,
+    payload: FILTERED_ANALYSIS,
+  },
+  {
+    name: "data-eda.analysis-state, after a compute",
+    schema: edaAnalysisStateSchema,
+    payload: analysisState({ revision: 2, numComputations: 1 }),
+  },
+  {
+    name: "data-eda.subset-preview",
+    schema: edaSubsetPreviewPartSchema,
+    payload: SUBSET_PREVIEW,
+  },
+  { name: "data-eda.viz", schema: edaVizPartSchema, payload: VOLCANO_VIZ },
+  {
+    name: "PATCH /conversations/{id}/eda, bind",
+    schema: edaAnalysisPatchResponseSchema,
+    payload: { analysis: analysisState(), job: null, step: null },
+  },
+  {
+    name: "PATCH /conversations/{id}/eda, run-compute",
+    schema: edaAnalysisPatchResponseSchema,
+    payload: {
+      analysis: analysisState({ revision: 1, numComputations: 1 }),
+      job: COMPUTE_JOB,
+      step: null,
+    },
+  },
+  {
+    name: "PATCH /conversations/{id}/eda, export-step",
+    schema: edaAnalysisPatchResponseSchema,
+    payload: {
+      analysis: analysisState({ revision: 2, numComputations: 1 }),
+      job: null,
+      step: exportedStrategy(CONVERSATION_ID),
+    },
+  },
+  {
+    name: "the exported strategy the tab parses back",
+    schema: conversationResponseSchema,
+    payload: exportedStrategy(CONVERSATION_ID),
+  },
+  ...[...COUNTS_UNFILTERED, ...COUNTS_FEBRILE].map((row) => ({
+    name: `POST /eda/count, ${row.entityId} at ${String(row.count)}`,
+    schema: edaCountResponseSchema,
+    payload: {
+      entityId: row.entityId,
+      count: row.count,
+      unfilteredCount: row.unfilteredCount,
+    },
+  })),
+];
+
+test.describe("EDA fixtures conform to the wire schemas", () => {
+  for (const entry of CASES) {
+    test(`${entry.name} parses`, () => {
+      const result = entry.schema.safeParse(entry.payload);
+      const issues = result.success
+        ? ""
+        : result.error.issues
+            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+            .join("; ");
+      expect(result.success, `${entry.name} failed the wire schema: ${issues}`).toBe(
+        true,
+      );
+    });
+  }
+});

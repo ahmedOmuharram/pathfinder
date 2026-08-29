@@ -6,10 +6,12 @@ import type { ConversationResponse } from "@pathfinder/shared/generated/types/Co
 
 import type { ConversationItem } from "./conversationSidebarTypes";
 
+const navigateMock = vi.hoisted(() => vi.fn());
 vi.mock("@/features/strategy/hooks/useFlushBeforeNav", () => ({
-  useFlushBeforeNav: () => ({ navigate: vi.fn(), pending: false }),
+  useFlushBeforeNav: () => ({ navigate: navigateMock, pending: false }),
 }));
 
+import { chatUrl } from "@/lib/routes";
 import { ConversationListItem } from "./ConversationListItem";
 
 function makeItem(): ConversationItem {
@@ -78,5 +80,24 @@ describe("ConversationListItem duplicate action", () => {
       el.textContent.trim(),
     );
     expect(labels).toEqual(["Rename", "Mark as saved", "Delete"]);
+  });
+});
+
+describe("ConversationListItem chat link", () => {
+  afterEach(cleanup);
+
+  it("points the row link at the site-scoped conversation route", () => {
+    renderItem();
+
+    expect(chatUrl("plasmodb", "c1")).toBe("/plasmodb/conversation/c1");
+    expect(screen.getByRole("link")).toHaveAttribute("href", chatUrl("plasmodb", "c1"));
+  });
+
+  it("navigates through the flush guard to the same route on a left click", async () => {
+    renderItem();
+
+    await userEvent.click(screen.getByRole("link"));
+
+    expect(navigateMock.mock.calls).toEqual([[chatUrl("plasmodb", "c1")]]);
   });
 });

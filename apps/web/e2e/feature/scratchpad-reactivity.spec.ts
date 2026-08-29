@@ -27,7 +27,6 @@ const NOTE_TITLE = "E2E_SCRATCHPAD_NOTE";
 const NOTE_SUMMARY = "one-line summary of the finding";
 const NOTE_BODY = "Fuller body text saved by the agent.";
 
-
 interface OpenConversationResponse {
   conversationId?: string;
   strategyId?: string;

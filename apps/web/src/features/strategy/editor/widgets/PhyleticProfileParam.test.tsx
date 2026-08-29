@@ -53,10 +53,7 @@ const PHYLETIC_DEFAULTS: Record<string, string | string[] | unknown> = {
   phyletic_term_map: TERM_MAP_VOCAB,
 };
 
-function makeSpecsFor(
-  termMap: WDKVocabTerm[],
-  indentMap: WDKVocabTerm[],
-): ParamSpec[] {
+function makeSpecsFor(termMap: WDKVocabTerm[], indentMap: WDKVocabTerm[]): ParamSpec[] {
   return [
     { ...PARAM_DEFAULTS, name: "profile_pattern", type: "string" },
     { ...PARAM_DEFAULTS, name: "included_species", type: "string" },
@@ -473,7 +470,9 @@ describe("reopening a step whose lists name a term the tree does not carry", () 
       </TestForm>,
     );
 
-    expect(screen.getByTestId("phyletic-unread").textContent).toContain("All Organisms");
+    expect(screen.getByTestId("phyletic-unread").textContent).toContain(
+      "All Organisms",
+    );
   });
 
   it("shows no notice when every stored term is on the tree", () => {
@@ -611,10 +610,12 @@ describe("buildSpeciesLists", () => {
   });
 
   it("separates several terms the way the reference client does", () => {
-    const lists = buildSpeciesLists(new Map([
+    const lists = buildSpeciesLists(
+      new Map([
         ["pfal", "include" as const],
         ["hsap", "include" as const],
-      ]));
+      ]),
+    );
 
     expect(lists.included).toBe("pfal, hsap");
   });

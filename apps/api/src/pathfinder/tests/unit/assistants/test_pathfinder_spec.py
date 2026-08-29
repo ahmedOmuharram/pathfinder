@@ -105,15 +105,21 @@ async def test_its_turn_context_is_the_product_context(
     assert context.phase_models == {"lead": "openai:gpt-5.6-luna"}
 
 
-def test_it_registers_the_strategy_stream_parts() -> None:
+def test_it_registers_the_strategy_and_the_eda_stream_parts() -> None:
     registry = StreamPartRegistry()
     hook = build_pathfinder_spec().register_stream_parts
     assert hook is not None
 
     hook(registry)
 
-    assert "data-graph-snapshot" in registry.kinds()
-    assert "data-strategy-revision" in registry.kinds()
+    kinds = registry.kinds()
+    assert "data-graph-snapshot" in kinds
+    assert "data-strategy-revision" in kinds
+    assert {
+        "data-eda.analysis-state",
+        "data-eda.subset-preview",
+        "data-eda.viz",
+    } <= kinds
 
 
 def test_its_mock_factory_returns_the_scripted_function_model() -> None:

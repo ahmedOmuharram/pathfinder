@@ -10,6 +10,7 @@ import { CompactStrategyView } from "@/features/strategy/graph/components/Compac
 import { InsertSavedDialog } from "@/features/saved/InsertSavedDialog";
 import { SaveSubstrategyDialog } from "@/features/strategy/editor/SaveSubstrategyDialog";
 import { useSaveSubstrategyMutation } from "@/features/strategy/mutations/useSaveSubstrategyMutation";
+import { strategyCanvasUrl, strategyStepUrl } from "@/lib/routes";
 
 import { RailEmptyState, RailPanelShell } from "./RailPanelShell";
 
@@ -39,12 +40,12 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
 
   const openFullEditor = (): void => {
     if (strategy == null) return;
-    router.push(`/${siteId}/conversation/${strategy.id}/strategy`);
+    router.push(strategyCanvasUrl(siteId, strategy.id));
   };
 
   const openStep = (stepId: string): void => {
     if (strategy == null) return;
-    router.push(`/${siteId}/conversation/${strategy.id}/strategy/step/${stepId}`);
+    router.push(strategyStepUrl(siteId, strategy.id, stepId));
   };
 
   const saveTargetStep =
@@ -59,7 +60,12 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
         hasSteps ? (
           <div className="flex items-center gap-1">
             {wdkUrl != null && wdkUrl !== "" && (
-              <Button asChild variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs"
+              >
                 <a
                   href={wdkUrl}
                   target="_blank"

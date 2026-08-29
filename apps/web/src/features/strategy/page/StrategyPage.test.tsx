@@ -3,6 +3,7 @@
  */
 import type * as ReactQueryModule from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { chatRoot } from "@/lib/routes";
 
 type ReactQueryExports = typeof ReactQueryModule;
 
@@ -155,7 +156,7 @@ describe("StrategyPage", () => {
       <StrategyPage siteId="plasmodb" conversationId="missing" focusStepId={null} />,
     );
 
-    expect(redirectSpy).toHaveBeenCalledWith("/plasmodb/conversation");
+    expect(redirectSpy).toHaveBeenCalledWith(chatRoot("plasmodb"));
   });
 
   it("renders a spinner while the conversation query is pending", async () => {

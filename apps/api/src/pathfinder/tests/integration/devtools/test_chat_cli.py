@@ -9,6 +9,7 @@ import structlog
 from assistant_core.platform.db import async_session_factory
 
 from pathfinder.assistants.site_help.mock import SITES_REPLY
+from pathfinder.devtools import chat
 from pathfinder.devtools.capture import RunCapture
 from pathfinder.devtools.chat import (
     DEV_USER_ID,
@@ -16,6 +17,7 @@ from pathfinder.devtools.chat import (
     RunArgs,
     _body_ctx,
     _gate_from_checkpoint,
+    _optional_wdk_token,
     _route_framework_logs_to_stderr,
     _wdk_token,
     _worker_payload,
@@ -65,6 +67,38 @@ async def test_wdk_token_missing_creds_raises(
     )
     with pytest.raises(MissingCredentialsError, match="WDK_DEV_EMAIL"):
         await _wdk_token(args)
+
+
+async def test_a_mocked_run_without_credentials_does_not_log_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the LLM is mocked, so the login is skipped only when it cannot run."""
+    monkeypatch.delenv("WDK_DEV_EMAIL", raising=False)
+    monkeypatch.delenv("WDK_DEV_PASSWORD", raising=False)
+    args = parse_run_args(
+        ["hi", "--site", "plasmodb", "--mock", "--run-dir", str(tmp_path / "r")]
+    )
+
+    assert await _optional_wdk_token(args) is None
+
+
+async def test_a_mocked_run_with_credentials_logs_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WDK is real in a mocked run, so a strategy it builds reaches the site."""
+    monkeypatch.setenv("WDK_DEV_EMAIL", "someone@example.org")
+    monkeypatch.setenv("WDK_DEV_PASSWORD", "not-a-real-password")
+
+    async def _login(site: str, email: str, password: str) -> str:
+        del site, email, password
+        return "token-from-login"
+
+    monkeypatch.setattr(chat, "password_login", _login)
+    args = parse_run_args(
+        ["hi", "--site", "plasmodb", "--mock", "--run-dir", str(tmp_path / "r")]
+    )
+
+    assert await _optional_wdk_token(args) == "token-from-login"
 
 
 def test_route_framework_logs_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:

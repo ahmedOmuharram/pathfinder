@@ -23,6 +23,7 @@ import { ConversationSidebar } from "@/features/sidebar/components/ConversationS
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
+import { chatRoot } from "@/lib/routes";
 import { requiresFullScreenSignIn } from "@/state/useAuthGateStore";
 import { useLeftSidebarStore } from "@/state/useRightRailStore";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -81,7 +82,7 @@ function AppShellInner({
   const modals = useModalState();
 
   const handleSiteChange = (nextSite: string) => {
-    router.push(`/${nextSite}/conversation`);
+    router.push(chatRoot(nextSite));
   };
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;

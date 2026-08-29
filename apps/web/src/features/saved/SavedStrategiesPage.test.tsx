@@ -11,11 +11,13 @@ import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/u
 
 import { SavedStrategiesPage } from "./SavedStrategiesPage";
 import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
+import { chatRoot, chatUrl } from "@/lib/routes";
 
 vi.mock("@pathfinder/shared/generated/hooks/useDeleteStrategy", () => ({
   deleteStrategy: vi.fn(() => Promise.resolve({})),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+const routerPushMock = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: routerPushMock }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockDelete = vi.mocked(deleteStrategy);
@@ -52,7 +54,10 @@ function renderPage(
 }
 
 afterEach(cleanup);
-beforeEach(() => mockDelete.mockClear());
+beforeEach(() => {
+  mockDelete.mockClear();
+  routerPushMock.mockClear();
+});
 
 const KINASES = conv({
   id: "k1",
@@ -93,7 +98,7 @@ describe("SavedStrategiesPage", () => {
   it("shows the consumer badge with the imported-by count", async () => {
     renderPage([KINASES], { 101: 3 });
     const row = await screen.findByTestId("saved-strategy-k1");
-    expect(within(row).getByText("3 consumers")).toBeTruthy();
+    expect(within(row).getByText("3 consumers").textContent).toBe("3 consumers");
   });
 
   it("filters the visible rows by name", async () => {
@@ -110,7 +115,24 @@ describe("SavedStrategiesPage", () => {
 
   it("shows the empty state when there are no saved strategies", async () => {
     renderPage([DRAFT]);
-    expect(await screen.findByText("No saved strategies yet.")).toBeTruthy();
+    const message = await screen.findByText("No saved strategies yet.");
+    expect(message.textContent).toBe("No saved strategies yet.");
+    expect(screen.queryByTestId("saved-strategies-list")).toBeNull();
+  });
+
+  it("points the empty-state chat link at the chat root of the site", async () => {
+    renderPage([DRAFT]);
+    const link = await screen.findByRole("link", { name: "start a new chat" });
+    expect(link.getAttribute("href")).toBe(chatRoot("plasmodb"));
+  });
+
+  it("opens the row's conversation at its chat route", async () => {
+    renderPage([KINASES], { 101: 0 });
+    await screen.findByTestId("saved-strategy-k1");
+
+    await userEvent.click(screen.getByText("Kinase sweep"));
+
+    expect(routerPushMock.mock.calls).toEqual([[chatUrl("plasmodb", "k1")]]);
   });
 
   it("deletes a saved strategy from WDK with cascade on click", async () => {

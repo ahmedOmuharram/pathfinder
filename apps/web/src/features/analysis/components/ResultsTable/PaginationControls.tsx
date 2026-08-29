@@ -48,7 +48,9 @@ export function PaginationControls({
 
       <div className="flex items-center gap-3">
         <span className="tabular-nums">
-          {totalPages == null ? `Page ${currentPage}` : `Page ${currentPage} of ${totalPages}`}
+          {totalPages == null
+            ? `Page ${currentPage}`
+            : `Page ${currentPage} of ${totalPages}`}
         </span>
         <div className="flex items-center gap-1">
           <Button

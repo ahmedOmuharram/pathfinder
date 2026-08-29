@@ -1,9 +1,12 @@
 /**
  * Central URL builders. Site is now carried in the URL path, so every
  * navigation target needs a site id. Never inline
- * ``/${siteId}/conversation/...`` — always go through a helper here so the
+ * ``/${siteId}/conversation/...`` - always go through a helper here so the
  * path format stays in one place.
  */
+
+/** The cross-species portal, which a site-less entry point redirects to. */
+export const PORTAL_SITE_ID = "veupathdb";
 
 export function chatRoot(siteId: string): string {
   return `/${siteId}/conversation`;
@@ -11,6 +14,22 @@ export function chatRoot(siteId: string): string {
 
 export function chatUrl(siteId: string, conversationId: string): string {
   return `/${siteId}/conversation/${conversationId}`;
+}
+
+export function edaTabUrl(siteId: string, conversationId: string): string {
+  return `/${siteId}/conversation/${conversationId}/eda`;
+}
+
+export function strategyCanvasUrl(siteId: string, conversationId: string): string {
+  return `/${siteId}/conversation/${conversationId}/strategy`;
+}
+
+export function strategyStepUrl(
+  siteId: string,
+  conversationId: string,
+  stepId: string,
+): string {
+  return `${strategyCanvasUrl(siteId, conversationId)}/step/${stepId}`;
 }
 
 export function workbenchRoot(siteId: string): string {

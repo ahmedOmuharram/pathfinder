@@ -52,41 +52,43 @@ def _params() -> list[WDKParameter]:
 @pytest.fixture(autouse=True)
 def _no_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
     """Rank by tree order, so the test asserts the entries and not the model."""
-    monkeypatch.setattr(
-        param_phyletic,
-        "_rank_by_semantic_similarity",
-        lambda _query, candidates: candidates,
-    )
+
+    async def _tree_order(
+        _query: str, candidates: list[tuple[str, str, bool]]
+    ) -> list[tuple[str, str, bool]]:
+        return candidates
+
+    monkeypatch.setattr(param_phyletic, "_rank_by_semantic_similarity", _tree_order)
 
 
 class TestTheMatchesDescribeTheTree:
     @staticmethod
-    def _matches() -> list[Any]:
+    async def _matches() -> list[Any]:
         tree = phyletic_tree_of(_params())
         assert tree is not None
-        return param_phyletic._match_phyletic_entries(tree, "mammal")
+        return await param_phyletic._match_phyletic_entries(tree, "mammal")
 
-    def test_the_synthetic_root_is_not_a_match(self) -> None:
-        assert all(m["code"] != "ALL" for m in self._matches())
+    async def test_the_synthetic_root_is_not_a_match(self) -> None:
+        assert all(m["code"] != "ALL" for m in await self._matches())
 
-    def test_a_clade_is_reported_as_a_group(self) -> None:
-        by_code = {m["code"]: m for m in self._matches()}
+    async def test_a_clade_is_reported_as_a_group(self) -> None:
+        by_code = {m["code"]: m for m in await self._matches()}
 
         assert by_code["MAMM"]["leaf"] is False
         assert by_code["EUKA"]["leaf"] is False
 
-    def test_a_species_is_reported_as_a_leaf(self) -> None:
-        by_code = {m["code"]: m for m in self._matches()}
+    async def test_a_species_is_reported_as_a_leaf(self) -> None:
+        by_code = {m["code"]: m for m in await self._matches()}
 
         assert by_code["hsap"]["leaf"] is True
         assert by_code["pfal"]["leaf"] is True
 
-    def test_every_code_carries_its_label(self) -> None:
-        by_code = {m["code"]: m for m in self._matches()}
+    async def test_every_code_carries_its_label(self) -> None:
+        by_code = {m["code"]: m for m in await self._matches()}
 
         assert by_code["pfal"]["label"] == "Plasmodium falciparum 3D7"
 
-    def test_an_empty_tree_matches_nothing(self) -> None:
+    async def test_an_empty_tree_matches_nothing(self) -> None:
         empty = phyletic_tree_of(
             [
                 p
@@ -108,4 +110,4 @@ class TestTheMatchesDescribeTheTree:
         )
 
         assert empty is not None
-        assert param_phyletic._match_phyletic_entries(empty, "mammal") == []
+        assert await param_phyletic._match_phyletic_entries(empty, "mammal") == []

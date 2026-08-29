@@ -11,6 +11,7 @@ from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.context.rendering import render_graph_state
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.prompts.loader import load_system_prompt
+from pathfinder.domain.parameters.values import to_wire
 
 
 def base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
@@ -21,13 +22,20 @@ def pinned_frame_workspace(ctx: RunContext[AgentDeps]) -> str | None:
     spec = ctx.deps.agent_state.operational_spec_draft
     if not spec.criteria and not spec.dropped:
         return None
-    lines = ["# FRAME workspace (in-progress spec)"]
+    lines = [
+        "# FRAME workspace (in-progress spec)",
+        "Values shown here are already bound and are preserved unless the "
+        "request changes them.",
+    ]
     for c in spec.criteria:
         slots = [s.param_name for s in c.open_params]
         line = f"- [{c.id}] {c.text[:60]} -> {c.search_name or '(UNBOUND)'}"
         if slots:
             line += f" | open: {slots}"
         lines.append(line)
+        lines.extend(
+            f"    {name}={to_wire(value)}" for name, value in c.resolved_params.items()
+        )
     if spec.dropped:
         lines.append("dropped: " + "; ".join(d.text for d in spec.dropped))
     lines.append(

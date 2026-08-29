@@ -6,11 +6,11 @@ as the credential the transport gate verified.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
-from assistant_core.memory.embedding import embed_text
+from assistant_core.embeddings.embedder import EmbeddingUnavailableError
 from assistant_core.platform.logging import get_logger
 from assistant_core.platform.types import JSONObject
 from fastmcp import FastMCP
@@ -18,14 +18,11 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import ToolResult
 from mcp.server.auth.middleware.auth_context import get_access_token
-from mcp.server.lowlevel.server import request_ctx
 from mcp.types import CallToolRequestParams, ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
-from starlette.requests import Request
 
 from pathfinder import __version__
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.integrations.embeddings.embed_fn import EmbedFn
 from pathfinder.mcp.auth import McpCredential, wdk_identity
 from pathfinder.mcp.schemas import (
     SearchCategory,
@@ -34,7 +31,6 @@ from pathfinder.mcp.schemas import (
     TransformListing,
 )
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.keyed_locks import KeyedLock
 from pathfinder.platform.tool_errors import ToolErrorPayload
 from pathfinder.services import catalog, control_tests, gene_lookup, wdk
 from pathfinder.services.catalog import public_strategy_search, sites
@@ -82,48 +78,6 @@ _GENE_RECORD_TYPES = frozenset({"gene", "transcript"})
 _GENE_SAMPLE_ATTRIBUTES = ("gene_product", "gene_name", "organism")
 
 _NO_CREDENTIAL = "The call carried no verified credential."
-
-# One precedent-embedding pass per site: a second caller queues instead of
-# doubling the allocation.
-_EMBEDDING_PASS = KeyedLock()
-
-_CLIENT_GONE = "The client closed the connection before the call finished."
-
-
-class _Caller:
-    """The HTTP request a served call arrives on, when it arrives on one.
-
-    A stateless streamable-HTTP call runs in the session manager's task group,
-    so the ASGI request ending does not cancel it. The work has to ask.
-    """
-
-    def __init__(self) -> None:
-        self._request = _http_request()
-
-    async def is_gone(self) -> bool:
-        return self._request is not None and await self._request.is_disconnected()
-
-
-def _http_request() -> Request | None:
-    """The Starlette request of the call in flight, or None off the transport."""
-    try:
-        context = request_ctx.get()
-    except LookupError:
-        return None
-    request = context.request
-    return request if isinstance(request, Request) else None
-
-
-def _embed_while_connected(caller: _Caller) -> EmbedFn:
-    """An embedding call that refuses once the caller has walked away."""
-
-    async def embed(texts: Sequence[str]) -> list[list[float]]:
-        if await caller.is_gone():
-            raise ToolError(_CLIENT_GONE)
-        return await embed_text(texts)
-
-    return embed
-
 
 _INSTRUCTIONS = (
     "VEuPathDB WDK catalog, record, step and evidence tools. Every tool takes "
@@ -334,20 +288,16 @@ async def search_example_plans(
         query: The research goal to match public strategies against.
         limit: Largest number of strategies to return.
     """
-    caller = _Caller()
-    async with _EMBEDDING_PASS(site_id):
-        if await caller.is_gone():
-            raise ToolError(_CLIENT_GONE)
-        strategies = await wdk.get_strategy_api(site_id).list_public_strategies()
-        try:
-            return await public_strategy_search.rank_public_strategies_semantic(
-                strategies, query, embed=_embed_while_connected(caller), limit=limit
-            )
-        except (OSError, RuntimeError, ValueError) as exc:
-            logger.warning("Semantic strategy ranking unavailable", error=str(exc))
-            return public_strategy_search.rank_public_strategies(
-                strategies, query=query, limit=limit
-            )
+    strategies = await wdk.get_strategy_api(site_id).list_public_strategies()
+    try:
+        return await public_strategy_search.rank_public_strategies_semantic(
+            strategies, query, site_id=site_id, limit=limit
+        )
+    except EmbeddingUnavailableError as exc:
+        logger.warning("Semantic strategy ranking unavailable", error=str(exc))
+        return public_strategy_search.rank_public_strategies(
+            strategies, query=query, limit=limit
+        )
 
 
 async def get_search_overview(

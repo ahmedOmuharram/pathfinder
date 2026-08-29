@@ -73,6 +73,15 @@ export default defineConfig({
       fullyParallel: false,
     },
     {
+      // The frozen EDA acceptance journeys. Without EDA_ACCEPTANCE the
+      // testMatch matches nothing, so a plain `playwright test` never runs it.
+      name: "eda-acceptance",
+      testDir: "./e2e/acceptance",
+      testMatch: process.env["EDA_ACCEPTANCE"] === undefined ? /$^/ : /.*\.spec\.ts$/,
+      timeout: 180_000,
+      fullyParallel: false,
+    },
+    {
       name: "journey",
       testDir: "./e2e/journey",
       timeout: 180_000,

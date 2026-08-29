@@ -231,7 +231,7 @@ class WDKSearch(WDKModel):
     revise_build: str = ""
     query_name: str = ""
     no_summary_on_single_record: bool = False
-    dynamic_attributes: list[JSONObject] = Field(default_factory=list)
+    dynamic_attributes: list[WDKAttributeField] = Field(default_factory=list)
     default_summary_view: str = "_default"
     summary_view_plugins: list[JSONObject] = Field(default_factory=list)
     icon_name: str | None = None

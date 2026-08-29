@@ -1,0 +1,147 @@
+"""Agent tools that find an EDA study and read its shape."""
+
+from __future__ import annotations
+
+from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
+
+from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.ai.tools.standalone._eda_models import (
+    EdaStudyCardOut,
+    EdaStudyDescription,
+    EdaStudySearchResult,
+)
+from pathfinder.services.eda.catalog import (
+    UnknownEdaDatasetError,
+    get_study_detail_for_dataset,
+    search_studies,
+)
+from pathfinder.services.eda.description import (
+    UnknownEdaEntityError,
+    describe_study,
+    permission_facts,
+)
+
+_FILTER_GUIDANCE = (
+    "Filter this study with set_eda_filters. Copy an entityId and a "
+    "variableId from the lists above; a variableId is only valid on the "
+    "entity that declares it. Pick the filter type from the variable's "
+    "own type, not from what the value looks like. Check every string "
+    "value against the variable's vocabulary yourself: an invented value "
+    "returns a count of zero with no error."
+)
+
+_ENTITY_GUIDANCE = (
+    "Call describe_eda_study again with an entityId to read that entity's "
+    "variables. A study can declare thousands, so they travel one entity at "
+    "a time."
+)
+
+
+async def search_eda_studies(
+    ctx: RunContext[LeadDeps],
+    query: str,
+    limit: int = 5,
+) -> EdaStudySearchResult:
+    """Find an EDA study by what it measures.
+
+    EDA studies are the sample-level datasets behind VEuPathDB's expression,
+    phenotype and antibody-array searches. Use this when the user names a
+    dataset, an experiment, a condition or a comparison - "the heat shock
+    RNA-Seq data", "rodent malaria phenotypes", "febrile against normal" -
+    rather than a gene attribute.
+
+    Each result carries a ``datasetId`` (a ``DS_`` or ``EDAUD_`` id) and a
+    ``studyId``. Every later EDA tool takes the ``datasetId``; never build one
+    from the other. ``canSubset`` false means this account cannot count that
+    study, and ``canExportRows`` false means it cannot export its rows into a
+    step, so say so instead of trying.
+
+    Args:
+        ctx: Agent run context.
+        query: What the study should measure, in the user's own words.
+        limit: Maximum studies to return.
+    """
+    found = await search_studies(ctx.deps.runtime.site_id, query, limit=limit)
+    if not found.cards:
+        return EdaStudySearchResult(
+            guidance=(
+                f"No EDA study on this site matches {query!r}. EDA covers "
+                f"sample-level expression, phenotype and antibody-array "
+                f"datasets only. If the question is about gene attributes, use "
+                f"search_for_searches instead."
+            ),
+        )
+    return EdaStudySearchResult(
+        studies=[
+            EdaStudyCardOut(
+                dataset_id=card.dataset_id,
+                study_id=card.study_id,
+                display_name=card.display_name,
+                short_display_name=card.short_display_name,
+                description=card.description,
+                source_type=card.source_type,
+                relevance=card.relevance,
+                can_subset=card.can_subset,
+                can_export_rows=card.can_export_rows,
+            )
+            for card in found.cards
+        ],
+        guidance=" ".join(
+            part
+            for part in (
+                found.guidance,
+                "Call describe_eda_study on the datasetId you want before "
+                "opening an analysis.",
+            )
+            if part
+        ),
+    )
+
+
+async def describe_eda_study(
+    ctx: RunContext[LeadDeps],
+    dataset_id: str,
+    entity_id: str | None = None,
+) -> EdaStudyDescription:
+    """Read an EDA study's entity tree, and one entity's filterable variables.
+
+    Call it first with no ``entityId`` to get the entity tree: each entity is
+    one table of records, a child entity holds several rows per parent row,
+    and the counts a subset produces are per entity. Then call it again with
+    the ``entityId`` you want, to get that entity's variables. A study can
+    declare thousands of variables, so they never travel all at once.
+
+    Each variable carries the exact ``filterType`` it takes, its vocabulary or
+    its declared bounds, and whether one record holds several values. A
+    ``geneEntityProblem`` means the study cannot export a gene list into a
+    strategy step; the analysis is still worth reading.
+
+    Args:
+        ctx: Agent run context.
+        dataset_id: The ``datasetId`` from search_eda_studies.
+        entity_id: The entity whose variables to read.
+    """
+    try:
+        entry, study = await get_study_detail_for_dataset(
+            ctx.deps.runtime.site_id, dataset_id
+        )
+    except UnknownEdaDatasetError as exc:
+        msg = f"{exc.guidance} Call search_eda_studies to find a real datasetId."
+        raise ModelRetry(msg) from exc
+    try:
+        described = describe_study(
+            permission_facts(entry),
+            study,
+            dataset_id=dataset_id,
+            entity_id=entity_id,
+        )
+    except UnknownEdaEntityError as exc:
+        raise ModelRetry(exc.guidance) from exc
+    # A study can declare thousands of variables, so they travel one entity
+    # at a time and the tree call carries none of them.
+    variables = [] if entity_id is None else described.variables
+    return EdaStudyDescription(
+        **described.model_dump() | {"variables": variables},
+        guidance=_FILTER_GUIDANCE if entity_id is not None else _ENTITY_GUIDANCE,
+    )

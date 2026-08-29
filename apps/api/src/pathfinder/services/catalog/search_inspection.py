@@ -145,9 +145,7 @@ async def inspect_search(
         raise UnknownSearchError(search_name, [name for name in valid if name]) from exc
 
     overview = format_search_overview(
-        search_name=search.url_segment,
-        display_name=search.display_name or search.url_segment,
-        description=search.description or search.summary,
+        definition=search,
         record_type=rt,
         infos=format_param_info_typed(search.parameters or []),
         query=query or "",

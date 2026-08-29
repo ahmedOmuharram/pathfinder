@@ -110,6 +110,11 @@ class SiteInfo(CamelModel):
         parsed = urlparse(self.base_url)
         return f"{parsed.scheme}://{parsed.netloc}"
 
+    @property
+    def eda_base_url(self) -> str:
+        """Returns the EDA service URL, which lives at the site origin."""
+        return f"{self.site_origin}/eda"
+
     def strategy_url(self, strategy_id: int, root_step_id: int | None = None) -> str:
         """Builds a strategy URL for the web UI."""
         if root_step_id is not None:

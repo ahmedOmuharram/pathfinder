@@ -13,8 +13,13 @@ PodmanArgs=--memory=2g
 # API keys and app settings loaded from .env
 EnvironmentFile=%h/.config/pathfinder/.env
 
-# Infrastructure URLs — must use container network hostnames, override .env
+# Infrastructure URLs, which must use container network hostnames, override .env
 Environment=DATABASE_URL=postgresql+asyncpg://postgres:postgres@pathfinder-db:5432/pathfinder
+
+# Only the api rebuilds a stale catalog; this worker reads the saved snapshot
+Environment=CATALOG_REFRESH_ENABLED=false
+# Only the api writes embedding vectors, so a turn never waits on a sync
+Environment=EMBEDDING_INDEX_SYNC_ENABLED=false
 
 [Service]
 Restart=always

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { formatSidebarTime } from "@/lib/formatTime";
+import { chatUrl } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 import { ConversationSubtreeDialog } from "./ConversationSubtreeDialog";
@@ -83,7 +84,7 @@ export function ConversationSubtree({
               data-conversation-id={item.id}
             >
               <Link
-                href={`/${item.siteId}/conversation/${item.id}`}
+                href={chatUrl(item.siteId, item.id)}
                 className={cn(
                   "flex items-center gap-1.5 rounded py-0.5 pr-6 text-[11px] transition-colors",
                   isActive

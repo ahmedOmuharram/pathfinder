@@ -25,6 +25,7 @@ LEAD_TOOL_NAMES = frozenset(
         "compare_search_variants",
         "compare_variants_scored",
         "consult_user",
+        "edit_strategy",
         "frame_problem",
         "get_live_strategy_state",
         "import_control_ids_from_gene_set",

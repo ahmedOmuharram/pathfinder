@@ -68,7 +68,11 @@ function describeOperand(
   if (inferStepKind(step) !== "combine") return step.displayName ?? "";
   if (depth <= 0) return "...";
   const symbol = OPERATOR_SYMBOL[step.operator ?? ""] ?? step.operator ?? "";
-  const left = describeOperand(byId.get(step.primaryInputStepId ?? ""), byId, depth - 1);
+  const left = describeOperand(
+    byId.get(step.primaryInputStepId ?? ""),
+    byId,
+    depth - 1,
+  );
   const right = describeOperand(
     byId.get(step.secondaryInputStepId ?? ""),
     byId,

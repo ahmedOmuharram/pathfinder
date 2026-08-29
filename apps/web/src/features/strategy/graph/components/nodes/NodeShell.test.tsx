@@ -80,8 +80,8 @@ function makeSnapshot(overrides: Partial<StepSnapshot> = {}): StepSnapshot {
     isBusy: false,
     isInvalid: false,
     isFailed: false,
-  isDraft: false,
-  wdkPushError: null,
+    isDraft: false,
+    wdkPushError: null,
     ...overrides,
   };
 }

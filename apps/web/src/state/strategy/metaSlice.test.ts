@@ -17,9 +17,7 @@ describe("metaSlice — setGraphValidationStatus", () => {
 
   it("records a cleared error flag rather than dropping the id", () => {
     useStrategyStore.getState().setGraphValidationStatus("strategy-1", false);
-    expect(useStrategyStore.getState().graphValidationStatus["strategy-1"]).toBe(
-      false,
-    );
+    expect(useStrategyStore.getState().graphValidationStatus["strategy-1"]).toBe(false);
   });
 
   it("merges into the existing map so other strategies keep their status", () => {

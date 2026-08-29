@@ -97,8 +97,8 @@ class MissingCredentialsError(RuntimeError):
 
 
 async def _wdk_token(args: RunArgs) -> str:
-    """Resolves a real WDK auth token for a run that is not mocked. Credentials come
-    from the command line or the environment. Missing or rejected credentials raise."""
+    """Resolves a real WDK auth token. Credentials come from the command line or
+    the environment. Missing or rejected credentials raise."""
 
     email = args.email or os.environ.get("WDK_DEV_EMAIL")
     password = args.password or os.environ.get("WDK_DEV_PASSWORD")
@@ -114,6 +114,17 @@ async def _wdk_token(args: RunArgs) -> str:
         msg = f"WDK login failed for {email} on site {args.site!r} (bad credentials?)."
         raise MissingCredentialsError(msg)
     return token
+
+
+async def _optional_wdk_token(args: RunArgs) -> str | None:
+    """The WDK token for the run. Only the LLM is mocked, so a mocked run still
+    logs in when credentials are there; without them it runs unauthenticated and
+    pushes nothing to WDK."""
+    if not args.mock:
+        return await _wdk_token(args)
+    if not (args.email or os.environ.get("WDK_DEV_EMAIL")):
+        return None
+    return await _wdk_token(args)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -532,7 +543,7 @@ async def drive_run(args: RunArgs) -> tuple[RunCapture, Gate]:
         get_settings.cache_clear()
     settings = get_settings()
 
-    wdk_token = None if args.mock else await _wdk_token(args)
+    wdk_token = await _optional_wdk_token(args)
     if not args.quiet and wdk_token is not None:
         print(f"logged in as {args.email or os.environ.get('WDK_DEV_EMAIL')}")
 
@@ -627,7 +638,7 @@ async def run_respond(args: RespondArgs) -> int:
         os.environ["API_ENV"] = "test"
         get_settings.cache_clear()
     settings = get_settings()
-    wdk_token = None if args.mock else await _wdk_token(args)
+    wdk_token = await _optional_wdk_token(args)
 
     spec = await resolve_run_assistant(args.conversation_id, args.assistant)
     async with async_session_factory() as session:

@@ -83,8 +83,7 @@ function orphanSibling(strategy: Strategy, stepId: string): ApplyResult {
   const grandparent = findParent(strategy.steps, parent.id);
   if (grandparent !== null) {
     next =
-      grandparent.slot === "primary" &&
-      grandparent.parent.secondaryInputStepId != null
+      grandparent.slot === "primary" && grandparent.parent.secondaryInputStepId != null
         ? patchSteps(next, grandparent.parent.id, {
             primaryInputStepId: grandparent.parent.secondaryInputStepId,
             secondaryInputStepId: null,

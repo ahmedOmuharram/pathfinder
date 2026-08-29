@@ -1,6 +1,467 @@
 # Log
 
+## 2026-08-29
+
+* **Embeddings became an API call and two Postgres tables.** The local
+  `nomic-embed-text-v1.5` is deleted: 547 MB on disk, 967 MB resident per
+  process before it encoded a text, one sequence at a time on CPU in the api,
+  the worker and `wdk-mcp`. Measured before the change on 2026-08-29: a cold
+  rebuild of every cache was about 110 minutes, the portal alone about 50;
+  thirteen of the fourteen committed `.npz` files carried the retired shape, so
+  7,184 of 7,699 shipped rows were dead; the quadlets persisted no cache volume;
+  and `search_example_plans` re-embedded the whole public strategy list on every
+  call, 46 s for a patient client. Every vector now comes from OpenAI
+  `text-embedding-3-large` at 1024 dimensions through
+  `assistant_core/embeddings/openai_embedder.py`, cut at 2000 characters,
+  grouped into requests of at most 256 inputs and 200,000 characters, and run
+  eight at a time in input order.
+  `assistant_core/embeddings/record_manager.py` owns `embedding_vectors` and
+  `embedding_index_entries`: a vector is addressed by
+  `sha256(model + "\n" + text)`, two indexes sharing one text share one row,
+  `sync_index` embeds only what changed and answers with a `SyncReport`, and
+  `search_index` ranks in SQL with `1 - (embedding <=> :query)`. The three index
+  ids are `catalog:{site_id}`, `eda-studies` and `public-strategies:{site_id}`.
+  Two of the three old indexes multiplied unnormalized vectors, so their scores
+  ran to about 340 and the catalog multiplied that by `_SEMANTIC_BOOST = 15.0`:
+  the ranking was embedding order and the lexical score did not participate.
+  Measured on the plasmodb snapshot over its 515 searches, the top lexical
+  score of five research queries was 45.3, 106.9, 44.7, 49.2 and 60.4, so the
+  boost is 70.0 against a cosine and a cosine of 0.7 buys 49.0, the median top.
+  `EMBEDDING_INDEX_SYNC_ENABLED` replaces `EDA_STUDY_INDEX_BUILD_ENABLED` and is
+  true only on the api; the worker and `wdk-mcp` search what the api wrote, in
+  compose and in both quadlets, which one test now reads for every guarded unit. An
+  `EmbeddingUnavailableError` never 500s: the catalog ranks lexically, the study
+  search matches names and says so, the public strategies fall back to token
+  overlap, and memory retrieval returns nothing. The nomic query and document
+  prefixes are gone with the model, and with them the LangGraph
+  `aembed_documents` trap. Recorded as [embeddings are an API call and a
+  Postgres record manager](decisions/embeddings-are-an-api-and-a-record-manager.md).
+
+* **A study description is bounded, and a dead worker no longer holds a turn
+  open.** One prompt on plasmodb called `search_eda_studies`, the worker built
+  the EDA study index cold, and docker reported `oom` and `die 137` on
+  `pathfinder-worker-1` 49 seconds later. Measured in the api container with a
+  real login: 759 studies, `study_enriched_text` up to 24,820 characters, a
+  cold encode of 458.7 s peaking at 4.70 GiB. `study_index.DESCRIPTION_LIMIT`
+  now cuts the description at 2,000 characters, which touches 34 of the 759
+  and brings the same encode to 368.4 s peaking at 1.19 GiB. Batching the
+  model was measured and rejected: a length-sorted batch under a 16,384
+  padded-character budget was OOM-killed inside the worker after 47 seconds,
+  so `_embed` keeps `batch_size=1` and one document is the only thing in the
+  arena. The EDA service answers with the portal's catalog, byte-identical on
+  plasmodb, toxodb, hostdb, vectorbase and orthomcl, so the rows live in one
+  content-addressed store, `eda-studies.npz`, and `preload_study_indexes` in
+  the api warm-up fills it under the service account token, leaving the worker
+  nothing to encode. The worker is also forbidden to encode it:
+  `EDA_STUDY_INDEX_BUILD_ENABLED=false` sits beside `CATALOG_REFRESH_ENABLED`
+  on that container, and a store that does not cover every study raises
+  `EdaStudyIndexNotReadyError`, which `search_eda_studies` returns as guidance
+  rather than starting a second encode beside the api's; concurrent encodes
+  measured 1.170 s per text against 0.485 s alone. On the release side,
+  `release_stalled_jobs` now also asks
+  procrastinate for the jobs of a worker whose `last_heartbeat` is older than
+  the new `worker_dead_heartbeat_seconds` (300 s, ge 60), so a killed worker
+  loses its lock five to six minutes after it dies instead of at the hour-wide
+  started-age timeout, and Stop calls the same release directly. The window is
+  300 s and not 60 s because a live worker was measured 153 s behind its own
+  heartbeat during a long frame, so
+  [the starvation item](backlog/worker-heartbeat-starves-during-turn-and-ui-gate-goes-fatal.md)
+  is the prerequisite for lowering it; the 30 s window in
+  `platform/health.py` is a different question and keeps its number. A released
+  turn, and a turn whose own driver raises, now write one `tool-output-error`
+  per tool call they left open before the terminator; `PROTOCOL.md` 1.3.1
+  states the rule and the client's conformance capture carries it.
+
+* **EDA reached both surfaces, and the seven-batch plan is closed.** A
+  researcher can open an EDA study from the thread and from a workbench-style
+  tab, and the two edit one analysis: `services/eda/authoring.py` is the only
+  writer, every mutation answers with the same `EdaAnalysisState`, and
+  `data-eda.analysis-state`, `data-eda.subset-preview` and `data-eda.viz`
+  carry it to chat while `GET|PATCH /api/v1/conversations/{id}/eda` carries
+  it to the tab. Batch 7 grew the three chat renderers into real cards (the
+  volcano and scatter on a canvas beside their readouts, chips from the
+  backend's `filterSummaries`, every count against its unfiltered total, an
+  "Open in EDA tab" affordance), added the right-rail EDA panel that marks
+  unseen EDA activity, and proved the loop with three Playwright journeys
+  (chat-only render, tab edit returning on the next state part, export to a
+  step the strategy rail lists) plus a conformance spec that parses every
+  e2e fixture through the generated schemas, the last of which caught a
+  fixture point that omitted its nullable p-values on both the feature spec
+  and the frozen journey. The verifier failed the first pass on a chip keyed
+  by its text, an untested rail marker and an untested scatter guard; all
+  three were pinned and re-probed. The frozen acceptance layer closed
+  56 backend, 41 frontend and 3 journey tests without a single line changed
+  by an implementer; the lead's edits to it were four constructor
+  completions and the journey fixtures' wire shapes. Three repo-wide gates
+  stay red on files outside the plan and are backlogged: weak assertions
+  (99), Playwright index locators (16), and the dev server's Turbopack flag.
+  The concept and architecture-fit documents now read as built, every batch
+  document is accepted, and `execute-eda-integration-plan.md` left the
+  backlog.
+
+## 2026-08-27
+
+* **A strategy with no spec now describes itself, and a "preserved" claim is
+  computed.** Batches E1 to E3 of
+  [the edit_strategy fix plan](../design/2026-08-27-edit-strategy-fix-plan.md)
+  landed. `domain/strategy/spec_hydration.py::spec_from_ast` reconstructs an
+  `OperationalSpec` from the persisted `StrategyAst` - one criterion per
+  non-combine node, keyed on the step id, holding the node's bound parameters
+  verbatim - and the pre-turn hook runs it whenever the checkpoint holds no
+  spec and the session holds a strategy. Measured on the thread the plan
+  names: its checkpoint carried `operational_spec = None` on entry and its row
+  carried 15 nodes with 15 WDK step ids, so the run that asked the user to
+  re-type their filters was mechanism (a), and E1 is the batch that closes it.
+  FRAME can no longer report `spec_ready` over a draft with no bound criterion,
+  and its workspace prints every bound value in wire form instead of a
+  60-character label. `domain/strategy/spec_diff.py::diff_specs` compares the
+  spec a turn started from against the one it produced; an undeclared drop and
+  a "kept" criterion whose values moved are both a `ModelRetry`, and the ledger
+  renders `kept N, changed N, added N, dropped N` from the same comparison.
+  Recorded as [preserved is computed, never
+  written](decisions/preserved-is-computed-never-written.md). The `E6`
+  checkpoint flush is owed: `StrategyDomainState` gained `spec_before_turn`.
+
 ## 2026-08-28
+
+* **The EDA tab is no longer a dead end, and one route builder owns the canvas
+  path.** A binding read that answers 422 over an out-of-vocabulary stored
+  filter now offers "Open a different study" beside Retry; it sends
+  `{action: "unbind"}`, clears the cached binding and the store, and shows the
+  picker, with the server's detail quoted verbatim. `lib/routes.ts` gained
+  `strategyStepUrl` beside `strategyCanvasUrl`, and the six hand-built paths
+  call them - one of the six carried no site id, so it pointed at a route that
+  does not exist. The entity tree now skips a variable whose `hideFrom` names
+  `everywhere` or `variableTree`, while a filter already in force on such a
+  variable keeps its chip and can still be removed. The same sweep then closed
+  the chat path: eleven thread literals now call `chatUrl`, eight root literals
+  call `chatRoot`, four site-less entry points redirect through the new
+  `PORTAL_SITE_ID`, and a grep for a hand-built conversation path outside
+  `lib/routes.ts` returns nothing.
+
+* **A completed EDA compute puts a volcano on the thread, and the study
+  detail carries the site's display advice.** `run_eda_compute_impl` reads
+  `volcano_view` at the default cut and emits `data-eda.viz` through the same
+  writer, right after the analysis-state chunk that names the revision the
+  plot belongs to, so `eda_viz_chunk` has a production caller and the chat
+  card draws a real plot. `volcano_view` now keeps a row whose effect size
+  reads and whose p-value does not: it has an x coordinate, so it is drawn,
+  never retained, and carries a null `pValue` that both surfaces count; only a
+  row with no readable effect size is dropped. On the recorded compute that is
+  201 points tested, 67 retained and 201 placed, one of them with no p-value.
+  `EdaVariableResponse` and `EdaVariableOut` now carry `hideFrom`, read from
+  the upstream variable in `variable_out`, so the tab can hide what the site
+  hides while the chat tools keep every variable filterable.
+
+* **EDA batch 6 is closed: the tab exists.** `/{siteId}/conversation/{id}/eda`
+  mounts `features/eda/EdaWorkbench` behind the same `ChatShell` yield the
+  strategy canvas uses. A `StudyPicker` searches and binds; a bound analysis
+  mounts three cells keyed by `analysisId` so a switch remounts them: the
+  `SubsetCell` (entity tree built from the flat detail, one `/count` per
+  entity, filter editor dispatching on the server's `filterType`, chips from
+  the store's parsed filters, unparsed filters reported, bar or histogram
+  sparkline by `dataShape` with a coverage line), the `ComputeCell`
+  (differential expression config built from live metadata with `DESeq` or
+  `limma` on the wire, submit-or-poll by the byte-identical `run-compute`
+  body, seven job states named), and the `VizCell` (volcano thresholded
+  client side with a test proving zero `/viz` calls on a threshold change,
+  the selected-gene readout beside every chart, scatter from the same
+  cloud, the other charts named unavailable, refetch keyed on the completed
+  job). `ExportStepButton` gates on `canExportRows` and a complete job and
+  presents two success states with exact copy: the export began the
+  strategy, or it added a draft root that is not pushed, decided
+  structurally from the returned strategy and linked through the new
+  `strategyCanvasUrl`. Before the batch, three reconciliations landed so it
+  coded against the wire and not a sketch: every EDA response field became
+  required (above), an export on a thread with no strategy now begins it
+  through the one `persisted_graph` loader that replaced three divergent
+  copies (the strict one in `strategy_ops` was the 404), with the op
+  algebra's `ApplyError` rendered as 422 where it was an unhandled 500, and
+  the frozen e2e journey's fixtures were corrected to the generated shapes.
+  The verifier failed the first pass on evidence: local cell state outlived
+  an analysis switch (measured "Sample6 of 12" after the switch), a second
+  compute never refreshed the volcano (0 `/viz` calls), a Retry was missing,
+  six named states had no test, and three probes survived; every item was
+  fixed and re-probed, 18 of 18 killed on the second pass. Lead rulings
+  recorded as backlog: the tab must honor `hideFrom` once the route carries
+  it; the read path's refusal of an out-of-vocabulary filter needs a way out
+  of the error state; no production path emits `data-eda.viz`, which batch 7
+  owns. Ladders: unit 3223, integration 644 with 78 skipped, acceptance 56
+  of 56 and 31 of 31, frontend 2512 vitest with the EDA tree at 187, three
+  Python packages format-clean, `batch67-parts` red as designed.
+
+* **Every EDA response field is required, and the analysis state counts its
+  own entities.** The defaults are gone from the five parts in
+  `shared_py.stream_parts.eda` and from every response model in
+  `transport/http/schemas/eda.py`; a field that can legitimately be absent is
+  required-and-nullable (`revision`, `pValue`, `adjustedPValue`, `job`,
+  `step`, the gene-entity keys), and the request models keep the inputs a
+  client may omit. `openapi.json` lists all thirteen `EdaAnalysisState` keys,
+  the generated types and zod schemas carry no optional marker, and the store
+  and the three card renderers read the fields with no `??`.
+  `services/eda/authoring.py::subset_entity_counts` walks the study in tree
+  order and fills `entityCounts`, which the only producer left empty; the
+  whole size of an entity is cached beside its study detail
+  (`catalog.py::unfiltered_entity_count`), so a mutation costs one count per
+  entity and not two. `analysis_state` became async to own that read, so the
+  subset predicates now run on the read path as well: an analysis edited
+  elsewhere into an out-of-vocabulary value is refused by name rather than
+  reported as a subset of zero, which is what upstream would answer. This
+  closes the backlog item the batch-5 verifier raised.
+
+* **EDA batch 5 is closed: the charts and the store exist, and the wire
+  feeds both.** `lib/components/charts` is one ECharts 6.1.0 registry
+  (`echartsRegistry.ts` holds the only value imports; everything else is
+  `import type`), a ref-callback `EChart` wrapper that inits once, re-applies
+  options and disposes in its own teardown, and pure option builders for the
+  volcano (three series plus threshold guides, null p-values dropped and
+  counted), the histogram and bar (label union, zero fill, real overlay), and
+  the scatter (finite pairs only), each pinned to exact option arrays and
+  tooltip strings. `lib/eda/volcanoSelection.ts` is the one selection rule
+  (effect inclusive, significance strict, up before down) and the acceptance
+  suite sweeps it with properties. `state/eda.ts` is `useEdaStore`, whose
+  `supersedes()` is the overview's reconcile rule verbatim (analysis switch
+  wins and clears, null revision on either side takes the last write, `>=`
+  accepts), filters parsed per entry with the generated `edaFilterSchema`
+  and failures counted. `lib/api/eda.ts` wraps the six routes and the GET
+  through `requestJson` with generated schemas only; the three batch-4
+  renderers hydrate the store in render with no effect. Two reconciliations
+  landed inside the batch: `GET /conversations/{id}/eda` now carries the same
+  `analysis: EdaAnalysisState | null` the part and the PATCH carry, built by
+  one `read_analysis_state` that does not bump the revision (its seven flat
+  fields deleted, `descriptor` made required-nullable), and the regenerated
+  `conversationEdaResponseSchema` was adopted by the transport tests in the
+  same window. The verifier ran twenty mutation probes and killed twenty,
+  accepted eight implementer deviations on evidence (a namespace import of
+  `echarts/core` because a named `use` trips the hooks lint; generated
+  names over the card's), and left three notes the lead resolved: the
+  palette backlog understated `--chart-3` (it fails the band, the entry now
+  says so), the transport acceptance and the card spelled the compute
+  payload `{appName, config}` where the wire says `{type, configuration}`
+  (both corrected, the lead's one acceptance edit this batch), and the
+  generated `EdaAnalysisState` marks nine always-filled fields optional
+  because the Python model defaults them, which is now a backlog decision
+  and a batch-6 wire truth (read the analysis through the store, never with
+  `??` off a payload). Ladders: unit 3193, integration 640 with 78 skipped,
+  acceptance 56 of 56, frontend 2340 vitest with batch-5 store, selection
+  and transport at 31 of 31 and `batch67-parts` red as designed, four frozen
+  trees byte-identical to the baseline.
+
+* **EDA batch 4 is closed: the tab has its API and its types.**
+  `transport/http/routers/eda.py` serves the seven pinned operations under
+  the real `require_registered_wdk_identity` gate: study search and detail
+  (one `describe_study` builder shared with the chat tool), count and
+  distribution refusing an out-of-vocabulary value with 422 before any wire
+  call, the thresholded volcano view, and `GET|PATCH
+  /conversations/{id}/eda` with a five-way `action` union whose handlers
+  call the same service bodies the agent tools call (`bind_analysis`,
+  `apply_filters`, `submit_compute`, `export_analysis_step` were extracted
+  into `services/eda/` so the tab and the tools cannot drift), every
+  mutation bumping the thread's revision, and a `{analysis, job, step}`
+  envelope with `analysis` required-and-nullable. On the TypeScript side
+  one `yarn generate:types` carries the three `data-eda.*` part payloads,
+  the six route schemas and, after `EdaFilter` became a PEP 695 `type`
+  alias so Pydantic names it, the seven-variant `edaFilterSchema` the
+  frozen store suite imports; the three text-only renderers keep the
+  data-part map total. Ring 2 rejected once on evidence, and it was the
+  batch's most important catch: the router shipped with a weaker
+  session-presence gate because the implementer's test fixtures had not
+  requested the harness's identity override that every other WDK-backed
+  route test uses, so production was widened to fit a fixture omission on
+  a security boundary; the verifier proved the real gate passes 10/10 and
+  32/32 under the override, the gate was restored, the session gate and
+  its tables deleted, and the decision doc's inaccurate paragraph
+  reverted. The lead's one acceptance edit for the batch was that same
+  fixture on the frozen suite. Two semantics the verifier traced are
+  recorded for batch 6 rather than hidden: an export beside an existing
+  strategy is a detached, never-pushed second root, and an export on a
+  thread with no strategy is a 404. Ladders: unit 3191, http+eda
+  integration 251, acceptance 56 of 56 (batch 4 at 10/10 under the real
+  gate), frontend 2229 vitest with the acceptance config still all-skipped,
+  the protocol package unchanged across three regenerations.
+
+* **EDA batch 3 is closed: the conversational seam works end to end.** A
+  researcher's thread can now search studies, open an analysis, set filters
+  through a validated sheet, preview the subset, run differential expression
+  as a durable background compute, and export the result as an ordinary
+  step. The pieces: three `data-eda.*` stream parts in `shared_py` composed
+  into the product's registration beside the strategy parts; seven Lead
+  tools (`ai/tools/standalone/eda_*.py`, `ai/tools/toolsets/eda.py`) with
+  `set_eda_filters` copying the `set_criterion` sheet pattern and every
+  mutation bumping a per-thread revision counter on the new
+  `conversation_analyses` row (migration `2026_08_28_0002`); the
+  `services/eda/binding.py` hub; `create_eda_step` bridging into
+  `apply_operations_and_commit` with the spec serialized once through
+  `services/eda/export.py`; and `run_eda_compute` as a `@durable_tool`
+  whose worker impl (`jobs/impls/eda_compute_impl.py`) drives the compute
+  to `complete` before any step exists, so the WDK bridge's HTTP 202 is
+  never surfaced. `durable_tool` was generalized to a two-member
+  `DurableIdentity` Protocol so the Lead can call it. The proof is Verifier
+  2's in-tree scripted conversation (`tests/integration/eda/test_eda_conversation.py`)
+  through the real chat endpoint, worker, graph and event writer, asserting
+  persisted chunk kinds and values (revisions 1 then 2, counts 4011 of 4279,
+  a graph snapshot with a `GenesByEdaSubset` node), plus a live lane that
+  pushed WDK strategy 330555673 whose EDA-backed step counted 5556 genes.
+  Ring 2 rejected on evidence six times and each was closed by a named
+  test: an unpinned longitude filter type, a vacuous hideFrom test whose
+  fixture held no hidden variable, a non-atomic-increment mutant that
+  returned 1 for all 20 concurrent calls, a significance-only threshold
+  that escaped as a raw ValueError, a card-prescribed `import as`, and a
+  duplicate view model. One verifier premise was refuted by the implementer
+  with evidence (pydantic-ai dumps tool returns by alias, so the camelCase
+  docstrings were right) and turned into a guard test. Docker crashed
+  mid-batch from host-disk exhaustion (36 GB pruned; the killed implementer
+  was resumed from an inventory of its tree). Recorded for later: the
+  pre-existing resume-replay duplicate now measurably double-applies an EDA
+  compute; the generic and per-dataset subset searches counted 5556 against
+  5602 for one filter; the chat SSE test helper splits on U+2028. Full
+  ladders green: unit 3177, serialized integration 594 passed 78 skipped,
+  acceptance 46 of 47 (batch 4 pending), runtime package 354 with zero EDA
+  names.
+
+* **The plasmodb live lanes from EDA batches 1 and 2 have now run.**
+  plasmodb.org returned after a day-long outage on their side, and every
+  deferred live assertion passed on the first credentialed run: the client
+  lane against the recorded catalog and counts (4011 of 4279), the compute
+  lane reproducing the measured 5511 rows to 1543 retained (529 up, 1014
+  down) at 1.0/0.05, and the search census (68 spec-carrying searches, 13
+  named Eda, exactly 1 inert). One drift check failed for a true reason and
+  was narrowed: a `user_submitted` study the veupathdb.org portal lists is
+  invisible on plasmodb.org, because user uploads are visible per project
+  and per account, so the recorded-is-a-subset-of-live assertion now
+  compares curated studies only. Both batches' open items are closed.
+
+* **EDA batch 2 is closed: the services exist.** `services/eda/catalog.py`
+  resolves a dataset to its study through `/permissions` only (never derived
+  from the id) and caches each study's detail under `study_cache_key`, the
+  content hash for a curated study and `lastModified` for a user study, so
+  a reloaded study re-fetches; `integrations/embeddings/study_index.py`
+  ranks studies with the same fastembed index the WDK catalog uses, its
+  three cache helpers now shared rather than copied, and never resolves.
+  `services/eda/authoring.py` owns the analysis document: `serialize_spec`
+  is the one `model_dump_json` site (an empty analysis serializes to the
+  empty string, never `{}`; a frozen allowlist test fails on any second
+  dump across six source trees), `EdaStepRequest` refuses a spec whose
+  `studyId` differs from `eda_dataset_id` (both dataset ids), and
+  `verified_count`/`apply_filters` run the domain predicates before any
+  wire call because upstream answers an out-of-vocabulary value with 200
+  and count 0. `services/eda/compute.py` submits with the STUDY id, polls
+  the six-state job, and `retained_summary` applies the WDK bridge's exact
+  volcano rule (a verifier replayed the recorded statistics by hand: 67
+  retained of 201, 33 up and 34 down). `services/catalog/eda_backed.py`
+  detects an EDA-backed search by parameter presence, never by name, and
+  guards the `EDAUD_` upload sentinel so an empty-state vocabulary term is
+  never offered as a choice. The frozen batch-2 acceptance module passes
+  19/19 unmodified. The lead made its one allowed acceptance edit: the
+  suite and the plan had constructed `WDKVocabTerm` with keyword arguments,
+  but the model is the WDK wire triple, and an implementer's attempt to
+  widen the production model to fit the test was rejected and reverted.
+  Two verifier FAILs were closed on evidence (a sentinel word boundary and
+  a guidance wiring path each survived a mutation until a test was added),
+  a root fix typed `WDKSearch.dynamic_attributes` as `list[WDKAttributeField]`
+  in place of a pre-existing `hasattr` probe, and the catalog integration
+  file went from 47.75 s to 8.9 s by sharing one embedding cache across its
+  tests. Open, not blocking: the live 5511-to-1543 assertion and the live
+  search census have still not run because plasmodb.org is unreachable.
+
+* **EDA batch 1 is closed: the integration foundation exists.**
+  `integrations/eda/` now holds the hand-written Pydantic mirror of the EDA
+  wire (`models.py`: the six-member variable union, the seven-member filter
+  union that refuses `stringPrefixSet`, the analysis document with
+  `derivedVariables` as ids, the six-state job, volcano rows that tolerate a
+  missing p-value), eleven live-recorded fixtures with a value-pinning
+  validation sweep, the typed httpx client (`client.py`, `analyses.py`,
+  `errors.py`, `factory.py`; Accept exactly `application/json`, the STUDY id
+  on computes, 400/403/422/500 mapped to typed errors, a missing registered
+  token refused before the wire) hanging off `SiteInfo.eda_base_url`
+  (`{site_origin}/eda`, no new setting), and `domain/eda.py`, the pure
+  predicates over structural Protocols (filters against a study tree, the
+  one-`VEUPATHDB_GENE_ID` rule, the differential-expression config) with an
+  A-to-C cross-check proving the wire models satisfy them under pyright.
+  Three Opus implementers, two Fable verifiers, then the lead. The protocol
+  earned its keep on the first batch: Verifier 2 failed the predicates on
+  evidence (two surviving mutations, six `match` arms statically dead to
+  pyright because payload Protocols did not extend the base, an untested
+  longitude epsilon) and the reopen surfaced a real behavior gap, a
+  `category` variable accepted as a comparator; Verifier 1's twelve probes
+  all died bar one killed only by the frozen acceptance suite, which is the
+  suite doing its job. Open, not blocking: the credentialed plasmodb live
+  lane has never run because plasmodb.org has been unreachable all day (its
+  four pinned values were confirmed against veupathdb.org, the same
+  deployment); re-run it when the host returns.
+
+* **An edit turn is a delta over the strategy that exists, and a rebuild over
+  one is refused.** Batches E4 to E6 of
+  [the edit_strategy fix plan](../design/2026-08-27-edit-strategy-fix-plan.md)
+  landed, and `edit_strategy` stopped being a classification nothing reads.
+  `domain/strategy/spec_to_operations.py::operations_for` turns the computed
+  `SpecDiff` into `GraphOperation`s over the live graph and hands them to the
+  commit pipeline that already existed, so an untouched step is not rewritten.
+  A build now re-keys the spec on the step ids it minted, which is what lets a
+  criterion address a step at all; a thread that never framed gets the same
+  invariant from the hydration. `build_strategy` refuses a thread whose graph
+  has steps.
+
+  Measured on PlasmoDB, one turn at a time through the debugger with the LLM
+  mocked and WDK real. Turn 1 built strategy 330555313: `GenesByText` on
+  P. falciparum 3D7 as WDK step 440180863 (129), `GenesByTaxon` on the same
+  organism as 440180873 (5720), the UNION as 440180883. Turn 2 asked to swap
+  the taxon criterion to P. vivax P01 and keep the rest. After it, WDK reports
+  the same three step ids, `440180863` still carrying
+  `text_search_organism: ["Plasmodium falciparum 3D7"]` at 129, and `440180873`
+  carrying `organism: ["Plasmodium vivax P01"]` at 6861. No step was created and
+  none was deleted. The ledger's diff read `kept 1, changed 1, added 0,
+  dropped 0`, and the reply's preservation sentence is written from it.
+
+  The same run found the debugger coupling two unrelated things: `--mock` set
+  the mock provider AND skipped the WDK login, so a mocked run could not push a
+  step and the proof had nothing to preserve. Only the LLM is mocked now; the
+  login runs whenever credentials are present.
+
+  Recorded as [an edit is a delta, not a
+  rebuild](decisions/an-edit-is-a-delta-not-a-rebuild.md) and [a criterion and
+  its step are one address](decisions/a-criterion-and-its-step-are-one-address.md).
+  [build_strategy is not
+  revision-guarded](decisions/build-strategy-is-not-revision-guarded.md) is
+  amended: the exposure it accepted is closed, because the tool it applied to
+  no longer runs on a strategy that exists. The checkpoint flush E3 owed shipped
+  as `2026_08_28_0001`.
+
+  Three backlog items left: the edit turn that dropped a criterion and said the
+  rest was preserved, the one that rebuilt every step and reverted a hand edit,
+  and the hydrated spec that made a whole strategy rebuildable with new step
+  ids. A fourth left by accident: a formatter run over `src/pathfinder/tests/`
+  reformatted the three EDA acceptance files ladder P's format rung was red on,
+  which is the fix that item prescribed but not on its own, as it asked. Three
+  arrived: the Lead has no tool to throw a strategy away now that
+  `build_strategy` refuses one, the eval corpus cannot express a two-turn edit
+  case, and the file-size gate is red on six modules rather than the two the
+  item named.
+
+* **The EDA plan gained a frozen acceptance layer, and it is already written.**
+  [The overview](eda/plan/overview.md) now defines the protocol: a
+  behavior-only conformance suite written before any implementation by QA
+  agents who implement nothing, pinning live-verified VALUES at stable
+  boundaries, pending until each batch closes (backend: `eda_acceptance`
+  marker deselected from the default `addopts` plus `importorskip`; frontend:
+  `*.acceptance.ts` files outside the default vitest include with a dedicated
+  config; e2e: an env-gated playwright project), under a no-edit rule -
+  implementers never touch the acceptance paths, a wrong test escalates to
+  the session lead - and a new universal exit criterion: a batch closes only
+  when its acceptance module passes unmodified. Verifiers additionally run
+  mutation probes: flip two or three behavior-bearing lines and confirm the
+  implementer's tests die. The suites exist and are pending-clean today:
+  56 backend tests across four batch modules
+  (`apps/api/src/pathfinder/tests/acceptance/eda/`, 4 modules skipped
+  cleanly, every default gate green) and 41 frontend tests plus 3 e2e
+  journeys (`apps/web/src/acceptance/eda/`, `apps/web/e2e/acceptance/`,
+  default vitest and playwright collect zero of them). The QA pass also
+  hardened the batch documents: the repository gained its named `increment`
+  method, the 401 mapping and `install_transport` became pinned interface,
+  unbind became explicitly idempotent, the count-route seam contradiction
+  was resolved onto `verified_count`, `analysis` in the PATCH envelope is
+  required-and-nullable, the volcano `selected` ordering is up-then-down,
+  and batch 7's e2e snippets now use the rail's real accessible names.
 
 * **The EDA integration has a verified implementation plan.** [eda/plan/](eda/plan/)
   holds an [overview](eda/plan/overview.md) - the layering, the co-edited-SSOT
@@ -20,7 +481,7 @@
   contract. Decisions taken with the user: both seams in one plan, ECharts
   for the statistical charts (canvas for the 5.5k-point volcano; networks
   stay on ReactFlow), co-edited state over read-only viewing. Execution is
-  the [one backlog initiative](backlog/execute-eda-integration-plan.md).
+  the one backlog initiative, which left the backlog when batch 7 closed.
 
 ## 2026-08-27
 

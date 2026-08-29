@@ -34,19 +34,6 @@ WORKDIR /app/apps/api
 RUN --mount=type=cache,target=/root/.cache/uv \
     UV_LINK_MODE=copy uv sync --frozen --no-install-project
 
-# Pre-download the fastembed ONNX model into the image so startup
-# doesn't depend on network availability or rate limits.
-#
-# Cache mount on /tmp/fastembed-cache preserves the network download across
-# rebuilds (even when deps change and this layer is busted). We then copy the
-# files into /app/models/fastembed so they persist in the final image.
-# Runtime reads FASTEMBED_CACHE_DIR to find the baked-in model.
-ENV FASTEMBED_CACHE_DIR=/app/models/fastembed
-RUN --mount=type=cache,target=/tmp/fastembed-cache \
-    .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='nomic-ai/nomic-embed-text-v1.5', cache_dir='/tmp/fastembed-cache')" \
-    && mkdir -p "$FASTEMBED_CACHE_DIR" \
-    && cp -r /tmp/fastembed-cache/. "$FASTEMBED_CACHE_DIR/"
-
 # Download PIGuard ONNX model + tokenizer for prompt-injection detection.
 # Cache mount on HF_HOME preserves the HuggingFace download across rebuilds;
 # hf_hub_download copies files from the HF cache into /app/models/piguard,

@@ -30,6 +30,7 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+import { chatRoot } from "@/lib/routes";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useDeleteStrategyMutation } from "./useDeleteStrategyMutation";
 import { makeQueryHarness } from "./__tests__/strategyTestUtils";
@@ -86,7 +87,7 @@ describe("useDeleteStrategyMutation", () => {
 
     expect(deleteStrategyMock).toHaveBeenCalledWith(initial.id);
     expect(harness.getStrategy(initial.id)).toBeNull();
-    expect(routerPushMock).toHaveBeenCalledWith("/plasmodb/conversation");
+    expect(routerPushMock).toHaveBeenCalledWith(chatRoot("plasmodb"));
     expect(toastSuccessMock).toHaveBeenCalled();
   });
 

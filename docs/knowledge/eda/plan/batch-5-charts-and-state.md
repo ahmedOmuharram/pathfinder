@@ -4,8 +4,8 @@ title: "Batch 5: charts and state"
 description: The ECharts foundation in lib/components/charts, the useEdaStore analysis store, the lib/api/eda transport wrappers, and the store-hydration glue that turns batch 4's text-only EDA part renderers into live co-edit sources.
 tags: [eda, pathfinder, plan, batch, frontend, charts, zustand, echarts]
 generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-status: draft
+verified: { by: claude-code/fable-5, at: 2026-08-28T00:00:00Z }
+status: accepted
 ---
 
 # Batch 5: charts and state
@@ -350,6 +350,7 @@ export function selectVolcanoGenes(
   significanceField: VolcanoSignificanceField,
 ): VolcanoSelection;
 export const VOLCANO_POINT_SAMPLE: readonly VolcanoPointInput[];
+// Ordering contract: selected is up-then-down, each side in input order.
 ```
 
 ```ts
@@ -2637,7 +2638,7 @@ them:
 type EdaAnalysisPatch =
   | { action: "bind"; siteId: string; datasetId: string }
   | { action: "set-filters"; filters: EdaFilter[] }
-  | { action: "run-compute"; computation: EdaComputationSpec }
+  | { action: "run-compute"; computation: EdaComputationDescriptor }
   | { action: "export-step"; thresholds: VolcanoThresholdsWire | null }
   | { action: "unbind" };
 
@@ -2652,6 +2653,22 @@ interface EdaAnalysisPatchResponse {
 spells the third field `effectDirection`. It is NOT this batch's chart-prop
 `VolcanoThresholds`, whose local field is `direction`; the two meet exactly
 once, in batch 6's `ExportStepButton`, which maps field by field.
+
+Generated names, as Kubb produced them from batch 4 (import these, never
+re-declare the shapes): the PATCH body union is
+`PatchConversationEdaMutationRequest` with zod
+`patchConversationEdaMutationRequestSchema` (FastAPI inlines the five-way
+`action` union at operation scope, so it carries no component name of its
+own; the members are `edaBindActionSchema`, `edaSetFiltersActionSchema`,
+`edaRunComputeActionSchema`, `edaExportStepActionSchema`,
+`edaUnbindActionSchema`); the response is `EdaAnalysisPatchResponse` /
+`edaAnalysisPatchResponseSchema` with `analysis` required-and-nullable and
+`job`, `step` optional-and-nullable; `/distribution` answers
+`EdaDistributionSeries` directly (there is no `EdaDistributionResponse`);
+the one wire filter schema `edaFilterSchema` exists because batch 4 declares
+`EdaFilter` as a `typing.TypeAliasType` (a bare `Annotated` union alias is
+inlined by Pydantic and gets no component). Build the local
+`EdaAnalysisPatch` type as an alias of the generated union, not a copy.
 
 Three properties of that route the tab depends on:
 
@@ -2859,8 +2876,8 @@ describe("patchConversationEda", () => {
     const result = await patchConversationEda("conv-1", {
       action: "run-compute",
       computation: {
-        appName: "differentialexpression",
-        config: {
+        type: "differentialexpression",
+        configuration: {
           identifierVariable: {
             entityId: "ENT_fd574cd6",
             variableId: "VEUPATHDB_GENE_ID",

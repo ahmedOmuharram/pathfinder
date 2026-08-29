@@ -12,6 +12,7 @@ from pathfinder.jobs import tasks
 from pathfinder.jobs.impls.control_tests_impl import (
     run_control_tests_on_step_impl,
 )
+from pathfinder.jobs.impls.eda_compute_impl import run_eda_compute_impl
 from pathfinder.jobs.impls.geneset_enrichment_impl import (
     run_gene_set_enrichment_impl,
 )
@@ -32,3 +33,4 @@ def register_all_tools() -> None:
     register_tool("run_control_tests_on_step", run_control_tests_on_step_impl)
     register_tool("optimize_search_parameters", optimize_search_parameters_impl)
     register_tool("geneset_enrichment", run_gene_set_enrichment_impl)
+    register_tool("run_eda_compute", run_eda_compute_impl)

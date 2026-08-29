@@ -10,9 +10,7 @@ Bugs found by driving the real UI on PlasmoDB and VectorBase. Each records the e
 and values; none has a fix yet.
 
 - [Stopping during build persists a half-built strategy; editor shows a raw 422](stop-during-build-leaves-half-persisted-strategy.md) - recordType "" and no WDK ids on disk; every count "..."; step-counts 422 MISSING_RECORD_TYPE
-- [edit_strategy drops a criterion the user asked to keep and says "preserved"](edit-strategy-drops-criteria-and-claims-preserved.md) - "change X, keep the rest" re-framed to 2 of 3 criteria; the reply asserted the rest was kept
 - [get_live_strategy_state quotes stale ancestor counts after an editor edit](live-state-quotes-stale-ancestor-counts-after-editor-edit.md) - UI shows 7, Lead says 15; the "live" read is the last persisted count
-- ["Add a step at the end" rebuilds the whole strategy and silently reverts a hand edit](edit-turn-rebuilds-whole-strategy-and-drops-hand-edits.md) - percentile 90 went back to 80, every WDK step id changed, reply says nothing
 - [Verification launches an unrequested enrichment task and its result is lost on resume](verification-durable-task-result-lost-on-resume.md) - phase card stays "started", ledger shows the previous turn's verdict, reply has no verification
 - [Branching from an earlier message copies the latest strategy, not the one at that message](branch-copies-latest-strategy-not-strategy-at-branch-point.md) - transcript says 3 steps, panel shows 4
 - [A branch replays the parent's message ids, so Revert in a branch 404s silently](branch-keeps-parent-message-ids-so-revert-404s.md) - fork.py mints new Message ids but leaves the chunks' ids alone; the dialog shows no error
@@ -20,10 +18,19 @@ and values; none has a fix yet.
 - [The agent cannot find a saved strategy by name or id, and builds the leftover criterion alone](agent-cannot-see-saved-strategy-library.md) - 187K-token frame to ask for an id; given the id, a 1-step decoy strategy is built
 - [Enrichment "N genes analyzed" shows a term's background count](enrichment-genes-analyzed-shows-background-count.md) - 46-gene set reports 217 analyzed; percentInResult on the wire is result over background
 - [Every scored variant fails at persist time (typed ParamValues into WDKSearchConfig) and the UI prints pydantic dumps](scored-comparison-single-mode-persists-typed-params.md) - materialization single-mode branch skips encode_params; Lead then says "no control set" falsely
-- [The worker heartbeat stalls during a turn and the whole UI shows "Some services failed to start"](worker-heartbeat-starves-during-turn-and-ui-gate-goes-fatal.md) - heartbeat 153 s stale mid-frame; 30 s window; fatal gate on every page load
+- [The worker heartbeat stalls during a turn and the whole UI shows "Some services failed to start"](worker-heartbeat-starves-during-turn-and-ui-gate-goes-fatal.md) - heartbeat 153 s stale mid-frame; 30 s window; fatal gate on every page load; and now a starved heartbeat past `worker_dead_heartbeat_seconds` fails the running turn, so this fix is what lets that window drop below 300 s
 - [A clarification turn forgets the original request and asks for the motif the user already gave](clarification-turn-forgets-the-original-request.md) - organism silently became Aedes aegypti; RNA-Seq and GO dropped; 297K-token frame
 - ["Please remember my preference" runs frame/build/verify and leaves a decoy strategy](remember-request-builds-a-strategy.md) - 182K tokens, WDK strategy 330534643, junk strategy memory; the remember tool was not called
 - [Small UI defects from the run, one line each](ui-run-minor-findings.md) - lagging status labels, meaningless dots, nameless buttons, 866px collapse, workbench restore/polling, raw error strings
+
+## Thread surgery audit (2026-08-28)
+
+Measured on throwaway rows against the dev stack; full inventory in
+`docs/design/2026-08-28-thread-surgery-audit.md`.
+
+- [A fork of a site_help thread comes back as a pathfinder thread](fork-drops-the-assistant-id.md) - fork.py omits assistant_id, so the branch's next turn runs the wrong graph over the copied checkpoints
+- [A fork's copied log rows cascade-delete with the parent's task rows](fork-log-rows-cascade-with-the-parents-task-rows.md) - task_id copied verbatim plus an ondelete CASCADE; measured 5 events to 4 when the parent's task row went
+- [Revert truncates the transcript and checkpoints but not the strategy](revert-leaves-the-strategy-at-post-turn-state.md) - a marker AST survived the revert that deleted the turn that built it; the revert twin of branch-copies-latest
 
 ## Chat
 
@@ -35,6 +42,10 @@ and values; none has a fix yet.
 
 - [A parameter sweep's per-variant progress collapses to one lane on the thread](sweep-progress-collapses-to-one-lane-on-the-thread.md) - every variant writes `data-task-progress` under the same `id`, so the reducer keeps one part for the whole fan-out and the bar jumps between variants
 - [A resumed approval turn omits tool-input-start](resumed-approval-turn-omits-tool-input-start.md) - pydantic-ai's resume marks the id started so the adapter never backfills; the client tolerates it but PROTOCOL 6.2 describes start-first; one decision plus a conformance case
+
+- [settled_history keeps a suspended response the next prompt trips over](settled-history-keeps-a-suspended-response.md) - the trim mirrors one of pydantic-ai's two refusal conditions; unreachable today, one guard plus a pin
+- [A warm-up failure outside the caught tuples is silent](warm-up-failure-outside-caught-tuples-is-silent.md) - the spawned task dies without a done callback and readiness reports loading forever
+- [The devtools summary counts no local tool calls](devtools-summary-counts-no-local-tool-calls.md) - toolcalls=0 over an event log full of calls; three review sightings
 
 ## Agents
 
@@ -48,6 +59,11 @@ and values; none has a fix yet.
 - [No way for a user to authorise defaults](frame-ignores-use-defaults.md) - the slots now fill, but "pick something sensible" still has no mechanism and an assumed value is only narrated, not recorded
 
 - [A verification digest can report success over a build that pushed nothing](verification-digest-can-contradict-the-ledger.md) - one message showed "build - failed" and "Verified end-to-end." together while the ledger read criteria 0 / pushed 0 / succeeded no; nothing checks the digest against the build
+
+
+- [The Lead has no way to throw a strategy away](the-lead-cannot-start-a-strategy-over.md) - `build_strategy` refuses a thread that has one and `edit_strategy` only changes one, while `clear_strategy` is registered in the execution toolset the Lead reaches only through `recover_failed_steps`
+
+- [The persisted strategy AST is parsed into a PersistedStrategyGraph in two places](the-persisted-strategy-ast-is-parsed-in-two-places.md) - `assistants/pathfinder_spec.py` and `jobs/runtime.py` hold the same guard-parse-fallback, and chat turns run only the second
 
 - [The services layer's purity has two exceptions](services-layer-purity-has-two-exceptions.md) - two experiment tool modules import pydantic_ai inside services, and the relocated catalog helper keeps an unreachable branch plus a tree-vocabulary filter that no-ops
 
@@ -67,9 +83,9 @@ be assumed.
 - [GenesByOrthologPattern's vocabulary fails validation, and the failure reads as "Search not found"](ortholog-pattern-vocabulary-is-unreadable-and-reported-as-not-found.md) - `WDKVocabTerm` requires a null third element and live plasmodb sends a parent term there; the refusal lists the search in its own did-you-mean, so no route reads that search's parameters
 
 
-- [Thirteen shipped embedding caches are in a format the loader rejects](thirteen-shipped-embedding-caches-are-in-a-format-the-loader-rejects.md) - 7184 of 7699 shipped catalog entries have no usable row, so a fresh deployment encodes them all before readiness closes; only plasmodb carries the content-addressed shape
 
 ## Verification gates
+
 
 - [The opt-in llm test tier cannot even collect](llm-test-tier-cannot-collect.md) - its conftest imports a deleted symbol and every ladder excludes the tier, so the rot is invisible; repair or delete, plus a collection-only smoke
 
@@ -80,7 +96,9 @@ be assumed.
 
 - [The API lint job is red on two checks CLAUDE.md's documented commands do not run](api-lint-job-is-red-on-alembic-and-pip-audit.md) - `ruff check .` over `alembic/`, and 44 advisories across 14 packages including the checkpoint path
 
-- [The api file-size gate is red on two service modules](file-size-gate-is-red-on-two-service-modules.md) - `param_dag.py` at 649 lines and `step_wdk_push.py` at 416 against a 400 cap; the hook runs on any api Python change, so it fails for work touching neither file
+- [The api file-size gate is red on six modules](file-size-gate-is-red-on-six-modules.md) - `param_dag.py` 649, `frame_spec.py` 562, `mcp/server.py` 522, `strategy.py` 472, `operations/apply.py` 458 and `step_wdk_push.py` 416 against a 400 cap; the hook runs on any api Python change, so it fails for work touching none of them
+
+- [An eval case is one prompt on a fresh thread, so no case can pin an edit turn](the-eval-corpus-cannot-express-an-edit-turn.md) - `run_one_case` mints a new conversation and drives one prompt, and both edit defects are second-turn defects
 
 - [Eval scoring answers "same shape or not"](eval-scoring-is-exact-match-only.md) - one wrong operator and a completely different search both report `structure` differs, so no trend can say how much worse
 
@@ -90,7 +108,17 @@ be assumed.
 
 ## Initiatives
 
-- [Execute the EDA integration plan](execute-eda-integration-plan.md) - the seven-batch plan at [eda/plan/](../eda/plan/index.md) is written; conversational analysis authoring, durable computes, the co-edited notebook tab with visualizations, and step export remain to be built
+
+## EDA (found during batches 1-3, 2026-08-28)
+
+- [The generic and the per-dataset EDA subset searches count different genes for the same filter](generic-and-per-dataset-eda-subset-searches-disagree.md) - 5556 through GenesByEdaSubset on a real strategy push, 5602 through the per-dataset search a day earlier, same one-filter spec; not reconciled
+- [The chat SSE test helper splits frames on U+2028](sse-test-helper-splits-on-unicode-line-separator.md) - `parse_sse_body` uses `splitlines()`, and a recorded study description carries one, so a tool-output frame parses in two while the wire frame is intact
+- [The Playwright no-first-nth gate is red on 16 escapes](no-first-nth-gate-is-red-on-16-escapes.md) - six older specs; the EDA specs contribute none; fix with specific locators and put the script in CI
+- [generate:types in mock mode injects the dev-login route](generate-types-in-mock-mode-injects-the-dev-login-route.md) - 8 generated files differ when the api container is on the e2e overlay; the generator should refuse a spec that carries `/api/v1/dev/login`
+- [The web dev container runs Turbopack despite the `--webpack` rule](web-dev-server-runs-turbopack-despite-the-webpack-rule.md) - the script, the Dockerfile and two documents disagree; measure SSE once and align them
+- [The chart color tokens have no dark-mode values](chart-tokens-have-no-dark-mode-values.md) - `.dark` overrides shadows only; `--chart-3` fails the lightness band and three slots are under 3:1 on light; a palette decision that repaints every chart consumer
+- [The frontend weak-assertion gate is red on 106 offenders outside its baseline](weak-assertion-gate-is-red-on-106-offenders.md) - a ratchet that is red on the trunk cannot ratchet; 99 remain after the chat-path sweep; fix them or re-baseline and put the script in CI
+- [The EDA permissions cache is keyed by site alone, so one account's authorization answers every later account in that process](eda-permissions-cache-is-shared-by-every-account.md) - measured `same_object=True` across the service account and the dev user; `clear_study_caches` has no production caller, and `resolve_dataset` reads the same map
 
 ## Known and accepted
 

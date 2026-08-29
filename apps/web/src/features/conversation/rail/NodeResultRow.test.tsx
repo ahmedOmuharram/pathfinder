@@ -16,9 +16,7 @@ function buildWith(count: number): LedgerBuildPayload {
     needsRecovery: false,
     recoveryKind: "none",
     succeeded: true,
-    nodeResults: [
-      { nodeId: "n1", searchName: "GenesByText", count, status: "ok" },
-    ],
+    nodeResults: [{ nodeId: "n1", searchName: "GenesByText", count, status: "ok" }],
   };
 }
 

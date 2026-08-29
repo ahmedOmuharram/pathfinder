@@ -13,9 +13,8 @@ async def reembed_all_memories(store: MemoryStore) -> int:
 
     Reads each memory and re-puts it under the same key, regenerating the
     ``_embed_text`` field via :func:`embedding.format_embedded_string`. Run
-    after the embedding scheme changes (e.g. adding nomic prefixes) so the
-    persisted vectors match how queries are now embedded. Returns the number
-    of memories re-embedded.
+    after the embedding scheme changes so the persisted vectors match how
+    queries are now embedded. Returns the number of memories re-embedded.
     """
     namespaces = await store.store.alist_namespaces(
         prefix=("app",), limit=_NAMESPACE_PAGE

@@ -23,6 +23,7 @@ from pathfinder.ai.agents._history_processor import (
 )
 from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
 from pathfinder.ai.lead.derive import derive_ledger
+from pathfinder.ai.lead.edit_dispatch import edit_strategy
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.lead.live_state import LiveStrategyState, read_live_state
 from pathfinder.ai.lead.sub_agent_dispatch import (
@@ -40,6 +41,7 @@ from pathfinder.ai.tools.standalone.control_sets import (
 )
 from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_scored
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
+from pathfinder.ai.tools.toolsets import eda
 
 LeadTurnState = Literal["await_user", "complete"]
 LedgerSectionName = Literal[
@@ -256,6 +258,7 @@ def build_lead_agent() -> LeadAgent:
             Tool(read_ledger_section),
             Tool(get_live_strategy_state),
             Tool(frame_problem),
+            Tool(edit_strategy),
             Tool(build_strategy),
             Tool(recover_failed_steps),
             Tool(verify_strategy),
@@ -267,6 +270,7 @@ def build_lead_agent() -> LeadAgent:
             Tool(compare_variants_scored),
             Tool(consult_user, requires_approval=True),
         ],
+        toolsets=[eda.build_toolset()],
         capabilities=[
             Thinking(effort="medium"),
             *(ProcessHistory[LeadDeps](p) for p in PHASE_HISTORY_PROCESSORS),

@@ -1,4 +1,11 @@
-"""Turn-cancellation service for conversations."""
+"""Turn-cancellation service for conversations.
+
+Stop writes a request row that the worker running the turn polls. When that
+worker has been silent for longer than ``worker_dead_heartbeat_seconds``, Stop
+also ends the turn here and now. A worker that died more recently than that
+window still owns its turn, so Stop leaves the request for the maintenance
+sweep to act on.
+"""
 
 from uuid import UUID
 
@@ -7,6 +14,7 @@ from assistant_core.platform.db import async_session_factory
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pathfinder.jobs.maintenance import release_dead_turn
 from pathfinder.persistence.repositories import (
     ChatTurnCancellationRepository,
     ConversationRepository,
@@ -28,6 +36,8 @@ async def cancel_turn(
     )
     repo = ChatTurnCancellationRepository(session_factory=async_session_factory)
     await repo.request_cancel(conversation_id=conversation_id, turn_id=turn_id)
+    # A live worker reads the request; a long-silent one reads nothing.
+    await release_dead_turn(conversation_id)
 
 
 async def cancel_active_turn(
@@ -54,3 +64,4 @@ async def cancel_active_turn(
         return
     repo = ChatTurnCancellationRepository(session_factory=async_session_factory)
     await repo.request_cancel(conversation_id=conversation_id, turn_id=row.turn_id)
+    await release_dead_turn(conversation_id)

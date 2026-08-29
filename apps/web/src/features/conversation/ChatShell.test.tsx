@@ -4,7 +4,7 @@
 import type * as ReactQueryModule from "@tanstack/react-query";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-import { computeChatResolution, isStrategyRoute } from "./ChatShell";
+import { computeChatResolution, isEdaRoute, isStrategyRoute } from "./ChatShell";
 
 type ReactQueryExports = typeof ReactQueryModule;
 
@@ -88,6 +88,28 @@ describe("ChatShell.isStrategyRoute", () => {
     expect(isStrategyRoute("/plasmodb/conversation/conv-1/strategy/step/step_1")).toBe(
       true,
     );
+  });
+});
+
+describe("ChatShell.isEdaRoute", () => {
+  it("matches the conversation-scoped eda pane", () => {
+    expect(isEdaRoute("/plasmodb/conversation/conv-1/eda")).toBe(true);
+  });
+
+  it("matches a nested eda path", () => {
+    expect(isEdaRoute("/plasmodb/conversation/conv-1/eda/anything")).toBe(true);
+  });
+
+  it("does not match the chat thread itself", () => {
+    expect(isEdaRoute("/plasmodb/conversation/conv-1")).toBe(false);
+  });
+
+  it("does not match a conversation whose id ends in eda", () => {
+    expect(isEdaRoute("/plasmodb/conversation/conv-eda")).toBe(false);
+  });
+
+  it("does not match the strategy pane", () => {
+    expect(isEdaRoute("/plasmodb/conversation/conv-1/strategy")).toBe(false);
   });
 });
 

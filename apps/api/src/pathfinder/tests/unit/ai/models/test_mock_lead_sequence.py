@@ -161,3 +161,10 @@ def test_an_impact_question_does_not_rebuild() -> None:
     )
 
     assert _names(seq) == ["final_result"]
+
+
+def test_an_edit_marker_routes_to_the_edit_dispatch() -> None:
+    msgs: list[ModelMessage] = [
+        _user("Swap the organism on the taxon criterion and keep the rest.")
+    ]
+    assert _names(mock._lead_sequence(msgs)) == ["edit_strategy", "final_result"]

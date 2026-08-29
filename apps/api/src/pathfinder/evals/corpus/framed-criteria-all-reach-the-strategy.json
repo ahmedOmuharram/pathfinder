@@ -19,7 +19,7 @@
     "origin": "cataloged-failure",
     "addedAt": "2026-08-23",
     "stagingId": "",
-    "reference": "backlog/edit-strategy-drops-criteria-and-claims-preserved.md",
+    "reference": "decisions/an-edit-is-a-delta-not-a-rebuild.md",
     "curatorNote": "The verification verdict is not asserted here: see the runner's note on what the deterministic provider can and cannot settle."
   }
 }

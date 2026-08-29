@@ -28,9 +28,7 @@ describe("revisionOfMessage", () => {
   });
 
   it("ignores a user message", () => {
-    expect(
-      revisionOfMessage({ role: "user", content: [{ type: "text" }] }),
-    ).toBeNull();
+    expect(revisionOfMessage({ role: "user", content: [{ type: "text" }] })).toBeNull();
   });
 
   it("returns null when the turn carried no revision", () => {

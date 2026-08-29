@@ -57,8 +57,8 @@ Java process. Our own server's run is a caller of this package, not its home.
 
 **The suite inside `packages/assistant-core`.** The runtime already speaks MCP
 and already has an admission model, so the code would sit beside what it
-checks. Rejected because the runtime pins pydantic-ai, langgraph, psycopg and
-fastembed; a Java team's CI would install all of it to read a tool list. It
+checks. Rejected because the runtime pins pydantic-ai, langgraph, psycopg, sqlalchemy
+and openai; a Java team's CI would install all of it to read a tool list. It
 would also invert the runtime's boundary suite, which exists to keep test
 frameworks out of the runtime's imports.
 

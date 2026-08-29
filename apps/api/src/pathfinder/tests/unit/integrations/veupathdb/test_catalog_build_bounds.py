@@ -12,7 +12,6 @@ from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 
 from pathfinder.integrations.embeddings.semantic_index import SemanticSearchIndex
@@ -21,7 +20,10 @@ from pathfinder.integrations.veupathdb.catalog_metadata import (
     DatasetMetadata,
     OntologyCategories,
 )
-from pathfinder.integrations.veupathdb.discovery import SearchCatalog
+from pathfinder.integrations.veupathdb.discovery import (
+    _EMPTY_CATALOG_BYTES,
+    SearchCatalog,
+)
 from pathfinder.integrations.veupathdb.disk_cache import (
     CatalogSnapshot,
     save_catalog_cache,
@@ -100,12 +102,11 @@ async def test_a_catalog_reports_the_bytes_it_holds(tmp_path: Path) -> None:
     assert restored is not None
 
     catalog._restore_from_snapshot(restored)
-    index = SemanticSearchIndex(site_id="testdb")
-    index.embeddings = np.zeros((4, 512), dtype=np.float32)
-    catalog._semantic_index = index
+    catalog._semantic_index = SemanticSearchIndex(site_id="testdb")
 
     assert restored.payload_bytes == (tmp_path / "testdb.json").stat().st_size
-    assert catalog.memory_bytes > restored.payload_bytes + index.embeddings.nbytes
+    # The vectors live in Postgres, so a catalog costs what its snapshot does.
+    assert catalog.memory_bytes == _EMPTY_CATALOG_BYTES + restored.payload_bytes * 4
 
 
 async def test_an_unloaded_catalog_reports_a_size() -> None:

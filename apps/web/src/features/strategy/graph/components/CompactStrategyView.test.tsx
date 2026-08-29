@@ -118,9 +118,7 @@ describe("CompactStrategyView (vertical layout)", () => {
     // stops reading as hierarchy.
     render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
     const glyphWidth = (id: string) =>
-      screen
-        .getByTestId(`compact-step-row-${id}`)
-        .querySelector("[aria-hidden]")
+      screen.getByTestId(`compact-step-row-${id}`).querySelector("[aria-hidden]")
         ?.className;
 
     expect(glyphWidth("step_c")).toBe(glyphWidth("step_a"));
@@ -296,5 +294,3 @@ describe("a strategy whose branches are themselves combines", () => {
     expect(screen.getAllByTestId(/^compact-step-row-/)).toHaveLength(7);
   });
 });
-
-

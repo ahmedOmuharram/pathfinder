@@ -26,7 +26,6 @@ import type { BrowserContext } from "@playwright/test";
 const TASK_ID = "00000000-0000-0000-0000-0000000000aa";
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
-
 interface OpenStrategyResponse {
   conversationId?: string;
   strategyId?: string;

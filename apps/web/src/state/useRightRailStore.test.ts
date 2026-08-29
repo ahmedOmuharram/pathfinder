@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useRightRailStore, useLeftSidebarStore } from "./useRightRailStore";
+import {
+  RIGHT_RAIL_PANELS,
+  useRightRailStore,
+  useLeftSidebarStore,
+} from "./useRightRailStore";
 
 beforeEach(() => {
   useRightRailStore.setState({
@@ -14,9 +18,23 @@ beforeEach(() => {
       scratchpadCount: 0,
       taskCount: 0,
       memoryCount: 0,
+      edaCount: 0,
     },
   });
   useLeftSidebarStore.setState({ collapsed: false });
+});
+
+describe("RIGHT_RAIL_PANELS", () => {
+  it("carries the eda panel", () => {
+    expect(RIGHT_RAIL_PANELS).toEqual([
+      "strategy",
+      "tasks",
+      "memories",
+      "scratchpad",
+      "ledger",
+      "eda",
+    ]);
+  });
 });
 
 describe("useRightRailStore", () => {
@@ -26,6 +44,13 @@ describe("useRightRailStore", () => {
     expect(s.openPanel).toBe("strategy");
     expect(s.lastSeen.strategyStepCount).toBe(4);
     expect(s.lastSeen.ledgerCount).toBe(0);
+  });
+
+  it("openPanelId records the eda marker so the dot clears", () => {
+    useRightRailStore.getState().openPanelId("eda", { edaCount: 3 });
+    const s = useRightRailStore.getState();
+    expect(s.openPanel).toBe("eda");
+    expect(s.lastSeen.edaCount).toBe(3);
   });
 
   it("togglePanel opens a different panel, closes the same one", () => {
@@ -46,7 +71,7 @@ describe("useRightRailStore", () => {
   it("closePanel clears the open panel", () => {
     useRightRailStore.getState().openPanelId("memories", {});
     useRightRailStore.getState().closePanel();
-    expect(useRightRailStore.getState().openPanel).toBeNull();
+    expect(useRightRailStore.getState().openPanel).toBe(null);
   });
 
   it("autoOpen opens the panel once per conversation and respects an open panel", () => {

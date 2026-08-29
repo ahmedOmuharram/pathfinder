@@ -6,15 +6,23 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+from structlog.testing import capture_logs
 
-from assistant_core.embeddings.prefixes import (
-    SEARCH_DOCUMENT_PREFIX,
-    SEARCH_QUERY_PREFIX,
+from assistant_core.embeddings.embedder import (
+    EMBEDDING_DIMENSIONS,
+    EmbeddingUnavailableError,
 )
 from assistant_core.memory import lifespan as lifespan_module
 from assistant_core.memory.lifespan import lifespan_memory_store
 from assistant_core.memory.schemas import MemoryValue
 from assistant_core.memory.store import MemoryStore
+
+
+def _axis(position: int) -> list[float]:
+    """A unit vector on one axis, so two texts are orthogonal or identical."""
+    vector = [0.0] * EMBEDDING_DIMENSIONS
+    vector[position] = 1.0
+    return vector
 
 
 @pytest.mark.asyncio
@@ -43,12 +51,19 @@ async def test_memory_store_put_and_get(
 
 
 @pytest.mark.asyncio
-async def test_memory_store_search_returns_relevant_first(
-    db_cleaner: None, patch_app_db_engine: None
+async def test_memory_store_search_returns_the_nearest_vector_first(
+    db_cleaner: None, patch_app_db_engine: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The store ranks by the vectors it is given, best first."""
     del db_cleaner, patch_app_db_engine
     database_url = os.environ["DATABASE_URL"]
     user_id = uuid4()
+
+    async def keyed_embed(texts: Sequence[str]) -> list[list[float]]:
+        return [_axis(0 if "malaria" in text else 1) for text in texts]
+
+    monkeypatch.setattr(lifespan_module, "embed_text", keyed_embed)
+
     async with lifespan_memory_store(database_url) as raw_store:
         store = MemoryStore(store=raw_store)
         await store.put(
@@ -77,26 +92,25 @@ async def test_memory_store_search_returns_relevant_first(
         hits = await store.semantic_search(
             user_id=user_id,
             kind="knowledge",
-            query="antimalarial drug targets",
+            query="malaria drug targets",
             top_k=2,
         )
         assert len(hits) == 2
         assert hits[0].value.name == "malaria_drug_targets"
         assert hits[0].score is not None
-        assert hits[0].score >= hits[1].score if hits[1].score is not None else True
+        assert hits[1].score is not None
+        assert hits[0].score > hits[1].score
 
 
 @pytest.mark.asyncio
-async def test_store_applies_asymmetric_nomic_prefixes(
+async def test_store_embeds_the_memory_text_and_the_raw_query(
     db_cleaner: None, patch_app_db_engine: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """End-to-end proof that puts embed ``search_document:`` text and searches
-    embed ``search_query:`` text.
+    """A put embeds the combined memory text; a search embeds the query verbatim.
 
-    The LangGraph Postgres store routes BOTH put and search through
-    ``aembed_documents`` (it never calls ``aembed_query``), so asymmetric
-    prefixes can only come from the text we hand it. A capturing embed records
-    exactly what each path asks to embed, exercising the real store routing.
+    The LangGraph Postgres store routes both paths through
+    ``aembed_documents``, so a capturing embed records exactly what each path
+    asks for.
     """
     del db_cleaner, patch_app_db_engine
     database_url = os.environ["DATABASE_URL"]
@@ -105,7 +119,7 @@ async def test_store_applies_asymmetric_nomic_prefixes(
 
     async def capturing_embed(texts: Sequence[str]) -> list[list[float]]:
         embedded_texts.extend(texts)
-        unit = [1.0] + [0.0] * 511
+        unit = [1.0] + [0.0] * (EMBEDDING_DIMENSIONS - 1)
         return [list(unit) for _ in texts]
 
     monkeypatch.setattr(lifespan_module, "embed_text", capturing_embed)
@@ -130,10 +144,72 @@ async def test_store_applies_asymmetric_nomic_prefixes(
             top_k=1,
         )
 
-    document_texts = [t for t in embedded_texts if t.startswith(SEARCH_DOCUMENT_PREFIX)]
-    query_texts = [t for t in embedded_texts if t.startswith(SEARCH_QUERY_PREFIX)]
-    assert any("surface_antigen_set" in t for t in document_texts)
-    assert query_texts == [f"{SEARCH_QUERY_PREFIX}vaccine targets"]
-    # A query must never be embedded as a document, nor vice versa.
-    assert not any(t.startswith(SEARCH_DOCUMENT_PREFIX) for t in query_texts)
-    assert all(not t.startswith(SEARCH_QUERY_PREFIX) for t in document_texts)
+    assert any("surface_antigen_set" in text for text in embedded_texts)
+    assert "vaccine targets" in embedded_texts
+
+
+class _SwitchableEmbed:
+    """A real embed the store captures at open, which can start refusing."""
+
+    def __init__(self) -> None:
+        self.refusing = False
+
+    async def __call__(self, texts: Sequence[str]) -> list[list[float]]:
+        if self.refusing:
+            raise EmbeddingUnavailableError(batch_size=len(texts), cause="no route")
+        return [_axis(0) for _ in texts]
+
+
+@pytest.mark.asyncio
+async def test_a_search_with_no_embedding_api_returns_nothing(
+    db_cleaner: None, patch_app_db_engine: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreachable embedding API costs the turn its memories, not the turn.
+
+    The store captures its embed when it opens, so the refusal is installed
+    before that and switched on once a memory is stored.
+    """
+    del db_cleaner, patch_app_db_engine
+    database_url = os.environ["DATABASE_URL"]
+    user_id = uuid4()
+    embed = _SwitchableEmbed()
+    monkeypatch.setattr(lifespan_module, "embed_text", embed)
+
+    async with lifespan_memory_store(database_url) as raw_store:
+        store = MemoryStore(store=raw_store)
+        await store.put(
+            user_id=user_id,
+            value=MemoryValue(
+                kind="knowledge",
+                name="reachable_memory",
+                summary="stored while the API answered",
+                tags=[],
+                content={},
+                created_at=datetime.now(UTC),
+            ),
+        )
+        # The memory is there while the API answers.
+        assert (
+            len(
+                await store.semantic_search(
+                    user_id=user_id,
+                    kind="knowledge",
+                    query="anything",
+                    top_k=3,
+                )
+            )
+            == 1
+        )
+
+        embed.refusing = True
+        with capture_logs() as logs:
+            hits = await store.semantic_search(
+                user_id=user_id,
+                kind="knowledge",
+                query="anything",
+                top_k=3,
+            )
+
+    assert hits == []
+    assert [entry["event"] for entry in logs] == ["Memory search returned nothing"]
+    assert "no route" in logs[0]["error"]

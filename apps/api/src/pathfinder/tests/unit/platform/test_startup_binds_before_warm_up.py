@@ -93,10 +93,10 @@ async def test_startup_returns_while_warm_up_still_runs(
     assert finished.is_set()
 
 
-async def test_the_blocking_model_loads_leave_the_event_loop_free(
+async def test_the_blocking_model_load_leaves_the_event_loop_free(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``warm_up_model`` holds the CPU for seconds, so it belongs on a thread."""
+    """``warm_up_piguard`` holds the CPU for seconds, so it belongs on a thread."""
     callers: list[str] = []
 
     def record_model() -> None:
@@ -106,7 +106,6 @@ async def test_the_blocking_model_loads_leave_the_event_loop_free(
         async def preload_all(self) -> None:
             return None
 
-    monkeypatch.setattr(main, "warm_up_model", record_model)
     monkeypatch.setattr(main, "warm_up_piguard", record_model)
     monkeypatch.setattr(main, "get_discovery_service", _Discovery)
 

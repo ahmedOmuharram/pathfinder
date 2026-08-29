@@ -30,8 +30,9 @@ from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead import sub_agent_stream, sub_agent_tools
 from pathfinder.ai.lead.deltas import FrameResult, RecoveryDelta
+from pathfinder.ai.lead.dispatch_resume import resume_sub_agent
 from pathfinder.ai.lead.sub_agent_dispatch import (
-    resume_sub_agent,
+    frame_work_order,
     run_frame,
     run_recovery,
     run_verification,
@@ -40,6 +41,7 @@ from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentRe
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentRunUsage
 from pathfinder.ai.tools.toolsets import execution, verification
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
+from pathfinder.domain.strategy.operational_spec import Criterion
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
@@ -495,7 +497,14 @@ async def test_the_stored_dispatch_arguments_drive_the_re_entry(
     bound_criteria: list[str] = []
 
     async def bind_criterion(ctx: RunContext[AgentDeps], criterion_id: str) -> str:
-        del ctx
+        # A spec_ready result is refused unless the draft records the binding.
+        ctx.deps.agent_state.frame_set_criterion(
+            Criterion(
+                id=criterion_id,
+                text="the criterion the run bound",
+                search_name="GenesByText",
+            )
+        )
         bound_criteria.append(criterion_id)
         return f"bound {criterion_id}"
 
@@ -522,7 +531,7 @@ async def test_the_stored_dispatch_arguments_drive_the_re_entry(
         waiting = await run_frame(
             deps=deps,
             parent_tool_call_id="lead_call_frame",
-            reason="operationalize the goal",
+            work_order=frame_work_order("operationalize the goal", ""),
             expected_criteria=5,
         )
         assert isinstance(waiting, SubAgentApprovalWait)

@@ -8,6 +8,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn(), back: vi.fn() }),
 }));
 
+import { strategyStepUrl } from "@/lib/routes";
 import { QuickSwitcher } from "./QuickSwitcher";
 
 function makeStep(id: string, displayName: string, searchName: string): Step {
@@ -81,7 +82,7 @@ describe("QuickSwitcher", () => {
       <QuickSwitcher open={true} onOpenChange={onOpenChange} strategy={strategy} />,
     );
     fireEvent.click(screen.getByText("Genes by ID"));
-    expect(pushMock).toHaveBeenCalledWith("/conversation/conv-42/strategy/step/a");
+    expect(pushMock).toHaveBeenCalledWith(strategyStepUrl("plasmodb", "conv-42", "a"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

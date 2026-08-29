@@ -1,7 +1,12 @@
 """Shared fixtures for unit tests."""
 
 import asyncio.base_events
+import os
 import socket
+
+# The unit tier has no database, so nothing here writes an embedding index.
+os.environ["EMBEDDING_INDEX_SYNC_ENABLED"] = "false"
+
 from collections.abc import AsyncGenerator
 from typing import Any, NoReturn
 from uuid import UUID, uuid4

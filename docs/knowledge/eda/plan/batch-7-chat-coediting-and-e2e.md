@@ -5,7 +5,7 @@ description: The conversation part renderers that draw EDA charts inline, the ri
 tags: [eda, pathfinder, plan, batch, frontend, conversation, playwright, closure]
 generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-status: draft
+status: accepted
 ---
 
 # Batch 7: chat co-editing and e2e
@@ -36,8 +36,8 @@ adds no new transport.
 ## The settled contract this batch renders
 
 Quoted in full in
-[batch-5-charts-and-state.md](batch-5-charts-and-state.md). The six facts that
-shape this batch:
+[batch-5-charts-and-state.md](batch-5-charts-and-state.md). The seven facts
+that shape this batch:
 
 1. `EdaAnalysisState` carries **`filterSummaries: string[]`**, already rendered
    by the backend. The chat card prints those strings; it does not summarise a
@@ -54,7 +54,9 @@ shape this batch:
    `{ datasetId, analysisId, chart, effectSizeLabel, effectSizeThreshold,
    significanceThreshold, effectDirection, totalPoints, retainedPoints, points }`,
    a point being `{ pointId, effectSize, pValue?, adjustedPValue?, retained }`
-   with **numbers**.
+   with **numbers**. The durable compute completion emits `data-eda.viz` at the
+   default thresholds right after its `data-eda.analysis-state` part, so the
+   chat card and the tab's store both receive a real volcano without a fixture.
 4. `chart` is `volcano | histogram | boxplot | bar | scatter`. Only `volcano`
    and `scatter` are renderable from a point cloud; the other three get a named
    notice.
@@ -63,6 +65,9 @@ shape this batch:
 6. The tab's `PATCH /api/v1/conversations/{id}/eda` **writes no conversation
    event**. Chat therefore reflects a tab edit on the agent's next
    `data-eda.analysis-state` part, which the store's reconcile rule handles.
+7. `EdaVariableResponse` carries `hideFrom: string[]` beside the filter fields,
+   and the tab's entity tree hides a variable whose `hideFrom` names
+   `everywhere` or `variableTree`; the chat tools still list and filter it.
 
 ## Inherited constraints
 
@@ -757,7 +762,10 @@ describe("DataEdaSubsetPreview", () => {
   `entityCounts` entry as "count of unfilteredCount entityDisplayName" with
   `toLocaleString()` on both numbers, then `HistogramChart` at `height={72}`,
   `barMode="stack"`, `series={[{ name: distribution.variableDisplayName, labels: distribution.labels, values: distribution.values }]}`,
-  then the coverage line and the multi-valued warning. The card always uses
+  then the coverage line and the multi-valued warning. The coverage line
+  prints plain unformatted integers (8409 of 4279), while the entity count
+  rows use toLocaleString - the acceptance suite compares comma-stripped
+  text, so only this document fixes the choice. The card always uses
   `HistogramChart`, because the part carries no `dataShape` to choose a form
   from; the tab, which has the variable node in hand, chooses between histogram
   and bar.
@@ -1320,7 +1328,9 @@ test.describe("EDA data parts render in the thread", () => {
     await expect(page.getByTestId("data-eda-analysis-state")).toBeVisible({
       timeout: 20_000,
     });
-    await page.getByRole("button", { name: "EDA" }).click();
+    await page.getByRole("button", { name: /^(Open|Close) EDA$/ }).click();
+    // RightRail.tsx names its toggles "Open EDA"/"Close EDA", and it may
+    // auto-open a panel - guard on visibility, not on a bare name.
     await expect(page.getByTestId("rail-eda-panel")).toContainText(
       "Heat shock response in sensitive mutants",
     );
@@ -1600,7 +1610,7 @@ test.describe("EDA export as a strategy step", () => {
     await exportButton.click();
 
     await page.goto(`/plasmodb/conversation/${conversationId}`);
-    await page.getByRole("button", { name: "Strategy" }).click();
+    await page.getByRole("button", { name: /^(Open|Close) Strategy$/ }).click();
     await expect(page.getByTestId("rail-strategy-panel")).toBeVisible({
       timeout: 20_000,
     });
@@ -1714,13 +1724,15 @@ docker compose exec api grep -rl "conversation_analyses" /app/src/pathfinder/per
 
 If it is absent, `docker compose --env-file .env.dev up -d --force-recreate api worker web`.
 
-- [ ] **Backend suite in the container.**
+- [ ] **Backend suite on the host.** The api image ships no test tree, so
+  the suite runs from the checkout:
 
 ```
-docker compose exec api uv run pytest src/pathfinder/tests/ -q
-docker compose exec api uv run ruff check src/
-docker compose exec api uv run mypy --strict src/pathfinder/
-docker compose exec api uv run pyright src/pathfinder/
+cd /Users/ahmedmuharram/repos/pathfinder/apps/api
+uv run pytest src/pathfinder/tests/ -q
+uv run ruff check src/
+uv run mypy --strict src/pathfinder/
+uv run pyright src/pathfinder/
 ```
 
 - [ ] **Frontend ladder, complete.**

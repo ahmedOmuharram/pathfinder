@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEventListener } from "usehooks-ts";
 import { useStrategyGraphCtx } from "@/features/strategy/graph/StrategyGraphContext";
 import { useAddStepMutation } from "@/features/strategy/mutations";
+import { chatUrl, strategyCanvasUrl } from "@/lib/routes";
 
 interface UseStrategyKeyboardShortcutsArgs {
   onOpenQuickSwitcher: () => void;
@@ -32,8 +33,8 @@ export function useStrategyKeyboardShortcuts({
   const pathname = usePathname();
   const siteId = String(useParams()["siteId"] ?? "");
   const conversationId = ctx.strategy?.id ?? "";
-  const strategyHref = `/${siteId}/conversation/${conversationId}/strategy`;
-  const chatHref = `/${siteId}/conversation/${conversationId}`;
+  const strategyHref = strategyCanvasUrl(siteId, conversationId);
+  const chatHref = chatUrl(siteId, conversationId);
   useAddStepMutation(conversationId);
 
   const leaderRef = useRef<{ key: "g"; expires: number } | null>(null);

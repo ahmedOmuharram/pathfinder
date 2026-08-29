@@ -40,7 +40,7 @@ from pathfinder.services.strategies.sync_state import WDKSyncState, ensure_sync_
 logger = get_logger(__name__)
 
 
-def _node_results(
+def node_results(
     nodes: list[StrategyStep],
     sync_state: WDKSyncState,
     outcome: BuildOutcome,
@@ -137,7 +137,7 @@ async def build_strategy_from_spec(
             graph=graph,
             sync_result=None,
         )
-        outcome.node_results = _node_results(nodes, sync_state, outcome)
+        outcome.node_results = node_results(nodes, sync_state, outcome)
         return outcome
 
     try:
@@ -161,7 +161,7 @@ async def build_strategy_from_spec(
                 error=str(exc),
             ),
         )
-        outcome.node_results = _node_results(nodes, sync_state, outcome)
+        outcome.node_results = node_results(nodes, sync_state, outcome)
         return outcome
 
     outcome.wdk_strategy_id = sync_result.wdk_strategy_id
@@ -170,7 +170,7 @@ async def build_strategy_from_spec(
     outcome.root_count = sync_result.root_count
     outcome.zero_step_ids = list(sync_result.zero_step_ids)
 
-    outcome.node_results = _node_results(nodes, sync_state, outcome)
+    outcome.node_results = node_results(nodes, sync_state, outcome)
     await persist_strategy_ast_to_conversation(
         deps=deps,
         graph=graph,

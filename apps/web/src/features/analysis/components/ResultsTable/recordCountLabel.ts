@@ -3,7 +3,8 @@ export function recordCountLabel(
   count: number | null,
   recordType: string | null,
 ): string {
-  const noun = recordType == null || recordType === "" ? "record" : recordType.replace(/_/g, " ");
+  const noun =
+    recordType == null || recordType === "" ? "record" : recordType.replace(/_/g, " ");
   if (count == null) {
     return `${noun}s, count unavailable`;
   }

@@ -30,11 +30,25 @@ parent's `messageId` values; only scratchpad note ids are rewritten
 (`_rewrite_scratchpad_ids_in_chunk`). The UI's thread is built from the chunks, so its
 message ids are the parent's.
 
-**Fix (to decide).** Fork must keep one id space: either reuse the parent's message ids
-for the copied `Message` rows (they are unique per conversation, so `(conversation_id, id)`
-stays unique) or rewrite `messageId`/`message.id` in every copied chunk through the same
-id map used for notes. And the edit dialog must surface a failed revert/branch as an error
-and close or re-enable.
+**Mechanism correction (thread-surgery audit, 2026-08-28).** The "reuse the
+parent's message ids" option is not available: `messages.id` is the primary key
+alone, not `(conversation_id, id)` (`assistant_core/persistence/models.py:162`),
+so a copied row under the parent's id collides. Worse, the id space is squatted
+forever: `MessagesRepository.insert_message` is
+`on_conflict_do_nothing(index_elements=[Message.id])`
+(`assistant_core/persistence/repositories/message.py:35`), so measured on the dev
+stack, inserting a message row into conversation B with an id conversation A holds
+silently persists nothing (the id's only row stays A's). A regenerate or
+edit-resend in a branch, which posts a copied chunk id, therefore records no
+Message row in the branch at all, and every per-message action on that turn stays
+broken afterwards. The workable direction is rewriting `messageId`/`message.id`
+in every copied chunk through an id map (as notes already do), or widening the
+primary key, a schema decision.
+
+**Fix (to decide).** Fork must keep one id space: rewrite `messageId`/`message.id`
+in every copied chunk through the same id map used for notes (or make the message
+PK per-conversation). And the edit dialog must surface a failed revert/branch as
+an error and close or re-enable.
 
 **What you would get.** Revert in a branch deletes from the chosen message onward; a
 failure shows "Could not revert: ..." in the dialog.

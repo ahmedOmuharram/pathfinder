@@ -73,7 +73,9 @@ describe("phyletic conformance (shared FE/BE fixture)", () => {
         expect(excludedTerms.unknown).toEqual(c.unresolved.excluded_unknown ?? []);
         const known = c.included.length + c.excluded.length;
         const unknown = includedTerms.unknown.length + excludedTerms.unknown.length;
-        expect(includedTerms.codes.length + excludedTerms.codes.length).toBe(known - unknown);
+        expect(includedTerms.codes.length + excludedTerms.codes.length).toBe(
+          known - unknown,
+        );
         return;
       }
 

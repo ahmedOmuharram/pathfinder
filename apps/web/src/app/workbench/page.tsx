@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 
+import { PORTAL_SITE_ID, workbenchRoot } from "@/lib/routes";
+
 export default function BareWorkbenchPage(): never {
-  redirect("/veupathdb/workbench");
+  redirect(workbenchRoot(PORTAL_SITE_ID));
 }

@@ -17,6 +17,7 @@ import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/u
 import { updateStrategy } from "@pathfinder/shared/generated/hooks/useUpdateStrategy";
 import { duplicateConversation } from "@/lib/api/conversations";
 import { toUserMessage } from "@/lib/api/errors";
+import { chatRoot, chatUrl } from "@/lib/routes";
 
 interface UseConversationSidebarActionsArgs {
   siteId: string;
@@ -49,7 +50,7 @@ export function useConversationSidebarActions({
   const listKey = listStrategiesQueryOptions({ siteId }).queryKey;
 
   const handleNewConversation = async (): Promise<void> => {
-    router.push(`/${siteId}/conversation`);
+    router.push(chatRoot(siteId));
   };
 
   const handleToggleSaved = async (item: ConversationItem): Promise<void> => {
@@ -75,7 +76,7 @@ export function useConversationSidebarActions({
     try {
       const copy = await duplicateConversation(item.id);
       await queryClient.invalidateQueries({ queryKey: listKey });
-      router.push(`/${siteId}/conversation/${copy.id}`);
+      router.push(chatUrl(siteId, copy.id));
     } catch (err) {
       reportError(toUserMessage(err, "Failed to duplicate conversation."));
     }

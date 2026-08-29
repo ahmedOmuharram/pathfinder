@@ -5,7 +5,7 @@ description: The REST router the EDA tab hydrates from, and the type plumbing th
 tags: [eda, pathfinder, plan, batch, transport, http, openapi, shared-ts, zod]
 generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-status: draft
+status: accepted
 ---
 
 # EDA batch 4: transport and types
@@ -101,7 +101,7 @@ from pathfinder.services.eda.catalog import (
     get_study_detail_for_dataset, resolve_dataset, search_studies,
 )
 from pathfinder.services.eda.authoring import (
-    SubsetPreview, SubsetRejected, apply_filters, preview_subset, verified_count,
+    SubsetPreview, SubsetRejectedError, apply_filters, preview_subset, verified_count,
 )
 from pathfinder.services.eda.compute import (
     RetainedSummary, read_statistics, retained_summary,
@@ -192,7 +192,7 @@ section depends on, each recorded in the task's own commit message.
         reconciliation and belongs in this task), or catch it in the router. Pick
         the subclass: the guidance string it already carries becomes the problem
         detail with no per-route code.
-      - `SubsetRejected` must become a 422 with the per-filter errors in the
+      - `SubsetRejectedError` must become a 422 with the per-filter errors in the
         `errors` array, so the tab can show them beside the filter that caused
         them. Make it subclass `ValidationError` from `platform/errors.py`,
         passing `errors=[{"message": e} for e in self.errors]`.
@@ -201,7 +201,7 @@ section depends on, each recorded in the task's own commit message.
       updated in the same task, not later.
 
 - [ ] Record both decisions in the task's recap, and confirm
-      `grep -rn "except UnknownEdaDatasetError\|except SubsetRejected" apps/api/src/pathfinder/transport`
+      `grep -rn "except UnknownEdaDatasetError\|except SubsetRejectedError" apps/api/src/pathfinder/transport`
       finds nothing: the handler does the work.
 
 ---
@@ -794,9 +794,13 @@ class EdaVizResponse(CamelModel):
   `pathfinder.integrations`, and `lint-imports` will say so if the import goes
   to the wrong module.
 
-  The three routes call `authoring.validate_subset` before the count and the
+  The count and distribution routes call `authoring.verified_count` and
+  `authoring.preview_subset` from the Consumes block; each runs the domain
+  predicates itself and raises `SubsetRejectedError` before any wire call, and
+  `verified_count` returns the pair `(count, unfiltered_count)` the response
+  carries. There is no separate `validate_subset` call in the router.
   distribution, so an invalid array is a 422 rather than a plausible zero.
-  `SubsetRejected` becoming a `ValidationError` (task A1) is what makes that one
+  `SubsetRejectedError` becoming a `ValidationError` (task A1) is what makes that one
   line rather than a try/except.
 
   The `/viz` route reads the analysis bound to no conversation - it takes a
@@ -973,7 +977,7 @@ async def test_patching_an_invalid_filter_array_is_a_422_naming_the_value(
     session_maker: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from pathfinder.services.eda.authoring import SubsetRejected
+    from pathfinder.services.eda.authoring import SubsetRejectedError
     from pathfinder.transport.http.routers import eda as eda_router
 
     client, conversation_id = thread
@@ -985,7 +989,7 @@ async def test_patching_an_invalid_filter_array_is_a_422_naming_the_value(
     )
 
     async def rejects(_site: str, **_kwargs: object) -> object:
-        raise SubsetRejected(["'P. vivax' is not a value of Species."])
+        raise SubsetRejectedError(["'P. vivax' is not a value of Species."])
 
     monkeypatch.setattr(eda_router, "apply_filters", rejects)
 
@@ -1123,7 +1127,12 @@ class EdaExportStepAction(CamelModel):
 
 
 class EdaUnbindAction(CamelModel):
-    """Clear the thread's binding. The upstream analysis is kept."""
+    """Clear the thread's binding. The upstream analysis is kept.
+
+    Idempotent: unbinding an unbound thread is 200 with analysis null, never
+    a 404 - the only 404 in the handler is the ownership check. The frozen
+    acceptance suite pins this.
+    """
 
     action: Literal["unbind"]
 
@@ -1148,7 +1157,12 @@ class EdaJobRefResponse(CamelModel):
 
 
 class EdaAnalysisPatchResponse(CamelModel):
-    """Every PATCH answers with the analysis state the surfaces re-render from."""
+    """Every PATCH answers with the analysis state the surfaces re-render from.
+
+    ``analysis`` is always PRESENT and nullable, never omitted: the frozen
+    acceptance suite refuses an envelope missing the key, and the generated
+    zod schema must agree (nullable, required).
+    """
 
     analysis: EdaAnalysisState | None = None
     job: EdaJobRefResponse | None = None
@@ -1206,6 +1220,12 @@ async def patch_conversation_eda(
         case EdaUnbindAction():
             return await _unbind(session, conversation_id)
 ```
+
+Every mutating helper (`_bind`, `_set_filters`, `_run_compute`,
+`_export_step`) calls `services/eda/binding.py::bump_analysis_revision`
+after its mutation and puts the returned int in the response's
+`analysis.revision`, exactly as the agent tools do for the part; a PATCH
+response with `revision: null` on a bound analysis is a defect.
 
 Each `_helper` calls the SAME service function the corresponding agent tool
 calls, and two of those functions must be extracted in this task as adjacent
@@ -1452,9 +1472,9 @@ wrong produces a spec that silently misses the new schemas.
   docker compose --env-file .env.dev up -d --build api worker web
   # Prove the container holds this batch's code before trusting its spec.
   docker compose exec api grep -c "data-eda.analysis-state" \
-    /app/src/pathfinder/ai/eda_stream_parts.py
+    /app/apps/api/src/pathfinder/ai/eda_stream_parts.py
   docker compose exec api grep -c "api/v1/eda" \
-    /app/src/pathfinder/transport/http/routers/eda.py
+    /app/apps/api/src/pathfinder/transport/http/routers/eda.py
   yarn generate:types
   git status --short packages/spec packages/shared-ts/src/generated
   ```
@@ -1824,7 +1844,9 @@ describe("eda zod schemas", () => {
     && npx eslint src/ \
     && node scripts/check-boundaries.mjs \
     && npx vitest run src/features/conversation/content/
-  cd ../../packages/shared-ts && yarn typecheck && yarn lint
+  cd ../../packages/shared-ts && yarn typecheck
+  # shared-ts has no eslint of its own; apps/web's eslint covers it via the
+  # pre-commit eslint-web hook, so `npx eslint src/` above is its lint gate
   ```
 
 - [ ] **Section end.** Run the full frontend suite once:
@@ -1855,7 +1877,7 @@ node scripts/check-boundaries.mjs
 npx vitest run
 
 cd ../../packages/shared-ts
-yarn typecheck && yarn lint
+yarn typecheck   # its lint runs through apps/web's eslint (pre-commit eslint-web)
 
 cd ../assistant-client-ts
 yarn test && yarn typecheck && yarn lint
@@ -1880,12 +1902,13 @@ EDA-shaped reached the protocol.
 4. **Reject a route with no `require_registered_wdk_identity`.** EDA refuses a
    guest; a route without the gate returns a 401 from deep inside the client
    instead of a clean one at the edge. Confirm with the no-token test.
-5. **Reject `UnknownEdaDatasetError` or `SubsetRejected` caught in the router.**
+5. **Reject `UnknownEdaDatasetError` or `SubsetRejectedError` caught in the router.**
    They subclass `NotFoundError` and `ValidationError`, and the existing handler
    does the work. Two mappings would drift.
 6. **Reject a 400 for "the compute has not run yet".** It is a 409, and the
    status belongs to the error class so every caller sees the same code.
-7. **Reject a `/count` or `/distribution` that skips `validate_subset`.** The
+7. **Reject a `/count` or `/distribution` whose service call skips the domain
+   predicates.** The
    service answers 200 with count 0 for an out-of-vocabulary value, so the route
    is the only guard the tab has.
 8. **Reject a second study-description builder.** The route and the tool must
@@ -1966,7 +1989,8 @@ A FAIL names the file, the line and the rule broken.
 
 1. `cd apps/api && uv run ruff check src/ && uv run mypy --strict src/pathfinder/ && uv run pyright src/pathfinder/ && uv run lint-imports && uv run pytest src/pathfinder/tests/ -v` is green, run by the lead.
 2. `cd apps/web && npx tsc --noEmit && npx eslint src/ && node scripts/check-boundaries.mjs && npx vitest run` is green, run by the lead.
-3. `cd packages/shared-ts && yarn typecheck && yarn lint` is green, and
+3. `cd packages/shared-ts && yarn typecheck` is green (its lint is apps/web's
+   eslint, already in criterion 2), and
    `cd packages/assistant-client-ts && yarn test && yarn typecheck && yarn lint`
    is green and unchanged by this batch.
 4. The seven pinned routes exist with exactly those paths and methods, each one

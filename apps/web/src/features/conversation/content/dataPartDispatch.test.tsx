@@ -15,6 +15,7 @@ import type { DataPartKind } from "@pathfinder/shared";
 
 import { AssistantMessage, UserMessage } from "./MessageRenderer";
 import { coreDataPartComponents } from "./coreDataParts";
+import { edaDataPartComponents } from "./edaDataParts";
 import { strategyDataPartComponents } from "./strategyDataParts";
 import { dataPartComponents } from "./contentComponents";
 
@@ -27,6 +28,15 @@ vi.mock("sonner", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => "/plasmodb/conversation/conv-1",
+}));
+
+vi.mock("@/lib/components/charts/echartsRegistry", () => ({
+  initChart: () => ({
+    setOption: vi.fn(),
+    resize: vi.fn(),
+    dispose: vi.fn(),
+    isDisposed: () => false,
+  }),
 }));
 
 // A kind this app never registers, in the shape a second assistant would use.
@@ -58,20 +68,28 @@ describe("dataPartComponents merge", () => {
     }
   });
 
-  it("keeps the two halves disjoint", () => {
-    const core = new Set(Object.keys(coreDataPartComponents));
-    const overlap = Object.keys(strategyDataPartComponents).filter((kind) =>
-      core.has(kind),
-    );
-    expect(overlap).toEqual([]);
+  it("contains every eda renderer", () => {
+    for (const kind of Object.keys(edaDataPartComponents)) {
+      expect(Object.hasOwn(dataPartComponents, kind)).toBe(true);
+    }
   });
 
-  it("adds nothing beyond the two halves", () => {
-    const halves = new Set([
+  it("keeps the three sources disjoint", () => {
+    const kinds = [
       ...Object.keys(coreDataPartComponents),
       ...Object.keys(strategyDataPartComponents),
+      ...Object.keys(edaDataPartComponents),
+    ];
+    expect(kinds).toHaveLength(new Set(kinds).size);
+  });
+
+  it("adds nothing beyond the three sources", () => {
+    const sources = new Set([
+      ...Object.keys(coreDataPartComponents),
+      ...Object.keys(strategyDataPartComponents),
+      ...Object.keys(edaDataPartComponents),
     ]);
-    expect(new Set(Object.keys(dataPartComponents))).toEqual(halves);
+    expect(new Set(Object.keys(dataPartComponents))).toEqual(sources);
   });
 
   it("has no renderer for a kind another assistant registers", () => {
@@ -130,6 +148,129 @@ describe("message dispatch", () => {
       />,
     );
     expect(screen.getByTestId("data-strategy-link")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("renders the eda analysis-state card through the merged map", () => {
+    render(
+      <Thread
+        content={[
+          {
+            type: "data-eda.analysis-state",
+            data: {
+              siteId: "plasmodb",
+              datasetId: "DS_53f554ec6a",
+              studyId: "STUDY_53f554ec6a",
+              analysisId: "t4fszEJ",
+              revision: 1,
+              studyDisplayName: "Rodent malaria phenotypes",
+              displayName: "berghei subset",
+              numFilters: 1,
+              numComputations: 2,
+              filters: [],
+              filterSummaries: ["Species is one of P. berghei"],
+              entityCounts: [],
+              canExportRows: false,
+            },
+          },
+        ]}
+      />,
+    );
+    const card = screen.getByTestId("data-eda-analysis-state");
+    expect(card).toHaveTextContent("Rodent malaria phenotypes");
+    expect(card).toHaveTextContent("berghei subset");
+    expect(card).toHaveTextContent("2 computations");
+    expect(screen.getByTestId("data-eda-filter-chip-0")).toHaveTextContent(
+      "Species is one of P. berghei",
+    );
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("renders the eda subset preview with each count against its total", () => {
+    render(
+      <Thread
+        content={[
+          {
+            type: "data-eda.subset-preview",
+            data: {
+              datasetId: "DS_e973eadd57",
+              analysisId: "t4fszEJ",
+              entityCounts: [
+                {
+                  entityId: "GENE_PHENOTYPE_DATA_ENTITY",
+                  entityDisplayName: "Gene phenotype",
+                  count: 4011,
+                  unfilteredCount: 4279,
+                },
+              ],
+              distribution: {
+                variableId: "VAR_035294d0",
+                variableDisplayName: "Species",
+                labels: ["P. berghei", "P. falciparum", "P. yoelii"],
+                values: [4011, 4130, 268],
+                subsetSize: 4279,
+                numVarValues: 8409,
+                numMissingCases: 0,
+                isMultiValued: true,
+              },
+              distributionNote: null,
+            },
+          },
+        ]}
+      />,
+    );
+    const card = screen.getByTestId("data-eda-subset-preview");
+    expect(card).toHaveTextContent("4,011 of 4,279 Gene phenotype");
+    expect(screen.getByTestId("data-eda-subset-bin-1")).toHaveTextContent(
+      "P. falciparum 4,130",
+    );
+    expect(screen.getByTestId("data-eda-subset-coverage")).toHaveTextContent(
+      "8409 of 4279 records have a value",
+    );
+    expect(screen.getByTestId("data-eda-subset-multivalued")).toHaveTextContent(
+      "one record can carry several values",
+    );
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("renders the eda viz card with the compute's retained count", () => {
+    render(
+      <Thread
+        content={[
+          {
+            type: "data-eda.viz",
+            data: {
+              datasetId: "DS_e973eadd57",
+              analysisId: "t4fszEJ",
+              chart: "volcano",
+              effectSizeLabel: "log2(Fold Change)",
+              effectSizeThreshold: 1,
+              significanceThreshold: 0.05,
+              totalPoints: 5511,
+              retainedPoints: 1543,
+              points: [
+                {
+                  pointId: "PF3D7_MIT04200",
+                  effectSize: -1.49447459261845,
+                  pValue: null,
+                  adjustedPValue: null,
+                  retained: false,
+                },
+              ],
+            },
+          },
+        ]}
+      />,
+    );
+    const card = screen.getByTestId("data-eda-viz");
+    expect(card).toHaveTextContent("log2(Fold Change)");
+    expect(screen.getByTestId("eda-viz-volcano")).toHaveAttribute("role", "img");
+    expect(screen.getByTestId("eda-viz-volcano-selection")).toHaveTextContent(
+      "0 genes selected at these thresholds - 1,543 of 5,511 retained by the compute",
+    );
+    expect(screen.getByTestId("eda-viz-volcano-dropped")).toHaveTextContent(
+      "1 point without a p-value was not plotted",
+    );
     expect(toastError).not.toHaveBeenCalled();
   });
 

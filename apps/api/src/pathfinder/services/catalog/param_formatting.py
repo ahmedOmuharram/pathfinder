@@ -18,6 +18,10 @@ from pathfinder.domain.parameters.wdk_vocab import (
 )
 from pathfinder.integrations.veupathdb.phyletic_tree import phyletic_tree_of
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
+from pathfinder.services.catalog.eda_backed import (
+    UPLOAD_SENTINEL_NOTE,
+    is_upload_sentinel_vocabulary,
+)
 from pathfinder.services.catalog.vocab_rendering import (
     _MAX_VOCAB_ENTRIES,
     allowed_values,
@@ -264,13 +268,19 @@ def format_typed_param(
     if phyletic_options is not None:
         help_text = "\n".join(filter(None, (help_text, _PHYLETIC_LIST_HELP)))
 
-    # The tree is the list's only vocabulary, so it must reach the wire through
-    # ``allowed_values``: ``vocab_leaves`` is excluded from serialization.
-    vocab = (
-        _capped_vocab_fields(dedupe_options(phyletic_options)[:_MAX_VOCAB_ENTRIES])
-        if phyletic_options is not None
-        else _format_vocabulary(param)
-    )
+    if is_upload_sentinel_vocabulary(param.vocabulary):
+        vocab = _VocabFields(allowed_values_note=UPLOAD_SENTINEL_NOTE)
+        leaves: list[VocabOption] = []
+    elif phyletic_options is not None:
+        # The tree is the list's only vocabulary, so it must reach the wire through
+        # ``allowed_values``: ``vocab_leaves`` is excluded from serialization.
+        vocab = _capped_vocab_fields(
+            dedupe_options(phyletic_options)[:_MAX_VOCAB_ENTRIES]
+        )
+        leaves = phyletic_options
+    else:
+        vocab = _format_vocabulary(param)
+        leaves = flatten_vocab(param.vocabulary)
 
     note: str | None = None
     vocab_depends_on: list[str] | None = None
@@ -325,11 +335,7 @@ def format_typed_param(
         note=note,
         filter_fields=filter_fields_for(param),
         # Always flattened, because ``allowed_values`` is capped and can omit a value.
-        vocab_leaves=(
-            phyletic_options
-            if phyletic_options is not None
-            else flatten_vocab(param.vocabulary)
-        ),
+        vocab_leaves=leaves,
     )
 
 

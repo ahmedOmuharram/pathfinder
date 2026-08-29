@@ -8,6 +8,10 @@ from typing import Any
 from uuid import UUID
 
 from assistant_core.conversation.event_writer import ChatWriter
+from assistant_core.conversation.open_tool_calls import (
+    OpenToolCalls,
+    write_tool_call_errors,
+)
 from assistant_core.graph.stream_events import (
     conversation_title_event,
     turn_failed_event,
@@ -57,6 +61,20 @@ class _DriveResult:
     encountered_error: bool = False
     title_emitted: bool = False
     cancelled: bool = False
+
+
+@dataclass
+class _TrackingWriter:
+    """Writes through and remembers which tool calls are still open."""
+
+    inner: ChatWriter
+    conversation_id: UUID
+    turn_id: UUID
+    open_calls: OpenToolCalls
+
+    async def write(self, chunk: dict[str, Any]) -> int:
+        self.open_calls.observe(chunk)
+        return await self.inner.write(chunk)
 
 
 @dataclass
@@ -272,6 +290,13 @@ async def _drive_graph(
     writer: ChatWriter,
 ) -> _DriveResult:
     result = _DriveResult()
+    open_calls = OpenToolCalls()
+    tracked = _TrackingWriter(
+        inner=writer,
+        conversation_id=writer.conversation_id,
+        turn_id=writer.turn_id,
+        open_calls=open_calls,
+    )
     turn_message_id: UUID = graph_input["turn_message_id"]
     thread_config = {
         "configurable": {"thread_id": str(body.conversation_id)},
@@ -291,7 +316,7 @@ async def _drive_graph(
                 runtime_context=runtime_context,
                 title_task=title_task,
                 body=body,
-                writer=writer,
+                writer=tracked,
                 result=result,
             ),
         ),
@@ -325,11 +350,12 @@ async def _drive_graph(
             error_type=type(exc).__name__,
         )
         error_text = f"{type(exc).__name__}: {exc}"
+        await write_tool_call_errors(tracked, open_calls.ids(), error_text)
         for chunk in (
             ErrorChunk(error_text=error_text),
             turn_failed_event(error_text=error_text),
         ):
-            await writer.write(
+            await tracked.write(
                 chunk.model_dump(by_alias=True, mode="json", exclude_none=True),
             )
     finally:

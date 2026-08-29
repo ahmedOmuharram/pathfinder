@@ -7,7 +7,10 @@ from typing import cast
 from uuid import uuid4
 
 from assistant_core.conversation.checkpointer import lifespan_checkpointer
-from assistant_core.embeddings.model import warm_up_model
+from assistant_core.embeddings.embedder import (
+    EmbeddingUnavailableError,
+    get_embedder,
+)
 from assistant_core.memory.lifespan import lifespan_memory_store
 from assistant_core.platform.context import request_id_ctx
 from assistant_core.platform.db import close_db, get_engine
@@ -25,6 +28,8 @@ from pathfinder.ai.orchestration.observability import (
     shutdown_observability,
 )
 from pathfinder.assistants.registry import get_assistant_registry
+from pathfinder.domain.strategy.operations.apply import ApplyError
+from pathfinder.integrations.eda.factory import close_all_eda_clients
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
@@ -33,6 +38,7 @@ from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import request_base_url_ctx, veupathdb_auth_token_ctx
 from pathfinder.platform.error_handlers import (
     app_error_handler,
+    apply_error_handler,
     http_exception_handler,
     rate_limit_handler,
     request_validation_handler,
@@ -46,6 +52,7 @@ from pathfinder.platform.security import (
     csrf_middleware,
     limiter,
 )
+from pathfinder.services.eda.catalog import preload_study_index
 from pathfinder.transport.http.openapi import install_problem_responses
 from pathfinder.transport.http.routers import (
     _stream_parts_schemas,
@@ -53,6 +60,7 @@ from pathfinder.transport.http.routers import (
     control_sets,
     conversations,
     dev,
+    eda,
     evaluation,
     experiments,
     exports,
@@ -75,20 +83,26 @@ logger = get_logger(__name__)
 
 
 async def _warm_up_subsystems() -> None:
-    """Load the models and preload the catalogs.
+    """Reach the embedding backend, load PIGuard, and preload the catalogs.
 
     Each step is independent. A failure marks its subsystem as not ready and
-    the rest continue. The model loads hold the CPU for seconds, so they run on
-    a thread and the server keeps answering while they run.
+    the rest continue. The PIGuard load holds the CPU for seconds, so it runs
+    on a thread and the server keeps answering while it runs.
     """
     readiness = get_readiness()
     try:
-        logger.info("[warm-up] Loading embedding model")
-        await asyncio.to_thread(warm_up_model)
-        readiness.mark_ready("embedding_model")
-    except (AppError, OSError, RuntimeError, ValueError) as e:
-        logger.exception("[warm-up] Embedding model failed")
-        readiness.mark_failed("embedding_model", str(e))
+        logger.info("[warm-up] Reaching the embedding backend")
+        await get_embedder().embed_query("ready")
+        readiness.mark_ready("embedding_backend")
+    except (
+        EmbeddingUnavailableError,
+        AppError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as e:
+        logger.exception("[warm-up] Embedding backend failed")
+        readiness.mark_failed("embedding_backend", str(e))
 
     if get_settings().piguard_enabled:
         try:
@@ -107,6 +121,12 @@ async def _warm_up_subsystems() -> None:
         await get_discovery_service().preload_all()
     except AppError, OSError, RuntimeError:
         logger.exception("[warm-up] Discovery preload raised")
+
+    try:
+        logger.info("[warm-up] Syncing the EDA study index")
+        await preload_study_index()
+    except AppError, OSError, RuntimeError:
+        logger.exception("[warm-up] EDA study index sync raised")
 
 
 @asynccontextmanager
@@ -178,6 +198,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     reset_readiness()
     await close_all_clients()
+    await close_all_eda_clients()
     await close_db()
     shutdown_observability()
     from pathfinder.platform.langfuse.client import (  # noqa: PLC0415
@@ -198,6 +219,7 @@ def _register_routers(app: FastAPI) -> None:
         conversations.router,
         experiments.router,
         control_sets.router,
+        eda.router,
         veupathdb_auth.router,
         gene_sets.router,
         exports.router,
@@ -282,6 +304,7 @@ def create_app(*, include_dev_routes: bool | None = None) -> FastAPI:
 
     for exc_type, handler in (
         (AppError, app_error_handler),
+        (ApplyError, apply_error_handler),
         (HTTPException, http_exception_handler),
         (RateLimitExceeded, rate_limit_handler),
         (RequestValidationError, request_validation_handler),

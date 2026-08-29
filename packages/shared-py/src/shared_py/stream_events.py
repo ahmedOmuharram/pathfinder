@@ -4,6 +4,7 @@ Both the FastAPI SSE dispatcher (apps/api) and the assistant-ui runtime
 (apps/web) use this schema. Serialized with by_alias=True (camelCase)
 for the wire format.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Literal

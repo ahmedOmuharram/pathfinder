@@ -68,3 +68,5 @@ remembered as well as what is said.
 never contradicts itself. In the run above the reply would have said the build failed and
 named the missing spec, which is also the sentence that would have made the four journey
 failures self-explanatory.
+
+**Consumers of the unchecked flag** (fixing the digest at source fixes all three): `run_verification`'s delta write, the `nodes.py` memory auto-write, and the eval extractor's verdict read at `services/eval_data/chunk_reader.py:109-110`.

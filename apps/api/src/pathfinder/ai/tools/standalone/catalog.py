@@ -3,7 +3,7 @@ transforms, phyletic codes, and example public strategies."""
 
 from typing import cast
 
-from assistant_core.memory.embedding import embed_text
+from assistant_core.embeddings.embedder import EmbeddingUnavailableError
 from assistant_core.platform.logging import get_logger
 from assistant_core.platform.types import JSONObject
 from pydantic_ai import RunContext
@@ -186,8 +186,8 @@ async def search_example_plans(
     limit: int = 3,
 ) -> list[JSONObject]:
     """Retrieve relevant public strategies from WDK, ranked by semantic
-    similarity to the query (falls back to lexical token overlap if the
-    embedding model is unavailable).
+    similarity to the query (falls back to lexical token overlap when the
+    embedding API is unreachable).
 
     Args:
         ctx: Agent run context.
@@ -202,9 +202,9 @@ async def search_example_plans(
         return []
     try:
         return await rank_public_strategies_semantic(
-            public_strategies, query, embed=embed_text, limit=limit
+            public_strategies, query, site_id=ctx.deps.site_id, limit=limit
         )
-    except (OSError, RuntimeError, ValueError) as exc:
+    except EmbeddingUnavailableError as exc:
         logger.warning(
             "Semantic strategy ranking unavailable; using lexical fallback",
             error=str(exc),

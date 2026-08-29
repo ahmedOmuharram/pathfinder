@@ -2,7 +2,7 @@
 
 A single process-wide :class:`ReadinessState` records the init status of
 every subsystem that must be up before the API can faithfully serve
-requests: database, embedding model, PIGuard, graph checkpointer, and
+requests: database, embedding backend, PIGuard, graph checkpointer, and
 each site catalog. ``/health/ready`` consults this state to return
 200/503.
 """
@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 _FIXED_SUBSYSTEMS = (
     "database",
-    "embedding_model",
+    "embedding_backend",
     "piguard",
     "graph_checkpointer",
 )
@@ -30,7 +30,7 @@ class ReadinessState(BaseModel):
     """Aggregate readiness for the whole API process."""
 
     database: SubsystemStatus = Field(default_factory=SubsystemStatus)
-    embedding_model: SubsystemStatus = Field(default_factory=SubsystemStatus)
+    embedding_backend: SubsystemStatus = Field(default_factory=SubsystemStatus)
     piguard: SubsystemStatus = Field(default_factory=SubsystemStatus)
     graph_checkpointer: SubsystemStatus = Field(default_factory=SubsystemStatus)
     catalogs: dict[str, SubsystemStatus] = Field(default_factory=dict)
@@ -39,7 +39,7 @@ class ReadinessState(BaseModel):
     def all_ready(self) -> bool:
         return (
             self.database.ready
-            and self.embedding_model.ready
+            and self.embedding_backend.ready
             and self.piguard.ready
             and self.graph_checkpointer.ready
             and all(c.ready for c in self.catalogs.values())

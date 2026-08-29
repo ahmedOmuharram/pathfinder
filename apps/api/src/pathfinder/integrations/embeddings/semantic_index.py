@@ -1,63 +1,46 @@
 """Semantic search index over enriched WDK search descriptions.
 
-Embeddings are cached to disk per site, one row per entry keyed by the content
-that produced it, so a catalog change re-encodes only the entries that changed.
+The vectors live in the shared record manager, addressed by the text that
+produced them, so a catalog change embeds only the entries that changed.
 """
 
 from __future__ import annotations
 
-import asyncio
-import gc
-import hashlib
-import os
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
-from zipfile import BadZipFile
 
-import numpy as np
-from assistant_core.embeddings.model import MODEL_NAME, get_embedding_model
-from assistant_core.embeddings.prefixes import (
-    SEARCH_DOCUMENT_PREFIX,
-    SEARCH_QUERY_PREFIX,
+from assistant_core.embeddings.record_manager import (
+    IndexEntry,
+    SyncReport,
+    search_index,
+    sync_index,
 )
-from assistant_core.platform.logging import get_logger
-from numpy.typing import NDArray
+from assistant_core.platform.config import get_runtime_settings
 
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 
-logger = get_logger(__name__)
+_TAG = re.compile(r"<[^>]+>")
 
-_STORE_NDIM = 2
-
-# Entries encoded per worker-thread call.
-_ENCODE_BATCH = 64
-
-# Pre-computed embeddings shipped with the repo.
-_BUNDLED_CACHE_DIR = (
-    Path(__file__).resolve().parent.parent.parent / "data" / "embeddings"
-)
+_WEIGHT_ATTRIBUTE = "Search Weight"
 
 
-class _CacheConfig:
-    """Holds the runtime cache directory."""
+def enriched_text_limit() -> int:
+    """Characters of an entry's text the index reads.
 
-    dir: Path = _BUNDLED_CACHE_DIR
-
-
-_cache_config = _CacheConfig()
-
-
-def set_cache_dir(path: Path) -> None:
-    """Set the runtime cache directory."""
-    _cache_config.dir = path
-    _cache_config.dir.mkdir(parents=True, exist_ok=True)
+    The embedder cuts every input at this limit, so an entry is addressed by
+    the text the API actually reads.
+    """
+    return get_runtime_settings().embedding_input_char_limit
 
 
-def _strip_html(text: str) -> str:
-    """Remove HTML tags from text."""
-    return re.sub(r"<[^>]+>", " ", text)
+def catalog_index_id(site_id: str) -> str:
+    """The record manager's id for one site's search catalog."""
+    return f"catalog:{site_id}"
+
+
+def strip_markup(text: str) -> str:
+    """The text without its inline markup."""
+    return _TAG.sub(" ", text)
 
 
 def _format_param_names(param_names: list[str]) -> str:
@@ -67,86 +50,7 @@ def _format_param_names(param_names: list[str]) -> str:
     return " ".join(name.replace("_", " ") for name in param_names)
 
 
-def _cache_path(cache_dir: Path, site_id: str) -> Path:
-    """Path to the cached embeddings file for a site."""
-    return cache_dir / f"{site_id}.npz"
-
-
-def _load_cached_rows(site_id: str) -> dict[str, NDArray[Any]]:
-    """Map cache key to stored row, reading the runtime then the bundled file.
-
-    A file without a ``keys`` array, or with rows of a second width, is ignored.
-    """
-    rows: dict[str, NDArray[Any]] = {}
-    width: int | None = None
-    for cache_dir in dict.fromkeys((_cache_config.dir, _BUNDLED_CACHE_DIR)):
-        path = _cache_path(cache_dir, site_id)
-        if not path.exists():
-            continue
-        try:
-            with np.load(path) as data:
-                if "keys" not in data or "embeddings" not in data:
-                    continue
-                keys = data["keys"]
-                embeddings: NDArray[Any] = data["embeddings"]
-            if embeddings.ndim != _STORE_NDIM or len(keys) != embeddings.shape[0]:
-                continue
-            if width is None:
-                width = int(embeddings.shape[1])
-            if int(embeddings.shape[1]) != width:
-                continue
-            for i, key in enumerate(keys):
-                rows.setdefault(str(key), embeddings[i])
-        except OSError, ValueError, KeyError, BadZipFile:
-            logger.debug("Cache load failed", path=str(path))
-    return rows
-
-
-def _save_cache(site_id: str, rows: dict[str, NDArray[Any]]) -> None:
-    """Replace the site's cache file with exactly the given rows."""
-    _cache_config.dir.mkdir(parents=True, exist_ok=True)
-    path = _cache_path(_cache_config.dir, site_id)
-    # Processes share the cache directory, so a reader never sees a partial file.
-    staged = path.with_name(f"{path.stem}.{os.getpid()}.staged.npz")
-    try:
-        np.savez_compressed(
-            staged,
-            keys=np.array(list(rows)),
-            embeddings=np.array(list(rows.values())),
-        )
-        staged.replace(path)
-    except OSError:
-        logger.warning("Failed to save embedding cache", path=str(path), exc_info=True)
-        staged.unlink(missing_ok=True)
-
-
-def _embed(texts: list[str]) -> list[NDArray[Any]]:
-    """Encode texts with the fastembed model, one document at a time.
-
-    A model batch pads every text to the longest one in it, so a single long
-    description costs the whole batch in time and in arena.
-    """
-    model = get_embedding_model()
-    rows = list(model.embed(texts, batch_size=1))
-    gc.collect()
-    return rows
-
-
-async def _encode(entries: list[SearchIndexEntry]) -> list[NDArray[Any]]:
-    """Encode entry texts in a worker thread so the event loop stays free.
-
-    One batch of texts is in flight at a time, so a cancelled build stops at
-    the next batch instead of encoding the whole site.
-    """
-    rows: list[NDArray[Any]] = []
-    for start in range(0, len(entries), _ENCODE_BATCH):
-        chunk = entries[start : start + _ENCODE_BATCH]
-        texts = [f"{SEARCH_DOCUMENT_PREFIX}{e.enriched_text}" for e in chunk]
-        rows.extend(await asyncio.to_thread(_embed, texts))
-    return rows
-
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SearchIndexEntry:
     """A single entry in the semantic search index."""
 
@@ -155,113 +59,61 @@ class SearchIndexEntry:
     enriched_text: str
 
     @property
-    def cache_key(self) -> str:
-        """Content address of this entry's row.
-
-        The model, the document prefix, and the text all decide the vector.
-        """
-        payload = "\n".join((MODEL_NAME, SEARCH_DOCUMENT_PREFIX, self.enriched_text))
-        return hashlib.sha256(payload.encode()).hexdigest()
+    def entry_id(self) -> str:
+        """The record manager's id for this search, which carries its type."""
+        return f"{self.record_type}/{self.search_name}"
 
 
 @dataclass
 class SemanticSearchIndex:
-    """Cosine-similarity index over enriched WDK search descriptions."""
+    """One site's searches, ranked by cosine similarity in Postgres."""
 
     site_id: str = ""
     entries: list[SearchIndexEntry] = field(default_factory=list)
-    embeddings: NDArray[Any] | None = None
 
     async def build(
         self,
         searches_by_rt: dict[str, list[WDKSearch]],
         category_labels: dict[str, str] | None = None,
-    ) -> None:
-        """Build the index from search catalog data.
-
-        The model runs only for entries whose text has no cached row, and it
-        runs in a worker thread so the event loop stays free.
-        """
+        *,
+        sync: bool = True,
+    ) -> SyncReport:
+        """Collect the entries, and sync them when this process may write."""
         cats = category_labels or {}
-        self.entries = []
-
-        for rt_name, searches in searches_by_rt.items():
-            for s in searches:
-                text = self._build_enriched_text(s, cats)
-                self.entries.append(
-                    SearchIndexEntry(
-                        search_name=s.url_segment,
-                        record_type=rt_name,
-                        enriched_text=text,
-                    )
+        self.entries = sorted(
+            (
+                SearchIndexEntry(
+                    search_name=search.url_segment,
+                    record_type=rt_name,
+                    enriched_text=self._build_enriched_text(search, cats),
                 )
-
-        if not self.entries:
-            return
-
-        # Canonical order: one catalog content gives one entry sequence and one
-        # stored file, whatever order the fetch returned.
-        self.entries.sort(key=lambda e: (e.record_type, e.search_name))
-
-        cached = _load_cached_rows(self.site_id)
-        stored_keys = set(cached)
-        pending = [e for e in self.entries if e.cache_key not in cached]
-        fresh = await _encode(pending)
-
-        if fresh and cached:
-            model_width = int(fresh[0].shape[0])
-            cached_width = int(next(iter(cached.values())).shape[0])
-            if model_width != cached_width:
-                logger.info(
-                    "Cached rows do not match the model width, re-encoding the site",
-                    site_id=self.site_id,
-                    cached_width=cached_width,
-                    model_width=model_width,
-                )
-                cached = {}
-                pending = list(self.entries)
-                fresh = await _encode(pending)
-
-        fresh_rows = iter(fresh)
-        store: dict[str, NDArray[Any]] = {}
-        rows: list[NDArray[Any]] = []
-        for entry in self.entries:
-            key = entry.cache_key
-            row = cached[key] if key in cached else next(fresh_rows)
-            rows.append(row)
-            store[key] = row
-        self.embeddings = np.array(rows)
-
-        if pending or stored_keys != set(store):
-            _save_cache(self.site_id, store)
-
-        logger.info(
-            "Semantic search index ready",
-            site_id=self.site_id,
-            num_entries=len(self.entries),
-            encoded=len(pending),
-            embedding_dim=int(self.embeddings.shape[1]),
+                for rt_name, searches in searches_by_rt.items()
+                for search in searches
+            ),
+            key=lambda entry: (entry.record_type, entry.search_name),
+        )
+        if not self.entries or not sync:
+            return SyncReport()
+        return await sync_index(
+            catalog_index_id(self.site_id),
+            [
+                IndexEntry(entry_id=entry.entry_id, text=entry.enriched_text)
+                for entry in self.entries
+            ],
         )
 
-    def query(self, query_text: str, top_k: int = 20) -> list[tuple[str, str, float]]:
-        """Find the top-k most similar searches.
-
-        Returns list of (search_name, record_type, similarity_score).
-        """
-        if self.embeddings is None or not self.entries:
-            return []
-
-        model = get_embedding_model()
-        query_emb = np.array(list(model.embed([f"{SEARCH_QUERY_PREFIX}{query_text}"])))
-        similarities = (self.embeddings @ query_emb.T).flatten()
-
-        top_indices = np.argsort(similarities)[::-1][:top_k]
-        results = []
-        for idx in top_indices:
-            entry = self.entries[idx]
-            score = float(similarities[idx])
-            if score > 0.0:
-                results.append((entry.search_name, entry.record_type, score))
+    async def query(
+        self,
+        query_text: str,
+        top_k: int = 20,
+    ) -> list[tuple[str, str, float]]:
+        """The top-k searches as (search_name, record_type, cosine similarity)."""
+        hits = await search_index(catalog_index_id(self.site_id), query_text, top_k)
+        results: list[tuple[str, str, float]] = []
+        for hit in hits:
+            record_type, _, search_name = hit.entry_id.partition("/")
+            if search_name:
+                results.append((search_name, record_type, hit.similarity))
         return results
 
     def _build_enriched_text(
@@ -271,7 +123,7 @@ class SemanticSearchIndex:
     ) -> str:
         """Build the enriched text for a search.
 
-        The most discriminating signals come first.
+        The most discriminating signals come first, because the text is cut.
         """
         parts: list[str] = []
 
@@ -306,11 +158,13 @@ class SemanticSearchIndex:
         )
         parts.append(name_words)
 
-        parts.append(_strip_html(search.description))
+        parts.append(strip_markup(search.description))
 
-        for attr in search.dynamic_attributes:
-            attr_name = attr.get("displayName", "") if hasattr(attr, "get") else ""
-            if attr_name and attr_name != "Search Weight":
-                parts.append(str(attr_name))
+        # Every search carries the weight attribute, so it separates none of them.
+        parts.extend(
+            attr.display_name
+            for attr in search.dynamic_attributes
+            if attr.display_name and attr.display_name != _WEIGHT_ATTRIBUTE
+        )
 
-        return " ".join(p for p in parts if p).strip()
+        return " ".join(p for p in parts if p).strip()[: enriched_text_limit()]

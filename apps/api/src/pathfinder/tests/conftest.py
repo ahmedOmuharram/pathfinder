@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from pathlib import Path
@@ -21,12 +22,8 @@ if "PIGUARD_MODEL_DIR" not in os.environ:
         )
     os.environ["PIGUARD_MODEL_DIR"] = str(_piguard_cache)
 
-# The default fastembed cache is a temporary directory that can disappear
-# during a download, so tests use a durable one.
-os.environ.setdefault(
-    "FASTEMBED_CACHE_DIR",
-    str(Path.home() / ".cache" / "pathfinder" / "fastembed"),
-)
+# The suite has no API key, so every embedding call is the deterministic one.
+os.environ["EMBEDDING_BACKEND"] = "fake"
 
 os.environ.setdefault("API_ENV", "test")
 os.environ.setdefault("API_SECRET_KEY", "test-secret-key-test-secret-key-test")
@@ -46,6 +43,8 @@ import psycopg
 import pydantic_ai.models
 import pytest
 from assistant_core.conversation.checkpointer import to_psycopg_url
+from assistant_core.embeddings.embedder import get_embedder, reset_embedder
+from assistant_core.embeddings.fake import FakeEmbedder
 from assistant_core.persistence.models import Base
 from assistant_core.spec import AssistantSpec
 from fastapi import Depends, FastAPI
@@ -63,6 +62,7 @@ from testcontainers.postgres import PostgresContainer
 from pathfinder.ai.conversation.assistant_routing import resolve_turn_assistant
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.assistants.registry import get_assistant_registry
+from pathfinder.integrations.eda.factory import close_all_eda_clients
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.tasks import ensure_registered
@@ -70,6 +70,7 @@ from pathfinder.main import create_app
 from pathfinder.persistence.models import User
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.security import create_user_token, limiter
+from pathfinder.services.eda.catalog import clear_study_caches
 from pathfinder.tests._support.wdk_credentials import (
     NO_CREDENTIALS_REASON,
     registered_wdk_token,
@@ -262,6 +263,35 @@ def patch_app_db_engine(
     )
     procrastinate_app.connector = test_connector
     procrastinate_app.job_manager.connector = test_connector
+
+
+@pytest.fixture
+async def embedding_index_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
+    """Empty the shared vector store around a test that asserts on it.
+
+    The two tables are a content-addressed cache, so ``db_cleaner`` leaves
+    them: a test that re-embeds a whole catalog for every case is a slow test.
+    """
+    await _truncate_embedding_index(db_engine)
+    yield
+    await _truncate_embedding_index(db_engine)
+
+
+async def _truncate_embedding_index(db_engine: AsyncEngine) -> None:
+    async with db_engine.begin() as conn:
+        await conn.exec_driver_sql(
+            "TRUNCATE TABLE embedding_index_entries, embedding_vectors",
+        )
+
+
+@pytest.fixture(autouse=True)
+def fake_embedder() -> Generator[FakeEmbedder]:
+    """A fresh deterministic embedder, so one test never reads another's calls."""
+    reset_embedder()
+    built = get_embedder()
+    assert isinstance(built, FakeEmbedder)
+    yield built
+    reset_embedder()
 
 
 @pytest.fixture
@@ -478,6 +508,29 @@ async def _close_wdk_clients_after_test() -> AsyncGenerator[None]:
         await router.close_all()
     except RuntimeError, OSError:
         pass  # The client is closed or the event loop is gone.
+
+
+@pytest.fixture(autouse=True)
+def _clear_eda_study_caches() -> Generator[None]:
+    """Drops the per-site EDA catalog reads around a test.
+
+    The cache is process-wide, so a test must not inherit one.
+    """
+    clear_study_caches()
+    yield
+    clear_study_caches()
+
+
+@pytest.fixture(autouse=True)
+async def _close_eda_clients_after_test() -> AsyncGenerator[None]:
+    """Closes the shared EDA clients after a test.
+
+    The cache is process-wide, so a test must not inherit it.
+    """
+    yield
+    # The client is closed or the event loop is gone.
+    with contextlib.suppress(RuntimeError, OSError):
+        await close_all_eda_clients()
 
 
 # Background task control.

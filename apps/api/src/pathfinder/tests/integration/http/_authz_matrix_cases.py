@@ -87,6 +87,13 @@ def _conversation_cases(owned: Owned) -> tuple[Case, ...]:
             _CONV,
         ),
         Case(
+            "PATCH",
+            "/api/v1/conversations/{conversation_id}/eda",
+            f"{base}/eda",
+            _CONV,
+            {"action": "unbind"},
+        ),
+        Case(
             "POST",
             "/api/v1/conversations/{conversation_id}/duplicate",
             f"{base}/duplicate",

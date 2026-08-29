@@ -56,9 +56,9 @@ describe("ValidationBanner surfaces a WDK rejection", () => {
       />,
     );
 
-    expect(
-      screen.getByTestId("node-error-trigger").getAttribute("aria-label"),
-    ).toBe("WDK rejected this step");
+    expect(screen.getByTestId("node-error-trigger").getAttribute("aria-label")).toBe(
+      "WDK rejected this step",
+    );
   });
 
   it("prefers the WDK reason over a generic validation message", () => {
@@ -73,9 +73,9 @@ describe("ValidationBanner surfaces a WDK rejection", () => {
       />,
     );
 
-    expect(
-      screen.getByTestId("node-error-trigger").getAttribute("aria-label"),
-    ).toBe("organism is not a valid value");
+    expect(screen.getByTestId("node-error-trigger").getAttribute("aria-label")).toBe(
+      "organism is not a valid value",
+    );
   });
 
   it("stays silent for a healthy step", () => {

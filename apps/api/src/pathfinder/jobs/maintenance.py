@@ -6,6 +6,7 @@ import warnings
 from uuid import UUID
 
 from assistant_core.conversation.event_writer import ChatEventWriter
+from assistant_core.conversation.open_tool_calls import close_open_tool_calls
 from assistant_core.graph.stream_events import turn_failed_event
 from assistant_core.persistence.models import ConversationEvent
 from assistant_core.platform.db import async_session_factory
@@ -32,6 +33,11 @@ _STALLED_TURN_ERROR = (
     "Send the message again to retry."
 )
 
+_DEAD_WORKER_ERROR = (
+    "The worker running this turn stopped, which an out-of-memory kill can "
+    "cause. Send the message again to retry."
+)
+
 
 class _ChatTurnJobArgs(BaseModel):
     """The task kwargs procrastinate stores for a ``chat_turn:run`` job."""
@@ -41,33 +47,78 @@ class _ChatTurnJobArgs(BaseModel):
     payload: ChatTurnPayload
 
 
-async def release_stalled_jobs() -> None:
-    """Fail every job left in ``doing`` past the timeout, without retrying it.
+async def _dead_workers_jobs() -> list[Job]:
+    """The jobs held by a worker whose heartbeat stopped."""
+    return list(
+        await procrastinate_app.job_manager.get_stalled_jobs(
+            seconds_since_heartbeat=get_settings().worker_dead_heartbeat_seconds,
+        ),
+    )
 
-    Staleness is the age of the job's started event, not the worker heartbeat,
-    because a busy worker can miss heartbeats while its job is alive.
-    """
-    manager = procrastinate_app.job_manager
+
+async def _long_running_jobs() -> list[Job]:
+    """The jobs in ``doing`` past the age timeout, whatever their worker says."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        stalled = await manager.get_stalled_jobs(
-            nb_seconds=get_settings().worker_stalled_job_timeout_seconds,
-        )
-    for job in stalled:
-        # The terminator is written first: the conversation lock is still held,
-        # so no successor turn can interleave its chunks with it.
-        await _close_stalled_turn(job)
-        await manager.finish_job(job, status=Status.FAILED, delete_job=False)
-        logger.warning(
-            "Released a stalled job",
-            job_id=job.id,
-            task_name=job.task_name,
-            queue_name=job.queue,
-            lock=job.lock,
+        return list(
+            await procrastinate_app.job_manager.get_stalled_jobs(
+                nb_seconds=get_settings().worker_stalled_job_timeout_seconds,
+            ),
         )
 
 
-async def _close_stalled_turn(job: Job) -> None:
+async def release_stalled_jobs() -> None:
+    """Fail every job no live worker holds, without retrying it.
+
+    A dead worker is named by its heartbeat, so a killed process releases its
+    lock five to six minutes later: the sweep runs every minute and the window
+    clears the gap a busy worker starves its own heartbeat by. The started-age
+    timeout stays as the backstop for a job that runs too long on a worker that
+    still answers.
+    """
+    reasons: dict[int | None, tuple[Job, str]] = {
+        job.id: (job, _STALLED_TURN_ERROR) for job in await _long_running_jobs()
+    }
+    reasons.update(
+        {job.id: (job, _DEAD_WORKER_ERROR) for job in await _dead_workers_jobs()},
+    )
+    for job, error_text in reasons.values():
+        await release_job(job, error_text)
+
+
+async def release_dead_turn(conversation_id: UUID) -> None:
+    """Fail the conversation's chat turn when the worker holding it is gone.
+
+    A cancel request reaches a live worker over the database; a worker silent
+    past ``worker_dead_heartbeat_seconds`` reads nothing, so the turn ends
+    here instead. A worker that died inside that window still owns its turn.
+    """
+    for job in await _dead_workers_jobs():
+        if job.task_name == _CHAT_TURN_TASK and job.lock == str(conversation_id):
+            await release_job(job, _DEAD_WORKER_ERROR)
+
+
+async def release_job(job: Job, error_text: str) -> None:
+    """End the job's chat stream, then fail the job so its lock releases."""
+    # The terminator is written first: the conversation lock is still held,
+    # so no successor turn can interleave its chunks with it.
+    await _close_stalled_turn(job, error_text)
+    await procrastinate_app.job_manager.finish_job(
+        job,
+        status=Status.FAILED,
+        delete_job=False,
+    )
+    logger.warning(
+        "Released a stalled job",
+        job_id=job.id,
+        task_name=job.task_name,
+        queue_name=job.queue,
+        lock=job.lock,
+        error_text=error_text,
+    )
+
+
+async def _close_stalled_turn(job: Job, error_text: str) -> None:
     """End the chat stream a killed turn left open, so subscribers stop waiting."""
     if job.task_name != _CHAT_TURN_TASK:
         return
@@ -83,9 +134,10 @@ async def _close_stalled_turn(job: Job) -> None:
         conversation_id=conversation_id,
         turn_id=args.payload.turn_id,
     )
+    await close_open_tool_calls(writer, error_text)
     for chunk in (
-        ErrorChunk(error_text=_STALLED_TURN_ERROR),
-        turn_failed_event(error_text=_STALLED_TURN_ERROR),
+        ErrorChunk(error_text=error_text),
+        turn_failed_event(error_text=error_text),
         FinishChunk(finish_reason="error"),
         DoneChunk(),
     ):

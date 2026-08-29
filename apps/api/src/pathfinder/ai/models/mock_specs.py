@@ -10,6 +10,7 @@ per site, because a value outside the site's vocabulary binds nothing.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -32,6 +33,22 @@ _SITE_ORGANISMS = {
 }
 
 _KINASE_GO_TERM = "GO:0004672"
+
+# The organism an edit turn substitutes in, one per site and never the site's
+# own default, so the swap moves a value.
+_DEFAULT_ALT_ORGANISM = "Plasmodium vivax P01"
+_SITE_ALT_ORGANISMS = {
+    "plasmodb": _DEFAULT_ALT_ORGANISM,
+    "toxodb": "Toxoplasma gondii GT1",
+    "tritrypdb": "Leishmania donovani BPK282A1",
+    "cryptodb": "Cryptosporidium hominis TU502",
+    "fungidb": "Aspergillus nidulans FGSC A4",
+}
+
+
+def alt_organism_for(site_id: str) -> str:
+    """The organism an edit substitutes in on a site."""
+    return _SITE_ALT_ORGANISMS.get(site_id, _DEFAULT_ALT_ORGANISM)
 
 
 def organism_for(site_id: str) -> str:
@@ -249,6 +266,114 @@ def frame_result(spec: SpecPlan) -> dict[str, Any]:
         "summary": f"Framed {len(spec.criteria)} criterion(s) for {spec.title}.",
         "disposition": "spec_ready",
         "openQuestions": [],
+    }
+
+
+class WorkspaceCriterion(BaseModel):
+    """One criterion an EDIT work order lists, with the values it holds."""
+
+    model_config = ConfigDict(frozen=True)
+
+    criterion_id: str
+    text: str
+    search_name: str
+    role: str
+    values: dict[str, str] = Field(default_factory=dict)
+
+
+_HEADER = re.compile(
+    r"^- \[(?P<cid>[^\]]+)\] (?P<text>.*) -> (?P<search>\S+) \((?P<role>\w+)\)$"
+)
+_VALUE = re.compile(r"^ {4}(?P<name>[^=]+)=(?P<value>.*)$")
+
+
+def workspace_criteria(work_order: str) -> list[WorkspaceCriterion]:
+    """Read the criteria an EDIT work order prints, in order."""
+    found: list[tuple[re.Match[str], dict[str, str]]] = []
+    for line in work_order.splitlines():
+        header = _HEADER.match(line)
+        if header is not None:
+            found.append((header, {}))
+            continue
+        value = _VALUE.match(line)
+        if value is not None and found:
+            found[-1][1][value.group("name")] = value.group("value")
+    return [
+        WorkspaceCriterion(
+            criterion_id=header.group("cid"),
+            text=header.group("text"),
+            search_name=header.group("search"),
+            role=header.group("role"),
+            values=values,
+        )
+        for header, values in found
+    ]
+
+
+def edit_frame_call(
+    work_order: str,
+    organism: str,
+    already_called: list[ToolCallPart] | None = None,
+    replies: list[CriterionReply] | None = None,
+) -> ToolCallPart:
+    """Re-bind only the seed criterion under a new organism.
+
+    Every other criterion the workspace lists is left alone, which is what the
+    edit gate checks the result against.
+    """
+    criteria = workspace_criteria(work_order)
+    target = next((c for c in criteria if c.search_name == "GenesByTaxon"), None)
+    if target is None:
+        return scripted_call(
+            "final_result", edit_frame_result(criteria, None, organism)
+        )
+    if not any(c.tool_name == "list_searches" for c in already_called or []):
+        return scripted_call("list_searches", {"record_type": "transcript"})
+    bound = {r.criterion_id for r in replies or [] if r.resolved_params}
+    if target.criterion_id in bound:
+        return scripted_call(
+            "final_result", edit_frame_result(criteria, target, organism)
+        )
+    args: dict[str, Any] = {
+        "criterion_id": target.criterion_id,
+        "text": target.text,
+        "search_name": target.search_name,
+        "role": target.role,
+    }
+    sheets = {
+        r.criterion_id: r.params_template for r in replies or [] if r.params_template
+    }
+    sheet = sheets.get(target.criterion_id)
+    if sheet is None:
+        return scripted_call("set_criterion", args)
+    args["params"] = {
+        name: ([organism] if name == "organism" else None) for name in sheet
+    }
+    return scripted_call("set_criterion", args)
+
+
+def edit_frame_result(
+    criteria: list[WorkspaceCriterion],
+    target: WorkspaceCriterion | None,
+    organism: str,
+) -> dict[str, Any]:
+    """One disposition per criterion the workspace listed."""
+    return {
+        "summary": (
+            f"Moved {target.criterion_id} to {organism}; the rest are unchanged."
+            if target is not None
+            else "Nothing in the workspace matches the request."
+        ),
+        "disposition": "spec_ready",
+        "openQuestions": [],
+        "changes": [
+            {
+                "criterionId": crit.criterion_id,
+                "disposition": "changed" if crit is target else "kept",
+                "changedParams": ({"organism": organism} if crit is target else {}),
+            }
+            for crit in criteria
+        ],
     }
 
 

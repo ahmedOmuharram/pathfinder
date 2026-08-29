@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, ParamSpec, TypeVar, cast
+from typing import Any, ParamSpec, Protocol, TypeVar, cast
 from uuid import UUID
 
 from langgraph.config import get_stream_writer
@@ -25,7 +25,6 @@ from pydantic import TypeAdapter
 from pydantic_ai.tools import RunContext
 from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
 
-from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.payloads import DurableTaskPayload
 from pathfinder.services.tasks.background import create_background_task
@@ -35,6 +34,15 @@ R = TypeVar("R")
 
 
 ChunkBuilder = Callable[[Any, UUID], list[BaseChunk]]
+
+
+class DurableIdentity(Protocol):
+    """What a durable dispatch needs from an agent's deps."""
+
+    @property
+    def conversation_id(self) -> UUID | None: ...
+    @property
+    def user_id(self) -> UUID | None: ...
 
 
 def durable_tool(
@@ -114,18 +122,18 @@ def durable_tool(
 
 @dataclass(frozen=True)
 class _DurableDeps:
-    """AgentDeps subset required for durable dispatch."""
+    """The identity a durable dispatch resolved."""
 
     conversation_id: UUID
     user_id: UUID
 
 
-def _require_durable_deps(deps: AgentDeps) -> _DurableDeps:
+def _require_durable_deps(deps: DurableIdentity) -> _DurableDeps:
     if deps.conversation_id is None:
-        msg = "durable_tool requires conversation_id on AgentDeps"
+        msg = "durable_tool requires conversation_id on the agent's deps"
         raise RuntimeError(msg)
     if deps.user_id is None:
-        msg = "durable_tool requires user_id on AgentDeps"
+        msg = "durable_tool requires user_id on the agent's deps"
         raise RuntimeError(msg)
     return _DurableDeps(conversation_id=deps.conversation_id, user_id=deps.user_id)
 
@@ -133,11 +141,11 @@ def _require_durable_deps(deps: AgentDeps) -> _DurableDeps:
 def _parse_invocation(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
-) -> tuple[RunContext[AgentDeps], dict[str, Any]]:
+) -> tuple[RunContext[DurableIdentity], dict[str, Any]]:
     if not args:
-        msg = "durable_tool requires RunContext[AgentDeps] as first argument"
+        msg = "durable_tool requires RunContext[DurableIdentity] as first argument"
         raise RuntimeError(msg)
-    ctx = cast("RunContext[AgentDeps]", args[0])
+    ctx = cast("RunContext[DurableIdentity]", args[0])
     tool_args: dict[str, Any] = {
         "args": [_to_jsonable(v) for v in args[1:]],
         "kwargs": {k: _to_jsonable(v) for k, v in kwargs.items()},

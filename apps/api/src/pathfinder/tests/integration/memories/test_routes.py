@@ -57,11 +57,12 @@ async def test_delete_memory_writes_tombstone(
 
 
 @pytest.mark.asyncio
-async def test_search_returns_relevant(
+async def test_search_answers_with_the_stored_memories(
     authed_client: httpx.AsyncClient,
     authed_user_id: UUID,
     app_memory_store: MemoryStore,
 ) -> None:
+    """The route ranks what the store holds. The ranking itself is the API's."""
     for summary in ["plasmodium drug targets", "cookie recipe"]:
         await app_memory_store.put(
             user_id=authed_user_id,
@@ -77,8 +78,11 @@ async def test_search_returns_relevant(
     resp = await authed_client.get("/api/v1/memories/search?q=antimalarial%20drugs")
     assert resp.status_code == 200
     hits = resp.json()["hits"]
-    assert hits
-    assert "plasmodium" in hits[0]["value"]["summary"]
+    assert {hit["value"]["summary"] for hit in hits} == {
+        "plasmodium drug targets",
+        "cookie recipe",
+    }
+    assert all(hit["key"] for hit in hits)
 
 
 @pytest.mark.asyncio

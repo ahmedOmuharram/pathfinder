@@ -11,6 +11,7 @@ from assistant_core.conversation.ui_message_reducer import user_message_chunk
 from assistant_core.graph.stream_events import turn_status_event
 from assistant_core.persistence.models import Conversation
 from assistant_core.platform.db import async_session_factory
+from procrastinate.testing import InMemoryConnector
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.persistence.models import User
@@ -31,7 +32,9 @@ async def db_session(
 
 async def test_a_stop_while_queued_cancels_the_turn_the_worker_runs(
     db_session: AsyncSession,
+    in_memory_jobs: InMemoryConnector,
 ) -> None:
+    del in_memory_jobs
     owner = User(id=uuid4())
     conversation = Conversation(user_id=owner.id, site_id="plasmodb", name="queued")
     db_session.add_all([owner, conversation])

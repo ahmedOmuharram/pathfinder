@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { Spinner } from "@/components/ui/spinner";
 import { useStrategyQuery } from "@/lib/api/strategy";
+import { chatRoot } from "@/lib/routes";
 import { StrategyGraph } from "@/features/strategy/graph/components/StrategyGraph";
 
 interface StrategyPageProps {
@@ -31,7 +32,7 @@ export function StrategyPage({
   const strategy = detailQuery.data ?? null;
 
   if (strategy === null) {
-    redirect(`/${siteId}/conversation`);
+    redirect(chatRoot(siteId));
   }
 
   return (

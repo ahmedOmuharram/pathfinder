@@ -5,7 +5,7 @@ description: The layered plan that brings EDA into PathFinder - conversational a
 tags: [eda, pathfinder, plan, batches, integration]
 generated: { by: claude-code/fable-5, at: 2026-08-28T00:00:00Z }
 verified: { by: claude-code/fable-5, at: 2026-08-28T00:00:00Z }
-status: draft
+status: accepted
 ---
 
 # EDA integration plan overview
@@ -101,7 +101,9 @@ document may refine a signature; it may not rename anything here.
 `POST /api/v1/eda/viz`, `GET|PATCH /api/v1/conversations/{id}/eda`.
 
 **Persistence:** table `conversation_analyses`
-(`conversation_id, site_id, dataset_id, analysis_id, created_at`), repository
+(`conversation_id, site_id, dataset_id, analysis_id, revision, created_at`;
+`revision` is the per-binding mutation counter every analysis-state part
+carries), repository
 `ConversationAnalysesRepository`, alembic migration in `apps/api`.
 
 **Python packages:** `pathfinder.integrations.eda` (`models.py`, `client.py`,
@@ -147,6 +149,61 @@ chat (text-only rendering); batches 4-7 add the tab and the charts.
 | 6. The EDA tab | [batch-6-eda-tab.md](batch-6-eda-tab.md) | 2 | 1 |
 | 7. Chat co-editing and e2e | [batch-7-chat-coediting-and-e2e.md](batch-7-chat-coediting-and-e2e.md) | 2 | 1 |
 
+## The acceptance layer
+
+A frozen, behavior-only conformance suite written BEFORE batch 1 opens, by QA
+agents who will implement nothing. It exists because an implementer's own
+tests can mirror the implementation; the acceptance layer cannot, because it
+was written from the contract and the [EDA bundle's](../index.md)
+live-verified values, with no code to mirror.
+
+**Scope: stable boundaries only.** Service-function contracts (batch 2's
+`serialize_spec`, `retained_summary`, the domain predicates), the seven HTTP
+routes with the five-action PATCH union, part-payload round-trips and their
+generated zod schemas, the store's public actions and reconcile rule, the
+volcano selection's threshold behavior, and the three e2e journeys. Never
+internals: no option-builder shapes, no private helpers, no repository SQL.
+Assertions pin VALUES from the bundle (counts 4011/2501, the 202 body, the
+5511/1543 volcano), never just shapes.
+
+**Layout and gating.** Tests are pending until their batch closes, and the
+tree stays green throughout:
+
+- Backend: `apps/api/src/pathfinder/tests/acceptance/eda/`, one module per
+  batch (`test_batch2_services.py`, ...). Every module opens with
+  `pytest.importorskip` on the module it exercises (clean skip while the code
+  does not exist) and carries `pytestmark = [pytest.mark.eda_acceptance]`;
+  the marker is registered and deselected in the default `addopts`
+  (`-m 'not llm and not eda_acceptance'`), so implementers' full-suite gates
+  never run acceptance tests mid-batch. They are run explicitly -
+  `uv run pytest -m eda_acceptance src/pathfinder/tests/acceptance/eda/ -v` -
+  by an implementer who wants the signal, and by the lead at batch close.
+- Frontend: `apps/web/src/acceptance/eda/`, files named `*.acceptance.ts` so
+  the default vitest include (`src/**/*.{test,spec}.*`) never matches them;
+  run explicitly via a dedicated config
+  (`npx vitest run --config vitest.acceptance.config.ts`).
+- E2E: `apps/web/e2e/acceptance/`, wired so a plain `npx playwright test`
+  never executes it; run explicitly at batch 7's close.
+- Acceptance tests self-contain their fixtures inline (MockTransport/MSW
+  bodies embedded in the test file), so they never depend on an implementer's
+  fixture files.
+
+**The no-edit rule.** Implementers may not modify anything under the three
+acceptance paths. Every verifier's FIRST check is a `diff -r` of each
+acceptance tree against the lead's frozen baseline copy (the lead names its
+location in the verifier brief; git is not used in this project's agent
+work): any difference is an automatic FAIL. A genuinely
+wrong acceptance test is escalated to the session lead with evidence; the
+lead is the only party who edits the suite, and records the correction in the
+batch report.
+
+**The exit criterion this adds to EVERY batch:** the lead runs the batch's
+acceptance module(s) and they pass unmodified -
+`cd apps/api && uv run pytest -m eda_acceptance src/pathfinder/tests/acceptance/eda/test_batch<N>*.py -v --override-ini addopts=''`
+for backend batches, the acceptance vitest config for batches 5-6, and the
+acceptance playwright run for batch 7. A batch does not close on green
+implementer tests alone.
+
 ## Verification protocol
 
 Every batch runs the same three-ring protocol:
@@ -161,8 +218,17 @@ Every batch runs the same three-ring protocol:
    scratch, read every changed file, check each task card's steps against the
    diff, check the definition of done (zero debt, adjacent reconciliation,
    tests assert correctness not existence), and hunt for exactly the traps
-   the batch document names. A verifier's report lists PASS/FAIL per task
-   with evidence, never a summary alone.
+   the batch document names. Two checks are universal, before any named trap:
+   - **The acceptance no-edit check**: zero hunks under the acceptance paths
+     (see The acceptance layer above).
+   - **Mutation probes**: pick two or three behavior-bearing lines in the
+     implementation (invert a threshold comparison, drop a filter from the
+     array, skip a vocabulary check, swap a dataset id for a study id), apply
+     each mutation, and run the implementer's tests. A mutation that no test
+     kills is a FAIL: the tests assert shape, not behavior. Revert the
+     mutations; the probe list and each one's killing test go in the report.
+   A verifier's report lists PASS/FAIL per task with evidence, never a
+   summary alone.
 3. **The session lead verifies the verifiers**: re-runs the gates once more,
    spot-reads the diffs against the batch document, and accepts or reopens
    the batch. A batch is closed only by ring 3.

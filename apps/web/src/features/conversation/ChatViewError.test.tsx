@@ -5,6 +5,7 @@ import type * as ReactQueryModule from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { chatRoot } from "@/lib/routes";
 import { ChatViewError } from "./ChatViewError";
 
 type ReactQueryExports = typeof ReactQueryModule;
@@ -32,7 +33,9 @@ describe("ChatViewError", () => {
       <ChatViewError error="plain string" conversationsHref="/toxodb/conversation" />,
     );
 
-    expect(screen.getByText("plain string")).toBeTruthy();
+    expect(screen.getByText("plain string").textContent).toBe("plain string");
+    const back = screen.getByRole("link", { name: /back to conversations/i });
+    expect(back.getAttribute("href")).toBe("/toxodb/conversation");
   });
 });
 
@@ -112,7 +115,7 @@ describe("ChatView error boundary", () => {
 
     expect(screen.getByText(/A message with the same id already exists/)).toBeTruthy();
     const back = screen.getByRole("link", { name: /back to conversations/i });
-    expect(back.getAttribute("href")).toBe("/plasmodb/conversation");
+    expect(back.getAttribute("href")).toBe(chatRoot("plasmodb"));
   });
 
   it("leaves a thread that renders alone", async () => {
@@ -126,7 +129,7 @@ describe("ChatView error boundary", () => {
 
     render(<ChatView conversationId="conv-1" allowMissing={false} />);
 
-    expect(screen.getByTestId("thread")).toBeTruthy();
+    expect(screen.getAllByTestId("thread")).toHaveLength(1);
     expect(screen.queryByRole("link", { name: /back to conversations/i })).toBeNull();
   });
 });

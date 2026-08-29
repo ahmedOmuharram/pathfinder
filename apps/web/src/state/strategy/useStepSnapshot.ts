@@ -84,8 +84,7 @@ function resolveValidationErrors(
 export function useStepSnapshot(step: Step | null): StepSnapshot {
   return useStrategyStore(
     useShallow((state) => {
-      const lifecycle =
-        step !== null ? state.stepLifecycleById[step.id] : undefined;
+      const lifecycle = step !== null ? state.stepLifecycleById[step.id] : undefined;
       const lifecycleState = pickLifecycleValue(lifecycle);
       return {
         step,

@@ -20,6 +20,7 @@ from pathfinder.domain.strategy.operational_spec import (
     OperationalSpec,
     StructureNode,
 )
+from pathfinder.domain.strategy.spec_diff import SpecDiff, diff_specs
 from pathfinder.domain.strategy.staleness import StaleBuild
 from pathfinder.services.catalog.param_intent import (
     contrast_role_of,
@@ -103,10 +104,25 @@ class FrameSection(CamelModel):
     """
 
     spec: OperationalSpec | None = None
+    # The spec the turn started from. It stays off the wire: the comparison is
+    # what a reader needs, and a second whole spec per chunk is not.
+    spec_before_turn: OperationalSpec | None = Field(default=None, exclude=True)
 
     @computed_field
     def present(self) -> bool:
         return self.spec is not None
+
+    def spec_diff(self) -> SpecDiff | None:
+        """What this turn did to the spec it started from, or None on a fresh
+        turn. Every claim that a criterion was preserved is read from here."""
+        before = self.spec_before_turn
+        if self.spec is None or before is None or not before.criteria:
+            return None
+        return diff_specs(before, self.spec)
+
+    @computed_field
+    def diff(self) -> SpecDiff | None:
+        return self.spec_diff()
 
     @computed_field
     def criteria_count(self) -> int:
@@ -260,6 +276,7 @@ class InvestigationLedger(CamelModel):
         lines = ["# Investigation Ledger", intent_line]
         if diff_line:
             lines.append(diff_line)
+        spec_diff = self.frame.spec_diff()
         lines.extend(
             [
                 "",
@@ -267,6 +284,11 @@ class InvestigationLedger(CamelModel):
                 f"- present: {self.frame.present}",
                 f"- criteria: {self.frame.criteria_count} "
                 f"(bound: {self.frame.bound_count})",
+                *(
+                    [f"- this turn: {spec_diff.render()}"]
+                    if spec_diff is not None
+                    else []
+                ),
                 f"- dropped: {self.frame.dropped_count}",
                 f"- open_slots: {self.frame.open_slot_count}",
                 f"- needs_user: {self.frame.needs_user}",

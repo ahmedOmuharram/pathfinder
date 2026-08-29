@@ -32,3 +32,27 @@ describe("computeRailActivity", () => {
     expect(activity.ledgerCount).toBe(1);
   });
 });
+
+describe("computeRailActivity eda", () => {
+  it("counts every eda part towards the eda panel", () => {
+    const activity = computeRailActivity([
+      {
+        role: "assistant",
+        parts: [
+          { type: "data-eda.analysis-state" },
+          { type: "data-eda.subset-preview" },
+          { type: "data-eda.viz" },
+        ],
+      },
+    ]);
+    expect(activity.edaCount).toBe(3);
+    expect(activity.ledgerCount).toBe(0);
+  });
+
+  it("is zero when no eda part arrived", () => {
+    const activity = computeRailActivity([
+      { role: "assistant", parts: [{ type: "data-task-progress" }] },
+    ]);
+    expect(activity.edaCount).toBe(0);
+  });
+});

@@ -29,6 +29,15 @@ given.
 but does not drop the reverted messages from the client-side thread (assistant-ui message
 repository / useChat messages) before appending.
 
+**Protocol note (thread-surgery audit, 2026-08-28).** This is not only a missed
+client call: PROTOCOL.md section 1 defines a thread as an ordered, append-only log,
+and no chunk kind signals truncation or replacement, so a conforming client built
+from the page alone has no way to learn a revert happened short of re-snapshotting
+on speculation. The client fix below is the local patch; whether the protocol
+grows an explicit truncation/thread-replaced signal (or revert becomes
+fork-as-new-thread, which needs no new signal) is a PROTOCOL 1.4 decision, argued
+in `docs/design/2026-08-28-thread-surgery-audit.md`.
+
 **Fix (to decide).** After a 204 from revert, truncate the client thread at the target
 message (or refetch the snapshot) before sending the edit; the branch path already opens
 a fresh conversation and does not have this problem.

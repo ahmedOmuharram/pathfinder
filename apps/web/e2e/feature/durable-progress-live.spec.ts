@@ -53,10 +53,7 @@ function suspendingTurn(messageId: string, toolName: string): string {
  * Serve the conversation tail. The mount reattach reads an empty tail; the
  * card's own reattach, after the turn suspends, reads the task's gap.
  */
-async function routeThreadTail(
-  page: Page,
-  gap: string,
-): Promise<() => number> {
+async function routeThreadTail(page: Page, gap: string): Promise<() => number> {
   let calls = 0;
   await page.route("**/api/v1/conversations/*/events?*", async (route) => {
     calls += 1;
@@ -73,10 +70,7 @@ async function routeThreadTail(
   return () => calls;
 }
 
-async function sendPrompt(
-  page: Page,
-  prompt: string,
-): Promise<void> {
+async function sendPrompt(page: Page, prompt: string): Promise<void> {
   const composer = page.getByTestId("message-input");
   await expect(composer).toBeVisible({ timeout: 30_000 });
   const submit = page.getByRole("button", { name: /Send/i });

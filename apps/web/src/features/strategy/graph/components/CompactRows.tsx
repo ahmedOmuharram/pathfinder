@@ -77,10 +77,7 @@ export function StepRowButton({
     >
       {/* One fixed-width column so every label starts at the same x and the
           indentation is what reads as hierarchy. */}
-      <span
-        aria-hidden
-        className="flex w-4 shrink-0 items-center justify-start"
-      >
+      <span aria-hidden className="flex w-4 shrink-0 items-center justify-start">
         {operator === "" ? (
           <span
             className={cn(

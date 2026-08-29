@@ -48,15 +48,11 @@ describe("paramValue round trip", () => {
 
   it("preserves a non-negative number range", () => {
     fc.assert(
-      fc.property(
-        fc.nat({ max: 100000 }),
-        fc.nat({ max: 100000 }),
-        (min, max) => {
-          const raw = `${min}:${max}`;
-          const parsed = rawToParamValue(spec("number-range"), raw);
-          expect(paramValueToRaw(parsed)).toBe(raw);
-        },
-      ),
+      fc.property(fc.nat({ max: 100000 }), fc.nat({ max: 100000 }), (min, max) => {
+        const raw = `${min}:${max}`;
+        const parsed = rawToParamValue(spec("number-range"), raw);
+        expect(paramValueToRaw(parsed)).toBe(raw);
+      }),
     );
   });
 

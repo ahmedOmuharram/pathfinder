@@ -1,0 +1,93 @@
+"""The open analysis, turned into the two WDK parameters a step carries."""
+
+from __future__ import annotations
+
+from shared_py.stream_parts.eda import EdaEffectDirection
+
+from pathfinder.integrations.eda.models import (
+    EdaAnalysisDetail,
+    EdaComputation,
+    EdaNewAnalysis,
+    EdaVisualization,
+    EdaVolcanoConfiguration,
+    EdaVolcanoDescriptor,
+)
+from pathfinder.services.eda.authoring import EdaStepRequest, serialize_spec
+from pathfinder.services.eda.compute import NoComputationError
+
+
+def _volcano(
+    computation: EdaComputation,
+    configuration: EdaVolcanoConfiguration,
+) -> EdaVisualization:
+    """One volcano, because the bridge plugin reads the first one only."""
+    existing = computation.visualizations[0] if computation.visualizations else None
+    if existing is None:
+        return EdaVisualization(
+            visualization_id=f"{computation.computation_id}-volcano",
+            descriptor=EdaVolcanoDescriptor(configuration=configuration),
+        )
+    return existing.model_copy(
+        update={
+            "descriptor": existing.descriptor.model_copy(
+                update={"configuration": configuration}
+            )
+        }
+    )
+
+
+def eda_step_request(
+    analysis: EdaAnalysisDetail,
+    *,
+    dataset_id: str,
+    effect_size_threshold: float | None = None,
+    significance_threshold: float | None = None,
+    effect_direction: EdaEffectDirection = "upAndDown",
+) -> EdaStepRequest:
+    """The step parameters for this analysis, with or without a volcano cut.
+
+    Both thresholds together select the compute export; neither selects the
+    subset export.
+    """
+    descriptor = analysis.descriptor
+    if effect_size_threshold is not None or significance_threshold is not None:
+        if effect_size_threshold is None or significance_threshold is None:
+            msg = (
+                "A volcano export needs both effectSizeThreshold and "
+                "significanceThreshold."
+            )
+            raise ValueError(msg)
+        if not descriptor.computations:
+            msg = (
+                f"Analysis {analysis.analysis_id} carries no computation, so it "
+                f"has no volcano to threshold."
+            )
+            raise NoComputationError(msg)
+        computation = descriptor.computations[0]
+        configuration = EdaVolcanoConfiguration(
+            effect_size_threshold=effect_size_threshold,
+            significance_threshold=significance_threshold,
+            effect_direction=effect_direction,
+        )
+        descriptor = descriptor.model_copy(
+            update={
+                "computations": [
+                    computation.model_copy(
+                        update={
+                            "visualizations": [_volcano(computation, configuration)]
+                        }
+                    )
+                ]
+            }
+        )
+    spec = EdaNewAnalysis(
+        study_id=dataset_id,
+        display_name=analysis.display_name,
+        description=analysis.description or "",
+        is_public=analysis.is_public,
+        descriptor=descriptor,
+    )
+    return EdaStepRequest(
+        eda_dataset_id=dataset_id,
+        eda_analysis_spec=serialize_spec(spec),
+    )

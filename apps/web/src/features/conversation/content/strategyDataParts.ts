@@ -22,16 +22,15 @@ export type StrategyDataPartKind =
   | "data-gene-set"
   | "data-verification-summary";
 
-export const strategyDataPartComponents: DataPartComponentMap<StrategyDataPartKind> =
-  {
-    "data-ledger-update": () => null,
-    "data-enrichment-results": DataEnrichmentResults,
-    "data-strategy-link": DataStrategyLink,
-    "data-strategy-meta": DataStrategyMeta,
-    "data-graph-snapshot": DataGraphSnapshot,
-    "data-graph-cleared": DataGraphCleared,
-    "data-variant-comparison": DataVariantComparison,
-    "data-scored-comparison": DataScoredComparison,
-    "data-gene-set": DataGeneSet,
-    "data-verification-summary": DataVerificationSummary,
-  };
+export const strategyDataPartComponents: DataPartComponentMap<StrategyDataPartKind> = {
+  "data-ledger-update": () => null,
+  "data-enrichment-results": DataEnrichmentResults,
+  "data-strategy-link": DataStrategyLink,
+  "data-strategy-meta": DataStrategyMeta,
+  "data-graph-snapshot": DataGraphSnapshot,
+  "data-graph-cleared": DataGraphCleared,
+  "data-variant-comparison": DataVariantComparison,
+  "data-scored-comparison": DataScoredComparison,
+  "data-gene-set": DataGeneSet,
+  "data-verification-summary": DataVerificationSummary,
+};

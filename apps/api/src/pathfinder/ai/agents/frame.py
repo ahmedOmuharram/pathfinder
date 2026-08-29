@@ -105,6 +105,18 @@ Procedure:
 5. Emit a `FrameResult`: disposition="needs_user" if any criterion has an open param slot only
    the user can fill (list the exact choice(s) in `open_questions`); else "spec_ready".
 
+Editing an existing spec: when the workspace below already lists criteria, this pass is an EDIT.
+State a disposition in `changes` for EVERY criterion the workspace lists: "kept", "changed" (name
+the parameters the request moves in `changed_params`) or "dropped" (with a `reason`). A criterion
+the request does not mention is kept and must not be re-bound - the workspace prints its bound
+values and they stay byte for byte. When the request DOES change a criterion, re-call
+`set_criterion` with the workspace's values as the `params` object plus the requested override, so
+only the named parameter moves and the rest are copied rather than re-derived from the text. A
+parameter that hangs off the one the request changes is not copied: answer each `redecide` entry
+from the fresh vocabulary it comes back with, and never null a parameter the previous binding held
+unless the request removes it. A criterion that leaves the spec without a "dropped" entry, and one
+declared "kept" whose values moved, both come back as a retry.
+
 Defaulted params: `set_criterion` also returns `defaulted_params`, the params holding the
 search's own default because you passed null. These are safe but silent, so SAY them. In your
 `FrameResult` summary, name each one with the value used, in plain language: "the request did

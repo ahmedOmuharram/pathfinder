@@ -1,17 +1,14 @@
 """The Lead Agent's sub-agent dispatch tools.
 
-The tool wrappers the Lead invokes to run a phase sub-agent, the
-``AgentDeps`` construction they share, and the re-entry that finishes one
-after the user answers an approval.
+The tool wrappers the Lead invokes to run a phase sub-agent and the
+``AgentDeps`` construction they share.
 """
 
 from __future__ import annotations
 
 from typing import NoReturn
 
-from assistant_core.graph.turn_state import PendingApproval
 from langgraph.config import get_stream_writer
-from pydantic import BaseModel, ConfigDict
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import CallDeferred, ModelRetry
 
@@ -26,7 +23,11 @@ from pathfinder.ai.lead.deltas import (
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.dispatch_messages import (
     build_not_ready_message,
+    build_would_replace_the_strategy,
+    frame_bound_nothing_result,
+    frame_claimed_more_than_it_bound,
     frame_result_from_draft,
+    undeclared_spec_changes,
 )
 from pathfinder.ai.lead.sub_agent_stream import (
     PhaseRun,
@@ -42,21 +43,23 @@ from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import (
     OperationalSpec,
-    operational_spec_to_step_tree,
+    build_step_tree,
+    renumber_criteria,
 )
+from pathfinder.domain.strategy.spec_diff import diff_specs
 from pathfinder.platform.errors import AppError
 from pathfinder.services.strategies.auto_import import (
     import_gene_set_for_conversation,
 )
 from pathfinder.services.strategies.spec_build import (
-    _node_results,
     build_strategy_from_spec,
+    node_results,
 )
 from pathfinder.services.strategies.sync import sync_strategy_for_site
 from pathfinder.services.strategies.sync_state import ensure_sync_state
 
 
-def _agent_deps(deps: LeadDeps) -> AgentDeps:
+def agent_deps_for(deps: LeadDeps) -> AgentDeps:
     state = deps.state
     runtime = deps.runtime
     return AgentDeps(
@@ -67,8 +70,13 @@ def _agent_deps(deps: LeadDeps) -> AgentDeps:
         literature_search_service=runtime.literature_search_service,
         agent_state=AgentToolState(
             discovered_searches=dict(state.domain.discovered_searches),
-            operational_spec_draft=state.domain.operational_spec
-            or OperationalSpec(goal=state.user_prompt),
+            # The draft is a copy, so a pass that binds nothing leaves the
+            # committed spec exactly as the turn found it.
+            operational_spec_draft=(
+                state.domain.operational_spec.model_copy(deep=True)
+                if state.domain.operational_spec is not None
+                else OperationalSpec(goal=state.user_prompt)
+            ),
         ),
         ledger_summary=derive_ledger(state, deps.intent).render_summary(),
         experiment_id=runtime.experiment_id,
@@ -80,14 +88,14 @@ def _agent_deps(deps: LeadDeps) -> AgentDeps:
     )
 
 
-def _parent_tool_call_id(ctx: RunContext[LeadDeps]) -> str:
+def dispatch_call_id(ctx: RunContext[LeadDeps]) -> str:
     """The Lead's tool_call_id for the active sub-agent dispatch.
     Always present when invoked through the Lead's toolset; defensively
     returns an empty string if missing so we never crash on telemetry."""
     return ctx.tool_call_id or ""
 
 
-def _defer_to_user(
+def defer_to_user(
     deps: LeadDeps,
     tool_call_id: str,
     wait: SubAgentApprovalWait,
@@ -97,22 +105,25 @@ def _defer_to_user(
     raise CallDeferred
 
 
+def frame_work_order(reason: str, prompt: str) -> str:
+    return (
+        f"FRAME work order: {reason}\n"
+        f"User's goal: {prompt}\n"
+        "Operationalize into criteria, bind each to a real WDK search, resolve "
+        "params, set the structure. Return a FrameResult."
+    )
+
+
 async def run_frame(
     *,
     deps: LeadDeps,
     parent_tool_call_id: str,
-    reason: str,
+    work_order: str,
     expected_criteria: int = 3,
     resume: SubAgentResume | None = None,
 ) -> FrameResult | SubAgentApprovalWait:
     """Run FRAME and apply its result, on a fresh dispatch or a resumed one."""
-    work_order = (
-        f"FRAME work order: {reason}\n"
-        f"User's goal: {deps.state.user_prompt}\n"
-        "Operationalize into criteria, bind each to a real WDK search, resolve "
-        "params, set the structure. Return a FrameResult."
-    )
-    agent_deps = _agent_deps(deps)
+    agent_deps = agent_deps_for(deps)
     if not agent_deps.agent_state.operational_spec_draft.goal:
         agent_deps.agent_state.operational_spec_draft.goal = deps.state.user_prompt
     delta = await stream_sub_agent(
@@ -128,7 +139,34 @@ async def run_frame(
     apply_agent_state(deps, agent_deps)
     if delta is None:
         return frame_result_from_draft(deps.state.domain.operational_spec)
+    draft = agent_deps.agent_state.operational_spec_draft
+    if delta.disposition == "spec_ready" and not any(c.bound for c in draft.criteria):
+        if deps.empty_frame_reported:
+            return frame_bound_nothing_result()
+        deps.empty_frame_reported = True
+        refuse_and_restore(deps, frame_claimed_more_than_it_bound(delta.summary))
+    before = deps.state.domain.spec_before_turn
+    if before is not None and before.criteria:
+        problem = undeclared_spec_changes(
+            diff_specs(before, draft), delta.changes, before
+        )
+        if problem:
+            refuse_and_restore(deps, problem)
     return delta
+
+
+def refuse_and_restore(deps: LeadDeps, message: str) -> NoReturn:
+    """Reject the pass and put back the spec the turn found.
+
+    The sub-agent writes into the shared spec as it goes, so a refusal that
+    left the draft in place would show the retry a workspace missing the very
+    criterion it has to preserve.
+    """
+    before = deps.state.domain.spec_before_turn
+    deps.state.domain.operational_spec = (
+        None if before is None else before.model_copy(deep=True)
+    )
+    raise ModelRetry(message)
 
 
 async def frame_problem(
@@ -143,30 +181,37 @@ async def frame_problem(
     ``expected_criteria`` is how many distinct filters the goal states — count
     the "and"s in the request. It sizes FRAME's tool budget, so undercounting a
     large request makes it run out before it binds them all."""
-    tool_call_id = _parent_tool_call_id(ctx)
+    tool_call_id = dispatch_call_id(ctx)
     result = await run_frame(
         deps=ctx.deps,
         parent_tool_call_id=tool_call_id,
-        reason=reason,
+        work_order=frame_work_order(reason, ctx.deps.state.user_prompt),
         expected_criteria=expected_criteria,
     )
     if isinstance(result, SubAgentApprovalWait):
-        _defer_to_user(ctx.deps, tool_call_id, result)
+        defer_to_user(ctx.deps, tool_call_id, result)
     return result
 
 
 async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     """Materialize the OperationalSpec into a real WDK strategy declaratively
     (no LLM). Requires ``frame_problem`` first. Inspect ``ledger.build`` after
-    to decide ``recover_failed_steps`` or ``verify_strategy``."""
+    to decide ``recover_failed_steps`` or ``verify_strategy``.
+
+    This builds a strategy where there is none. It REPLACES a strategy that
+    already exists, so it is refused on a thread that has one: call
+    ``edit_strategy`` to change one, or ask the user how to start over."""
     deps = ctx.deps
+    graph = deps.runtime.strategy_session.get_graph(None)
+    if graph is not None and graph.steps:
+        raise ModelRetry(build_would_replace_the_strategy(len(graph.steps)))
     spec = deps.state.domain.operational_spec
     if spec is None or not spec.ready_to_build:
         raise ModelRetry(build_not_ready_message(spec))
     # Readiness says every criterion is bound and a structure exists. Only the
     # conversion knows whether that structure is a tree WDK can hold.
     try:
-        root = operational_spec_to_step_tree(spec)
+        built = build_step_tree(spec)
     except ValueError as exc:
         msg = (
             f"The spec is bound but its structure does not convert: {exc}. "
@@ -174,11 +219,16 @@ async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
             "operator and joins two inputs."
         )
         raise ModelRetry(msg) from exc
-    agent_deps = _agent_deps(deps)
+    agent_deps = agent_deps_for(deps)
     outcome: BuildOutcome = await build_strategy_from_spec(
         deps=agent_deps.to_strategy_context(),
-        root=root,
+        root=built.root,
         name=spec.title or None,
+    )
+    # A criterion and the step it built become one address, so the next turn's
+    # edit changes that step instead of rebuilding the strategy around it.
+    deps.state.domain.operational_spec = renumber_criteria(
+        spec, built.step_id_by_criterion
     )
     deps.state.domain.last_build_outcome = outcome
     graph = agent_deps.strategy_session.get_graph(None)
@@ -224,7 +274,7 @@ async def run_recovery(
         "Return a RecoveryDelta with actions_taken and final_outcome.",
     ]
     work_order = "\n".join(work_order_parts)
-    agent_deps = _agent_deps(deps)
+    agent_deps = agent_deps_for(deps)
     streamed = await stream_sub_agent(
         run=PhaseRun("execution", work_order),
         agent_deps=agent_deps,
@@ -252,14 +302,14 @@ async def recover_failed_steps(
     build). When a criterion needs a different search entirely, the Lead
     should call ``frame_problem`` again to re-bind the spec instead.
     """
-    tool_call_id = _parent_tool_call_id(ctx)
+    tool_call_id = dispatch_call_id(ctx)
     result = await run_recovery(
         deps=ctx.deps,
         parent_tool_call_id=tool_call_id,
         reason=reason,
     )
     if isinstance(result, SubAgentApprovalWait):
-        _defer_to_user(ctx.deps, tool_call_id, result)
+        defer_to_user(ctx.deps, tool_call_id, result)
     return result
 
 
@@ -287,7 +337,7 @@ async def _resync_outcome(agent_deps: AgentDeps, prior: BuildOutcome) -> BuildOu
         root_count=sync_result.root_count,
         zero_step_ids=list(sync_result.zero_step_ids),
     )
-    fresh.node_results = _node_results(list(graph.steps.values()), sync_state, fresh)
+    fresh.node_results = node_results(list(graph.steps.values()), sync_state, fresh)
     return fresh
 
 
@@ -303,7 +353,7 @@ async def run_verification(
         f"Verification work order: {reason}\n"
         "Inspect the built strategy. Return a VerificationDelta."
     )
-    agent_deps = _agent_deps(deps)
+    agent_deps = agent_deps_for(deps)
     delta = await stream_sub_agent(
         run=PhaseRun("verification", work_order),
         agent_deps=agent_deps,
@@ -333,62 +383,12 @@ async def verify_strategy(
     set; control tests on a step or a search; parameter optimization; sample
     records from a result; result export. None of these are Lead tools.
     """
-    tool_call_id = _parent_tool_call_id(ctx)
+    tool_call_id = dispatch_call_id(ctx)
     result = await run_verification(
         deps=ctx.deps,
         parent_tool_call_id=tool_call_id,
         reason=reason,
     )
     if isinstance(result, SubAgentApprovalWait):
-        _defer_to_user(ctx.deps, tool_call_id, result)
+        defer_to_user(ctx.deps, tool_call_id, result)
     return result
-
-
-class _ReasonArgs(BaseModel):
-    """The ``reason`` every dispatch wrapper takes."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    reason: str = ""
-
-
-class _FrameArgs(_ReasonArgs):
-    expected_criteria: int = 3
-
-
-async def resume_sub_agent(
-    *,
-    deps: LeadDeps,
-    approval: PendingApproval,
-    resume: SubAgentResume,
-) -> FrameResult | RecoveryDelta | VerificationDelta | SubAgentApprovalWait:
-    """Finish the dispatch the user answered, from its own arguments."""
-    call_id = approval.tool_call_id
-    args = dict(approval.tool_args)
-    match approval.tool_name:
-        case "verify_strategy":
-            return await run_verification(
-                deps=deps,
-                parent_tool_call_id=call_id,
-                reason=_ReasonArgs.model_validate(args).reason,
-                resume=resume,
-            )
-        case "recover_failed_steps":
-            return await run_recovery(
-                deps=deps,
-                parent_tool_call_id=call_id,
-                reason=_ReasonArgs.model_validate(args).reason,
-                resume=resume,
-            )
-        case "frame_problem":
-            frame_args = _FrameArgs.model_validate(args)
-            return await run_frame(
-                deps=deps,
-                parent_tool_call_id=call_id,
-                reason=frame_args.reason,
-                expected_criteria=frame_args.expected_criteria,
-                resume=resume,
-            )
-        case _:
-            msg = f"No sub-agent dispatch named {approval.tool_name!r} to resume."
-            raise RuntimeError(msg)

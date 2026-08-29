@@ -62,7 +62,10 @@ def derive_ledger(
     """
     return InvestigationLedger(
         user_intent=intent,
-        frame=FrameSection(spec=state.domain.operational_spec),
+        frame=FrameSection(
+            spec=state.domain.operational_spec,
+            spec_before_turn=state.domain.spec_before_turn,
+        ),
         build=_derive_build_section(state),
         verification=_derive_verification_section(state),
         constraints=_derive_constraint_section(state, intent),

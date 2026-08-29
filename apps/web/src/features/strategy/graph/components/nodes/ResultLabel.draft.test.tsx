@@ -47,7 +47,10 @@ function snapshot(overrides: Partial<StepSnapshot> = {}): StepSnapshot {
 describe("ResultLabel draft state", () => {
   it("says Draft for a step that is not finished", () => {
     render(
-      <ResultLabel step={step({ status: "draft" })} snapshot={snapshot({ isDraft: true })} />,
+      <ResultLabel
+        step={step({ status: "draft" })}
+        snapshot={snapshot({ isDraft: true })}
+      />,
     );
 
     expect(screen.getByTestId("step-draft-label").textContent).toBe("Draft");

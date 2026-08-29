@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from assistant_core.embeddings.prefixes import SEARCH_DOCUMENT_PREFIX
+from assistant_core.embeddings.embedder import EMBEDDING_DIMENSIONS
 from assistant_core.memory import lifespan as lifespan_module
 from assistant_core.memory.lifespan import lifespan_memory_store
 from assistant_core.memory.reembed import reembed_all_memories
@@ -19,11 +19,11 @@ from assistant_core.memory.store import MemoryStore
 async def test_reembed_reputs_every_memory_with_current_format(
     db_cleaner: None, patch_app_db_engine: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Re-embed touches every stored memory across users/kinds, preserves its
-    key + value, and re-embeds it with the current (prefixed) document text.
+    """Re-embed touches every stored memory across users and kinds.
 
-    This is what heals vectors written before the prefix change: after the
-    pass, every persisted vector reflects the current ``format_embedded_string``.
+    It keeps the key and the value, and re-embeds the current
+    ``format_embedded_string`` text, so a stored vector matches how a query is
+    embedded now.
     """
     del db_cleaner, patch_app_db_engine
     database_url = os.environ["DATABASE_URL"]
@@ -32,7 +32,7 @@ async def test_reembed_reputs_every_memory_with_current_format(
 
     async def capturing_embed(texts: Sequence[str]) -> list[list[float]]:
         embedded_texts.extend(texts)
-        unit = [1.0] + [0.0] * 511
+        unit = [1.0] + [0.0] * (EMBEDDING_DIMENSIONS - 1)
         return [list(unit) for _ in texts]
 
     monkeypatch.setattr(lifespan_module, "embed_text", capturing_embed)
@@ -66,9 +66,7 @@ async def test_reembed_reputs_every_memory_with_current_format(
         count = await reembed_all_memories(store)
 
         assert count == 2
-        document_texts = sorted(
-            t for t in embedded_texts if t.startswith(SEARCH_DOCUMENT_PREFIX)
-        )
+        document_texts = sorted(embedded_texts)
         assert len(document_texts) == 2
         assert any("set_alpha" in t for t in document_texts)
         assert any("fact_beta" in t for t in document_texts)

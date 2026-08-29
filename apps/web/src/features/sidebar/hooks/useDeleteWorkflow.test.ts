@@ -22,7 +22,10 @@ vi.mock("@pathfinder/shared/generated/hooks/useDismissConversation", () => ({
 vi.mock("@pathfinder/shared/generated/hooks/useRestoreStrategy", () => ({
   restoreStrategy: vi.fn(() => Promise.resolve({})),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+const pushMock = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+
+import { chatRoot } from "@/lib/routes";
 
 const mockDelete = vi.mocked(deleteStrategy);
 const mockDismiss = vi.mocked(dismissConversation);
@@ -56,7 +59,7 @@ function item(over: Partial<ConversationResponse>): ConversationItem {
   };
 }
 
-function renderWorkflow() {
+function renderWorkflow(activeChatId: string | null = null) {
   const client = createTestQueryClient();
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
@@ -65,7 +68,7 @@ function renderWorkflow() {
       useDeleteWorkflow({
         siteId: "plasmodb",
         reportError: vi.fn(),
-        activeChatId: null,
+        activeChatId,
       }),
     { wrapper },
   );
@@ -75,6 +78,7 @@ afterEach(cleanup);
 beforeEach(() => {
   mockDelete.mockClear();
   mockDismiss.mockClear();
+  pushMock.mockClear();
 });
 
 describe("useDeleteWorkflow.confirmDelete", () => {
@@ -106,5 +110,24 @@ describe("useDeleteWorkflow.confirmDelete", () => {
     });
     expect(mockDelete.mock.calls).toEqual([["w1", { deleteFromWdk: true }]]);
     expect(mockDismiss).not.toHaveBeenCalled();
+  });
+
+  it("routes to the site chat root when the open conversation is deleted", async () => {
+    const { result } = renderWorkflow("n1");
+    act(() => result.current.setDeleteTarget(item({ id: "n1", wdkStrategyId: null })));
+    await act(async () => {
+      await result.current.confirmDelete({});
+    });
+    expect(chatRoot("plasmodb")).toBe("/plasmodb/conversation");
+    expect(pushMock.mock.calls).toEqual([[chatRoot("plasmodb")]]);
+  });
+
+  it("leaves the route alone when a background conversation is deleted", async () => {
+    const { result } = renderWorkflow("other");
+    act(() => result.current.setDeleteTarget(item({ id: "n1", wdkStrategyId: null })));
+    await act(async () => {
+      await result.current.confirmDelete({});
+    });
+    expect(pushMock.mock.calls).toEqual([]);
   });
 });

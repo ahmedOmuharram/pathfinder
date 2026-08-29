@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from assistant_core.persistence.models import Conversation
+from assistant_core.conversation.stream_parts.registry import StreamPartRegistry
 from assistant_core.platform.db import async_session_factory
 from assistant_core.spec import AssistantSpec, TurnContextRequest, TurnStart
 from pydantic_ai.models import Model
 
 from pathfinder.ai.agents.state import SearchOverview
+from pathfinder.ai.eda_stream_parts import register_eda_stream_parts
 from pathfinder.ai.graph.composition import build_pathfinder_graph
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import (
@@ -37,14 +38,15 @@ from pathfinder.domain.strategy.constraints import ConstraintKind, ConstraintSou
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.staleness import StaleBuild
-from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph, StrategyAst
-from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.platform.config import get_settings
 from pathfinder.services.conversations.responses import conversation_strategy_revision
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
-from pathfinder.services.strategies.session_factory import build_strategy_session
+from pathfinder.services.strategies.session_factory import (
+    build_strategy_session,
+    persisted_graph,
+)
 from pathfinder.services.wdk_identity import require_registered_wdk_login
 
 PATHFINDER_ASSISTANT_ID = "pathfinder"
@@ -71,24 +73,6 @@ def build_initial_state(start: TurnStart) -> PipelineState:
     return PipelineState(**start.state_kwargs())
 
 
-def _persisted_graph(
-    conversation: Conversation,
-    strategy: ConversationStrategyView,
-) -> PersistedStrategyGraph:
-    plan_payload: StrategyAst | None = None
-    if strategy.strategy_ast and "root" in strategy.strategy_ast:
-        try:
-            plan_payload = StrategyAst.model_validate(strategy.strategy_ast)
-        except ValueError, KeyError, TypeError:
-            plan_payload = None
-    return PersistedStrategyGraph(
-        id=str(conversation.id),
-        name=conversation.name,
-        strategy_ast=plan_payload,
-        wdk_strategy_id=strategy.wdk_strategy_id,
-    )
-
-
 async def build_turn_context(request: TurnContextRequest) -> Context:
     conversation = request.conversation
     strategy = None
@@ -106,7 +90,7 @@ async def build_turn_context(request: TurnContextRequest) -> Context:
             strategy_graph=(
                 None
                 if conversation is None or strategy is None
-                else _persisted_graph(conversation, strategy)
+                else persisted_graph(conversation, strategy)
             ),
         ),
         db_session_factory=async_session_factory,
@@ -145,6 +129,12 @@ async def strategy_revision_chunks(
     )
 
 
+def _register_product_stream_parts(registry: StreamPartRegistry) -> None:
+    """Every part this product emits: the strategy surface and the EDA surface."""
+    register_strategy_stream_parts(registry)
+    register_eda_stream_parts(registry)
+
+
 def _mock_model() -> Model:
     return get_mock_model()
 
@@ -157,7 +147,7 @@ def build_pathfinder_spec() -> AssistantSpec:
         build_turn_context=build_turn_context,
         build_mock_model=_mock_model,
         checkpoint_types=PATHFINDER_CHECKPOINT_TYPES,
-        register_stream_parts=register_strategy_stream_parts,
+        register_stream_parts=_register_product_stream_parts,
         memory_kinds=frozenset(PRODUCT_MEMORY_KINDS),
         identity_gate=require_registered_wdk_login,
         turn_epilogue=strategy_revision_chunks,

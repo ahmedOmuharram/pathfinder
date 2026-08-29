@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
+from uuid import UUID
 
 from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
 from assistant_core.graph.turn_state import SubAgentApprovalPending
@@ -72,6 +73,7 @@ SUB_AGENT_MODEL_BY_ROLE: dict[PhaseRole, str] = {
 
 TOOL_TO_PHASE_ROLE: dict[str, PhaseRole] = {
     "frame_problem": "frame",
+    "edit_strategy": "frame",
     "recover_failed_steps": "execution",
     "verify_strategy": "verification",
 }
@@ -176,6 +178,19 @@ class LeadDeps:
     pending_sub_agent_approvals: dict[str, SubAgentApprovalPending] = field(
         default_factory=dict,
     )
+    # A FRAME pass that claimed a ready spec over an empty draft is refused
+    # once. The next one is reported to the Lead rather than retried again.
+    empty_frame_reported: bool = False
+
+    @property
+    def conversation_id(self) -> UUID | None:
+        """The thread this turn belongs to, as the turn state holds it."""
+        return self.state.conversation_id
+
+    @property
+    def user_id(self) -> UUID | None:
+        """The account this turn acts as."""
+        return self.runtime.user_id
 
 
 def apply_agent_state(deps: LeadDeps, agent_deps: AgentDeps) -> None:

@@ -3,7 +3,10 @@
 import asyncio
 from collections.abc import Sequence
 
+from assistant_core.embeddings.embedder import EmbeddingUnavailableError
+from assistant_core.embeddings.record_manager import SyncReport
 from assistant_core.platform.logging import get_logger
+from sqlalchemy.exc import SQLAlchemyError
 
 from pathfinder.integrations.embeddings.semantic_index import SemanticSearchIndex
 from pathfinder.integrations.veupathdb.catalog_metadata import (
@@ -29,8 +32,8 @@ from pathfinder.platform.tasks import spawn
 
 logger = get_logger(__name__)
 
-# A cold build fetches a whole catalog and encodes its semantic index. The
-# allocations of concurrent builds sum, so a process builds one at a time.
+# A cold build fetches a whole catalog. The allocations of concurrent builds
+# sum, so a process builds one at a time.
 _CATALOG_BUILD = asyncio.Semaphore(1)
 
 # A loaded catalog holds about four times its serialized length, measured on a
@@ -50,6 +53,7 @@ class SearchCatalog:
         self._dataset_summaries: dict[str, str] = {}
         self._dataset_contacts: dict[str, str] = {}
         self._semantic_index: SemanticSearchIndex | None = None
+        self.index_sync_report = SyncReport()
         self._search_categories: dict[str, str] = {}
         self._search_category_labels: dict[str, str] = {}
         self._available_categories: set[str] = set()
@@ -57,18 +61,11 @@ class SearchCatalog:
 
     @property
     def memory_bytes(self) -> int:
-        """Accounted resident cost of this catalog, for the eviction budget."""
-        index = self._semantic_index
-        index_bytes = (
-            int(index.embeddings.nbytes)
-            if index is not None and index.embeddings is not None
-            else 0
-        )
-        return (
-            _EMPTY_CATALOG_BYTES
-            + self._payload_bytes * _RESIDENT_PER_PAYLOAD_BYTE
-            + index_bytes
-        )
+        """Accounted resident cost of this catalog, for the eviction budget.
+
+        The vectors live in Postgres, so a catalog costs what its snapshot does.
+        """
+        return _EMPTY_CATALOG_BYTES + self._payload_bytes * _RESIDENT_PER_PAYLOAD_BYTE
 
     # ------------------------------------------------------------------
     # Snapshot helpers
@@ -197,21 +194,28 @@ class SearchCatalog:
             )
 
     async def _build_semantic_index(self) -> None:
-        """Build the semantic search index from the cached searches."""
+        """Collect the index entries, and sync them when this process may write."""
+        index = SemanticSearchIndex(site_id=self.site_id)
         try:
-            index = SemanticSearchIndex(site_id=self.site_id)
-            await index.build(
+            self.index_sync_report = await index.build(
                 self._searches,
                 category_labels=self._search_category_labels,
+                sync=get_settings().embedding_index_sync_enabled,
             )
-        except AppError, OSError, ValueError, TypeError:
+        except (
+            EmbeddingUnavailableError,
+            AppError,
+            SQLAlchemyError,
+            OSError,
+            ValueError,
+            TypeError,
+        ):
             logger.warning(
-                "Failed to build semantic index (non-fatal)",
+                "Failed to sync the semantic index (non-fatal)",
                 site_id=self.site_id,
                 exc_info=True,
             )
-        else:
-            self._semantic_index = index
+        self._semantic_index = index
 
     # ------------------------------------------------------------------
     # Record type / search population

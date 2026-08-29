@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { MessageAction } from "@/components/ai-elements/message";
+import { chatUrl } from "@/lib/routes";
 import { forkStrategy } from "@pathfinder/shared/generated/hooks/useForkStrategy";
 import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
 
@@ -33,7 +34,7 @@ export function BranchMessageAction() {
       void queryClient.invalidateQueries({
         queryKey: listStrategiesQueryOptions({ siteId }).queryKey,
       });
-      router.push(`/${siteId}/conversation/${fork.id}`);
+      router.push(chatUrl(siteId, fork.id));
     },
     onError: (err) => {
       toast.error(

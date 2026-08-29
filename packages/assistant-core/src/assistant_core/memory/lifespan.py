@@ -7,7 +7,8 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from langgraph.store.postgres.base import PostgresIndexConfig
 
 from assistant_core.conversation.checkpointer import to_psycopg_url
-from assistant_core.memory.embedding import EMBEDDING_DIMENSIONS, embed_text
+from assistant_core.embeddings.embedder import EMBEDDING_DIMENSIONS
+from assistant_core.memory.embedding import embed_text
 
 
 @asynccontextmanager
@@ -16,7 +17,7 @@ async def lifespan_memory_store(
 ) -> AsyncIterator[AsyncPostgresStore]:
     """Open the LangGraph ``AsyncPostgresStore`` with vector indexing.
 
-    ``fields`` lists the stored payload keys LangGraph embeds — one
+    ``fields`` lists the stored payload keys LangGraph embeds, one
     vector per field per put. We point it at a single synthetic
     ``_embed_text`` key populated by :func:`assistant_core.memory.store._dump_for_store`
     so every memory gets exactly one embedding (kind + name + tags +

@@ -7,15 +7,14 @@ const step = (
   primary?: string,
   secondary?: string,
   kind: "search" | "transform" | "combine" = "search",
-): Step =>
-  ({
-    id,
-    kind,
-    displayName: id,
-    primaryInputStepId: primary ?? null,
-    secondaryInputStepId: secondary ?? null,
-    isFiltered: false,
-  });
+): Step => ({
+  id,
+  kind,
+  displayName: id,
+  primaryInputStepId: primary ?? null,
+  secondaryInputStepId: secondary ?? null,
+  isFiltered: false,
+});
 
 describe("computeDeleteChoices", () => {
   test("sole leaf: only delete-strategy choice", () => {
@@ -31,11 +30,7 @@ describe("computeDeleteChoices", () => {
     const choices = computeDeleteChoices(steps, "a");
     const tokens = choices.map((c) => c.resolution);
     expect(tokens).toEqual(
-      expect.arrayContaining([
-        "collapse-combine",
-        "orphan-sibling",
-        "delete-subtree",
-      ]),
+      expect.arrayContaining(["collapse-combine", "orphan-sibling", "delete-subtree"]),
     );
     const def = choices.find((c) => c.isDefault);
     expect(def?.resolution).toBe("collapse-combine");

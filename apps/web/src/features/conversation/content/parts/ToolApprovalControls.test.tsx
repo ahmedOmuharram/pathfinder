@@ -6,7 +6,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 
-import { ChatHelpersProvider, type ChatHelpers } from "../../runtime/chatHelpersContext";
+import {
+  ChatHelpersProvider,
+  type ChatHelpers,
+} from "../../runtime/chatHelpersContext";
 import { ToolApprovalControls, findToolApproval } from "./ToolApprovalControls";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));

@@ -1,0 +1,17 @@
+"""The EDA service package, and the wire types its public signatures name."""
+
+from pathfinder.integrations.eda.models import (
+    EdaAnalysisDetail,
+    EdaComputationDescriptor,
+    EdaDistributionResponse,
+    EdaFilter,
+    EdaStudyDetail,
+)
+
+__all__ = [
+    "EdaAnalysisDetail",
+    "EdaComputationDescriptor",
+    "EdaDistributionResponse",
+    "EdaFilter",
+    "EdaStudyDetail",
+]

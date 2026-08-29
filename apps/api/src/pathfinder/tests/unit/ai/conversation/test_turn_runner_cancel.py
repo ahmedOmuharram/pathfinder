@@ -15,6 +15,7 @@ from pathfinder.ai.conversation.request_body import ChatRequestBody
 @dataclass
 class _StubWriter:
     chunks: list[dict[str, Any]]
+    conversation_id: Any
     turn_id: Any
 
     async def write(self, chunk: dict[str, Any]) -> int:
@@ -68,7 +69,7 @@ async def test_drive_graph_cancels_mid_call_when_event_set(
     turn_id = uuid4()
     conv_id = uuid4()
     writer_chunks: list[dict[str, Any]] = []
-    writer = _StubWriter(chunks=writer_chunks, turn_id=turn_id)
+    writer = _StubWriter(chunks=writer_chunks, conversation_id=conv_id, turn_id=turn_id)
     body = ChatRequestBody.model_validate(
         {
             "id": str(conv_id),

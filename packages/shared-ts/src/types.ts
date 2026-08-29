@@ -20,6 +20,12 @@ import type {
   CrossValidationResultResponse,
   CustomEvent,
   DoneEvent,
+  EdaAnalysisState,
+  EdaDistributionSeries,
+  EdaEntityCount,
+  EdaSubsetPreviewPart,
+  EdaVizPart,
+  EdaVolcanoPoint,
   EnrichmentResultResponse,
   EnrichmentTermResponse,
   ErrorEvent,
@@ -408,6 +414,10 @@ export type {
 export type GeneSetPart = GeneSetStreamPart;
 export type TaskProgressChunk = TaskProgressStreamPart;
 
+export type { EdaAnalysisState, EdaDistributionSeries, EdaEntityCount, EdaVolcanoPoint };
+export type EdaSubsetPreview = EdaSubsetPreviewPart;
+export type EdaViz = EdaVizPart;
+
 // ── Data-part kind → payload mapping ────────────────────────────────────
 // Used by the frontend content-part dispatcher (ts-pattern exhaustive match).
 // Adding a backend kind here WITHOUT adding a renderer triggers a compile error.
@@ -463,6 +473,25 @@ export interface LedgerContrastPayload {
   summary: string;
 }
 
+export interface LedgerCriterionChangePayload {
+  criterionId: string;
+  disposition: "kept" | "changed" | "added" | "dropped";
+  /** Parameter name to its new value, in wire form. */
+  changedParams: Record<string, string>;
+  reason: string;
+}
+
+/** What one turn did to the spec it started from. Absent (exclude_none) on a
+ * turn that started with no spec. */
+export interface LedgerSpecDiffPayload {
+  changes: LedgerCriterionChangePayload[];
+  structureChanged: boolean;
+  keptCount: number;
+  changedCount: number;
+  addedCount: number;
+  droppedCount: number;
+}
+
 export interface LedgerFramePayload {
   present: boolean;
   criteriaCount: number;
@@ -472,6 +501,8 @@ export interface LedgerFramePayload {
   readyToBuild: boolean;
   needsUser: boolean;
   spec: LedgerSpecPayload | null;
+  /** What this turn did to the spec it started from. Absent on a fresh turn. */
+  diff?: LedgerSpecDiffPayload | null;
   /** One entry per criterion that contrasts two sample groups. */
   contrasts: LedgerContrastPayload[];
   /** Compact combine-tree string, e.g. "(GenesByText INTERSECT GenesByTaxon)".
@@ -596,7 +627,10 @@ export type KnownDataPartKind =
   | "data-turn-status"
   | "data-turn-stopped"
   | "data-turn-failed"
-  | "data-lead-usage";
+  | "data-lead-usage"
+  | "data-eda.analysis-state"
+  | "data-eda.subset-preview"
+  | "data-eda.viz";
 
 /**
  * Kinds this app renders, plus whatever another assistant registers. An
@@ -628,6 +662,9 @@ export interface DataPartPayloadMap {
   "data-turn-stopped": TurnStoppedPayload;
   "data-turn-failed": TurnFailedPayload;
   "data-lead-usage": DataLeadUsagePayload;
+  "data-eda.analysis-state": EdaAnalysisState;
+  "data-eda.subset-preview": EdaSubsetPreviewPart;
+  "data-eda.viz": EdaVizPart;
 }
 
 export type TypedDataPart<K extends DataPartKind = DataPartKind> = {

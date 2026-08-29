@@ -85,6 +85,17 @@ def test_frame_instructions_state_the_two_species_lists() -> None:
     ) in _normalized(_FRAME_INSTRUCTIONS)
 
 
+def test_frame_instructions_re_resolve_a_substitutions_dependents() -> None:
+    # A dependent value names an entry of the OLD parent's vocabulary, so
+    # copying it forward binds a value the new parent does not offer.
+    assert (
+        "A parameter that hangs off the one the request changes is not copied: "
+        "answer each `redecide` entry from the fresh vocabulary it comes back "
+        "with, and never null a parameter the previous binding held unless the "
+        "request removes it."
+    ) in _normalized(_FRAME_INSTRUCTIONS)
+
+
 def test_frame_instructions_are_ascii() -> None:
     assert _FRAME_INSTRUCTIONS.isascii()
 

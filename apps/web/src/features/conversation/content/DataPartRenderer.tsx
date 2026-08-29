@@ -4,10 +4,7 @@ import { createElement, type ReactElement } from "react";
 
 import { dataPartComponents } from "./contentComponents";
 
-function renderKind<K extends KnownDataPartKind>(
-  kind: K,
-  data: unknown,
-): ReactElement {
+function renderKind<K extends KnownDataPartKind>(kind: K, data: unknown): ReactElement {
   return createElement(dataPartComponents[kind], {
     data: data as DataPartPayloadMap[K],
   });
@@ -46,5 +43,8 @@ export function DataPartRenderer({
     .with("data-turn-stopped", (k) => renderKind(k, data))
     .with("data-turn-failed", (k) => renderKind(k, data))
     .with("data-lead-usage", (k) => renderKind(k, data))
+    .with("data-eda.analysis-state", (k) => renderKind(k, data))
+    .with("data-eda.subset-preview", (k) => renderKind(k, data))
+    .with("data-eda.viz", (k) => renderKind(k, data))
     .exhaustive();
 }

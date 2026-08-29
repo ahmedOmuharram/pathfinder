@@ -7,6 +7,7 @@ from pathfinder.jobs.tasks import (
     geneset_enrichment_job,
     optimize_search_parameters_job,
     run_control_tests_on_step_job,
+    run_eda_compute_job,
 )
 
 
@@ -15,6 +16,8 @@ def test_durable_tasks_registered_on_verification_queue() -> None:
     assert "durable:run_control_tests_on_step" in tasks
     assert "durable:optimize_search_parameters" in tasks
     assert "durable:geneset_enrichment" in tasks
+    assert "durable:run_eda_compute" in tasks
+    assert tasks["durable:run_eda_compute"].queue == "verification"
 
     assert tasks["durable:run_control_tests_on_step"].queue == "verification", tasks[
         "durable:run_control_tests_on_step"
@@ -47,6 +50,11 @@ async def test_durable_tasks_can_be_deferred(
             await geneset_enrichment_job.defer_async(
                 task_id="00000000-0000-0000-0000-000000000005",
                 thread_id="00000000-0000-0000-0000-000000000006",
+                args={"args": [], "kwargs": {}},
+            ),
+            await run_eda_compute_job.defer_async(
+                task_id="00000000-0000-0000-0000-000000000007",
+                thread_id="00000000-0000-0000-0000-000000000008",
                 args={"args": [], "kwargs": {}},
             ),
         ]

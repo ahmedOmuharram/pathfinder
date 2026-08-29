@@ -1,6 +1,7 @@
 import type { KnownDataPartKind } from "@pathfinder/shared";
 
 import { coreDataPartComponents } from "./coreDataParts";
+import { edaDataPartComponents } from "./edaDataParts";
 import { strategyDataPartComponents } from "./strategyDataParts";
 import type { DataPartComponentMap } from "./dataPartComponentMap";
 
@@ -10,4 +11,5 @@ import type { DataPartComponentMap } from "./dataPartComponentMap";
 export const dataPartComponents: DataPartComponentMap<KnownDataPartKind> = {
   ...coreDataPartComponents,
   ...strategyDataPartComponents,
+  ...edaDataPartComponents,
 };

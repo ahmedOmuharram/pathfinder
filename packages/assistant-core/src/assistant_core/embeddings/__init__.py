@@ -1,1 +1,1 @@
-"""The embedding model the runtime shares with its host."""
+"""The embedding call the runtime shares with its host, and the vector store."""

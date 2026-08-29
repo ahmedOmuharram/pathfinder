@@ -1,0 +1,301 @@
+"""Turn a spec diff into operations over the strategy that already exists.
+
+A step the edit does not name is not rewritten, so its WDK id and any value the
+researcher set by hand survive the turn. An edit the operation algebra cannot
+express is refused rather than approximated.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from pathfinder.domain.strategy.ast import (
+    COMBINE_SEARCH_NAME,
+    StrategyStepNode,
+    generate_step_id,
+)
+from pathfinder.domain.strategy.graph_model import (
+    StepKind,
+    rebuild_tree,
+    subtree_ids,
+)
+from pathfinder.domain.strategy.operational_spec import (
+    Criterion,
+    OperationalSpec,
+    StructureNode,
+)
+from pathfinder.domain.strategy.operations import (
+    AddCombineOp,
+    AddLeafOp,
+    AddTransformOp,
+    AttachNewRoot,
+    DeleteStepOp,
+    GraphOperation,
+    ReplaceSubtreeOp,
+    UpdateCombineOperatorOp,
+    UpdateStepParamsOp,
+    WireInputOp,
+)
+from pathfinder.domain.strategy.operations.apply import apply_operation
+from pathfinder.domain.strategy.operations.resolutions import compute_delete_choices
+from pathfinder.domain.strategy.ops import CombineOp
+from pathfinder.domain.strategy.session import StrategyGraph
+from pathfinder.domain.strategy.spec_diff import SpecDiff
+
+__all__ = ["UnsupportedEditError", "operations_for"]
+
+_MIN_COMBINE_INPUTS = 2
+
+
+class UnsupportedEditError(Exception):
+    """The edit does not map onto the steps the strategy already holds."""
+
+
+@dataclass
+class _Plan:
+    """The operations so far, and the graph they have already been applied to."""
+
+    graph: StrategyGraph
+    ops: list[GraphOperation] = field(default_factory=list)
+    added: frozenset[str] = frozenset()
+    criteria: dict[str, Criterion] = field(default_factory=dict)
+
+    def emit(self, op: GraphOperation) -> None:
+        self.ops.append(op)
+        apply_operation(self.graph, op)
+
+
+def operations_for(
+    diff: SpecDiff,
+    *,
+    before: OperationalSpec,
+    after: OperationalSpec,
+    graph: StrategyGraph,
+) -> list[GraphOperation]:
+    """The smallest batch of graph operations that turns ``before`` into ``after``."""
+    if after.structure is None:
+        msg = "the edited spec states no structure"
+        raise UnsupportedEditError(msg)
+    working = _working_copy(graph)
+    entry_root = working.primary_root_id()
+    if entry_root is None:
+        msg = "the strategy has no root step to edit"
+        raise UnsupportedEditError(msg)
+    stranded_before = set(working.steps) - set(subtree_ids(entry_root, working.steps))
+    plan = _Plan(
+        graph=working,
+        added=frozenset(
+            c.criterion_id for c in diff.changes if c.disposition == "added"
+        ),
+        criteria={c.id: c for c in after.criteria},
+    )
+    before_by_id = {c.id: c for c in before.criteria}
+    for change in diff.changes:
+        if change.disposition == "dropped":
+            plan.emit(_delete_op(plan.graph, change.criterion_id))
+    for change in diff.changes:
+        if change.disposition == "changed":
+            plan.emit(
+                _change_op(
+                    plan.graph,
+                    before_by_id[change.criterion_id],
+                    plan.criteria[change.criterion_id],
+                )
+            )
+    root_id = _resolve(after.structure.root, plan)
+    _refuse_a_shape_the_edit_did_not_state(plan, root_id, stranded_before)
+    return plan.ops
+
+
+def _working_copy(graph: StrategyGraph) -> StrategyGraph:
+    """A graph the plan can apply to without touching the session's own."""
+    clone = StrategyGraph(graph_id=graph.id, name=graph.name, site_id=graph.site_id)
+    clone.record_type = graph.record_type
+    clone.description = graph.description
+    clone.steps = {sid: step.model_copy(deep=True) for sid, step in graph.steps.items()}
+    clone.recompute_roots()
+    clone.last_step_id = graph.last_step_id
+    return clone
+
+
+def _refuse_a_shape_the_edit_did_not_state(
+    plan: _Plan, root_id: str, stranded_before: set[str]
+) -> None:
+    """The planned graph holds exactly the criteria the edited spec names."""
+    if root_id != plan.graph.primary_root_id():
+        msg = (
+            "the edited structure re-nests steps that stay; an in-place edit "
+            "cannot rewire the strategy around them"
+        )
+        raise UnsupportedEditError(msg)
+    reachable = set(subtree_ids(root_id, plan.graph.steps))
+    searches = {
+        sid for sid in reachable if plan.graph.steps[sid].kind is not StepKind.COMBINE
+    }
+    if searches != set(plan.criteria):
+        msg = (
+            f"the planned strategy holds {sorted(searches)} where the edited "
+            f"spec states {sorted(plan.criteria)}"
+        )
+        raise UnsupportedEditError(msg)
+    stranded = set(plan.graph.steps) - reachable - stranded_before
+    if stranded:
+        msg = f"the edit would strand {sorted(stranded)} outside the strategy"
+        raise UnsupportedEditError(msg)
+
+
+def _delete_op(graph: StrategyGraph, step_id: str) -> DeleteStepOp:
+    """The delete the structure implies, from the algebra that computes them."""
+    choices = compute_delete_choices(graph, step_id)
+    if not choices:
+        msg = f"criterion {step_id!r} names no step to delete"
+        raise UnsupportedEditError(msg)
+    chosen = next((c for c in choices if c.is_default), choices[0])
+    return DeleteStepOp(step_id=step_id, resolution=chosen.resolution)
+
+
+def _change_op(
+    graph: StrategyGraph, before: Criterion, after: Criterion
+) -> GraphOperation:
+    if after.id not in graph.steps:
+        msg = f"criterion {after.id!r} names no step in the strategy"
+        raise UnsupportedEditError(msg)
+    removed = set(before.resolved_params) - set(after.resolved_params)
+    if before.search_name == after.search_name and not removed:
+        return UpdateStepParamsOp(
+            step_id=after.id, parameters=dict(after.resolved_params)
+        )
+    # An update merges, so a search change and a removed value both need the
+    # node restated. The inputs come from the live subtree and stay attached.
+    subtree = rebuild_tree(after.id, graph.steps).model_copy(
+        update={
+            "search_name": after.search_name,
+            "parameters": dict(after.resolved_params),
+            "display_name": after.text[:60],
+        }
+    )
+    return ReplaceSubtreeOp(step_id=after.id, subtree=subtree)
+
+
+def _node_for(criterion: Criterion) -> StrategyStepNode:
+    return StrategyStepNode(
+        id=criterion.id,
+        search_name=criterion.search_name,
+        parameters=dict(criterion.resolved_params),
+        display_name=criterion.text[:60],
+    )
+
+
+def _criterion(plan: _Plan, node: StructureNode) -> Criterion:
+    criterion = plan.criteria.get(node.criterion_id or "")
+    if criterion is None:
+        msg = f"structure names criterion {node.criterion_id!r}, which the spec lacks"
+        raise UnsupportedEditError(msg)
+    return criterion
+
+
+def _resolve(node: StructureNode, plan: _Plan) -> str:
+    """The step the node describes, adding it when the edit introduces it."""
+    if node.kind == "leaf":
+        return _resolve_leaf(node, plan)
+    if node.kind == "transform":
+        return _resolve_transform(node, plan)
+    return _resolve_combine(node, plan)
+
+
+def _resolve_leaf(node: StructureNode, plan: _Plan) -> str:
+    criterion = _criterion(plan, node)
+    if criterion.id in plan.graph.steps:
+        return criterion.id
+    if criterion.id not in plan.added:
+        msg = f"criterion {criterion.id!r} names no step in the strategy"
+        raise UnsupportedEditError(msg)
+    plan.emit(AddLeafOp(step=_node_for(criterion), attach=AttachNewRoot()))
+    return criterion.id
+
+
+def _resolve_transform(node: StructureNode, plan: _Plan) -> str:
+    criterion = _criterion(plan, node)
+    if not node.inputs:
+        msg = f"transform {criterion.id!r} states no input step"
+        raise UnsupportedEditError(msg)
+    input_id = _resolve(node.inputs[0], plan)
+    existing = plan.graph.steps.get(criterion.id)
+    if existing is not None:
+        if existing.primary_input_id != input_id:
+            msg = (
+                f"transform {criterion.id!r} is wired to "
+                f"{existing.primary_input_id!r} and the edit states {input_id!r}"
+            )
+            raise UnsupportedEditError(msg)
+        return criterion.id
+    if criterion.id not in plan.added:
+        msg = f"criterion {criterion.id!r} names no step in the strategy"
+        raise UnsupportedEditError(msg)
+    consumer = plan.graph.find_parent(input_id)
+    plan.emit(
+        AddTransformOp(
+            step=_node_for(criterion),
+            input_id=input_id,
+            mode="before-consumer" if consumer is not None else "new-root",
+        )
+    )
+    return criterion.id
+
+
+def _resolve_combine(node: StructureNode, plan: _Plan) -> str:
+    if len(node.inputs) == 1:
+        return _resolve(node.inputs[0], plan)
+    if node.operator is None or len(node.inputs) < _MIN_COMBINE_INPUTS:
+        msg = "a combine states an operator and at least two inputs"
+        raise UnsupportedEditError(msg)
+    left = _resolve(node.inputs[0], plan)
+    for extra in node.inputs[1:]:
+        right = _resolve(extra, plan)
+        left = _join(plan, left, right, node.operator)
+    return left
+
+
+def _join(plan: _Plan, left_id: str, right_id: str, operator: CombineOp) -> str:
+    """The combine over the two branches: the live one, or a new one."""
+    existing = _combine_step_id(plan.graph, left_id, right_id)
+    if existing is not None:
+        if plan.graph.steps[existing].operator is not operator:
+            plan.emit(UpdateCombineOperatorOp(step_id=existing, operator=operator))
+        return existing
+    consumer = plan.graph.find_parent(left_id)
+    new_id = generate_step_id()
+    plan.emit(
+        AddCombineOp(
+            step=StrategyStepNode(
+                id=new_id,
+                search_name=COMBINE_SEARCH_NAME,
+                operator=operator,
+            ),
+            left_id=left_id,
+            right_id=right_id,
+        )
+    )
+    if consumer is not None:
+        parent, _ = consumer
+        plan.emit(
+            WireInputOp(
+                target_step_id=parent.id,
+                slot="primary" if parent.primary_input_id == left_id else "secondary",
+                source_step_id=new_id,
+            )
+        )
+    return new_id
+
+
+def _combine_step_id(graph: StrategyGraph, left_id: str, right_id: str) -> str | None:
+    return next(
+        (
+            step.id
+            for step in graph.steps.values()
+            if step.kind is StepKind.COMBINE
+            and step.primary_input_id == left_id
+            and step.secondary_input_id == right_id
+        ),
+        None,
+    )

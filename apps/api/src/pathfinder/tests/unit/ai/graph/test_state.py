@@ -196,3 +196,18 @@ class TestCheckpointsFromBeforeTheFbvFlip:
         )
 
         assert state.domain.operational_spec is None
+
+
+def test_a_dataset_is_not_sheeted_until_it_is_marked(
+    base_state: PipelineState,
+) -> None:
+    assert base_state.domain.was_eda_sheet_shown("DS_53f554ec6a") is False
+
+
+def test_marking_a_dataset_records_only_that_dataset(
+    base_state: PipelineState,
+) -> None:
+    """A second sheet for the same study omits the vocabularies."""
+    base_state.domain.mark_eda_sheet_shown("DS_53f554ec6a")
+    assert base_state.domain.was_eda_sheet_shown("DS_53f554ec6a") is True
+    assert base_state.domain.was_eda_sheet_shown("DS_eeca6a5476") is False

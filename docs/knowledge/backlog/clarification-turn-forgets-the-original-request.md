@@ -38,8 +38,11 @@ lines of evidence are gone. At $0.09 for that frame alone.
 the one-line intent goal; the prior turn's constraints and the original prompt's literal
 values (organism, motif regex, dataset kind) are not carried into the frame's context, and
 the intent classifier's constraint list is rebuilt per turn rather than accumulated. Same
-root as [edit turns dropping criteria](edit-strategy-drops-criteria-and-claims-preserved.md):
-the frame does not start from the conversation's standing requirements.
+root as the edit turn that dropped a criterion and reported it preserved, which is closed:
+an edit now starts from the spec the turn found and declares a disposition for every
+criterion in it ([an edit is a delta, not a rebuild](../decisions/an-edit-is-a-delta-not-a-rebuild.md)).
+A clarification is a different classification and a different entry path, so it still
+frames from the new message alone.
 
 **Fix (to decide).** Keep a per-conversation requirement ledger (organism, named
 datasets, literal motifs/ids, evidence kinds) that every frame receives verbatim and must

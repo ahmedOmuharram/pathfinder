@@ -10,6 +10,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { strategyStepUrl } from "@/lib/routes";
 
 interface QuickSwitcherProps {
   open: boolean;
@@ -21,10 +22,11 @@ export function QuickSwitcher({ open, onOpenChange, strategy }: QuickSwitcherPro
   const router = useRouter();
   const steps = strategy?.steps ?? [];
   const conversationId = strategy?.id ?? "";
+  const siteId = strategy?.siteId ?? "";
 
   const handleSelect = (step: Step): void => {
     onOpenChange(false);
-    router.push(`/conversation/${conversationId}/strategy/step/${step.id}`);
+    router.push(strategyStepUrl(siteId, conversationId, step.id));
   };
 
   return (

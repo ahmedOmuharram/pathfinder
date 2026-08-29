@@ -316,9 +316,7 @@ def _returns(messages: list[ModelMessage]) -> list[ToolReturnPart]:
 
 
 def _text(chunks: list[dict[str, Any]]) -> str:
-    return "".join(
-        str(c["delta"]) for c in chunks if c["type"] == "text-delta"
-    )
+    return "".join(str(c["delta"]) for c in chunks if c["type"] == "text-delta")
 
 
 _CODE_WORD = "kinase"

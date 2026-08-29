@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
 import { strategyQueryKey } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
+import { chatRoot } from "@/lib/routes";
 
 export interface DeleteStrategyVars {
   conversationId: string;
@@ -21,7 +22,7 @@ export function useDeleteStrategyMutation() {
     },
     onSuccess: (_data, { siteId, conversationId }) => {
       queryClient.removeQueries({ queryKey: strategyQueryKey(conversationId) });
-      router.push(`/${siteId}/conversation`);
+      router.push(chatRoot(siteId));
       toast.success("Strategy deleted");
     },
     onError: (err) => {

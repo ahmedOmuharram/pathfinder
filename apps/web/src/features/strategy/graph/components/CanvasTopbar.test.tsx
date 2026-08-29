@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Strategy } from "@pathfinder/shared";
 import { createTestWrapper } from "@/lib/query/testing";
+import { chatUrl, strategyCanvasUrl } from "@/lib/routes";
 import { CanvasTopbar } from "./CanvasTopbar";
 
 const pushMock = vi.fn();
@@ -79,7 +81,7 @@ describe("CanvasTopbar", () => {
       </Wrapper>,
     );
     fireEvent.click(screen.getByRole("button", { name: /back to chat/i }));
-    expect(pushMock).toHaveBeenCalledWith("/plasmodb/conversation/conv-1");
+    expect(pushMock).toHaveBeenCalledWith(chatUrl("plasmodb", "conv-1"));
   });
 
   it("renders sync status reflecting saving / error / paused / idle", () => {
@@ -132,6 +134,30 @@ describe("CanvasTopbar", () => {
     );
     expect(screen.getByText(/^Saved$/i)).toBeTruthy();
   });
+
+  it("copies the canvas URL the route builder produces", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    const { Wrapper } = createTestWrapper();
+    render(
+      <Wrapper>
+        <CanvasTopbar
+          strategy={STRATEGY}
+          conversationId="conv-1"
+          syncState="idle"
+          onRetry={() => {}}
+        />
+      </Wrapper>,
+    );
+    await userEvent.click(screen.getByLabelText("More strategy actions"));
+    await userEvent.click(await screen.findByText("Copy strategy URL"));
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}${strategyCanvasUrl("plasmodb", "conv-1")}`,
+    );
+  });
 });
 
 describe("the link to the host site", () => {
@@ -163,18 +189,18 @@ describe("the link to the host site", () => {
     renderTopbar(withWdk);
 
     expect(
-      screen.getByTestId("canvas-topbar").querySelector(
-        '[data-testid="canvas-topbar-wdk-link"]',
-      ),
-    ).toBeTruthy();
+      screen
+        .getByTestId("canvas-topbar")
+        .querySelector('[data-testid="canvas-topbar-wdk-link"]'),
+    ).toBe(screen.getByTestId("canvas-topbar-wdk-link"));
   });
 
   it("points at the strategy on the host site", () => {
     renderTopbar(withWdk);
 
-    expect(
-      screen.getByTestId("canvas-topbar-wdk-link").getAttribute("href"),
-    ).toBe(withWdk.wdkUrl);
+    expect(screen.getByTestId("canvas-topbar-wdk-link").getAttribute("href")).toBe(
+      withWdk.wdkUrl,
+    );
   });
 
   it("names the site the strategy belongs to", () => {
@@ -204,6 +230,6 @@ describe("the link to the host site", () => {
   it("offers no link before the strategy reaches WDK", () => {
     renderTopbar(STRATEGY);
 
-    expect(screen.queryByTestId("canvas-topbar-wdk-link")).toBeNull();
+    expect(screen.queryAllByTestId("canvas-topbar-wdk-link")).toHaveLength(0);
   });
 });

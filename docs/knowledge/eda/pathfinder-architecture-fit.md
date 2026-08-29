@@ -5,12 +5,12 @@ description: Where every EDA concern lands in the layer model, how an EDA comput
 tags: [eda, pathfinder, architecture, layering, durable-tools, mcp, sdk, proposal, ssot]
 generated: { by: claude-code/opus-5, at: 2026-08-27T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-27T00:00:00Z }
-status: draft
+status: accepted
 ---
 
 # How EDA fits PathFinder's architecture
 
-Status: proposal. Nothing here is built. It deepens
+Status: built. See [the plan](plan/index.md) for the batches that built it. It deepens
 [pathfinder-integration-concept.md](pathfinder-integration-concept.md), which
 states the two seams; this document states where each piece of code goes, which
 existing mechanism it reuses, and what it must not duplicate.
@@ -457,12 +457,11 @@ Three fields carry traps that the model must encode rather than smooth over:
 ### 4.2 The catalog embedding pattern, reused for studies
 
 `integrations/embeddings/semantic_index.py` already holds the whole shape:
-`SearchIndexEntry` with a `fingerprint` built from
-`MODEL_NAME`, `SEARCH_DOCUMENT_PREFIX` and the enriched text
-(`semantic_index.py:146-162`), `SemanticSearchIndex.query` prefixing the query
-with `SEARCH_QUERY_PREFIX` (`semantic_index.py:251`), both prefixes imported
-from `assistant_core.embeddings.prefixes`, and a per-site `.npz` cache
-(`_cache_path`, `_save_cache`). The consumer is
+`SearchIndexEntry` with its enriched text, and `SemanticSearchIndex.query`
+ranking against it. As of [embeddings are an API call and a Postgres record
+manager](../decisions/embeddings-are-an-api-and-a-record-manager.md) the vectors
+live in the shared record manager under `catalog:{site_id}`, not in a per-site
+`.npz` file, and there are no query and document prefixes. The consumer is
 `services/catalog/semantic_matching.py::apply_semantic_bonus:41`, which reads
 the index off the site catalog via `catalog.get_semantic_index()`
 (`integrations/veupathdb/discovery.py:251`).

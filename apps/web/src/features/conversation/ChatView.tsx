@@ -10,6 +10,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import type { Strategy } from "@pathfinder/shared";
 import { strategyQueryOptions } from "@/lib/api/strategy";
 import { conversationSnapshotOptions } from "@/lib/api/conversationSnapshot";
+import { chatRoot } from "@/lib/routes";
 import { Spinner } from "@/components/ui/spinner";
 import { useSessionStore } from "@/state/useSessionStore";
 
@@ -30,7 +31,7 @@ export function ChatView({
 }) {
   const params = useParams<{ siteId?: string }>();
   const siteSegment = params.siteId ?? "";
-  const conversationsHref = `/${siteSegment}/conversation`;
+  const conversationsHref = chatRoot(siteSegment);
   const chatResetCounter = useSessionStore((s) => s.chatResetCounter);
 
   const detailQuery = useQuery(strategyQueryOptions(conversationId));

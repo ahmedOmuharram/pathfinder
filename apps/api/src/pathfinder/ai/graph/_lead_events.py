@@ -35,6 +35,7 @@ from pathfinder.ai.lead.sub_agent_tools import LeadDeps, sub_agent_model_id
 
 _SUB_AGENT_TOOL_TO_PHASE: dict[str, str] = {
     "frame_problem": "frame",
+    "edit_strategy": "frame",
     "build_strategy": "build",
     "recover_failed_steps": "build",
     "verify_strategy": "verification",

@@ -28,6 +28,7 @@ down_revision: str | Sequence[str] | None = "2026_08_08_0002"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+
 def upgrade() -> None:
     op.execute(
         """

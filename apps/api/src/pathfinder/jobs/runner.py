@@ -132,6 +132,7 @@ async def _run_durable_task_inner(
                     payload = await impl(
                         context=context,
                         task_id=task_uuid,
+                        conversation_id=chat_uuid,
                         progress=progress,
                         memory_store=mem_store,
                         **args.get("kwargs", {}),

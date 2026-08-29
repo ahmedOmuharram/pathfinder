@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
+from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import (
     JSON,
     CheckConstraint,
@@ -25,10 +26,15 @@ from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedColumn, mapped_column
 from sqlalchemy.types import CHAR, TypeDecorator, TypeEngine
 
+from assistant_core.embeddings.embedder import EMBEDDING_DIMENSIONS
 from assistant_core.platform.context import DEFAULT_APPLICATION_ID, calling_application
 
 APPLICATION_ID_LENGTH = 64
 ASSISTANT_ID_LENGTH = 64
+CONTENT_HASH_LENGTH = 64
+INDEX_ID_LENGTH = 128
+ENTRY_ID_LENGTH = 256
+EMBEDDING_MODEL_LENGTH = 64
 # The assistant a thread takes when its creator names none.
 DEFAULT_ASSISTANT_ID = "pathfinder"
 
@@ -243,3 +249,40 @@ class MemoryTombstoneRow(Base):
             name="uq_tombstones_user_app_kind_hash",
         ),
     )
+
+
+class EmbeddingVector(Base):
+    """One vector, addressed by the model and the text that produced it.
+
+    Two indexes that carry the same text share this row.
+    """
+
+    __tablename__ = "embedding_vectors"
+
+    model: Mapped[str] = mapped_column(String(EMBEDDING_MODEL_LENGTH), primary_key=True)
+    content_hash: Mapped[str] = mapped_column(
+        String(CONTENT_HASH_LENGTH), primary_key=True
+    )
+    embedding: Mapped[list[float]] = mapped_column(
+        VECTOR(EMBEDDING_DIMENSIONS), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class EmbeddingIndexEntry(Base):
+    """One index's membership: which entry carries which content."""
+
+    __tablename__ = "embedding_index_entries"
+
+    index_id: Mapped[str] = mapped_column(String(INDEX_ID_LENGTH), primary_key=True)
+    entry_id: Mapped[str] = mapped_column(String(ENTRY_ID_LENGTH), primary_key=True)
+    content_hash: Mapped[str] = mapped_column(
+        String(CONTENT_HASH_LENGTH), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (Index("ix_embedding_index_entries_index_id", "index_id"),)

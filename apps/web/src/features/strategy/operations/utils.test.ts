@@ -14,15 +14,14 @@ const step = (
   primary?: string,
   secondary?: string,
   kind: "search" | "transform" | "combine" = "search",
-): Step =>
-  ({
-    id,
-    kind,
-    displayName: id,
-    primaryInputStepId: primary ?? null,
-    secondaryInputStepId: secondary ?? null,
-    isFiltered: false,
-  });
+): Step => ({
+  id,
+  kind,
+  displayName: id,
+  primaryInputStepId: primary ?? null,
+  secondaryInputStepId: secondary ?? null,
+  isFiltered: false,
+});
 
 describe("buildIndex", () => {
   test("indexes by id and counts incoming refs", () => {

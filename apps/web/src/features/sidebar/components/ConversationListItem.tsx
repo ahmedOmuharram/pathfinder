@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { useFlushBeforeNav } from "@/features/strategy/hooks/useFlushBeforeNav";
 import { formatSidebarTime } from "@/lib/formatTime";
+import { chatUrl } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 interface ConversationListItemProps {
@@ -83,14 +84,14 @@ export function ConversationListItem({
       ) : (
         <>
           <Link
-            href={`/${item.siteId}/conversation/${item.id}`}
+            href={chatUrl(item.siteId, item.id)}
             className="block"
             onClick={(e) => {
               if (isActive) return;
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
               if (e.button !== 0) return;
               e.preventDefault();
-              void navigate(`/${item.siteId}/conversation/${item.id}`);
+              void navigate(chatUrl(item.siteId, item.id));
             }}
           >
             <div className="truncate pr-6 text-sm font-medium" title={item.title}>

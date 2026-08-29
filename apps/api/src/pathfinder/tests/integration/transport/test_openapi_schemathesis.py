@@ -177,7 +177,11 @@ async def patched_app(
     for subsystem in _FIXED_SUBSYSTEMS:
         readiness.mark_ready(subsystem)
 
-    async with lifespan_memory_store(get_settings().database_url) as memory_store:
+    async with (
+        # A cancel reads the job table, so the served app needs an open app.
+        procrastinate_app.open_async(),
+        lifespan_memory_store(get_settings().database_url) as memory_store,
+    ):
         app.state.memory_store = memory_store
         yield app, user_id
 

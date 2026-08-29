@@ -14,6 +14,7 @@ from assistant_core.graph.turn_state import PendingApproval
 from assistant_core.memory.retrieval import retrieve_relevant_memories
 from assistant_core.memory.store import MemoryStore, StoredMemory
 from langgraph.runtime import Runtime
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -32,8 +33,8 @@ from pydantic_ai.tools import (
 from pathfinder.ai.capabilities.security import is_pure_approval
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.lead.dispatch_resume import SubAgentOutcome, resume_sub_agent
 from pathfinder.ai.lead.memory_candidates import PRODUCT_MEMORY_KINDS
-from pathfinder.ai.lead.sub_agent_dispatch import resume_sub_agent
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
 from pathfinder.ai.lead.sub_agent_tools import SUB_AGENT_APPROVAL_PHASE, LeadDeps
 
@@ -243,14 +244,23 @@ async def resolve_pending_approval(
         # pydantic-ai re-executes a deferred call it is given no result for, so
         # a turn that resolves nothing keeps the card and runs no sub-agent.
         return ApprovalResolution(still_pending=approval)
-    outcome = await resume_sub_agent(
-        deps=deps,
-        approval=approval,
-        resume=SubAgentResume(
-            messages=ModelMessagesTypeAdapter.validate_json(sub_agent.messages_json),
-            results=DeferredToolResults(approvals=answers),
-        ),
-    )
+    outcome: SubAgentOutcome | ModelRetry
+    try:
+        outcome = await resume_sub_agent(
+            deps=deps,
+            approval=approval,
+            resume=SubAgentResume(
+                messages=ModelMessagesTypeAdapter.validate_json(
+                    sub_agent.messages_json
+                ),
+                results=DeferredToolResults(approvals=answers),
+            ),
+        )
+    except ModelRetry as retry:
+        # A dispatch refuses its own sub-agent's result here as it does on a
+        # fresh call. pydantic-ai accepts a ModelRetry as a deferred call's
+        # result, so the Lead reads the refusal and the turn does not end.
+        outcome = retry
     if isinstance(outcome, SubAgentApprovalWait):
         # The typed reply is spent: it produced the denial this new approval
         # follows, so the next turn must not deliver it again.

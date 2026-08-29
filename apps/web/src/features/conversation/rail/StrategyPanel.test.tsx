@@ -27,6 +27,7 @@ vi.mock("@/state/useRightRailStore", () => ({
     selector({ closePanel: vi.fn() } as unknown as Record<string, unknown>),
 }));
 
+import { strategyCanvasUrl, strategyStepUrl } from "@/lib/routes";
 import { StrategyPanel } from "./StrategyPanel";
 
 const STRATEGY: Strategy = {
@@ -71,14 +72,14 @@ describe("StrategyPanel (read-only rail)", () => {
   it("Open button navigates to /strategy", () => {
     render(<StrategyPanel strategy={STRATEGY} siteId="plasmodb" />);
     fireEvent.click(screen.getByRole("button", { name: /open/i }));
-    expect(pushMock).toHaveBeenCalledWith("/plasmodb/conversation/conv-1/strategy");
+    expect(pushMock).toHaveBeenCalledWith(strategyCanvasUrl("plasmodb", "conv-1"));
   });
 
   it("Clicking a step row navigates to /strategy/step/:id", () => {
     render(<StrategyPanel strategy={STRATEGY} siteId="plasmodb" />);
     fireEvent.click(screen.getByTestId("compact-step-row-step_1"));
     expect(pushMock).toHaveBeenCalledWith(
-      "/plasmodb/conversation/conv-1/strategy/step/step_1",
+      strategyStepUrl("plasmodb", "conv-1", "step_1"),
     );
   });
 });

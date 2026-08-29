@@ -22,6 +22,7 @@ import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/u
 import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
 import { toUserMessage } from "@/lib/api/errors";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
+import { chatRoot, chatUrl } from "@/lib/routes";
 
 interface SavedStrategiesPageProps {
   siteId: string;
@@ -126,7 +127,7 @@ function EmptyState({ hasAny, siteId }: { hasAny: boolean; siteId: string }) {
         <span className="font-medium">Save as reusable</span> to add one here, or{" "}
         <Link
           className="text-primary underline-offset-2 hover:underline"
-          href={`/${siteId}/conversation`}
+          href={chatRoot(siteId)}
         >
           start a new chat
         </Link>{" "}
@@ -164,7 +165,7 @@ function SavedRow({
   });
 
   const open = (): void => {
-    router.push(`/${siteId}/conversation/${conv.id}`);
+    router.push(chatUrl(siteId, conv.id));
   };
 
   const stepCount = conv.stepCount ?? conv.steps?.length ?? 0;

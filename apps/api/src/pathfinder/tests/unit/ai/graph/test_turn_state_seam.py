@@ -48,11 +48,13 @@ DOMAIN_FIELDS = {
     "user_intent",
     "lead_next_state",
     "operational_spec",
+    "spec_before_turn",
     "discovered_searches",
     "verification_digest",
     "last_build_outcome",
     "stale_build",
     "created_gene_set_ids",
+    "sheeted_eda_datasets",
 }
 
 STRATEGY_RESOURCES = {

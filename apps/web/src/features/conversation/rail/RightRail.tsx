@@ -1,6 +1,13 @@
 "use client";
 
-import { Brain, Notebook, ScrollText, Timer, Workflow } from "lucide-react";
+import {
+  Brain,
+  FlaskConical,
+  Notebook,
+  ScrollText,
+  Timer,
+  Workflow,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
@@ -18,6 +25,7 @@ import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
 import { useRightRailStore, type RightRailPanel } from "@/state/useRightRailStore";
 
 import { computeRailActivity } from "./railActivity";
+import { EdaPanel } from "./EdaPanel";
 import { LedgerPanel } from "./LedgerPanel";
 import { MemoriesPanel } from "./MemoriesPanel";
 import { ScratchpadPanel } from "./ScratchpadPanel";
@@ -46,6 +54,7 @@ const RAIL_ICONS: RailIconSpec[] = [
   { id: "memories", icon: Brain, label: "Memories" },
   { id: "scratchpad", icon: Notebook, label: "Scratchpad" },
   { id: "ledger", icon: ScrollText, label: "Ledger" },
+  { id: "eda", icon: FlaskConical, label: "EDA" },
 ];
 
 export function RightRail({ conversationId, strategy, siteId }: RightRailProps) {
@@ -75,6 +84,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
     memories: activity.memoryCount !== lastSeen.memoryCount,
     scratchpad: activity.scratchpadCount !== lastSeen.scratchpadCount,
     ledger: activity.ledgerCount !== lastSeen.ledgerCount,
+    eda: activity.edaCount !== lastSeen.edaCount,
   };
 
   const markersFor = (panel: RightRailPanel): Partial<typeof lastSeen> => {
@@ -89,6 +99,8 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
         return { scratchpadCount: activity.scratchpadCount };
       case "ledger":
         return { ledgerCount: activity.ledgerCount };
+      case "eda":
+        return { edaCount: activity.edaCount };
     }
   };
 
@@ -126,6 +138,9 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
                   )}
                   {openPanel === "ledger" && (
                     <LedgerPanel conversationId={conversationId} />
+                  )}
+                  {openPanel === "eda" && (
+                    <EdaPanel conversationId={conversationId} siteId={siteId} />
                   )}
                 </motion.div>
               </AnimatePresence>

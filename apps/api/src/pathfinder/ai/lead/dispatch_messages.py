@@ -1,13 +1,16 @@
 """What the Lead is told when a dispatch cannot proceed.
 
-Pure renderings of an ``OperationalSpec`` that a run ran out of budget on, or
-that is not ready to build.
+Pure renderings of an ``OperationalSpec`` that a run ran out of budget on, that
+is not ready to build, or whose account of an edit does not match what changed.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from pathfinder.ai.lead.deltas import FrameResult
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
+from pathfinder.domain.strategy.spec_diff import CriterionChange, SpecDiff
 
 
 def frame_result_from_draft(spec: OperationalSpec | None) -> FrameResult:
@@ -33,6 +36,94 @@ def frame_result_from_draft(spec: OperationalSpec | None) -> FrameResult:
             f"criteria ({names}). They are kept. Ask it to continue with the "
             f"rest rather than starting again."
         ),
+    )
+
+
+_RECORDING_TOOLS = "set_criterion, set_structure, drop_criterion"
+
+
+def frame_claimed_more_than_it_bound(summary: str) -> str:
+    """Why a ``spec_ready`` over a draft with no bound criterion is refused.
+
+    A summary changes no state, so a pass that wrote one and nothing else has
+    framed nothing.
+    """
+    return (
+        f"FRAME reported spec_ready with the summary {summary[:200]!r}, and the "
+        "spec holds no bound criterion, so the pass recorded nothing. Dispatch "
+        f"frame_problem again and tell it to record its work with "
+        f"{_RECORDING_TOOLS}; a summary alone binds no search."
+    )
+
+
+def frame_bound_nothing_result() -> FrameResult:
+    """Report a second pass that claimed a ready spec and bound nothing."""
+    return FrameResult(
+        disposition="needs_user",
+        summary=(
+            "FRAME reported a ready spec twice over a draft with no bound "
+            "criterion, so nothing is framed. Ask the user which filters the "
+            "strategy must carry, or state fewer criteria and dispatch "
+            "frame_problem again."
+        ),
+    )
+
+
+def undeclared_spec_changes(
+    computed: SpecDiff,
+    declared: Sequence[CriterionChange],
+    before: OperationalSpec,
+) -> str:
+    """Where the pass's own account of an edit disagrees with what it did.
+
+    Returns an empty string when every criterion the turn started with is
+    accounted for. A silent drop and a silent re-binding are the two shapes
+    that reach the user as a strategy they did not ask for.
+    """
+    stated = {c.criterion_id: c.disposition for c in declared}
+    texts = {c.id: c.text for c in before.criteria}
+    problems: list[str] = []
+    for change in computed.changes:
+        cid = change.criterion_id
+        if change.disposition == "dropped" and stated.get(cid) != "dropped":
+            problems.append(
+                f"{cid} ({texts.get(cid, '')[:80]}) is gone from the spec and "
+                f"you declared it {stated.get(cid) or 'nothing'}"
+            )
+        elif change.disposition == "changed" and stated.get(cid) == "kept":
+            moved = ", ".join(
+                f"{name}={value}"
+                for name, value in sorted(change.changed_params.items())
+            )
+            problems.append(
+                f"{cid} is declared kept but its binding moved "
+                f"({moved or 'its search name changed'})"
+            )
+    if not problems:
+        return ""
+    return (
+        "This turn edits a spec that already had "
+        f"{len(before.criteria)} criteria, and the account of it does not match "
+        f"what happened: {'; '.join(problems)}. A criterion the request does "
+        "not mention is kept and must keep the values the workspace shows; "
+        "re-bind it with set_criterion using those values, or drop it with "
+        "drop_criterion and say why."
+    )
+
+
+def build_would_replace_the_strategy(step_count: int) -> str:
+    """Why a build over an existing strategy is refused.
+
+    A build materializes the spec into a new tree, so every WDK step id and
+    every value the researcher set on the canvas goes with the old one.
+    """
+    return (
+        f"This thread already has a strategy of {step_count} steps, and "
+        f"build_strategy replaces it: every WDK step id changes and any value "
+        f"the researcher edited on the canvas is lost. Call edit_strategy to "
+        f"change what this strategy asks, which patches only the steps the "
+        f"request names. If the request really is to throw this strategy away "
+        f"and start over, say so in your reply and ask the user first."
     )
 
 

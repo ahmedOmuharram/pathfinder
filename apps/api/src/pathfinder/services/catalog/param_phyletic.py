@@ -3,8 +3,7 @@
 from collections.abc import Mapping, Sequence
 from typing import cast
 
-import numpy as np
-from assistant_core.embeddings.model import get_embedding_model
+from assistant_core.embeddings.embedder import EmbeddingUnavailableError, get_embedder
 from assistant_core.platform.logging import get_logger
 from assistant_core.platform.types import JSONObject
 from pydantic import BaseModel, Field, JsonValue
@@ -123,7 +122,7 @@ def derive_phyletic_overrides(
     return binding
 
 
-def _match_phyletic_entries(tree: PhyleticTree, query: str) -> list[JSONObject]:
+async def _match_phyletic_entries(tree: PhyleticTree, query: str) -> list[JSONObject]:
     """Ranks the clade tree nodes against a query by semantic similarity.
 
     A node with children is a group, so it expands to its species.
@@ -132,37 +131,45 @@ def _match_phyletic_entries(tree: PhyleticTree, query: str) -> list[JSONObject]:
     if not all_entries:
         return []
 
-    ranked = _rank_by_semantic_similarity(query, all_entries)
+    ranked = await _rank_by_semantic_similarity(query, all_entries)
     return [
         {"code": code, "label": label, "leaf": is_leaf}
         for code, label, is_leaf in ranked[:_MAX_TREE_MATCHES]
     ]
 
 
-def _rank_by_semantic_similarity(
+async def _rank_by_semantic_similarity(
     query: str,
     candidates: list[tuple[str, str, bool]],
 ) -> list[tuple[str, str, bool]]:
     """Ranks the candidates by cosine similarity to the query.
 
-    The embedding model loads its weights on first use, so an unreachable cache
-    leaves the candidates in tree order.
+    An unreachable embedding API leaves the candidates in tree order.
     """
+    embedder = get_embedder()
     try:
-        model = get_embedding_model()
-        query_emb = np.array(list(model.embed([query])))
-        label_embs = np.array(list(model.embed([label for _, label, _ in candidates])))
-        sims = (label_embs @ query_emb.T).flatten()
-        ranked = sorted(zip(candidates, sims, strict=True), key=lambda x: -x[1])
-        return [c for c, _ in ranked]
-    except OSError as exc:
+        query_vector = await embedder.embed_query(query)
+        label_vectors = await embedder.embed_documents(
+            [label for _, label, _ in candidates],
+        )
+    except EmbeddingUnavailableError as exc:
         logger.warning(
-            "Biencoder ranking unavailable, returning unranked results",
+            "Phyletic ranking unavailable, returning unranked results",
             error=str(exc),
             query=query,
             num_candidates=len(candidates),
         )
         return candidates
+    scored = sorted(
+        zip(candidates, label_vectors, strict=True),
+        key=lambda pair: -_dot(query_vector, pair[1]),
+    )
+    return [candidate for candidate, _ in scored]
+
+
+def _dot(left: list[float], right: list[float]) -> float:
+    """Cosine similarity of two unit vectors."""
+    return sum(a * b for a, b in zip(left, right, strict=True))
 
 
 async def lookup_phyletic_codes(
@@ -183,7 +190,7 @@ async def lookup_phyletic_codes(
             record_types=record_types,
         )
         tree = phyletic_tree_of(response.search_data.parameters or [])
-        matches = _match_phyletic_entries(tree, query) if tree is not None else []
+        matches = await _match_phyletic_entries(tree, query) if tree is not None else []
 
         return {
             "query": query,

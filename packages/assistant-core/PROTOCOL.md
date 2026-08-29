@@ -1,6 +1,6 @@
 # The assistant runtime wire protocol
 
-**Version 1.3.0.** This document specifies the bytes a client exchanges with an
+**Version 1.3.1.** This document specifies the bytes a client exchanges with an
 assistant built on `assistant_core`. It is written so a consumer in any
 language can implement a client from this page alone, with no reference to the
 JavaScript SDK that inspired the chunk vocabulary. Section 14 records what each
@@ -213,6 +213,11 @@ carrying the same text, before `finish`. The `error` chunk stays the live
 signal a client shows while the turn streams; the part is its durable
 footprint, because the reduction rules of section 9 keep the part and keep no
 trace of the `error` chunk.
+
+A turn that ends with `finishReason: "error"` MUST first close every tool call
+it left open: one `tool-output-error` per call whose input was announced and
+whose result never arrived, carrying the same text as the `error` chunk. A
+client therefore never renders a running tool call inside a finished turn.
 
 ### 6.1 A turn suspended on a durable task
 
@@ -740,6 +745,7 @@ data: {"type":"done","reason":"completed"}
 
 | Version | What it added |
 | --- | --- |
+| `1.3.1` | A turn that ends with `finishReason: "error"` closes its open tool calls with `tool-output-error` first (section 6). Before this a turn killed inside a tool left the call with an input and no result, and a client rendered it as still running inside a turn that had finished. |
 | `1.3.0` | `data-turn-failed`, written beside the `error` chunk of a turn whose driver failed (section 6). The `error` chunk leaves no part behind, so before this a reloaded thread showed a truncated answer with nothing saying the turn died. |
 | `1.2.2` | A request's `messages` may carry the section 6 turn facts (`errors`, `aborted`, `finishReason`) on an assistant entry, and `resultProviderMetadata` on a tool part; the runtime ignores them instead of refusing the turn, so a thread rehydrated from the snapshot can keep talking. |
 | `1.2.1` | The repetition guard's refusal is ordinary `tool-output-available` output, never `tool-output-error` and never a model retry: a retry raised by the guard shares the tool's retry budget and could abort a run whose tool had already retried once. The `tool-output-error` example is removed because no reference turn produces the kind; the kind itself remains in the chunk table. |

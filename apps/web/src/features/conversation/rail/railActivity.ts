@@ -8,17 +8,21 @@ export interface RailActivity {
   scratchpadCount: number;
   taskCount: number;
   memoryCount: number;
+  edaCount: number;
   hasUserMessage: boolean;
 }
 
 const PART_TO_KEY: Record<
   string,
-  "ledgerCount" | "scratchpadCount" | "taskCount" | "memoryCount"
+  "ledgerCount" | "scratchpadCount" | "taskCount" | "memoryCount" | "edaCount"
 > = {
   "data-ledger-update": "ledgerCount",
   "data-scratchpad-updated": "scratchpadCount",
   "data-background-task-started": "taskCount",
   "data-memory-retrieved": "memoryCount",
+  "data-eda.analysis-state": "edaCount",
+  "data-eda.subset-preview": "edaCount",
+  "data-eda.viz": "edaCount",
 };
 
 /**
@@ -31,6 +35,7 @@ export function computeRailActivity(messages: readonly MessageLike[]): RailActiv
     scratchpadCount: 0,
     taskCount: 0,
     memoryCount: 0,
+    edaCount: 0,
     hasUserMessage: false,
   };
   for (const message of messages) {

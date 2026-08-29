@@ -242,6 +242,45 @@ class ConversationStrategyView(BaseModel):
 ABSENT_STRATEGY = ConversationStrategyView()
 
 
+class ConversationAnalysis(Base):
+    """The EDA analysis one chat thread has open.
+
+    The EDA user service is the SSOT for the document; this row is the
+    attachment. Ownership is the parent thread's, so there is no user column.
+    """
+
+    __tablename__ = "conversation_analyses"
+    __table_args__ = (Index("ix_conversation_analyses_dataset_id", "dataset_id"),)
+
+    conversation_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    site_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    dataset_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    analysis_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Grows by one on every authoring mutation, so two surfaces editing the
+    # same analysis always read a strictly increasing number.
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class ConversationAnalysisView(BaseModel):
+    """Read shape of a thread's bound analysis."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True, extra="forbid")
+
+    site_id: str
+    dataset_id: str
+    analysis_id: str
+    revision: int
+
+
 class Export(Base):
     """Temporary download artifact with TTL."""
 

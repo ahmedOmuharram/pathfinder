@@ -101,6 +101,9 @@ class StrategyDomainState(BaseModel):
     user_intent: UserIntent | None = None
     lead_next_state: Literal["await_user", "complete"] | None = None
     operational_spec: OperationalSpec | None = None
+    # The spec as the turn found it, written by the pre-turn hook. An edit's
+    # dispositions are checked against this and never against the model's memory.
+    spec_before_turn: OperationalSpec | None = None
     discovered_searches: dict[str, SearchOverview] = Field(default_factory=dict)
     verification_digest: VerificationDigest | None = None
     last_build_outcome: BuildOutcome | None = None
@@ -109,6 +112,18 @@ class StrategyDomainState(BaseModel):
     # was stale last turn is not stale after the next build.
     stale_build: StaleBuild | None = None
     created_gene_set_ids: list[str] = Field(default_factory=list)
+    # Studies already sent a full EDA filter sheet, with their vocabularies.
+    sheeted_eda_datasets: set[str] = Field(default_factory=set)
+
+    def mark_eda_sheet_shown(self, dataset_id: str) -> None:
+        self.sheeted_eda_datasets.add(dataset_id)
+
+    def was_eda_sheet_shown(self, dataset_id: str) -> bool:
+        """Whether this study's vocabularies were already sent this turn.
+
+        A second sheet repeats them at full size, so it is sent without them.
+        """
+        return dataset_id in self.sheeted_eda_datasets
 
 
 class PipelineState(TurnState):

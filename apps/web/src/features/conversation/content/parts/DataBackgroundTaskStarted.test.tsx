@@ -7,7 +7,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import type { TaskCompleted, TaskProgressChunk } from "@pathfinder/shared";
 
-import { ChatHelpersProvider, type ChatHelpers } from "../../runtime/chatHelpersContext";
+import {
+  ChatHelpersProvider,
+  type ChatHelpers,
+} from "../../runtime/chatHelpersContext";
 import { DataBackgroundTaskStarted } from "./DataBackgroundTaskStarted";
 
 vi.mock("next/navigation", () => ({

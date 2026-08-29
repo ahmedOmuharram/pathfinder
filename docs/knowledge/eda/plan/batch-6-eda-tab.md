@@ -4,8 +4,8 @@ title: "Batch 6: the EDA tab"
 description: The workbench-style EDA feature - study picker, subset cell with live counts and filter popovers, compute cell driven by the idempotent run-compute action, viz cell with client-side volcano thresholds, and step export into the current strategy.
 tags: [eda, pathfinder, plan, batch, frontend, feature, workbench]
 generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-status: draft
+verified: { by: claude-code/fable-5, at: 2026-08-28T00:00:00Z }
+status: accepted
 ---
 
 # Batch 6: the EDA tab
@@ -184,6 +184,56 @@ all three:
 The entry affordance is batch 7's: `DataEdaAnalysisState` grows an
 "Open in EDA tab" link, and a right-rail EDA panel is added there. This batch
 leaves the route reachable by URL and by batch 7's link.
+
+## Wire truths from batches 4 and 5 (lead note; the wire wins over any sketch below)
+
+Batch 4 shipped the routes and batch 5 wrapped them (`apps/web/src/lib/api/eda.ts`);
+the generated Kubb names and the real shapes differ from several sketches in
+this document, which were drafted before the routes existed. Where a task card
+below contradicts these, the wire wins and the implementer says so in the report:
+
+1. `POST /api/v1/eda/count` takes ONE `entityId` and answers
+   `{entityId, count, unfilteredCount}`. There is no `entityIds` array and no
+   `counts[]`; the subset cell calls `edaCount` once per entity it displays
+   (the counts are independent reads of the same subset). The analysis state
+   already carries every entity's counts at its revision, so the cell shows
+   `analysis.entityCounts` until its own live counts arrive, and never an
+   empty count.
+2. `siteId` is a QUERY parameter on `/studies`, `/studies/{id}`, `/count`,
+   `/distribution` and `/viz`; the batch-5 wrappers take one args object and
+   split query from body, so callers pass `siteId` beside the body fields.
+3. `POST /api/v1/eda/viz` also requires `conversationId` (query); it answers
+   `EdaVizResponse` (`edaVizResponseSchema`), a different schema from the chat
+   part's `EdaViz`.
+4. `GET /api/v1/conversations/{id}/eda` answers `ConversationEdaResponse`
+   (`conversationEdaResponseSchema`) and carries `analysis: EdaAnalysisState | null`
+   (added as batch-4 reconciliation); hydrate the store from `analysis` exactly
+   as a chat part does, never rebuild it from the flat fields.
+5. The `run-compute` action's `computation` is `EdaComputationDescriptor`
+   `{type, configuration}`, not `{appName, config}`; the job reference in the
+   response is `{jobId, taskId, appName, status}`.
+6. Generated type names: `EdaStudyListResponse`, `EdaStudyDetailResponse`,
+   `ConversationEdaResponse`, `EdaVizResponse`, `PatchConversationEdaMutationRequest`
+   (the union), `EdaAnalysisPatchResponse`; `EdaFilter` is imported from
+   `@pathfinder/shared/generated/types/EdaFilter`; `@pathfinder/shared` re-exports
+   `EdaSubsetPreview` and `EdaViz` as the part aliases.
+7. The chart foundation's palette check (dataviz validator, batch 5) found
+   three `--chart-*` slots under 3:1 contrast on the light ground; the charts
+   ship a legend and a hover tooltip, and the RELIEF CHANNEL is this batch's:
+   `VizCell` must offer a value readout beside every chart (the selected-gene
+   list with effect size and p-value for the volcano; the point table for the
+   scatter), never a chart alone. Batch 7's chat card inherits the same rule.
+8. Exporting on a thread with no strategy BEGINS that strategy: the EDA step is
+   the root and is pushed on that commit, exactly as the agent's first step is.
+   Exporting beside an existing strategy adds a DETACHED second root that is
+   persisted and not pushed, so the tab presents it as a draft with an attach
+   affordance, never as pushed. See
+   [the decision](../../decisions/an-eda-export-begins-the-strategy-when-none-exists.md)
+   and the lead note before Task B4.
+9. Every `EdaAnalysisState` field is required, on the wire and in the generated
+   type; `revision` is `number | null`. The batch-5 store (`snapshotOf`) stays
+   the one place that turns a payload into a snapshot, so every cell reads the
+   analysis from `useEdaStore` and no consumer writes a `??` fallback.
 
 ## Implementer A: shell, study picker, subset cell
 
@@ -2267,7 +2317,7 @@ describe("ComputeCell", () => {
       expect(bodies[0]).toEqual({
         action: "run-compute",
         computation: {
-          appName: "differentialexpression",
+          type: "differentialexpression",
           config: {
             identifierVariable: {
               entityId: "ENT_fd574cd6",
@@ -2703,6 +2753,18 @@ with singular and plural wording, plus
 
 - [ ] **Gates.** Run the ladder with
   `npx vitest run src/features/eda/cells/VizCell.test.tsx`.
+
+**Lead note before B4.** `export_analysis_step` commits through the strategy
+path, which (a) BEGINS the thread's strategy when it has none, with the EDA
+step as the root, pushed on that commit, and (b) on a thread that already has
+a strategy adds the EDA step as a DETACHED second root that is persisted but
+never pushed to WDK until it is attached or becomes the primary root. See
+[the decision](../../decisions/an-eda-export-begins-the-strategy-when-none-exists.md).
+`ExportStepButton` must therefore: stay enabled on a thread with no strategy,
+because the export creates one; and after a successful export beside an
+existing strategy, present the step as a draft root (no WDK count, an
+"Attach to strategy" affordance) rather than implying a push. Pin both with
+tests.
 
 ### Task B4: export as a step
 

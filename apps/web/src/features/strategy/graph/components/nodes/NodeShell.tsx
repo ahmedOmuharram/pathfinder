@@ -75,9 +75,8 @@ export function NodeShell({
   const hasError =
     snapshot.isInvalid || snapshot.isFailed || snapshot.wdkPushError != null;
   // A step whose search metadata never loaded has no name to show.
-  const title = step.displayName != null && step.displayName !== ""
-    ? step.displayName
-    : "Error";
+  const title =
+    step.displayName != null && step.displayName !== "" ? step.displayName : "Error";
   const isSyncing = snapshot.isBusy;
   const variantSlug = KIND_VAR[kind];
   const surfaceStyle: React.CSSProperties = {

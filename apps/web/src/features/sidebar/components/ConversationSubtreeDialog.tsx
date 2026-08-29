@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { formatSidebarTime } from "@/lib/formatTime";
+import { chatUrl } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 import type { SubtreeNode } from "./ConversationSubtree";
@@ -73,7 +74,7 @@ export function ConversationSubtreeDialog({
                 data-conversation-id={item.id}
               >
                 <Link
-                  href={`/${item.siteId}/conversation/${item.id}`}
+                  href={chatUrl(item.siteId, item.id)}
                   onClick={onClose}
                   className={cn(
                     "flex min-w-0 items-start gap-2 rounded px-2 py-2 pr-10 text-sm transition-colors",

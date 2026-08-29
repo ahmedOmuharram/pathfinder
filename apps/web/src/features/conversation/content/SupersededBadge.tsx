@@ -29,9 +29,7 @@ type RevisionCarrier = {
   content: readonly { type: string; name?: string }[];
 };
 
-export function revisionOfMessage(
-  m: RevisionCarrier | undefined,
-): string | null {
+export function revisionOfMessage(m: RevisionCarrier | undefined): string | null {
   if (m?.role !== "assistant") return null;
   for (let i = m.content.length - 1; i >= 0; i -= 1) {
     const part = m.content[i];

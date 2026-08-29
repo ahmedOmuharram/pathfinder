@@ -1,15 +1,21 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
 import { http } from "msw";
 import type { ReactNode } from "react";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/veupathdb/conversation/c1",
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 import { server } from "../../../vitest.msw-setup";
 import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 import { createTestWrapper } from "@/lib/query/testing";
+import { chatUrl } from "@/lib/routes";
 import { useSessionStore } from "@/state/useSessionStore";
 import { ChatThread } from "./ChatThread";
 
@@ -24,26 +30,48 @@ function StubRuntimeProvider({ children }: { children: ReactNode }) {
   );
 }
 
+function renderSignedInThread(conversationId: string) {
+  server.use(http.post("http://localhost:3000/api/v1/chat", () => new Response(null)));
+
+  const { queryClient, Wrapper } = createTestWrapper();
+  queryClient.setQueryData(
+    authStatusOptions(useSessionStore.getState().selectedSite).queryKey,
+    { signedIn: true },
+  );
+
+  render(
+    <StubRuntimeProvider>
+      <ChatThread conversationId={conversationId} />
+    </StubRuntimeProvider>,
+    { wrapper: Wrapper },
+  );
+}
+
 describe("ChatThread", () => {
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
   it("renders the thread root and composer with a textarea + send button", () => {
-    server.use(
-      http.post("http://localhost:3000/api/v1/chat", () => new Response(null)),
-    );
-
-    const { queryClient, Wrapper } = createTestWrapper();
-    queryClient.setQueryData(
-      authStatusOptions(useSessionStore.getState().selectedSite).queryKey,
-      { signedIn: true },
-    );
-
-    render(
-      <StubRuntimeProvider>
-        <ChatThread conversationId="c1" />
-      </StubRuntimeProvider>,
-      { wrapper: Wrapper },
-    );
+    renderSignedInThread("c1");
 
     expect(screen.getByPlaceholderText(/ask about strategies/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /send/i })).toBeInTheDocument();
+  });
+
+  it("replaces the url with the conversation's chat url when a run starts", async () => {
+    renderSignedInThread("c1");
+    expect(window.location.pathname).toBe("/");
+
+    fireEvent.change(screen.getByPlaceholderText(/ask about strategies/i), {
+      target: { value: "list kinases" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe(
+        chatUrl(useSessionStore.getState().selectedSite, "c1"),
+      );
+    });
   });
 });

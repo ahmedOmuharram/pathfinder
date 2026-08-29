@@ -6,14 +6,13 @@ from uuid import UUID
 from assistant_core.platform.db import async_session_factory
 
 from pathfinder.ai.graph.runtime import Context
-from pathfinder.domain.strategy.strategy_ast import (
-    PersistedStrategyGraph,
-    StrategyAst,
-)
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
-from pathfinder.services.strategies.session_factory import build_strategy_session
+from pathfinder.services.strategies.session_factory import (
+    build_strategy_session,
+    persisted_graph,
+)
 
 
 async def build_worker_runtime_context(
@@ -31,22 +30,9 @@ async def build_worker_runtime_context(
         raise LookupError(msg)
 
     conversation, strategy = found
-    plan_payload: StrategyAst | None = None
-    raw_ast = strategy.strategy_ast
-    if raw_ast and "root" in raw_ast:
-        try:
-            plan_payload = StrategyAst.model_validate(raw_ast)
-        except ValueError, KeyError, TypeError:
-            plan_payload = None
-
     strategy_session = build_strategy_session(
         site_id=conversation.site_id,
-        strategy_graph=PersistedStrategyGraph(
-            id=str(conversation.id),
-            name=conversation.name,
-            strategy_ast=plan_payload,
-            wdk_strategy_id=strategy.wdk_strategy_id,
-        ),
+        strategy_graph=persisted_graph(conversation, strategy),
     )
 
     return Context(

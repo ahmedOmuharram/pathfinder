@@ -32,6 +32,7 @@ vi.mock("@/features/strategy/mutations", () => ({
 }));
 
 import { StrategyGraphProvider } from "@/features/strategy/graph/StrategyGraphContext";
+import { chatUrl, strategyCanvasUrl } from "@/lib/routes";
 import { useStrategyKeyboardShortcuts } from "./useStrategyKeyboardShortcuts";
 
 function makeStep(id: string, extras: Partial<Step> = {}): Step {
@@ -204,14 +205,14 @@ describe("useStrategyKeyboardShortcuts", () => {
     renderShortcuts();
     fireEvent.keyDown(document, { key: "g" });
     fireEvent.keyDown(document, { key: "s" });
-    expect(pushMock).toHaveBeenCalledWith("/plasmodb/conversation/strat-1/strategy");
+    expect(pushMock).toHaveBeenCalledWith(strategyCanvasUrl("plasmodb", "strat-1"));
   });
 
   it("g c sequence navigates to chat route", () => {
     renderShortcuts();
     fireEvent.keyDown(document, { key: "g" });
     fireEvent.keyDown(document, { key: "c" });
-    expect(pushMock).toHaveBeenCalledWith("/plasmodb/conversation/strat-1");
+    expect(pushMock).toHaveBeenCalledWith(chatUrl("plasmodb", "strat-1"));
   });
 
   it("Cmd+K invokes onOpenQuickSwitcher", () => {
@@ -236,7 +237,7 @@ describe("useStrategyKeyboardShortcuts", () => {
     });
     fireEvent.keyDown(document, { key: "Escape" });
     expect(setSelectedStep).toHaveBeenCalledWith(null);
-    expect(pushMock).toHaveBeenCalledWith("/plasmodb/conversation/strat-1/strategy");
+    expect(pushMock).toHaveBeenCalledWith(strategyCanvasUrl("plasmodb", "strat-1"));
     pathnameMock = "/plasmodb/conversation/strat-1/strategy";
   });
 

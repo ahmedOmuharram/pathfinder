@@ -5,13 +5,13 @@ description: The two seams by which PathFinder can adopt EDA, what a workbench-s
 tags: [eda, pathfinder, integration, proposal, workbench, agents]
 generated: { by: claude-code/fable-5, at: 2026-08-27T00:00:00Z }
 verified: { by: claude-code/fable-5, at: 2026-08-27T00:00:00Z }
-status: draft
+status: accepted
 ---
 
 # PathFinder EDA integration concept
 
-Status: proposal from the 2026-08-27 research pass. Nothing here is committed.
-The facts it stands on are in [what-eda-is.md](what-eda-is.md),
+Status: implemented by [the EDA integration plan](plan/index.md). The facts it
+stands on are in [what-eda-is.md](what-eda-is.md),
 [eda-wdk-bridge.md](eda-wdk-bridge.md), and [rest-surface.md](rest-surface.md).
 
 ## The one-sentence position
@@ -65,26 +65,33 @@ ships a full workspace. PathFinder's version of "build the EDA, then use it in
 strategies" is a new frontend feature (a tab beside the workbench) that renders
 an AI-guided notebook over our own EDA client:
 
-- **Study picker** over `/studies` (759 on PlasmoDB), searchable; the
-  displayName + description text is embedding-friendly and belongs in the
-  same vector index pattern as our catalog.
+- **Study picker** over `/studies` (759 on PlasmoDB), searchable, in
+  `apps/web/src/features/eda/StudyPicker.tsx`; the displayName + description
+  text is embedded in the same vector index pattern as our catalog
+  (`integrations/embeddings/study_index.py`).
 - **Subset cell**: entity tree + variable browser, filter chips, live counts
-  via `/count` and `/distribution` per interaction. This is the cell agents
+  via `/count` and `/distribution` per interaction, in
+  `apps/web/src/features/eda/cells/SubsetCell.tsx`. This is the cell agents
   and users co-edit; its state IS `descriptor.subset.descriptor`.
 - **Compute cell**: pick app + collection variable + comparator, submit via
-  `/computes`, progress through our existing `task_progress` SSE rail (the
-  EDA job model maps one-to-one onto `background_tasks`).
-- **Visualization cell**: render the server-computed data (volcano
-  statistics, histogram bins) with our own chart components; EDA sends data,
-  not images, so we are not importing web-monorepo React.
-- **Export as step**: serialize the notebook state to `eda_analysis_spec` and
-  insert a `GenesByEdaSubset` / `GenesByEdaVizWithCompute` step into the
-  current strategy; thresholds picked on the volcano become the step's
-  parameters, exactly as upstream does it.
-- **Persistence**: save through `/users/{uid}/analyses/{project}` so analyses
+  `/computes`, in `apps/web/src/features/eda/cells/ComputeCell.tsx`; the tab
+  polls by repeating the idempotent `run-compute` action, and the chat's
+  durable `run_eda_compute` rides `background_tasks`.
+- **Visualization cell**: renders the server-computed data with our own
+  ECharts components, in `apps/web/src/features/eda/cells/VizCell.tsx`; EDA
+  sends data, not images, so we are not importing web-monorepo React. The
+  `data-eda.viz` part carries a point cloud, so volcano and scatter render
+  and histogram, bar and boxplot get a named notice instead.
+- **Export as step**: serializes the notebook state to `eda_analysis_spec` and
+  inserts a `GenesByEdaSubset` / `GenesByEdaVizWithCompute` step into the
+  current strategy, in `apps/web/src/features/eda/ExportStepButton.tsx` and
+  `apps/api/src/pathfinder/services/eda/steps.py`; thresholds picked on the
+  volcano become the step's parameters, exactly as upstream does it. On a
+  thread with no strategy the export begins one.
+- **Persistence**: saves through `/users/{uid}/analyses/{project}` so analyses
   are visible on the VEuPathDB site too. Upstream stays the SSOT for user
-  artifacts, as with strategies; PathFinder stores only conversation-side
-  references.
+  artifacts, as with strategies; PathFinder stores only the
+  `conversation_analyses` binding and its revision counter.
 
 Upstream's notebook presets (`differentialExpression`, `wgcnaCorrelation`,
 `antibodyArray` in `web-monorepo/packages/libs/eda/src/lib/notebook/`) encode

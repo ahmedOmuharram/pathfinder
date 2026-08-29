@@ -2,36 +2,34 @@ import { describe, expect, test } from "vitest";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { applyOperation } from "./apply";
 
-const strategy = (steps: Step[]): Strategy =>
-  ({
-    id: "s",
-    name: "T",
-    siteId: "plasmodb",
-    recordType: "gene",
-    steps,
-    rootStepId: null,
-    isSaved: false,
-    description: null,
-    wdkStrategyId: null,
-    wdkUrl: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
+const strategy = (steps: Step[]): Strategy => ({
+  id: "s",
+  name: "T",
+  siteId: "plasmodb",
+  recordType: "gene",
+  steps,
+  rootStepId: null,
+  isSaved: false,
+  description: null,
+  wdkStrategyId: null,
+  wdkUrl: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+});
 
 const step = (
   id: string,
   primary?: string,
   secondary?: string,
   kind: "search" | "transform" | "combine" = "search",
-): Step =>
-  ({
-    id,
-    kind,
-    displayName: id,
-    primaryInputStepId: primary ?? null,
-    secondaryInputStepId: secondary ?? null,
-    isFiltered: false,
-  });
+): Step => ({
+  id,
+  kind,
+  displayName: id,
+  primaryInputStepId: primary ?? null,
+  secondaryInputStepId: secondary ?? null,
+  isFiltered: false,
+});
 
 describe("applyOperation: addLeaf", () => {
   test("new-root mode appends step", () => {

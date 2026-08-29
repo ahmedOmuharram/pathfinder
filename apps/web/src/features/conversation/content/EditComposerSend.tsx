@@ -12,6 +12,7 @@ import { revertToMessage } from "@pathfinder/shared/generated/hooks/useRevertToM
 import { submitProductAction } from "@pathfinder/shared/generated/hooks/useSubmitProductAction";
 import { strategyQueryKey } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
+import { chatUrl } from "@/lib/routes";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { extractTraceId } from "../runtime/traceId";
@@ -50,7 +51,7 @@ export function EditComposerBranchOrRevert() {
         content: composerText.trim(),
       });
       setDialogOpen(false);
-      router.push(`/${siteId}/conversation/${fork.id}`);
+      router.push(chatUrl(siteId, fork.id));
     },
     onError: (err) => {
       toast.error(toUserMessage(err, "Failed to branch"));

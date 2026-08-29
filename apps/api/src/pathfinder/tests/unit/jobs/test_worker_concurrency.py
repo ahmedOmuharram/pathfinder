@@ -83,7 +83,6 @@ async def _run_amain(worker_concurrency: int) -> AsyncMock:
         patch("pathfinder.jobs.worker.setup_logging"),
         patch("pathfinder.jobs.worker.install_procrastinate_redaction"),
         patch("pathfinder.jobs.worker.register_all_tools"),
-        patch("pathfinder.jobs.worker._warm_up", new=AsyncMock()),
         patch(
             "pathfinder.jobs.worker.get_settings",
             return_value=MagicMock(worker_concurrency=worker_concurrency),
