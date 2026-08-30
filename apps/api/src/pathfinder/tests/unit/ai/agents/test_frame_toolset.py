@@ -89,6 +89,7 @@ def _refuse_param_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _ctx(state: AgentToolState) -> MagicMock:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps.agent_state = state
     return ctx
 
@@ -127,6 +128,7 @@ def test_frame_toolset_exposes_lookup_phyletic_codes() -> None:
 
 def test_frame_enum_overrides_guards_get_parameter_options_search_name() -> None:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps.agent_state.candidate_search_names.return_value = ["GenesByOrthologs"]
     ctx.deps.agent_state.discovered_search_names.return_value = []
     # No search has been abandoned this turn; a bare MagicMock here would stand
@@ -246,6 +248,7 @@ def test_drop_criterion_unknown_id_raises_model_retry() -> None:
 
 def _frame_ctx(state: AgentToolState) -> MagicMock:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps.agent_state = state
     ctx.deps.site_id = "plasmodb"
     graph = MagicMock()
@@ -320,13 +323,15 @@ async def test_set_criterion_skips_validation_when_open_slots(
     _serve_nothing(monkeypatch)
     _serve_bare_definition(monkeypatch)
 
-    result = await set_criterion(
-        _frame_ctx(st),
-        criterion_id="c1",
-        text="x",
-        search_name="GenesByRNASeq",
-        params={},
-    )
+    result = (
+        await set_criterion(
+            _frame_ctx(st),
+            criterion_id="c1",
+            text="x",
+            search_name="GenesByRNASeq",
+            params={},
+        )
+    ).return_value
     assert validated is False
     assert any(s.param_name == "samples" for s in result.open_slots)
     assert st.operational_spec_draft.criteria[0].id == "c1"
@@ -353,13 +358,15 @@ async def test_set_criterion_binds_when_resolved_params_valid(
     _serve_nothing(monkeypatch)
     _serve_bare_definition(monkeypatch)
 
-    result = await set_criterion(
-        _frame_ctx(st),
-        criterion_id="c1",
-        text="x",
-        search_name="GenesWithSignalPeptide",
-        params={},
-    )
+    result = (
+        await set_criterion(
+            _frame_ctx(st),
+            criterion_id="c1",
+            text="x",
+            search_name="GenesWithSignalPeptide",
+            params={},
+        )
+    ).return_value
     assert isinstance(result, SetCriterionResult)
     assert result.criterion_id == "c1"
     assert result.search_name == "GenesWithSignalPeptide"
@@ -376,12 +383,14 @@ async def test_set_criterion_binds_when_resolved_params_valid(
 async def _sheet_call(
     state: AgentToolState, criterion_id: str = "c1"
 ) -> SetCriterionResult:
-    return await set_criterion(
-        _frame_ctx(state),
-        criterion_id=criterion_id,
-        text="kinases",
-        search_name="GenesByText",
-    )
+    return (
+        await set_criterion(
+            _frame_ctx(state),
+            criterion_id=criterion_id,
+            text="kinases",
+            search_name="GenesByText",
+        )
+    ).return_value
 
 
 class TestTheSheetComesBackFromSetCriterion:
@@ -676,9 +685,11 @@ class TestNestedBranches:
     async def test_a_single_leaf_is_still_valid(self) -> None:
         st = AgentToolState()
 
-        result = await set_structure(
-            _ctx(st), root=StructureNode(kind="leaf", criterion_id="only")
-        )
+        result = (
+            await set_structure(
+                _ctx(st), root=StructureNode(kind="leaf", criterion_id="only")
+            )
+        ).return_value
 
         root = _drafted_root(st)
         assert root.kind == "leaf"
@@ -689,24 +700,26 @@ class TestNestedBranches:
     async def test_it_counts_every_criterion_in_the_tree(self) -> None:
         st = AgentToolState()
 
-        result = await set_structure(
-            _ctx(st),
-            root=StructureNode(
-                kind="combine",
-                operator=CombineOp.INTERSECT,
-                inputs=[
-                    StructureNode(kind="leaf", criterion_id="a"),
-                    StructureNode(
-                        kind="combine",
-                        operator=CombineOp.UNION,
-                        inputs=[
-                            StructureNode(kind="leaf", criterion_id="b"),
-                            StructureNode(kind="leaf", criterion_id="c"),
-                        ],
-                    ),
-                ],
-            ),
-        )
+        result = (
+            await set_structure(
+                _ctx(st),
+                root=StructureNode(
+                    kind="combine",
+                    operator=CombineOp.INTERSECT,
+                    inputs=[
+                        StructureNode(kind="leaf", criterion_id="a"),
+                        StructureNode(
+                            kind="combine",
+                            operator=CombineOp.UNION,
+                            inputs=[
+                                StructureNode(kind="leaf", criterion_id="b"),
+                                StructureNode(kind="leaf", criterion_id="c"),
+                            ],
+                        ),
+                    ],
+                ),
+            )
+        ).return_value
 
         assert result.criteria_combined == 3
 
@@ -1114,18 +1127,20 @@ class TestEveryVisibleRequiredParamIsDecided:
     ) -> None:
         _serve_and_resolve(monkeypatch, _genes_by_text)
 
-        result = await set_criterion(
-            _frame_ctx(AgentToolState()),
-            criterion_id="c1",
-            text="kinases",
-            search_name="GenesByText",
-            params={
-                "text_expression": "kinase",
-                "text_search_organism": ["Plasmodium"],
-                "document_type": None,
-                "text_fields": None,
-            },
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(AgentToolState()),
+                criterion_id="c1",
+                text="kinases",
+                search_name="GenesByText",
+                params={
+                    "text_expression": "kinase",
+                    "text_search_organism": ["Plasmodium"],
+                    "document_type": None,
+                    "text_fields": None,
+                },
+            )
+        ).return_value
 
         assert "document_type" in result.defaulted_params
         assert result.resolved_params["text_expression"] == "kinase"
@@ -1207,13 +1222,15 @@ class TestAStatedQuantityLeftNullIsARetry:
         _serve_and_resolve(monkeypatch, _by_percentile)
         st = AgentToolState()
 
-        result = await set_criterion(
-            _frame_ctx(st),
-            criterion_id="c1",
-            text="top 10 percent by expression",
-            search_name="GenesByExpressionPercentile",
-            params={"min_expression_percentile": "90"},
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(st),
+                criterion_id="c1",
+                text="top 10 percent by expression",
+                search_name="GenesByExpressionPercentile",
+                params={"min_expression_percentile": "90"},
+            )
+        ).return_value
 
         assert result.resolved_params == {"min_expression_percentile": "90"}
         assert result.defaulted_params == []
@@ -1226,13 +1243,15 @@ class TestAStatedQuantityLeftNullIsARetry:
         _serve_and_resolve(monkeypatch, _by_percentile)
         st = AgentToolState()
 
-        result = await set_criterion(
-            _frame_ctx(st),
-            criterion_id="c1",
-            text="highly expressed genes",
-            search_name="GenesByExpressionPercentile",
-            params={"min_expression_percentile": None},
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(st),
+                criterion_id="c1",
+                text="highly expressed genes",
+                search_name="GenesByExpressionPercentile",
+                params={"min_expression_percentile": None},
+            )
+        ).return_value
 
         assert result.resolved_params == {"min_expression_percentile": "80"}
         assert result.defaulted_params == ["min_expression_percentile"]
@@ -1315,18 +1334,20 @@ class TestAProposedValueMustBeOnTheSheet:
     ) -> None:
         _serve_and_resolve(monkeypatch, _genes_by_text)
 
-        result = await set_criterion(
-            _frame_ctx(AgentToolState()),
-            criterion_id="c1",
-            text="kinases",
-            search_name="GenesByText",
-            params={
-                "text_expression": "kinase",
-                "text_search_organism": ["P. falciparum 3D7"],
-                "document_type": None,
-                "text_fields": None,
-            },
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(AgentToolState()),
+                criterion_id="c1",
+                text="kinases",
+                search_name="GenesByText",
+                params={
+                    "text_expression": "kinase",
+                    "text_search_organism": ["P. falciparum 3D7"],
+                    "document_type": None,
+                    "text_fields": None,
+                },
+            )
+        ).return_value
 
         assert (
             result.resolved_params["text_search_organism"]
@@ -1354,13 +1375,15 @@ class TestAnAccessionNamesItsEntry:
     ) -> None:
         _serve_and_resolve(monkeypatch, _by_domain)
 
-        result = await set_criterion(
-            _frame_ctx(AgentToolState()),
-            criterion_id="c1",
-            text="kinase domain genes",
-            search_name="GenesByInterproDomain",
-            params={"domain_typeahead": "PF00069"},
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(AgentToolState()),
+                criterion_id="c1",
+                text="kinase domain genes",
+                search_name="GenesByInterproDomain",
+                params={"domain_typeahead": "PF00069"},
+            )
+        ).return_value
 
         assert result.resolved_params["domain_typeahead"] == "PF00069 : Pkinase"
 
@@ -1446,13 +1469,15 @@ class TestADependentVocabularyIsRedecided:
         _serve_and_resolve(monkeypatch, _aggregation_under_samples)
         st = AgentToolState()
 
-        result = await set_criterion(
-            _frame_ctx(st),
-            criterion_id="c1",
-            text="aggregate expression over the sampled patients",
-            search_name="GenesByRNASeq",
-            params={"samples_generic": ["sampleA"], "min_max_avg_ref": None},
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(st),
+                criterion_id="c1",
+                text="aggregate expression over the sampled patients",
+                search_name="GenesByRNASeq",
+                params={"samples_generic": ["sampleA"], "min_max_avg_ref": None},
+            )
+        ).return_value
 
         assert [entry.name for entry in result.redecide] == ["min_max_avg_ref"]
         fresh = [option.value for option in result.redecide[0].vocabulary]
@@ -1466,13 +1491,15 @@ class TestADependentVocabularyIsRedecided:
         _serve_and_resolve(monkeypatch, _aggregation_under_samples)
         st = AgentToolState()
 
-        result = await set_criterion(
-            _frame_ctx(st),
-            criterion_id="c1",
-            text="aggregate expression over the sampled patients",
-            search_name="GenesByRNASeq",
-            params={"samples_generic": ["sampleA"], "min_max_avg_ref": "minimum2"},
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(st),
+                criterion_id="c1",
+                text="aggregate expression over the sampled patients",
+                search_name="GenesByRNASeq",
+                params={"samples_generic": ["sampleA"], "min_max_avg_ref": "minimum2"},
+            )
+        ).return_value
 
         assert result.redecide == []
         assert result.resolved_params["min_max_avg_ref"] == "minimum2"
@@ -1485,18 +1512,20 @@ class TestADependentVocabularyIsRedecided:
     ) -> None:
         _serve_and_resolve(monkeypatch, _genes_by_text)
 
-        result = await set_criterion(
-            _frame_ctx(AgentToolState()),
-            criterion_id="c1",
-            text="kinases",
-            search_name="GenesByText",
-            params={
-                "text_expression": "kinase",
-                "text_search_organism": ["Plasmodium"],
-                "document_type": None,
-                "text_fields": None,
-            },
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(AgentToolState()),
+                criterion_id="c1",
+                text="kinases",
+                search_name="GenesByText",
+                params={
+                    "text_expression": "kinase",
+                    "text_search_organism": ["Plasmodium"],
+                    "document_type": None,
+                    "text_fields": None,
+                },
+            )
+        ).return_value
 
         assert result.redecide == []
 
@@ -1504,13 +1533,15 @@ class TestADependentVocabularyIsRedecided:
 async def _aggregation_call(
     state: AgentToolState, params: ParamProposals
 ) -> SetCriterionResult:
-    return await set_criterion(
-        _frame_ctx(state),
-        criterion_id="c1",
-        text="aggregate expression over the sampled patients",
-        search_name="GenesByRNASeq",
-        params=params,
-    )
+    return (
+        await set_criterion(
+            _frame_ctx(state),
+            criterion_id="c1",
+            text="aggregate expression over the sampled patients",
+            search_name="GenesByRNASeq",
+            params=params,
+        )
+    ).return_value
 
 
 class TestARedecidedParamIsDecidedOnce:
@@ -1587,13 +1618,15 @@ class TestARedecidedParamIsDecidedOnce:
         await _aggregation_call(
             st, {"samples_generic": ["sampleA"], "min_max_avg_ref": None}
         )
-        other = await set_criterion(
-            _frame_ctx(st),
-            criterion_id="c2",
-            text="a second aggregate criterion",
-            search_name="GenesByRNASeq",
-            params={"samples_generic": ["sampleA"], "min_max_avg_ref": None},
-        )
+        other = (
+            await set_criterion(
+                _frame_ctx(st),
+                criterion_id="c2",
+                text="a second aggregate criterion",
+                search_name="GenesByRNASeq",
+                params={"samples_generic": ["sampleA"], "min_max_avg_ref": None},
+            )
+        ).return_value
 
         assert [entry.name for entry in other.redecide] == ["min_max_avg_ref"]
 
@@ -1609,13 +1642,15 @@ class TestARedecidedParamIsDecidedOnce:
         await _aggregation_call(
             st, {"samples_generic": ["sampleA"], "min_max_avg_ref": None}
         )
-        elsewhere = await set_criterion(
-            _frame_ctx(st),
-            criterion_id="c1",
-            text="the same criterion on another search",
-            search_name="GenesByRNASeqAlternative",
-            params={"samples_generic": ["sampleA"], "min_max_avg_ref": None},
-        )
+        elsewhere = (
+            await set_criterion(
+                _frame_ctx(st),
+                criterion_id="c1",
+                text="the same criterion on another search",
+                search_name="GenesByRNASeqAlternative",
+                params={"samples_generic": ["sampleA"], "min_max_avg_ref": None},
+            )
+        ).return_value
 
         assert [entry.name for entry in elsewhere.redecide] == ["min_max_avg_ref"]
 
@@ -1753,13 +1788,15 @@ def _serve_phyletic(monkeypatch: pytest.MonkeyPatch) -> list[SearchContext]:
 async def _phyletic_call(
     state: AgentToolState, params: dict[str, str | list[str] | None]
 ) -> SetCriterionResult:
-    return await set_criterion(
-        _frame_ctx(state),
-        criterion_id="c_ortho",
-        text="present in P. falciparum, absent from mammals",
-        search_name="GenesByOrthologPattern",
-        params=params,
-    )
+    return (
+        await set_criterion(
+            _frame_ctx(state),
+            criterion_id="c_ortho",
+            text="present in P. falciparum, absent from mammals",
+            search_name="GenesByOrthologPattern",
+            params=params,
+        )
+    ).return_value
 
 
 class TestThePhyleticPatternIsDerived:
@@ -1978,18 +2015,20 @@ class TestThePhyleticPatternIsDerived:
             ),
         )
 
-        result = await set_criterion(
-            _frame_ctx(registered),
-            criterion_id="c1",
-            text="kinases",
-            search_name="GenesByText",
-            params={
-                "text_expression": "kinase",
-                "text_search_organism": ["Plasmodium"],
-                "document_type": None,
-                "text_fields": None,
-            },
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(registered),
+                criterion_id="c1",
+                text="kinases",
+                search_name="GenesByText",
+                params={
+                    "text_expression": "kinase",
+                    "text_search_organism": ["Plasmodium"],
+                    "document_type": None,
+                    "text_fields": None,
+                },
+            )
+        ).return_value
 
         assert result.resolved_params["text_expression"] == "kinase"
         assert "profile_pattern" not in result.resolved_params
@@ -2053,13 +2092,15 @@ def _serve_ec(monkeypatch: pytest.MonkeyPatch) -> None:
 async def _ec_call(
     state: AgentToolState, params: dict[str, str | list[str] | None]
 ) -> SetCriterionResult:
-    return await set_criterion(
-        _frame_ctx(state),
-        criterion_id="c_ec",
-        text="protein kinases",
-        search_name="GenesByEcNumber",
-        params=params,
-    )
+    return (
+        await set_criterion(
+            _frame_ctx(state),
+            criterion_id="c_ec",
+            text="protein kinases",
+            search_name="GenesByEcNumber",
+            params=params,
+        )
+    ).return_value
 
 
 def _serve_go(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2073,13 +2114,15 @@ def _serve_go(monkeypatch: pytest.MonkeyPatch) -> None:
 async def _go_call(
     state: AgentToolState, params: dict[str, str | list[str] | None]
 ) -> SetCriterionResult:
-    return await set_criterion(
-        _frame_ctx(state),
-        criterion_id="c_go",
-        text="protein kinase activity",
-        search_name="GenesByGoTerm",
-        params=params,
-    )
+    return (
+        await set_criterion(
+            _frame_ctx(state),
+            criterion_id="c_go",
+            text="protein kinase activity",
+            search_name="GenesByGoTerm",
+            params=params,
+        )
+    ).return_value
 
 
 class TestOneCriterionOfferedTwiceIsStatedOnce:
@@ -2195,17 +2238,19 @@ class TestOneCriterionOfferedTwiceIsStatedOnce:
         # The off value reaches only the free-text half of a declared pair.
         _serve_and_resolve(monkeypatch, _genes_by_text)
 
-        result = await set_criterion(
-            _frame_ctx(AgentToolState()),
-            criterion_id="c1",
-            text="kinases",
-            search_name="GenesByText",
-            params={
-                "text_expression": "kinase",
-                "text_search_organism": ["Plasmodium"],
-                "document_type": None,
-                "text_fields": None,
-            },
-        )
+        result = (
+            await set_criterion(
+                _frame_ctx(AgentToolState()),
+                criterion_id="c1",
+                text="kinases",
+                search_name="GenesByText",
+                params={
+                    "text_expression": "kinase",
+                    "text_search_organism": ["Plasmodium"],
+                    "document_type": None,
+                    "text_fields": None,
+                },
+            )
+        ).return_value
 
         assert "N/A" not in result.resolved_params.values()

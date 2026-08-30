@@ -183,6 +183,14 @@ describe("NodeShell motion stagger", () => {
     expect((wrapper as HTMLElement | null)?.style.height).toBe("112px");
   });
 
+  it("outlines an orphan step with the warning token", () => {
+    const step = makeStep({ id: "orph" });
+    const { container } = renderShell({ step, isOrphan: true });
+    const surface = container.querySelector('[data-testid="rf-node-orph"] > div');
+    expect(surface?.className).toContain("!border-warning/60");
+    expect(surface?.className).not.toContain("amber");
+  });
+
   it("exposes the enter-delay index via data-enter-delay-index for inspection", () => {
     const step = makeStep({ id: "n2" });
     const { container } = renderShell({ step, enterDelayIndex: 2 });

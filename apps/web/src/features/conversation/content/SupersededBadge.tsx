@@ -64,10 +64,10 @@ export function SupersededBadge(): ReactElement | null {
     <div
       data-testid="superseded-badge"
       title="The strategy changed after this answer, so any counts here are historical."
-      className="inline-flex items-center gap-1.5 self-start rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400"
+      className="inline-flex items-center gap-1.5 self-start py-0.5 text-[11px] text-warning"
     >
       <span className="font-medium">Superseded</span>
-      <span aria-hidden>·</span>
+      <span aria-hidden>-</span>
       <span>strategy changed since this answer</span>
     </div>
   );

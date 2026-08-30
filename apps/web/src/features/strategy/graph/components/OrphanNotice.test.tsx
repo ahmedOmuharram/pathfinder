@@ -18,6 +18,14 @@ describe("OrphanNotice", () => {
     expect(screen.getByText(/3 disconnected steps/)).toBeTruthy();
   });
 
+  it("paints the notice from the warning token with no alpha on its text", () => {
+    render(<OrphanNotice count={2} firstOrphanId="o1" />);
+    const notice = screen.getByTestId("orphan-notice");
+    expect(notice).toHaveClass("border-warning/40", "bg-warning/10", "text-warning");
+    expect(notice.className).not.toContain("amber");
+    expect(notice.className).not.toContain("text-warning/");
+  });
+
   it("calls onClickFirst when View is clicked", async () => {
     const onClickFirst = vi.fn();
     render(

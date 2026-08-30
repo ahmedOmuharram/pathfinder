@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CHART_TOKEN_FALLBACKS } from "./chartTheme";
+import { DISTINCT_CHART_TOKENS } from "./__fixtures__/chartTokens";
 import { buildCategoryOption } from "./category.options";
 
 const distribution = [
@@ -22,7 +22,7 @@ describe("buildCategoryOption", () => {
       series: distribution,
       stacked: true,
       valueLabel: "Records",
-      tokens: CHART_TOKEN_FALLBACKS,
+      tokens: DISTINCT_CHART_TOKENS,
     });
     expect(option.categories).toEqual(["[0.0,5.0)", "[5.0,10.0)", "[10.0,15.0)"]);
     expect(option.series[0]?.values).toEqual([13, 3254, 31990]);
@@ -33,7 +33,7 @@ describe("buildCategoryOption", () => {
       series: overlaid,
       stacked: true,
       valueLabel: "Samples",
-      tokens: CHART_TOKEN_FALLBACKS,
+      tokens: DISTINCT_CHART_TOKENS,
     });
     expect(option.categories).toEqual(["wildtype", "mutant", "double mutant"]);
   });
@@ -43,7 +43,7 @@ describe("buildCategoryOption", () => {
       series: overlaid,
       stacked: true,
       valueLabel: "Samples",
-      tokens: CHART_TOKEN_FALLBACKS,
+      tokens: DISTINCT_CHART_TOKENS,
     });
     expect(option.series[0]?.values).toEqual([2, 2, 0]);
     expect(option.series[1]?.values).toEqual([0, 5, 1]);
@@ -54,7 +54,7 @@ describe("buildCategoryOption", () => {
       series: [{ name: "Short", labels: ["a", "b"], values: [1] }],
       stacked: false,
       valueLabel: "Records",
-      tokens: CHART_TOKEN_FALLBACKS,
+      tokens: DISTINCT_CHART_TOKENS,
     });
     expect(option.categories).toEqual(["a"]);
     expect(option.series[0]?.values).toEqual([1]);
@@ -66,7 +66,7 @@ describe("buildCategoryOption", () => {
         series: overlaid,
         stacked: true,
         valueLabel: "Samples",
-        tokens: CHART_TOKEN_FALLBACKS,
+        tokens: DISTINCT_CHART_TOKENS,
       }).series.map((s) => s.stack),
     ).toEqual(["total", "total"]);
     expect(
@@ -74,7 +74,7 @@ describe("buildCategoryOption", () => {
         series: overlaid,
         stacked: false,
         valueLabel: "Samples",
-        tokens: CHART_TOKEN_FALLBACKS,
+        tokens: DISTINCT_CHART_TOKENS,
       }).series.map((s) => s.stack),
     ).toEqual([null, null]);
   });
@@ -84,11 +84,11 @@ describe("buildCategoryOption", () => {
       series: overlaid,
       stacked: false,
       valueLabel: "Samples",
-      tokens: CHART_TOKEN_FALLBACKS,
+      tokens: DISTINCT_CHART_TOKENS,
     });
     expect(option.series.map((s) => s.color)).toEqual([
-      CHART_TOKEN_FALLBACKS.series[0],
-      CHART_TOKEN_FALLBACKS.series[1],
+      DISTINCT_CHART_TOKENS.series[0],
+      DISTINCT_CHART_TOKENS.series[1],
     ]);
   });
 
@@ -102,9 +102,9 @@ describe("buildCategoryOption", () => {
       series: seven,
       stacked: false,
       valueLabel: "Records",
-      tokens: CHART_TOKEN_FALLBACKS,
+      tokens: DISTINCT_CHART_TOKENS,
     });
-    expect(option.series[6]?.color).toBe(CHART_TOKEN_FALLBACKS.series[0]);
-    expect(option.series[5]?.color).toBe(CHART_TOKEN_FALLBACKS.series[5]);
+    expect(option.series[6]?.color).toBe(DISTINCT_CHART_TOKENS.series[0]);
+    expect(option.series[5]?.color).toBe(DISTINCT_CHART_TOKENS.series[5]);
   });
 });

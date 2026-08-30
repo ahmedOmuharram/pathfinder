@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 
 import { setQueryErrorHandler } from "@/lib/query/client";
-import { handleWdkLoginRequired, useAuthGateStore } from "@/state/useAuthGateStore";
+import { handleWdkAuthRefusal, useAuthGateStore } from "@/state/useAuthGateStore";
 import { LoginModal } from "./LoginModal";
 
 interface VeupathdbSignInGateProps {
@@ -28,7 +28,7 @@ export function VeupathdbSignInGate({
   const dismissSignIn = useAuthGateStore((s) => s.dismissSignIn);
 
   setQueryErrorHandler((notice) => {
-    if (handleWdkLoginRequired(notice.error)) return;
+    if (handleWdkAuthRefusal(notice.error, notice.retry)) return;
     toast.error(notice.message);
   });
 

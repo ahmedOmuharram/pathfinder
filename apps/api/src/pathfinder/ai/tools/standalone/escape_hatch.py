@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from assistant_core.platform.logging import get_logger
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.catalog_discovery import (
@@ -38,7 +39,7 @@ async def request_search_inspection(
     search_name: str,
     why: str,
     record_type: str | None = None,
-) -> SearchOverviewResult | AlreadyReadNotice:
+) -> ToolReturn[SearchOverviewResult | AlreadyReadNotice]:
     """Request inline inspection of a search outside discovery's commit set.
 
     Use sparingly — discovery is meant to surface every search the

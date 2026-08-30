@@ -359,8 +359,10 @@ test.describe("EDA acceptance journeys", () => {
     );
 
     await page.getByRole("button", { name: "Open in EDA tab" }).click();
+    // The first request to the EDA route compiles it on a dev server.
     await expect(page).toHaveURL(
       new RegExp(`/plasmodb/conversation/${conversationId}/eda$`),
+      { timeout: 60_000 },
     );
     await expect(page.getByTestId("eda-workbench-header")).toContainText(STUDY_TITLE);
     await expect(page.getByTestId(`eda-entity-${SAMPLE_ENTITY}`)).toContainText(

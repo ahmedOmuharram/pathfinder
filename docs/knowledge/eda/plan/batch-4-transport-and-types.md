@@ -1242,12 +1242,16 @@ reconciliation, exactly like `describe_study` in task A2:
   The tool keeps only argument coaching (`ModelRetry` for a half-specified
   threshold pair) and the narration.
 
-`_run_compute` calls `services/eda/compute.py::submit_compute` with the bound
-analysis's filters and the given computation, `autostart=True`. Because the
-job id is an input hash, repeating the identical action IS the poll: the tab
-calls it again and reads `status`. `task_id` is `None` on this path; it is set
-only when a durable chat task already exists for the same job, which
-`services/tasks` can answer by job id.
+`_run_compute` calls `services/eda/compute.py::run_analysis_compute`, which
+reads the analysis, writes the computation into the document when the
+document does not already carry that exact one, and then submits the job with
+that analysis's filters, `autostart=True`. The document is the SSOT every
+volcano reads, so the write comes before the job: a configuration the study
+rejects starts none. Because the job id is an input hash, repeating the
+identical action IS the poll: the tab calls it again, reads `status`, and
+writes nothing. `task_id` is `None` on this path; it is set only when a
+durable chat task already exists for the same job, which `services/tasks` can
+answer by job id.
 
 The PATCH writes NO conversation event. Chat reflects a tab edit when the
 agent next emits a `data-eda.analysis-state` part; until then the tab's store
@@ -1296,14 +1300,14 @@ async def test_run_compute_answers_with_the_job_reference(
         analysis_id="t4fszEJ",
     )
 
-    async def submit(_site: str, **_kwargs: object) -> object:
+    async def run(_site: str, **_kwargs: object) -> object:
         from pathfinder.integrations.eda.models import EdaComputeJob
 
         return EdaComputeJob.model_validate(
             {"jobID": "db04204e5386396e1ca2cb78469ab6fb", "status": "queued"}
         )
 
-    monkeypatch.setattr(eda_router, "submit_compute", submit)
+    monkeypatch.setattr(eda_router, "run_analysis_compute", run)
     response = await client.patch(
         f"/api/v1/conversations/{conversation_id}/eda",
         json={

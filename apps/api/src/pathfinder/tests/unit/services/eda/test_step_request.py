@@ -9,12 +9,9 @@ from pathfinder.integrations.eda.models import EdaStringSetFilter
 from pathfinder.services.catalog.eda_backed import (
     EDA_ANALYSIS_SPEC_PARAM,
     EDA_DATASET_ID_PARAM,
-)
-from pathfinder.services.eda.authoring import (
     EdaStepRequest,
-    new_analysis,
-    serialize_spec,
 )
+from pathfinder.services.eda.authoring import new_analysis, serialize_spec
 
 
 def _spec(dataset_id: str) -> str:

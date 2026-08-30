@@ -1,6 +1,6 @@
 # The assistant runtime wire protocol
 
-**Version 1.3.1.** This document specifies the bytes a client exchanges with an
+**Version 1.4.1.** This document specifies the bytes a client exchanges with an
 assistant built on `assistant_core`. It is written so a consumer in any
 language can implement a client from this page alone, with no reference to the
 JavaScript SDK that inspired the chunk vocabulary. Section 14 records what each
@@ -166,6 +166,7 @@ The runtime defines these. An assistant MAY register more.
 | `data-background-task-started` | A durable tool was deferred to a worker. |
 | `data-task-progress` | Progress of a durable tool. |
 | `data-task-completed` | A durable tool finished. |
+| `data-tool-summary` | One line saying what a tool call did. Patches the call's part. |
 
 <!-- data_parts:end -->
 
@@ -218,6 +219,13 @@ A turn that ends with `finishReason: "error"` MUST first close every tool call
 it left open: one `tool-output-error` per call whose input was announced and
 whose result never arrived, carrying the same text as the `error` chunk. A
 client therefore never renders a running tool call inside a finished turn.
+
+A text or reasoning part that would stay empty is never written: the runtime
+holds a `text-start` or `reasoning-start` until the first delta with the same
+`id` arrives, and drops the start and its end together when the end arrives
+first. A reader therefore never receives a part that carries nothing, and a
+model that emits a reasoning item with an empty summary before every tool call
+does not cut a turn's work into pieces.
 
 ### 6.1 A turn suspended on a durable task
 
@@ -286,6 +294,31 @@ A turn that answers nothing - a new user message while a call waits - drops
 the suspended call rather than running it. Nothing further is emitted for that
 `toolCallId`, and the part stays in `approval-requested`.
 
+### 6.3 A tool that says what it did
+
+A tool MAY carry one line of prose describing its own result. The line rides a
+`data-tool-summary` chunk naming the call:
+
+    { "type": "data-tool-summary",
+      "data": { "toolCallId": "call_a1",
+                "summary": "6 of 12 Sample",
+                "status": "ok" } }
+
+The chunk MAY precede or follow that call's `tool-output-available`,
+`tool-output-error` or `tool-output-denied`, in the same turn. A reducer
+addresses the summary by `toolCallId`, so the order does not matter. At most one
+summary per call reaches the log; a later one replaces an earlier one under the
+rule of section 9. A durable tool emits its summary before its output chunk, and
+that is conforming.
+
+`summary` is one line: no newline, at most 120 characters, and never the call's
+output re-serialised. `status` is `ok`, `empty` or `warn` and defaults to `ok`.
+`empty` says the call succeeded and found nothing, which a client SHOULD show
+differently from a call that found something, because a silent zero otherwise
+reads as a success.
+
+A failed call carries no `status`: its part is already in `output-error`.
+
 ## 7. Producer envelope
 
 Between a turn's graph and the log, a chunk travels wrapped:
@@ -305,6 +338,19 @@ section 5 that are absent here are defined by the protocol and emitted by
 assistants that use those capabilities; the reference assistant does not.
 
 <!-- examples:begin -->
+
+#### `data-tool-summary`
+
+```json
+{
+  "type": "data-tool-summary",
+  "data": {
+    "status": "ok",
+    "summary": "2 plus 3 is 5",
+    "toolCallId": "call_add"
+  }
+}
+```
 
 #### `data-turn-status`
 
@@ -491,6 +537,9 @@ A client reduces a turn's chunks into one assistant message with an ordered
   `input-streaming` -> `input-available` -> (`approval-requested`) ->
   `output-available` | `output-error` | `output-denied`. A later chunk for a
   call already in the array patches that part; it never appends a second one.
+- `data-tool-summary` addresses the tool part named by `data.toolCallId`. It
+  sets that part's `summary` and `summaryStatus` and appends no part. A summary
+  naming a call the client does not hold is ignored.
 - A non-transient data part appends, unless it carries an `id` that matches an
   existing part of the same `type`, in which case it replaces that part's
   `data`.
@@ -570,9 +619,10 @@ refused with `422`.
 
 An entry in `messages` may carry the turn facts section 6 attaches to an
 assistant message (`errors`, `aborted`, `finishReason`), and a tool part in
-it may carry the stream-recorded `resultProviderMetadata`: a client that
-rehydrated its thread from the snapshot sends them back verbatim, and the
-runtime MUST ignore them rather than refuse the turn.
+it may carry the stream-recorded `resultProviderMetadata` and the `summary` and
+`summaryStatus` section 9 folds onto the call: a client that rehydrated its
+thread from the snapshot sends them back verbatim, and the runtime MUST ignore
+them rather than refuse the turn.
 
 **Product extensions.** Fields this deployment's assistant adds. A client for
 another assistant does not send them, and this runtime ignores what it does not
@@ -745,6 +795,8 @@ data: {"type":"done","reason":"completed"}
 
 | Version | What it added |
 | --- | --- |
+| `1.4.1` | Section 6: a text or reasoning part that would stay empty is never written; a start followed by its end with no delta between them is dropped whole. Before this a model's empty reasoning items reached the log as empty parts. |
+| `1.4.0` | `data-tool-summary` (sections 5.2, 6.3, 9): a tool may carry one line saying what its call did, so a reader sees the work without the call's JSON. Before this the only description of a call on the wire was its raw input and its raw output. A resent tool part may carry the folded `summary` and `summaryStatus`, and the runtime ignores them (section 12.2). |
 | `1.3.1` | A turn that ends with `finishReason: "error"` closes its open tool calls with `tool-output-error` first (section 6). Before this a turn killed inside a tool left the call with an input and no result, and a client rendered it as still running inside a turn that had finished. |
 | `1.3.0` | `data-turn-failed`, written beside the `error` chunk of a turn whose driver failed (section 6). The `error` chunk leaves no part behind, so before this a reloaded thread showed a truncated answer with nothing saying the turn died. |
 | `1.2.2` | A request's `messages` may carry the section 6 turn facts (`errors`, `aborted`, `finishReason`) on an assistant entry, and `resultProviderMetadata` on a tool part; the runtime ignores them instead of refusing the turn, so a thread rehydrated from the snapshot can keep talking. |

@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import JsonValue
+from pydantic import JsonValue, field_validator
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 from assistant_core.conversation.stream_parts.task_parts import (
@@ -268,4 +268,58 @@ def sub_agent_step_event(payload: SubAgentStepPayload) -> DataChunk:
     return DataChunk(
         type="data-sub-agent-step",
         data=payload.model_dump(by_alias=True, mode="json"),
+    )
+
+
+ToolSummaryStatus = Literal["ok", "empty", "warn"]
+
+TOOL_SUMMARY_LIMIT = 120
+
+
+class ToolSummaryPayload(CamelModel):
+    """Payload for the tool-summary chunk. The tool call id names the call the
+    line describes, so a reducer patches that call's part and appends nothing.
+    """
+
+    tool_call_id: str
+    summary: str
+    status: ToolSummaryStatus = "ok"
+
+    @field_validator("summary")
+    @classmethod
+    def _one_readable_line(cls, value: str) -> str:
+        """Keep the line one line of plain prose a reader can scan."""
+        if "\n" in value or "\r" in value:
+            msg = "a tool summary is one line"
+            raise ValueError(msg)
+        if not value.isascii():
+            msg = "a tool summary is ASCII"
+            raise ValueError(msg)
+        line = " ".join(value.split())
+        if not line:
+            msg = "a tool summary says something"
+            raise ValueError(msg)
+        if line.endswith("."):
+            msg = "a tool summary carries no trailing period"
+            raise ValueError(msg)
+        if len(line) > TOOL_SUMMARY_LIMIT:
+            msg = f"a tool summary is at most {TOOL_SUMMARY_LIMIT} characters"
+            raise ValueError(msg)
+        return line
+
+
+def tool_summary_event(
+    *,
+    tool_call_id: str,
+    summary: str,
+    status: ToolSummaryStatus = "ok",
+) -> DataChunk:
+    """One line saying what a tool call did. Rides the call's return metadata."""
+    return DataChunk(
+        type="data-tool-summary",
+        data=ToolSummaryPayload(
+            tool_call_id=tool_call_id,
+            summary=summary,
+            status=status,
+        ).model_dump(by_alias=True, mode="json"),
     )

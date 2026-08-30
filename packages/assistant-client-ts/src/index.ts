@@ -36,7 +36,22 @@ export {
   type TextPart,
   type ThreadMessage,
   type ToolPart,
+  type ToolSummaryStatus,
 } from "./core/message.ts";
+export {
+  type SubAgentItem,
+  type SubAgentStepPayload,
+  mergeSubAgentSteps,
+} from "./core/subAgentSteps.ts";
+export {
+  type BuildTraceOptions,
+  type Trace,
+  type TraceGroup,
+  type TraceGroupState,
+  type TraceRow,
+  type TraceRowStatus,
+  buildTrace,
+} from "./core/trace.ts";
 export { HANDLED_CHUNK_KINDS, reduceTurn } from "./core/reduce.ts";
 export {
   HANDLED_ENVELOPE_KINDS,

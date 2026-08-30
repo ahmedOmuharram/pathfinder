@@ -7,6 +7,7 @@ Provides:
 
 from __future__ import annotations
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -57,8 +58,8 @@ async def rename_strategy(
     graph.description = description
     graph.save_history(f"Renamed from '{old_name}' to '{new_name}'")
 
-    return ToolReturn(
-        return_value=RenameStrategyResult(
+    return with_summary(
+        RenameStrategyResult(
             graph_id=graph.id,
             old_name=old_name,
             new_name=new_name,
@@ -67,7 +68,9 @@ async def rename_strategy(
             description=graph.description,
             plan=graph.to_strategy_ast(sync_state=session.sync_state),
         ),
-        metadata=[strategy_meta_chunk(graph)],
+        f"Renamed to {new_name}",
+        ctx=ctx,
+        extra=[strategy_meta_chunk(graph)],
     )
 
 
@@ -110,10 +113,12 @@ async def clear_strategy(
         sync_result=None,
     )
 
-    return ToolReturn(
-        return_value=ClearStrategyResult(
+    return with_summary(
+        ClearStrategyResult(
             graph_id=graph.id,
             message="Strategy cleared. Ready to start fresh.",
         ),
-        metadata=[graph_cleared_chunk(reason="user cleared the strategy")],
+        "Strategy cleared",
+        ctx=ctx,
+        extra=[graph_cleared_chunk(reason="user cleared the strategy")],
     )

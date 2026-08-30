@@ -25,6 +25,13 @@ describe("ZeroResultHoverCard", () => {
     expect(screen.getByTestId("zero-result-trigger")).toBeTruthy();
   });
 
+  it("paints the trigger from the warning token", () => {
+    render(<ZeroResultHoverCard step={makeStep({ estimatedSize: 0 })} count={0} />);
+    const trigger = screen.getByTestId("zero-result-trigger");
+    expect(trigger).toHaveClass("text-warning");
+    expect(trigger.className).not.toContain("amber");
+  });
+
   it("returns null (no trigger) when count > 0", () => {
     const { container } = render(
       <ZeroResultHoverCard step={makeStep({ estimatedSize: 5 })} count={5} />,
@@ -43,5 +50,7 @@ describe("ZeroResultHoverCard", () => {
     const card = await screen.findByTestId("zero-result-content");
     expect(card.textContent).toContain("0 results");
     expect(card.querySelectorAll("li").length).toBeGreaterThan(0);
+    expect(card).toHaveClass("border-warning/40", "text-warning");
+    expect(card.className).not.toContain("amber");
   });
 });

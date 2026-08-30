@@ -115,13 +115,17 @@ export function StrategyGraphLayout() {
         snapGrid={SNAP_GRID}
         minZoom={0.1}
         maxZoom={2}
-        colorMode="light"
+        colorMode={
+          document.documentElement.getAttribute("data-theme") === "dark"
+            ? "dark"
+            : "light"
+        }
         connectionRadius={20}
         nodesFocusable={!g.isCompact}
         edgesFocusable={!g.isCompact}
         className="bg-muted"
       >
-        <Background color="#e2e8f0" gap={28} size={1} />
+        <Background color="hsl(var(--border))" gap={28} size={1} />
         {!g.isCompact && (
           <Panel position="top-center" className="pointer-events-none">
             <div className="flex flex-col items-center gap-2">

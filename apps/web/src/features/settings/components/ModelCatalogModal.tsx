@@ -239,7 +239,7 @@ function ModelRow({
       <td className="py-2.5 px-3 text-right text-warning">
         {formatPrice(model.outputPrice ?? 0)}
       </td>
-      <td className="py-2.5 px-3 text-right text-sky-500/80">
+      <td className="py-2.5 px-3 text-right text-primary/80">
         {formatPrice(model.cachedInputPrice ?? 0)}
       </td>
       <td className="py-2.5 px-3 text-muted-foreground max-w-[160px] truncate">

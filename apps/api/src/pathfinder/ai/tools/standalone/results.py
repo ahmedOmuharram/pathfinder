@@ -5,7 +5,9 @@ Provides:
 - ``get_download_url`` -- get a download URL for step results
 """
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._result_models import (
@@ -28,7 +30,7 @@ async def get_download_url(
     wdk_step_id: int,
     output_format: str = "csv",
     attributes: list[str] | None = None,
-) -> DownloadUrlResult | ToolErrorPayload:
+) -> ToolReturn[DownloadUrlResult | ToolErrorPayload]:
     """Get a download URL for step results.
 
     The step must already be built in WDK. The returned URL is
@@ -49,20 +51,42 @@ async def get_download_url(
         attributes,
     )
     if isinstance(url_or_error, ToolErrorPayload):
-        return url_or_error
+        return _no_download(ctx, url_or_error, output_format)
     if not url_or_error:
-        return tool_error(
-            ErrorCode.WDK_ERROR,
-            "VEuPathDB did not provide a usable download URL for this step. "
-            "This usually means the temporary result is still being prepared "
-            "or the upstream payload shape changed.",
-            wdk_step_id=wdk_step_id,
-            output_format=output_format,
+        return _no_download(
+            ctx,
+            tool_error(
+                ErrorCode.WDK_ERROR,
+                "VEuPathDB did not provide a usable download URL for this step. "
+                "This usually means the temporary result is still being prepared "
+                "or the upstream payload shape changed.",
+                wdk_step_id=wdk_step_id,
+                output_format=output_format,
+            ),
+            output_format,
         )
-    return DownloadUrlResult(
-        download_url=url_or_error,
-        format=output_format,
-        step_id=wdk_step_id,
+    return with_summary(
+        DownloadUrlResult(
+            download_url=url_or_error,
+            format=output_format,
+            step_id=wdk_step_id,
+        ),
+        f"{output_format.upper()} download ready",
+        ctx=ctx,
+    )
+
+
+def _no_download(
+    ctx: RunContext[AgentDeps],
+    payload: ToolErrorPayload,
+    output_format: str,
+) -> ToolReturn[DownloadUrlResult | ToolErrorPayload]:
+    """VEuPathDB refused the download this call asked for."""
+    return with_summary(
+        payload,
+        f"No {output_format.upper()} download for this step",
+        ctx=ctx,
+        status="warn",
     )
 
 
@@ -70,12 +94,12 @@ async def get_sample_records(
     ctx: RunContext[AgentDeps],
     wdk_step_id: int,
     limit: int = 5,
-) -> SampleRecordsResult | ToolErrorPayload:
+) -> ToolReturn[SampleRecordsResult | ToolErrorPayload]:
     """Get a sample of records from an executed step.
 
-    The step must already be built in WDK. Returns the first N records — each
+    The step must already be built in WDK. Returns the first N records - each
     with its id plus, for gene/transcript steps, the product description, gene
-    symbol, and organism — to show the user what data is available.
+    symbol, and organism - to show the user what data is available.
 
     Args:
         wdk_step_id: WDK step ID. The step must be built in WDK first.
@@ -93,5 +117,15 @@ async def get_sample_records(
         _sample_attributes(record_type),
     )
     if isinstance(preview_or_error, ToolErrorPayload):
-        return preview_or_error
-    return _extract_sample_response(preview_or_error, wdk_step_id)
+        return with_summary(
+            preview_or_error,
+            f"No sample records from step {wdk_step_id}",
+            ctx=ctx,
+            status="warn",
+        )
+    sample = _extract_sample_response(preview_or_error, wdk_step_id)
+    return with_summary(
+        sample,
+        f"{len(sample.records)} sample records from step {wdk_step_id}",
+        ctx=ctx,
+    )

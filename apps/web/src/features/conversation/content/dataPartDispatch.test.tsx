@@ -13,6 +13,8 @@ import { reduceSnapshot } from "@pathfinder/assistant-client";
 import type { DataPart, TextPart } from "@pathfinder/assistant-client";
 import type { DataPartKind } from "@pathfinder/shared";
 
+import { useSettingsStore } from "@/state/useSettingsStore";
+
 import { AssistantMessage, UserMessage } from "./MessageRenderer";
 import { coreDataPartComponents } from "./coreDataParts";
 import { edaDataPartComponents } from "./edaDataParts";
@@ -136,6 +138,21 @@ describe("message dispatch", () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  it("renders no card for the tool summary the trace reads", () => {
+    render(
+      <Thread
+        content={[
+          {
+            type: "data-tool-summary",
+            data: { toolCallId: "call_1", summary: "6 of 12 Sample", status: "ok" },
+          },
+        ]}
+      />,
+    );
+    expect(screen.queryByText("6 of 12 Sample")).toBeNull();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
   it("renders a strategy part through the merged map", () => {
     render(
       <Thread
@@ -177,7 +194,8 @@ describe("message dispatch", () => {
       />,
     );
     const card = screen.getByTestId("data-eda-analysis-state");
-    expect(card).toHaveTextContent("Rodent malaria phenotypes");
+    // The study name titles the figure, outside the part's own body.
+    expect(screen.getByText("Rodent malaria phenotypes").tagName).toBe("FIGCAPTION");
     expect(card).toHaveTextContent("berghei subset");
     expect(card).toHaveTextContent("2 computations");
     expect(screen.getByTestId("data-eda-filter-chip-0")).toHaveTextContent(
@@ -262,8 +280,8 @@ describe("message dispatch", () => {
         ]}
       />,
     );
-    const card = screen.getByTestId("data-eda-viz");
-    expect(card).toHaveTextContent("log2(Fold Change)");
+    expect(screen.getByTestId("data-eda-viz")).toBeInTheDocument();
+    expect(screen.getByText("log2(Fold Change)").tagName).toBe("FIGCAPTION");
     expect(screen.getByTestId("eda-viz-volcano")).toHaveAttribute("role", "img");
     expect(screen.getByTestId("eda-viz-volcano-selection")).toHaveTextContent(
       "0 genes selected at these thresholds - 1,543 of 5,511 retained by the compute",
@@ -298,6 +316,24 @@ describe("message dispatch", () => {
     expect(screen.getByTestId("failure-notice")).toBeInTheDocument();
     expect(screen.getByText(errorText)).toBeInTheDocument();
     expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("prints the lead's usage on the badge, and hides it when the flag is off", () => {
+    const usage = [
+      {
+        type: "data-lead-usage" as const,
+        data: { modelId: "openai:gpt-5.6-luna", tokens: 41800, costUsd: "0.0131" },
+      },
+    ];
+    useSettingsStore.setState({ showTokenUsage: true });
+    const shown = render(<Thread content={usage} />);
+    expect(shown.getByTestId("model-badge")).toHaveTextContent("41.8K, $0.01");
+    shown.unmount();
+
+    useSettingsStore.setState({ showTokenUsage: false });
+    const hidden = render(<Thread content={usage} />);
+    expect(hidden.queryByTestId("model-badge")).toBeNull();
+    useSettingsStore.setState({ showTokenUsage: true });
   });
 
   it("falls back and reports when the kind has no renderer", () => {

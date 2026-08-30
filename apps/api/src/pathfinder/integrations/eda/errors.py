@@ -19,6 +19,11 @@ _STUDY_ID_HINT = (
     "Compute and visualization bodies take the STUDY_ id."
 )
 
+_OTHER_ACCOUNT_HINT = (
+    "The analysis belongs to a different VEuPathDB account than the one "
+    "signed in now. Open the study again to create one under this account."
+)
+
 
 class EdaError(AppError):
     """Base for every EDA refusal."""
@@ -103,12 +108,17 @@ def eda_failure(method: str, path: str, status: int, body: str) -> EdaError:
     if status == _BAD_REQUEST and _COMPUTE_NOT_READY in problem.message:
         return EdaComputeNotReadyError(detail, _CONFLICT, keyed)
     if status == _FORBIDDEN:
-        return EdaForbiddenError(f"{detail}. {_STUDY_ID_HINT}", status, keyed)
+        return EdaForbiddenError(f"{detail}. {_forbidden_hint(path)}", status, keyed)
     if status >= _SERVER_ERROR:
         return EdaServerError(detail, status, keyed)
     if status in _BY_STATUS:
         return _BY_STATUS[status](detail, status, keyed)
     return EdaError(detail, status, keyed)
+
+
+def _forbidden_hint(path: str) -> str:
+    """A path under ``/users/`` names an account, so ownership is the refusal."""
+    return _OTHER_ACCOUNT_HINT if path.startswith("/users/") else _STUDY_ID_HINT
 
 
 def _parse(body: str) -> _EdaProblem:

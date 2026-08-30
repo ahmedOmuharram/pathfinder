@@ -4,6 +4,7 @@ card. The controls-based counterpart to compare_search_variants."""
 
 from __future__ import annotations
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -33,7 +34,7 @@ def _summary(comparison: ScoredComparison) -> str:
         for v in comparison.variants
         if v.error is not None
     )
-    fail_note = f" Some variants failed — {failed}." if failed else ""
+    fail_note = f" Some variants failed - {failed}." if failed else ""
     winner = comparison.winner_label or "none (no variant scored)"
     return (
         f"Scored {len(comparison.variants)} variants by {comparison.objective}. "
@@ -78,4 +79,26 @@ async def compare_variants_scored(
         type="data-scored-comparison",
         data=result.model_dump(by_alias=True, mode="json"),
     )
-    return ToolReturn(return_value=result, content=_summary(result), metadata=[chunk])
+    scored = with_summary(
+        result,
+        _scored_line(result),
+        ctx=ctx,
+        extra=[chunk],
+    )
+    scored.content = _summary(result)
+    return scored
+
+
+def _scored_line(comparison: ScoredComparison) -> str:
+    """How many variants scored, and which one won."""
+    winner = next(
+        (v for v in comparison.variants if v.label == comparison.winner_label),
+        None,
+    )
+    if winner is None:
+        return f"{len(comparison.variants)} variants scored, no winner"
+    score = winner.mcc or 0.0
+    return (
+        f"{len(comparison.variants)} variants scored, "
+        f"winner {winner.label} at {score:.3f}"
+    )

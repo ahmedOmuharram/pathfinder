@@ -34,6 +34,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.tool_errors import ToolErrorPayload
+from pathfinder.services.catalog.eda_backed import check_eda_parameters
 from pathfinder.services.catalog.param_adapters import (
     adapt_param_from_wdk,
     adapt_param_specs_from_search,
@@ -326,6 +327,7 @@ async def validate_parameters(
         parameters=parameters,
     )
     response = resolved.response
+    check_eda_parameters(response.search_data, encode_wdk_params(parameters))
 
     param_spec_map = adapt_param_specs_from_search(response.search_data)
     canonicalizer = ParameterCanonicalizer(param_spec_map)

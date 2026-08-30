@@ -34,8 +34,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
     WDKStep,
 )
-from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.tool_errors import ToolErrorPayload
+from pathfinder.platform.errors import ErrorCode, ValidationError
 from pathfinder.services.strategies import (
     commit as commit_module,
 )
@@ -568,5 +567,6 @@ async def test_insert_saved_strategy_requires_persistent_context(
         db_session_factory=None,
     )
 
-    res = await insert_saved_strategy(_ctx(deps), "a", 12345)
-    assert isinstance(res, ToolErrorPayload)
+    res = (await insert_saved_strategy(_ctx(deps), "a", 12345)).return_value
+    assert res["ok"] is False
+    assert res["code"] == ErrorCode.INTERNAL_ERROR.value

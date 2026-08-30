@@ -31,15 +31,35 @@ export function readBoolean(chunk: ProtocolChunk, field: string): boolean {
   return chunk[field] === true;
 }
 
-export function readRecord(
-  chunk: ProtocolChunk,
-  field: string,
-): Record<string, unknown> | undefined {
-  const value = chunk[field];
+/** Read a value the protocol defines as an object. */
+export function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
   }
   return value as Record<string, unknown>;
+}
+
+export function readRecord(
+  chunk: ProtocolChunk,
+  field: string,
+): Record<string, unknown> | undefined {
+  return asRecord(chunk[field]);
+}
+
+export function fieldString(
+  record: Record<string, unknown>,
+  field: string,
+): string | undefined {
+  const value = record[field];
+  return typeof value === "string" ? value : undefined;
+}
+
+export function fieldNumber(
+  record: Record<string, unknown>,
+  field: string,
+): number | undefined {
+  const value = record[field];
+  return typeof value === "number" ? value : undefined;
 }
 
 /** Read a value the protocol defines as free-form. */

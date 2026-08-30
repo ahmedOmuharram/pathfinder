@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from assistant_core.graph.stream_events import scratchpad_updated_event
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.memory.schemas import MemoryValue
 from assistant_core.memory.store import MemoryStore
 from assistant_core.platform.db import DBSessionFactory
@@ -78,7 +79,7 @@ async def note(
     """
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return ToolReturn(return_value={"error": _MSG_MISSING_CTX})
+        return _no_scratchpad(ctx)
     factory, conversation_id = ctx_or_none
     try:
         data = (
@@ -107,9 +108,21 @@ async def note(
         note_id=created.id,
         title=created.title,
     )
-    return ToolReturn(
-        return_value=_ref_payload(created),
-        metadata=[scratchpad_updated_event()],
+    return with_summary(
+        _ref_payload(created),
+        f"Note saved: {created.title}",
+        ctx=ctx,
+        extra=[scratchpad_updated_event()],
+    )
+
+
+def _no_scratchpad(ctx: RunContext[AgentDeps]) -> ToolReturn[dict[str, object]]:
+    """This thread has no scratchpad to read or write."""
+    return with_summary(
+        {"error": _MSG_MISSING_CTX},
+        "The scratchpad is unavailable on this thread",
+        ctx=ctx,
+        status="warn",
     )
 
 
@@ -128,7 +141,7 @@ async def update_note(
     """
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return ToolReturn(return_value={"error": _MSG_MISSING_CTX})
+        return _no_scratchpad(ctx)
     factory, conversation_id = ctx_or_none
     try:
         patch = NoteUpdate(title=title, summary=summary, body=body, tags=tags)
@@ -148,9 +161,11 @@ async def update_note(
             raise ModelRetry(_not_found_msg(note_id)) from exc
         await session.commit()
 
-    return ToolReturn(
-        return_value=_ref_payload(updated),
-        metadata=[scratchpad_updated_event()],
+    return with_summary(
+        _ref_payload(updated),
+        f"Note updated: {updated.title}",
+        ctx=ctx,
+        extra=[scratchpad_updated_event()],
     )
 
 
@@ -161,7 +176,12 @@ async def delete_note(
     """Remove a note. Use when the note is superseded by a newer one."""
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return ToolReturn(return_value=_MSG_MISSING_CTX)
+        return with_summary(
+            _MSG_MISSING_CTX,
+            "The scratchpad is unavailable on this thread",
+            ctx=ctx,
+            status="warn",
+        )
     factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
@@ -169,9 +189,11 @@ async def delete_note(
         if not ok:
             raise ModelRetry(_not_found_msg(note_id))
         await session.commit()
-    return ToolReturn(
-        return_value="deleted",
-        metadata=[scratchpad_updated_event()],
+    return with_summary(
+        "deleted",
+        "Note deleted",
+        ctx=ctx,
+        extra=[scratchpad_updated_event()],
     )
 
 
@@ -182,7 +204,7 @@ async def pin_note(
     """Pin a note so compaction never merges or drops it."""
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return ToolReturn(return_value={"error": _MSG_MISSING_CTX})
+        return _no_scratchpad(ctx)
     factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
@@ -195,9 +217,11 @@ async def pin_note(
         except LookupError as exc:
             raise ModelRetry(_not_found_msg(note_id)) from exc
         await session.commit()
-    return ToolReturn(
-        return_value=_ref_payload(updated),
-        metadata=[scratchpad_updated_event()],
+    return with_summary(
+        _ref_payload(updated),
+        f"Pinned {updated.title}",
+        ctx=ctx,
+        extra=[scratchpad_updated_event()],
     )
 
 
@@ -208,7 +232,7 @@ async def unpin_note(
     """Unpin a previously pinned note."""
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return ToolReturn(return_value={"error": _MSG_MISSING_CTX})
+        return _no_scratchpad(ctx)
     factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
@@ -221,9 +245,11 @@ async def unpin_note(
         except LookupError as exc:
             raise ModelRetry(_not_found_msg(note_id)) from exc
         await session.commit()
-    return ToolReturn(
-        return_value=_ref_payload(updated),
-        metadata=[scratchpad_updated_event()],
+    return with_summary(
+        _ref_payload(updated),
+        f"Unpinned {updated.title}",
+        ctx=ctx,
+        extra=[scratchpad_updated_event()],
     )
 
 
@@ -246,7 +272,7 @@ async def list_notes(
     tag: str | None = None,
     pinned: bool | None = None,
     limit: int = 50,
-) -> dict[str, object]:
+) -> ToolReturn[dict[str, object]]:
     """List notes (refs only, no body). Optional tag/pinned filter.
 
     Returns an envelope ``{totalNotes, matches, summary}``. ``totalNotes`` is
@@ -255,7 +281,7 @@ async def list_notes(
     """
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return {"error": _MSG_MISSING_CTX, "totalNotes": 0, "matches": []}
+        return _no_scratchpad(ctx)
     factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
@@ -275,14 +301,19 @@ async def list_notes(
         summary = f"No notes{filter_desc} (scratchpad has {total} notes total)."
     else:
         summary = f"{len(matches)} of {total} notes{filter_desc}."
-    return {"totalNotes": total, "matches": matches, "summary": summary}
+    return with_summary(
+        {"totalNotes": total, "matches": matches, "summary": summary},
+        f"{len(matches)} notes",
+        ctx=ctx,
+        status="ok" if matches else "empty",
+    )
 
 
 async def search_notes(
     ctx: RunContext[AgentDeps],
     query: str,
     limit: int = 10,
-) -> dict[str, object]:
+) -> ToolReturn[dict[str, object]]:
     """Keyword/phrase search across title + summary + body via Postgres FTS.
 
     Returns an envelope ``{totalNotes, query, matches, summary}``. An empty
@@ -291,12 +322,7 @@ async def search_notes(
     """
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return {
-            "error": _MSG_MISSING_CTX,
-            "totalNotes": 0,
-            "query": query,
-            "matches": [],
-        }
+        return _no_scratchpad(ctx)
     factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
@@ -317,35 +343,44 @@ async def search_notes(
         )
     else:
         summary = f"{len(matches)} of {total} notes matched {query!r}."
-    return {
-        "totalNotes": total,
-        "query": query,
-        "matches": matches,
-        "summary": summary,
-    }
+    return with_summary(
+        {
+            "totalNotes": total,
+            "query": query,
+            "matches": matches,
+            "summary": summary,
+        },
+        f"{len(matches)} notes for {query}",
+        ctx=ctx,
+        status="ok" if matches else "empty",
+    )
 
 
 async def read_note(
     ctx: RunContext[AgentDeps],
     note_id: str,
-) -> dict[str, object]:
+) -> ToolReturn[dict[str, object]]:
     """Fetch the full note (including body) by id."""
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return {"error": _MSG_MISSING_CTX}
+        return _no_scratchpad(ctx)
     factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
         note_row = await repo.get(conversation_id=conversation_id, note_id=note_id)
     if note_row is None:
         raise ModelRetry(_not_found_msg(note_id))
-    return _note_payload(note_row)
+    return with_summary(
+        _note_payload(note_row),
+        f"Read {note_row.title}",
+        ctx=ctx,
+    )
 
 
 async def promote_to_memory(
     ctx: RunContext[AgentDeps],
     note_id: str,
-) -> str:
+) -> ToolReturn[str]:
     """Promote a scratchpad note to the user's long-term ``knowledge`` memory.
 
     Use when a note captures reusable biological knowledge that is worth
@@ -361,7 +396,12 @@ async def promote_to_memory(
     """
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
-        return _MSG_MISSING_CTX
+        return with_summary(
+            _MSG_MISSING_CTX,
+            "The scratchpad is unavailable on this thread",
+            ctx=ctx,
+            status="warn",
+        )
     factory, conversation_id = ctx_or_none
     store_raw = ctx.deps.memory_store
     user_id = ctx.deps.user_id
@@ -386,4 +426,8 @@ async def promote_to_memory(
         created_at=datetime.now(UTC),
     )
     mem_store = MemoryStore(store=store_raw)
-    return await mem_store.put(user_id=user_id, value=value)
+    return with_summary(
+        await mem_store.put(user_id=user_id, value=value),
+        f"Promoted {note_row.title} to memory",
+        ctx=ctx,
+    )

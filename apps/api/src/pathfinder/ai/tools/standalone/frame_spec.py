@@ -4,10 +4,12 @@ import json
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
+from assistant_core.graph.tool_summary import count_noun, with_summary
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -481,7 +483,7 @@ async def set_criterion(
     search_name: str,
     role: CriterionRole = "filter",
     params: ParamProposals | None = None,
-) -> SetCriterionResult:
+) -> ToolReturn[SetCriterionResult]:
     """Bind a criterion to a WDK search, in two calls.
 
     Call this ONCE with no ``params`` to receive ``decide``, the PARAMETER
@@ -517,11 +519,14 @@ async def set_criterion(
         )
         register_search(state, definition, record_type)
         entries = _sheet_for(state, criterion_id, search_name, definition)
-        return SetCriterionResult(
-            criterion_id=criterion_id,
-            search_name=search_name,
-            params_template={entry.name: None for entry in entries},
-            decide=entries,
+        return _criterion_return(
+            ctx,
+            SetCriterionResult(
+                criterion_id=criterion_id,
+                search_name=search_name,
+                params_template={entry.name: None for entry in entries},
+                decide=entries,
+            ),
         )
     await ensure_search_registered(state, ctx.deps.site_id, record_type, search_name)
     fetch_at = _memoized_fetch(ctx.deps.site_id, record_type, search_name)
@@ -565,8 +570,11 @@ async def set_criterion(
         raise ModelRetry(msg)
     redecide = await _reconcile_dependents(fetch_at, infos, resolved, call, state)
     if redecide:
-        return SetCriterionResult(
-            criterion_id=criterion_id, search_name=search_name, redecide=redecide
+        return _criterion_return(
+            ctx,
+            SetCriterionResult(
+                criterion_id=criterion_id, search_name=search_name, redecide=redecide
+            ),
         )
     # A complete spec is validated here so a bad value returns a did-you-mean
     # retry. An open slot means a required param is still unresolved, which
@@ -609,14 +617,37 @@ async def set_criterion(
             open_params=open_params,
         )
     )
-    return SetCriterionResult(
-        criterion_id=criterion_id,
-        search_name=search_name,
-        resolved_params={
-            name: to_wire(value) for name, value in resolved.params.items()
-        },
-        defaulted_params=defaulted,
-        open_slots=open_params,
+    return _criterion_return(
+        ctx,
+        SetCriterionResult(
+            criterion_id=criterion_id,
+            search_name=search_name,
+            resolved_params={
+                name: to_wire(value) for name, value in resolved.params.items()
+            },
+            defaulted_params=defaulted,
+            open_slots=open_params,
+        ),
+    )
+
+
+def _criterion_return(
+    ctx: RunContext[AgentDeps],
+    result: SetCriterionResult,
+) -> ToolReturn[SetCriterionResult]:
+    """The bound criterion, or the parameters the call still leaves open."""
+    pending = len(result.decide) + len(result.redecide) + len(result.open_slots)
+    if pending:
+        return with_summary(
+            result,
+            f"{result.criterion_id}: {count_noun(pending, 'parameter')} still open",
+            ctx=ctx,
+            status="warn",
+        )
+    return with_summary(
+        result,
+        f"{result.criterion_id} set to {result.search_name}",
+        ctx=ctx,
     )
 
 
@@ -629,7 +660,7 @@ async def set_structure(
     ctx: RunContext[AgentDeps],
     *,
     root: StructureNode,
-) -> SetStructureResult:
+) -> ToolReturn[SetStructureResult]:
     """Set the strategy tree from the bound criteria.
 
     ``root`` is a tree, not a list, because the shape carries meaning. Each
@@ -650,12 +681,17 @@ async def set_structure(
     branch on either side is representable.
     """
     ctx.deps.agent_state.frame_set_structure(SpecStructure(root=root))
-    return SetStructureResult(criteria_combined=_count_criteria(root))
+    combined = _count_criteria(root)
+    return with_summary(
+        SetStructureResult(criteria_combined=combined),
+        f"Structure set: {combined} criteria",
+        ctx=ctx,
+    )
 
 
 def drop_criterion(
     ctx: RunContext[AgentDeps], *, criterion_id: str, reason: str
-) -> DropCriterionResult:
+) -> ToolReturn[DropCriterionResult]:
     """Remove a criterion (by the ``criterion_id`` you set in ``set_criterion``)
     from the spec, e.g. when its WDK search is unavailable or has no realizable
     binding. The criterion and its open params are removed (so it no longer
@@ -668,4 +704,8 @@ def drop_criterion(
             f"criterion_id from set_criterion. Current criteria: {ids}."
         )
         raise ModelRetry(msg)
-    return DropCriterionResult(criterion_id=criterion_id, reason=reason)
+    return with_summary(
+        DropCriterionResult(criterion_id=criterion_id, reason=reason),
+        f"Dropped {criterion_id}",
+        ctx=ctx,
+    )

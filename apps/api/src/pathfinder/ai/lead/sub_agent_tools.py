@@ -80,9 +80,10 @@ TOOL_TO_PHASE_ROLE: dict[str, PhaseRole] = {
 
 PendingApprovalPhase = Literal["frame", "build", "verification", "lead"]
 
-# The label the approval card carries for a sub-agent's own approval-required
-# tool. It names the phase the user sees, not the role that runs it.
-SUB_AGENT_APPROVAL_PHASE: dict[str, PendingApprovalPhase] = {
+# The phase name the wire carries for a sub-agent run. It names the phase the
+# user sees, not the role that runs it, and one call id carries exactly one of
+# these however many chunks report it.
+WIRE_PHASE_BY_ROLE: dict[str, PendingApprovalPhase] = {
     "frame": "frame",
     "execution": "build",
     "verification": "verification",

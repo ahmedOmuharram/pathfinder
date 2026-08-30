@@ -31,6 +31,7 @@ class _SessionCM:
 
 def _ctx() -> Any:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.runtime.site_id = "plasmodb"
     ctx.deps.runtime.user_id = uuid4()

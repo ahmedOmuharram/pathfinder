@@ -102,6 +102,7 @@ import type {
   TaskStatusResponse,
   ThresholdKnobResponse,
   ToolCallDelta,
+  ToolSummaryPayload,
   TreeOptimizationResultResponse,
   TreeOptimizationTrialResponse,
   TrialProgressDataResponse,
@@ -628,6 +629,7 @@ export type KnownDataPartKind =
   | "data-turn-stopped"
   | "data-turn-failed"
   | "data-lead-usage"
+  | "data-tool-summary"
   | "data-eda.analysis-state"
   | "data-eda.subset-preview"
   | "data-eda.viz";
@@ -662,6 +664,7 @@ export interface DataPartPayloadMap {
   "data-turn-stopped": TurnStoppedPayload;
   "data-turn-failed": TurnFailedPayload;
   "data-lead-usage": DataLeadUsagePayload;
+  "data-tool-summary": ToolSummaryPayload;
   "data-eda.analysis-state": EdaAnalysisState;
   "data-eda.subset-preview": EdaSubsetPreviewPart;
   "data-eda.viz": EdaVizPart;

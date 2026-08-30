@@ -1,0 +1,368 @@
+[
+  {
+    "type": "start",
+    "messageId": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "type": "data-turn-status",
+    "data": { "label": "Thinking...", "waitingOnLlm": true }
+  },
+  { "type": "text-start", "id": "t1" },
+  {
+    "type": "text-delta",
+    "id": "t1",
+    "delta": "I looked at the heat shock study and subset it to the febrile samples."
+  },
+  { "type": "text-end", "id": "t1" },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_1",
+    "toolName": "search_eda_studies"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_1",
+    "toolName": "search_eda_studies",
+    "input": { "query": "heat shock", "limit": 5 }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_1",
+    "output": {
+      "total": 3,
+      "studies": [
+        {
+          "datasetId": "DS_e973eadd57",
+          "displayName": "Heat shock response in sensitive mutants (LRR5, DHC)"
+        }
+      ]
+    }
+  },
+  {
+    "type": "data-tool-summary",
+    "data": {
+      "toolCallId": "call_1",
+      "summary": "3 studies matched heat shock",
+      "status": "ok"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_2",
+    "toolName": "open_eda_analysis"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_2",
+    "toolName": "open_eda_analysis",
+    "input": {
+      "datasetId": "DS_e973eadd57",
+      "purpose": "subset the heat shock study to the febrile samples"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_2",
+    "output": { "analysisId": "a-1", "revision": 3 }
+  },
+  {
+    "type": "data-eda.analysis-state",
+    "data": {
+      "siteId": "plasmodb",
+      "datasetId": "DS_e973eadd57",
+      "studyId": "STUDY_e973eadd57",
+      "analysisId": "a-1",
+      "revision": 3,
+      "studyDisplayName": "Heat shock response in sensitive mutants (LRR5, DHC)",
+      "displayName": "Febrile samples",
+      "numFilters": 2,
+      "numComputations": 1,
+      "filters": [
+        {
+          "entityId": "ENT_8151325d",
+          "variableId": "VAR_081ab087",
+          "type": "stringSet",
+          "stringSet": ["febrile"]
+        },
+        {
+          "entityId": "ENT_8151325d",
+          "variableId": "VAR_7033e90f",
+          "type": "numberRange",
+          "min": 37,
+          "max": 42
+        }
+      ],
+      "filterSummaries": [
+        "temperature_condition is febrile",
+        "Temperature is 37 to 42"
+      ],
+      "entityCounts": [
+        {
+          "entityId": "ENT_8151325d",
+          "entityDisplayName": "Sample",
+          "count": 6,
+          "unfilteredCount": 12
+        },
+        {
+          "entityId": "ENT_fd574cd6",
+          "entityDisplayName": "pfal3D7 htseq counts",
+          "count": 34320,
+          "unfilteredCount": 68640
+        }
+      ],
+      "canExportRows": true
+    }
+  },
+  {
+    "type": "data-tool-summary",
+    "data": {
+      "toolCallId": "call_2",
+      "summary": "Opened Febrile samples on DS_e973eadd57",
+      "status": "ok"
+    }
+  },
+  {
+    "type": "data-sub-agent-call",
+    "id": "sa_1",
+    "data": {
+      "toolCallId": "sa_1",
+      "subAgent": "frame_problem",
+      "phase": "frame",
+      "state": "started",
+      "modelId": "openai:gpt-5.6-luna",
+      "summary": "frame the heat shock question"
+    }
+  },
+  {
+    "type": "data-sub-agent-step",
+    "data": {
+      "parentToolCallId": "sa_1",
+      "kind": "tool",
+      "state": "started",
+      "toolCallId": "s1",
+      "toolName": "search_for_searches",
+      "args": { "query": "heat shock" }
+    }
+  },
+  {
+    "type": "data-sub-agent-step",
+    "data": {
+      "parentToolCallId": "sa_1",
+      "kind": "tool",
+      "state": "completed",
+      "toolCallId": "s1",
+      "resultSummary": "12 searches"
+    }
+  },
+  {
+    "type": "data-sub-agent-step",
+    "data": {
+      "parentToolCallId": "sa_1",
+      "kind": "tool",
+      "state": "started",
+      "toolCallId": "s2",
+      "toolName": "set_criterion",
+      "args": { "criterionId": "c1", "searchName": "GenesByText" }
+    }
+  },
+  {
+    "type": "data-sub-agent-step",
+    "data": {
+      "parentToolCallId": "sa_1",
+      "kind": "tool",
+      "state": "completed",
+      "toolCallId": "s2",
+      "resultSummary": "c1 set to GenesByText"
+    }
+  },
+  {
+    "type": "data-sub-agent-call",
+    "id": "sa_1",
+    "data": {
+      "toolCallId": "sa_1",
+      "subAgent": "frame_problem",
+      "phase": "frame",
+      "state": "completed",
+      "modelId": "openai:gpt-5.6-luna",
+      "summary": "frame the heat shock question",
+      "succeeded": true,
+      "tokens": 12300,
+      "costUsd": "0.004"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_3",
+    "toolName": "preview_eda_subset"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_3",
+    "toolName": "preview_eda_subset",
+    "input": {
+      "entityId": "ENT_8151325d",
+      "distributionVariableId": "VAR_7033e90f"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_3",
+    "output": { "count": 6, "unfilteredCount": 12 }
+  },
+  {
+    "type": "data-eda.subset-preview",
+    "data": {
+      "datasetId": "DS_e973eadd57",
+      "analysisId": "a-1",
+      "entityCounts": [
+        {
+          "entityId": "ENT_8151325d",
+          "entityDisplayName": "Sample",
+          "count": 6,
+          "unfilteredCount": 12
+        }
+      ],
+      "distribution": {
+        "variableId": "VAR_7033e90f",
+        "variableDisplayName": "Temperature",
+        "labels": ["[37, 38)", "[41, 42]"],
+        "values": [6, 6],
+        "subsetSize": 6,
+        "numVarValues": 6,
+        "numMissingCases": 0,
+        "isMultiValued": false
+      },
+      "distributionNote": null
+    }
+  },
+  {
+    "type": "data-tool-summary",
+    "data": {
+      "toolCallId": "call_3",
+      "summary": "6 of 12 Sample",
+      "status": "ok"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_4",
+    "toolName": "run_control_tests_on_step"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_4",
+    "toolName": "run_control_tests_on_step",
+    "input": { "wdkStepId": 132 }
+  },
+  {
+    "type": "data-background-task-started",
+    "data": {
+      "taskId": "00000000-0000-0000-0000-0000000000aa",
+      "toolName": "run_control_tests_on_step",
+      "estimatedDurationSeconds": 3
+    }
+  },
+  {
+    "type": "data-task-progress",
+    "id": "00000000-0000-0000-0000-0000000000aa",
+    "data": {
+      "taskId": "00000000-0000-0000-0000-0000000000aa",
+      "percent": 0.66,
+      "message": "Comparing controls"
+    }
+  },
+  {
+    "type": "data-task-completed",
+    "data": {
+      "taskId": "00000000-0000-0000-0000-0000000000aa",
+      "status": "success"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_4",
+    "output": { "positiveControlsRecovered": 8, "positiveControlsTotal": 10 }
+  },
+  {
+    "type": "data-tool-summary",
+    "data": {
+      "toolCallId": "call_4",
+      "summary": "8 of 10 positive controls recovered",
+      "status": "ok"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_5",
+    "toolName": "optimize_search_parameters"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_5",
+    "toolName": "optimize_search_parameters",
+    "input": {
+      "target": { "wdkStepId": 132, "searchName": "GenesByText" },
+      "controls": { "controlSetId": "cs-1" }
+    }
+  },
+  {
+    "type": "tool-approval-request",
+    "approvalId": "call_5",
+    "toolCallId": "call_5"
+  },
+  {
+    "type": "data-eda.viz",
+    "data": {
+      "datasetId": "DS_e973eadd57",
+      "analysisId": "a-1",
+      "chart": "volcano",
+      "effectSizeLabel": "log2(Fold Change)",
+      "effectSizeThreshold": 1,
+      "significanceThreshold": 0.05,
+      "effectDirection": "upAndDown",
+      "totalPoints": 5511,
+      "retainedPoints": 1543,
+      "points": [
+        {
+          "pointId": "PF3D7_0100100",
+          "effectSize": -0.218035922112735,
+          "pValue": 0.350285751849808,
+          "adjustedPValue": 0.46960449943855,
+          "retained": false
+        },
+        {
+          "pointId": "PF3D7_0100200",
+          "effectSize": 3.94437533216012,
+          "pValue": 0.0000195781599815607,
+          "adjustedPValue": 0.000137772236907279,
+          "retained": true
+        },
+        {
+          "pointId": "PF3D7_MIT04200",
+          "effectSize": -1.49447459261845,
+          "pValue": null,
+          "adjustedPValue": null,
+          "retained": false
+        }
+      ]
+    }
+  },
+  { "type": "text-start", "id": "t2" },
+  {
+    "type": "text-delta",
+    "id": "t2",
+    "delta": "Approve the parameter sweep and I will run it."
+  },
+  { "type": "text-end", "id": "t2" },
+  {
+    "type": "data-lead-usage",
+    "id": "lu_1",
+    "data": {
+      "modelId": "openai:gpt-5.6-luna",
+      "tokens": 41800,
+      "costUsd": "0.0131"
+    }
+  },
+  { "type": "finish", "finishReason": "stop" },
+  { "type": "done" }
+]

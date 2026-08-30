@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 from pydantic_ai.messages import (
+    FunctionToolResultEvent,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -12,6 +13,7 @@ from pydantic_ai.messages import (
     ThinkingPart,
     ThinkingPartDelta,
     ToolCallPart,
+    ToolReturnPart,
 )
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
@@ -21,9 +23,11 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     TextDeltaChunk,
     TextEndChunk,
     TextStartChunk,
+    ToolOutputAvailableChunk,
 )
 
 from assistant_core.conversation.vercel_adapter import PhaseStreamEmitter
+from assistant_core.graph.turn_state import UserQuestionAnswer
 
 
 def _assert_reasoning_well_formed(chunks: list[BaseChunk]) -> None:
@@ -241,6 +245,41 @@ async def test_out_of_order_thinking_delta_routes_to_own_start() -> None:
         f"{b_deltas[0].id} (start={reasoning_starts[0].id}, "
         f"text_start={text_starts[0].id if text_starts else None})"
     )
+
+
+async def _consult_result_stream() -> AsyncIterator[object]:
+    yield FunctionToolResultEvent(
+        part=ToolReturnPart(
+            tool_name="consult_user",
+            content=[
+                UserQuestionAnswer(
+                    question_id="comparison_scope",
+                    prompt="Retain both temperature-condition groups?",
+                    chosen_labels=["Retain febrile and normal (recommended)"],
+                )
+            ],
+            tool_call_id="call-consult",
+        ),
+    )
+
+
+@pytest.mark.anyio
+async def test_tool_output_carries_the_protocol_field_names() -> None:
+    """A tool return reaches the wire under the aliases the protocol declares."""
+    emitter = PhaseStreamEmitter(message_id="phase-consult")
+    chunks: list[BaseChunk] = [
+        chunk async for chunk in emitter.chunks(_consult_result_stream())
+    ]
+    outputs = [c for c in chunks if isinstance(c, ToolOutputAvailableChunk)]
+    assert len(outputs) == 1
+    assert outputs[0].output == [
+        {
+            "questionId": "comparison_scope",
+            "prompt": "Retain both temperature-condition groups?",
+            "chosenLabels": ["Retain febrile and normal (recommended)"],
+            "note": "",
+        }
+    ]
 
 
 @pytest.fixture

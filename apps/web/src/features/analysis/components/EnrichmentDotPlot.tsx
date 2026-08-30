@@ -16,6 +16,7 @@ import {
   formatProbability,
   formatRatio,
   pvalColor,
+  pvalGradient,
   truncateLabel,
 } from "./enrichment-utils";
 
@@ -102,10 +103,7 @@ function DotPlotLegend({ maxGeneCount }: { maxGeneCount: number }) {
       <span className="flex items-center gap-1">
         <span
           className="inline-block h-2 w-8 rounded-sm"
-          style={{
-            background:
-              "linear-gradient(to right, hsl(220,70%,55%), hsl(110,70%,50%), hsl(40,75%,50%), hsl(0,80%,50%))",
-          }}
+          style={{ background: pvalGradient() }}
         />
         <span>-log10(p)</span>
       </span>

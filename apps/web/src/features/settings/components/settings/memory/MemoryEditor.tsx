@@ -85,7 +85,7 @@ export function MemoryEditor({ open, item, onSave, onCancel }: MemoryEditorProps
     <div
       role="dialog"
       aria-label="Edit memory"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 backdrop-blur-sm"
     >
       <div className="w-full max-w-xl rounded-lg border border-border bg-card p-5 shadow-xl">
         <h3 className="mb-3 text-base font-semibold text-foreground">Edit memory</h3>

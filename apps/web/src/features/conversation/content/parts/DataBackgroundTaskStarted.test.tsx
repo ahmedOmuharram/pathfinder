@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import type { TaskCompleted, TaskProgressChunk } from "@pathfinder/shared";
@@ -85,11 +85,11 @@ function renderCard(
 }
 
 describe("DataBackgroundTaskStarted", () => {
-  it("humanizes the tool name and rounds the duration up to whole minutes", () => {
+  it("draws one task row named by the tool, with the estimate the wire gave", () => {
     renderCard([]);
     const card = screen.getByTestId("data-background-task-started");
     expect(card).toHaveTextContent("Run control tests");
-    expect(card).toHaveTextContent("~2 min");
+    expect(screen.getByTestId("task-row-elapsed")).toHaveTextContent("~120 s");
   });
 
   it("drives the progress bar from the message's own progress part", () => {
@@ -97,18 +97,20 @@ describe("DataBackgroundTaskStarted", () => {
       progressPart({ taskId: "t1", percent: 0.6, message: "Comparing controls" }),
     ]);
     expect(screen.getByText("Comparing controls")).toBeInTheDocument();
-    expect(screen.getByText("60%")).toBeInTheDocument();
+    expect(screen.getByTestId("task-row-status")).toHaveTextContent("60%");
     expect(screen.getByTestId("progress-bar-fill")).toHaveStyle({ width: "60%" });
   });
 
-  it("replaces progress with a success completion and removes the progress bar", () => {
+  it("reads Completed and keeps its bar once the job succeeds", () => {
     renderCard([
       progressPart({ taskId: "t1", percent: 0.6, message: "Comparing controls" }),
       completedPart({ taskId: "t1", status: "success" }),
     ]);
     const completed = screen.getByTestId("data-task-completed");
-    expect(completed).toHaveTextContent("Task completed");
-    expect(screen.queryAllByTestId("progress-bar-fill")).toHaveLength(0);
+    expect(screen.getByTestId("task-row-status")).toHaveTextContent("Completed");
+    expect(within(completed).getByTestId("progress-bar-fill")).toHaveStyle({
+      width: "100%",
+    });
     expect(screen.queryByText("Comparing controls")).toBeNull();
   });
 
@@ -121,8 +123,17 @@ describe("DataBackgroundTaskStarted", () => {
       }),
     ]);
     const completed = screen.getByTestId("data-task-completed");
-    expect(completed).toHaveTextContent("Task failed");
+    expect(screen.getByTestId("task-row-status")).toHaveTextContent("Failed");
     expect(completed).toHaveTextContent("WDK rejected the search");
+  });
+
+  it("puts no call JSON on the page in any state", () => {
+    const { container } = renderCard([
+      progressPart({ taskId: "t1", percent: 0.6, message: "Comparing controls" }),
+      completedPart({ taskId: "t1", status: "success" }),
+    ]);
+    expect(container.textContent).not.toContain("{");
+    expect(container.textContent).toContain("Run control tests");
   });
 
   it("ignores parts that belong to another task", () => {
@@ -130,8 +141,9 @@ describe("DataBackgroundTaskStarted", () => {
       progressPart({ taskId: "other", percent: 0.9, message: "Not this task" }),
       completedPart({ taskId: "other", status: "success" }),
     ]);
-    expect(screen.queryByText("Not this task")).toBeNull();
-    expect(screen.queryByTestId("data-task-completed")).toBeNull();
+    expect(screen.queryAllByText("Not this task")).toHaveLength(0);
+    expect(screen.queryAllByTestId("data-task-completed")).toHaveLength(0);
+    expect(screen.getByTestId("task-row-status")).toHaveTextContent("0%");
   });
 
   it("reattaches the thread exactly once while the task is unfinished", async () => {
@@ -162,9 +174,7 @@ describe("DataBackgroundTaskStarted", () => {
       ],
       { resumeStream },
     );
-    expect(screen.getByTestId("data-task-completed")).toHaveTextContent(
-      "Task completed",
-    );
+    expect(screen.getByTestId("task-row-status")).toHaveTextContent("Completed");
     await Promise.resolve();
     expect(resumeStream).not.toHaveBeenCalled();
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CHART_TOKEN_FALLBACKS } from "./chartTheme";
+import { DISTINCT_CHART_TOKENS } from "./__fixtures__/chartTokens";
 import { buildScatterOption } from "./scatter.options";
 
 const args = {
@@ -15,7 +15,7 @@ const args = {
   ],
   xAxis: { variableId: "effectSize", displayName: "log2(Fold Change)" },
   yAxis: { variableId: "pValue", displayName: "-log10(p-value)" },
-  tokens: CHART_TOKEN_FALLBACKS,
+  tokens: DISTINCT_CHART_TOKENS,
 };
 
 describe("buildScatterOption", () => {
@@ -70,8 +70,8 @@ describe("buildScatterOption", () => {
   it("colors series by token order", () => {
     const option = buildScatterOption(args);
     expect(option.series.map((s) => s.color)).toEqual([
-      CHART_TOKEN_FALLBACKS.series[0],
-      CHART_TOKEN_FALLBACKS.series[1],
+      DISTINCT_CHART_TOKENS.series[0],
+      DISTINCT_CHART_TOKENS.series[1],
     ]);
   });
 });

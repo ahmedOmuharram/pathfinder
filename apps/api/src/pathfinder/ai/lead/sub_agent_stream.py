@@ -30,8 +30,9 @@ from assistant_core.models.scripted import (
     current_user_text,
 )
 from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
 from langgraph.config import get_stream_writer
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic_ai import AgentRunResultEvent
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import (
@@ -49,6 +50,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults
 from pydantic_ai.ui.vercel_ai.response_types import (
+    BaseChunk,
     DataChunk,
     FileChunk,
     SourceDocumentChunk,
@@ -69,6 +71,7 @@ from pathfinder.ai.graph.stream_events import ledger_update_event
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_tools import (
     BUILD_SUB_AGENT_BY_ROLE,
+    WIRE_PHASE_BY_ROLE,
     LeadDeps,
     SubAgentRunUsage,
     apply_agent_state,
@@ -157,18 +160,40 @@ def _step_state(
     return "failed" if is_error_directive(result.content) else "completed"
 
 
-def _forward_tool_metadata(writer: Any, metadata: object) -> None:
-    """Forward a sub-agent tool's ``ToolReturn.metadata`` chunks to the
-    main stream.
+class _InnerToolSummary(CamelModel):
+    """The line an inner tool wrote about its own call."""
 
-    A sub-agent tool runs outside the VercelAIAdapter, so the adapter does
-    not emit these chunks.
+    model_config = ConfigDict(extra="ignore")
+
+    summary: str = ""
+
+
+@dataclass(frozen=True)
+class _InnerMetadata:
+    """An inner tool's metadata, split into its line and what the stream shows."""
+
+    summary: str | None
+    forwarded: list[BaseChunk]
+
+
+def _read_tool_metadata(metadata: object) -> _InnerMetadata:
+    """Take the inner tool's own line out of its metadata.
+
+    A summary names the inner call, which no reducer on the main stream holds,
+    so it becomes the step row's text instead of a chunk. Every other chunk is
+    forwarded: a sub-agent tool runs outside the VercelAIAdapter, so the
+    adapter does not emit them.
     """
     if not isinstance(metadata, list):
-        return
+        return _InnerMetadata(summary=None, forwarded=[])
+    summary: str | None = None
+    forwarded: list[BaseChunk] = []
     for chunk in metadata:
-        if isinstance(chunk, _STREAMABLE_METADATA):
-            emit_chunk(writer, chunk)
+        if isinstance(chunk, DataChunk) and chunk.type == "data-tool-summary":
+            summary = _InnerToolSummary.model_validate(chunk.data).summary or None
+        elif isinstance(chunk, _STREAMABLE_METADATA):
+            forwarded.append(chunk)
+    return _InnerMetadata(summary=summary, forwarded=forwarded)
 
 
 def _forward_inner_event(
@@ -199,6 +224,11 @@ def _forward_inner_event(
         if tool_name is None:
             return
         result = event.part
+        inner = (
+            _read_tool_metadata(result.metadata)
+            if isinstance(result, ToolReturnPart)
+            else _InnerMetadata(summary=None, forwarded=[])
+        )
         _emit_step(
             writer,
             SubAgentStepPayload(
@@ -207,11 +237,11 @@ def _forward_inner_event(
                 state=_step_state(result),
                 tool_call_id=event.tool_call_id,
                 tool_name=tool_name,
-                result_summary=_result_summary(result),
+                result_summary=inner.summary or _result_summary(result),
             ),
         )
-        if isinstance(result, ToolReturnPart):
-            _forward_tool_metadata(writer, result.metadata)
+        for chunk in inner.forwarded:
+            emit_chunk(writer, chunk)
         return
     if isinstance(event, PartEndEvent):
         part = event.part
@@ -431,7 +461,7 @@ def _emit_running_sub_agent_usage(
             SubAgentCallPayload(
                 tool_call_id=parent_tool_call_id,
                 sub_agent=role,
-                phase=role,
+                phase=WIRE_PHASE_BY_ROLE[role],
                 state="started",
                 model_id=model_id,
                 tokens=usage.total_tokens,

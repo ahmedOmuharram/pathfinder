@@ -205,6 +205,7 @@ async def optimize_search_parameters_impl(
 
     sweep = SweepResult.model_validate({"variants": raw_results, "best": None})
     result_json: dict[str, Any] = sweep.model_dump(by_alias=True, mode="json")
+    result_json["objective"] = settings_m.objective
     if settings_m.criterion:
         result_json["criterion"] = settings_m.criterion
     if settings_m.model_id:

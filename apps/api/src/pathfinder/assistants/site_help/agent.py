@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from assistant_core.graph.runtime import AssistantDeps
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic_ai import Agent, ModelRetry, Tool
+from pydantic_ai.messages import ToolReturn
 from pydantic_ai.models import Model
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import AbstractToolset
@@ -77,19 +79,24 @@ class SiteDetail(CamelModel):
     record_types: list[RecordTypeSummary]
 
 
-async def list_veupathdb_sites() -> list[SiteSummary]:
+async def list_veupathdb_sites(
+    ctx: RunContext[SiteHelpDeps],
+) -> ToolReturn[list[SiteSummary]]:
     """List every VEuPathDB site this deployment can reach.
 
     Call this when the user asks which sites exist, which one covers an
     organism, or where a kind of data lives.
     """
-    return [
+    summaries = [
         SiteSummary(site_id=site.id, display_name=site.display_name, url=site.base_url)
         for site in await list_sites()
     ]
+    return with_summary(summaries, f"{len(summaries)} sites", ctx=ctx)
 
 
-async def describe_site(site_id: str) -> SiteDetail:
+async def describe_site(
+    ctx: RunContext[SiteHelpDeps], site_id: str
+) -> ToolReturn[SiteDetail]:
     """Report one site's record types and the search count of each.
 
     ``site_id`` is the id ``list_veupathdb_sites`` returns, such as
@@ -110,10 +117,14 @@ async def describe_site(site_id: str) -> SiteDetail:
         )
         for record_type in record_types
     ]
-    return SiteDetail(
-        site_id=site.id,
-        display_name=site.display_name,
-        record_types=summaries,
+    return with_summary(
+        SiteDetail(
+            site_id=site.id,
+            display_name=site.display_name,
+            record_types=summaries,
+        ),
+        f"{site.id}: {site.display_name}",
+        ctx=ctx,
     )
 
 

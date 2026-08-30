@@ -2,18 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic_ai import ModelRetry
+from pydantic_ai.tools import RunContext
 
 from pathfinder.assistants.site_help import agent as agent_module
-from pathfinder.assistants.site_help.agent import describe_site, list_veupathdb_sites
+from pathfinder.assistants.site_help.agent import (
+    SiteHelpDeps,
+    describe_site,
+    list_veupathdb_sites,
+)
 from pathfinder.services.catalog.models import RecordTypeInfo
 
 
+class _Ctx:
+    tool_call_id = "call_1"
+
+
+def _ctx() -> RunContext[SiteHelpDeps]:
+    return cast("RunContext[SiteHelpDeps]", _Ctx())
+
+
 async def test_it_lists_the_registered_sites_with_their_urls() -> None:
-    sites = await list_veupathdb_sites()
+    sites = (await list_veupathdb_sites(_ctx())).return_value
 
     by_id = {site.site_id: site for site in sites}
     assert {"plasmodb", "toxodb", "vectorbase"} <= set(by_id)
@@ -24,7 +37,7 @@ async def test_it_lists_the_registered_sites_with_their_urls() -> None:
 async def test_an_unknown_site_is_answered_with_the_ids_that_exist() -> None:
     """The model picked a name; it is told the real ones rather than a 404."""
     with pytest.raises(ModelRetry) as raised:
-        await describe_site("plasmadb")
+        await describe_site(_ctx(), "plasmadb")
 
     assert "plasmodb" in str(raised.value)
 
@@ -48,7 +61,7 @@ async def test_it_counts_the_searches_of_each_record_type(
     monkeypatch.setattr(agent_module, "get_record_types", _record_types)
     monkeypatch.setattr(agent_module, "get_raw_searches", _searches)
 
-    detail = await describe_site("plasmodb")
+    detail = (await describe_site(_ctx(), "plasmodb")).return_value
 
     assert detail.site_id == "plasmodb"
     assert detail.display_name

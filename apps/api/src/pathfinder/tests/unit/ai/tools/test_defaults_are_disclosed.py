@@ -21,9 +21,12 @@ from pathfinder.services.catalog.param_validation import ValidatedParams
 
 def _ctx(state: AgentToolState) -> MagicMock:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps.agent_state = state
     ctx.deps.site_id = "plasmodb"
-    ctx.deps.strategy_session.get_graph.return_value = None
+    graph = MagicMock()
+    graph.record_type = "transcript"
+    ctx.deps.strategy_session.get_graph.return_value = graph
     return ctx
 
 
@@ -79,13 +82,15 @@ async def _bind(monkeypatch: pytest.MonkeyPatch, state: AgentToolState):
     monkeypatch.setattr(frame_spec, "resolve_params_with_intent", _resolve)
     monkeypatch.setattr(frame_spec, "validate_parameters", _validate)
     monkeypatch.setattr(frame_spec, "wdk_fetch_at", _fetch_at)
-    return await frame_spec.set_criterion(
-        _ctx(state),
-        criterion_id="expression",
-        text="top 10 percent of expression",
-        search_name="GenesByMicroarray",
-        params={},
-    )
+    return (
+        await frame_spec.set_criterion(
+            _ctx(state),
+            criterion_id="expression",
+            text="top 10 percent of expression",
+            search_name="GenesByMicroarray",
+            params={},
+        )
+    ).return_value
 
 
 class TestTheToolReportsWhatItDefaulted:

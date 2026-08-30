@@ -475,6 +475,39 @@ def _assert_preview(rows: list[dict[str, Any]]) -> None:
     assert preview["distribution"]["isMultiValued"] is True
 
 
+def _summary_for(rows: list[dict[str, Any]], tool_name: str) -> dict[str, Any]:
+    """The one line the named tool wrote about its own call, as persisted."""
+    call_id = next(
+        row["toolCallId"]
+        for row in _of_type(rows, "tool-input-available")
+        if row["toolName"] == tool_name
+    )
+    found = [
+        row["data"]
+        for row in _of_type(rows, "data-tool-summary")
+        if row["data"]["toolCallId"] == call_id
+    ]
+    assert len(found) == 1, f"{tool_name} wrote {len(found)} summaries"
+    return found[0]
+
+
+def _assert_tool_summaries(rows: list[dict[str, Any]]) -> None:
+    """Every call on the turn says what it did, in the reader's numbers."""
+    for tool_name, _args in _SEQUENCE:
+        _summary_for(rows, tool_name)
+    studies = _summary_for(rows, "search_eda_studies")
+    cards = _tool_output(rows, "search_eda_studies")["studies"]
+    assert studies["summary"] == (
+        f"{len(cards)} studies matched rodent malaria phenotypes"
+    )
+    assert studies["status"] == "ok"
+    preview = _summary_for(rows, "preview_eda_subset")
+    assert preview["summary"] == (
+        f"{_FILTERED:,} of {_UNFILTERED:,} Gene Phenotype Data"
+    )
+    assert preview["status"] == "ok"
+
+
 def _assert_step_snapshot(rows: list[dict[str, Any]]) -> None:
     """Step 6: one snapshot, after the two states and the preview."""
     types = [row["type"] for row in rows]
@@ -523,6 +556,7 @@ async def test_the_conversation_persists_every_eda_chunk_in_order(
     subset = seam.store.documents[_ANALYSIS]["descriptor"]["subset"]["descriptor"]
     assert subset == [_FILTER]
     _assert_preview(rows)
+    _assert_tool_summaries(rows)
     _assert_step_snapshot(rows)
     _assert_step_persisted(await _persisted_strategy(conversation_id))
     assert len(hermetic_wdk) == 1

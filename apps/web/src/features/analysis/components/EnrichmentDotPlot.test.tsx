@@ -12,6 +12,7 @@ import {
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { EnrichmentTerm } from "@pathfinder/shared";
 import { EnrichmentDotPlot } from "./EnrichmentDotPlot";
+import { pvalGradient } from "./enrichment-utils";
 
 interface DotDatum {
   name: string;
@@ -133,6 +134,28 @@ describe("EnrichmentDotPlot", () => {
     expect(dot).not.toBeNull();
     // 3 of the 5 genes of the largest term: 4 + 0.6 * (14 - 4).
     expect(dot?.getAttribute("r")).toBe("10");
+  });
+
+  it("ramps the legend swatch from the chart tokens", () => {
+    const root = document.documentElement;
+    root.style.setProperty("--chart-1", "215 75% 45%");
+    root.style.setProperty("--chart-4", "355 70% 45%");
+    try {
+      render(<EnrichmentDotPlot terms={[term()]} />);
+      const swatch = screen.getByText("-log10(p)").previousElementSibling;
+      expect(swatch).toHaveStyle({ background: pvalGradient() });
+      const light = swatch?.getAttribute("style");
+      cleanup();
+
+      root.style.setProperty("--chart-1", "210 90% 70%");
+      root.style.setProperty("--chart-4", "355 80% 70%");
+      render(<EnrichmentDotPlot terms={[term()]} />);
+      const darkSwatch = screen.getByText("-log10(p)").previousElementSibling;
+      expect(darkSwatch).toHaveStyle({ background: pvalGradient() });
+      expect(darkSwatch?.getAttribute("style")).not.toBe(light);
+    } finally {
+      root.removeAttribute("style");
+    }
   });
 
   it("reports the unbounded term as Inf and the finite one by its value", () => {

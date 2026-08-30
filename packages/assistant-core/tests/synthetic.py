@@ -18,7 +18,7 @@ from uuid import UUID, uuid4
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic_ai import Agent, RunContext, Tool
-from pydantic_ai.messages import ModelMessage, ToolCallPart
+from pydantic_ai.messages import ModelMessage, ToolCallPart, ToolReturn
 from pydantic_ai.models import Model
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.ui.vercel_ai.request_types import ToolApprovalResponded
@@ -33,7 +33,11 @@ from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
 from assistant_core.conversation.event_writer import ChatEventWriter, ChatWriter
 from assistant_core.graph.runtime import AssistantDeps, TurnContext
 from assistant_core.graph.single_agent import single_agent_graph
-from assistant_core.graph.stream_events import turn_status_event, turn_stopped_event
+from assistant_core.graph.stream_events import (
+    tool_summary_event,
+    turn_status_event,
+    turn_stopped_event,
+)
 from assistant_core.graph.turn_state import TurnState
 from assistant_core.mcp.declaration import ToolSourceDeclarations
 from assistant_core.models.scripted import (
@@ -102,9 +106,21 @@ PREPARING_LABEL = "Preparing context"
 EPILOGUE_LABEL = "Turn recorded"
 
 
-async def add(a: int, b: int) -> int:
+async def add(ctx: RunContext[AssistantDeps], a: int, b: int) -> ToolReturn[int]:
     """Add two numbers."""
-    return a + b
+    total = a + b
+    call_id = ctx.tool_call_id
+    if call_id is None:
+        return ToolReturn(return_value=total)
+    return ToolReturn(
+        return_value=total,
+        metadata=[
+            tool_summary_event(
+                tool_call_id=call_id,
+                summary=f"{a} plus {b} is {total}",
+            ),
+        ],
+    )
 
 
 async def wipe_everything(target: str) -> str:

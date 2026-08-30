@@ -13,6 +13,11 @@ describe("humanizeToolName", () => {
     expect(humanizeToolName("consult_user")).toBe("Ask the user");
   });
 
+  it("names the enrichment job by the tool name its task puts on the wire", () => {
+    expect(humanizeToolName("geneset_enrichment")).toBe("Gene set enrichment");
+    expect(humanizeToolName("run_gene_set_enrichment")).toBe("Gene-set enrichment");
+  });
+
   it("title-cases the deleted present_decision tool (no longer mapped)", () => {
     expect(humanizeToolName("present_decision")).toBe("Present decision");
   });

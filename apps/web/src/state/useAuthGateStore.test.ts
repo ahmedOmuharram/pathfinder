@@ -6,14 +6,16 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { APIError, requestJson } from "@/lib/api/http";
+import { refreshAuth } from "@/lib/api/veupathdb-auth";
 import {
   WDK_LOGIN_REQUIRED_TOAST_ID,
-  handleWdkLoginRequired,
+  handleWdkAuthRefusal,
   requiresFullScreenSignIn,
   useAuthGateStore,
 } from "./useAuthGateStore";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("@/lib/api/veupathdb-auth", () => ({ refreshAuth: vi.fn() }));
 
 const LOGIN_REQUIRED_BODY = {
   type: "about:blank",
@@ -23,9 +25,29 @@ const LOGIN_REQUIRED_BODY = {
   code: "WDK_LOGIN_REQUIRED",
 };
 
+const IDENTITY_MISMATCH_BODY = {
+  type: "about:blank",
+  title: "VEuPathDB account changed",
+  status: 401,
+  detail:
+    "Signed in to VEuPathDB as a different account than this PathFinder session. Sign in again.",
+  code: "WDK_IDENTITY_MISMATCH",
+};
+
+function mismatchError(): APIError {
+  return new APIError(IDENTITY_MISMATCH_BODY.detail, {
+    status: 401,
+    statusText: "Unauthorized",
+    url: "/api/v1/eda/viz",
+    data: IDENTITY_MISMATCH_BODY,
+  });
+}
+
 beforeEach(() => {
   useAuthGateStore.getState().dismissSignIn();
   vi.mocked(toast.error).mockClear();
+  vi.mocked(refreshAuth).mockReset();
+  vi.mocked(refreshAuth).mockResolvedValue({ success: true });
 });
 
 afterEach(() => {
@@ -60,7 +82,7 @@ describe("useAuthGateStore", () => {
   });
 });
 
-describe("handleWdkLoginRequired", () => {
+describe("handleWdkAuthRefusal", () => {
   it("opens the sign-in prompt and reports the server detail once", () => {
     const err = new APIError(LOGIN_REQUIRED_BODY.detail, {
       status: 401,
@@ -68,13 +90,14 @@ describe("handleWdkLoginRequired", () => {
       url: "/api/v1/conversations/c1/begin",
       data: LOGIN_REQUIRED_BODY,
     });
-    expect(handleWdkLoginRequired(err)).toBe(true);
+    expect(handleWdkAuthRefusal(err)).toBe(true);
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
       "Sign in to VEuPathDB to use searches, strategies and gene sets.",
       { id: WDK_LOGIN_REQUIRED_TOAST_ID },
     );
     expect(useAuthGateStore.getState().signInRequired).toBe(true);
     expect(useAuthGateStore.getState().signInReason).toBe(LOGIN_REQUIRED_BODY.detail);
+    expect(vi.mocked(refreshAuth)).not.toHaveBeenCalled();
   });
 
   it("reuses one toast id so concurrent refusals do not stack", () => {
@@ -84,8 +107,8 @@ describe("handleWdkLoginRequired", () => {
       url: "/api/v1/gene-sets",
       data: LOGIN_REQUIRED_BODY,
     });
-    handleWdkLoginRequired(err);
-    handleWdkLoginRequired(err);
+    handleWdkAuthRefusal(err);
+    handleWdkAuthRefusal(err);
     expect(vi.mocked(toast.error).mock.calls.map((call) => call[1])).toEqual([
       { id: WDK_LOGIN_REQUIRED_TOAST_ID },
       { id: WDK_LOGIN_REQUIRED_TOAST_ID },
@@ -99,7 +122,7 @@ describe("handleWdkLoginRequired", () => {
       url: "/x",
       data: { title: "Not found", status: 404, detail: "gone", code: "NOT_FOUND" },
     });
-    expect(handleWdkLoginRequired(err)).toBe(false);
+    expect(handleWdkAuthRefusal(err)).toBe(false);
     expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
     expect(useAuthGateStore.getState().signInRequired).toBe(false);
   });
@@ -122,12 +145,70 @@ describe("handleWdkLoginRequired", () => {
       body: { siteId: "plasmodb" },
     }).catch((err: unknown) => err);
 
-    expect(handleWdkLoginRequired(thrown)).toBe(true);
+    expect(handleWdkAuthRefusal(thrown)).toBe(true);
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
       "Sign in to VEuPathDB to use searches, strategies and gene sets.",
       { id: WDK_LOGIN_REQUIRED_TOAST_ID },
     );
     expect(useAuthGateStore.getState().signInRequired).toBe(true);
+  });
+});
+
+describe("handleWdkAuthRefusal on a second VEuPathDB account", () => {
+  it("relinks the session and retries instead of prompting", async () => {
+    const retry = vi.fn();
+
+    expect(handleWdkAuthRefusal(mismatchError(), retry)).toBe(true);
+
+    await vi.waitFor(() => expect(retry).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(refreshAuth)).toHaveBeenCalledTimes(1);
+    expect(useAuthGateStore.getState().signInRequired).toBe(false);
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+
+  it("relinks once for a burst of refusals", async () => {
+    const retry = vi.fn();
+
+    handleWdkAuthRefusal(mismatchError(), retry);
+    handleWdkAuthRefusal(mismatchError(), retry);
+
+    await vi.waitFor(() => expect(retry).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(refreshAuth)).toHaveBeenCalledTimes(1);
+  });
+
+  it("prompts with the server detail when the relink fails", async () => {
+    vi.mocked(refreshAuth).mockRejectedValue(
+      new APIError("No VEuPathDB session", {
+        status: 401,
+        statusText: "Unauthorized",
+        url: "/api/v1/veupathdb/auth/refresh",
+        data: null,
+      }),
+    );
+    const retry = vi.fn();
+
+    handleWdkAuthRefusal(mismatchError(), retry);
+
+    await vi.waitFor(() =>
+      expect(useAuthGateStore.getState().signInRequired).toBe(true),
+    );
+    expect(useAuthGateStore.getState().signInReason).toBe(
+      IDENTITY_MISMATCH_BODY.detail,
+    );
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith(IDENTITY_MISMATCH_BODY.detail, {
+      id: WDK_LOGIN_REQUIRED_TOAST_ID,
+    });
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it("prompts when the relink answers that it did not succeed", async () => {
+    vi.mocked(refreshAuth).mockResolvedValue({ success: false });
+
+    handleWdkAuthRefusal(mismatchError());
+
+    await vi.waitFor(() =>
+      expect(useAuthGateStore.getState().signInRequired).toBe(true),
+    );
   });
 });
 

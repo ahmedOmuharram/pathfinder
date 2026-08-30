@@ -121,6 +121,10 @@ describe("CanvasTopbar", () => {
       </Wrapper>,
     );
     expect(screen.getByText(/Sync paused/i)).toBeTruthy();
+    expect(screen.getByTestId("canvas-topbar-sync-state")).toHaveClass("text-warning");
+    expect(screen.getByTestId("canvas-topbar-sync-state").className).not.toContain(
+      "amber",
+    );
 
     rerender(
       <Wrapper>

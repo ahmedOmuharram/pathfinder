@@ -7,9 +7,11 @@ the same step.
 
 from typing import Any, Literal
 
+from assistant_core.graph.tool_summary import count_noun, with_summary
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import ParamVocabSnapshot
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -43,7 +45,7 @@ async def get_search_overview(
     ctx: RunContext[AgentDeps],
     search_name: str,
     record_type: str | None = None,
-) -> SearchOverviewResult | AlreadyReadNotice:
+) -> ToolReturn[SearchOverviewResult | AlreadyReadNotice]:
     """Get a high-level overview of a search: description, parameters (required/optional), and dependencies.
 
     MUST be called before creating a step with this search -- it registers the
@@ -57,13 +59,18 @@ async def get_search_overview(
     """
     deps = ctx.deps
     if deps.agent_state.get_overview(search_name) is not None:
-        return AlreadyReadNotice(
-            message=(
-                f"You already inspected '{search_name}' this turn; same as "
-                "your earlier read. Move on (inspect a different search, read a "
-                "parameter, or record a decision)."
+        return with_summary(
+            AlreadyReadNotice(
+                message=(
+                    f"You already inspected '{search_name}' this turn; same as "
+                    "your earlier read. Move on (inspect a different search, "
+                    "read a parameter, or record a decision)."
+                ),
+                search_name=search_name,
             ),
-            search_name=search_name,
+            f"{search_name} already read",
+            ctx=ctx,
+            status="warn",
         )
     try:
         inspection = await inspect_search(
@@ -77,7 +84,12 @@ async def get_search_overview(
 
     register_search(deps.agent_state, inspection.definition, inspection.record_type)
 
-    return inspection.overview
+    overview = inspection.overview
+    return with_summary(
+        overview,
+        f"{search_name}: {count_noun(len(overview.required) + len(overview.optional), 'parameter')}",
+        ctx=ctx,
+    )
 
 
 async def get_parameter_options(
@@ -87,7 +99,7 @@ async def get_parameter_options(
     record_type: str | None = None,
     context_values: dict[str, Any] | None = None,
     query: str | None = None,
-) -> GetParameterOptionsResult | AlreadyReadNotice:
+) -> ToolReturn[GetParameterOptionsResult | AlreadyReadNotice]:
     """Get detailed parameter info including vocabulary/allowed values.
 
     For dependent parameters, pass context_values with the parent parameter's
@@ -126,14 +138,19 @@ async def get_parameter_options(
         search_name, parameter_id, context_values=typed_context, query=query
     )
     if deps.agent_state.was_param_read(read_key):
-        return AlreadyReadNotice(
-            message=(
-                f"You already read options for '{parameter_id}' on "
-                f"'{search_name}' with these exact context/query; same as "
-                "before. Use the values you saw; don't re-read."
+        return with_summary(
+            AlreadyReadNotice(
+                message=(
+                    f"You already read options for '{parameter_id}' on "
+                    f"'{search_name}' with these exact context/query; same as "
+                    "before. Use the values you saw; don't re-read."
+                ),
+                search_name=search_name,
+                parameter_id=parameter_id,
             ),
-            search_name=search_name,
-            parameter_id=parameter_id,
+            f"{parameter_id} on {search_name} already read",
+            ctx=ctx,
+            status="warn",
         )
     result = await read_parameter_options(
         deps.site_id,
@@ -143,10 +160,22 @@ async def get_parameter_options(
         context_values=typed_context,
         query=query,
     )
-    if result.kind == "parameter_info":
-        _snapshot_param_vocab(deps, search_name, result)
-        deps.agent_state.mark_param_read(read_key)
-    return result
+    if result.kind != "parameter_info":
+        return with_summary(
+            result,
+            f"{parameter_id} is not on {search_name}",
+            ctx=ctx,
+            status="warn",
+        )
+    _snapshot_param_vocab(deps, search_name, result)
+    deps.agent_state.mark_param_read(read_key)
+    options = len(result.allowed_values or [])
+    return with_summary(
+        result,
+        f"{parameter_id}: {options} options",
+        ctx=ctx,
+        status="ok" if options else "empty",
+    )
 
 
 def _snapshot_param_vocab(

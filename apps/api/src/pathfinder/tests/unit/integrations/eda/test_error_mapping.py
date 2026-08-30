@@ -69,6 +69,18 @@ def test_403_is_forbidden_and_names_the_study_id_trap() -> None:
     assert "STUDY_" in error.detail
 
 
+def test_403_on_a_user_path_names_the_account_the_analysis_belongs_to() -> None:
+    """An analysis under another account is not a study-id mistake."""
+    error = eda_failure("GET", "/users/1202189953/analyses/PlasmoDB/Vd6RDIz", 403, "")
+    assert isinstance(error, EdaForbiddenError)
+    assert error.detail is not None
+    assert (
+        "The analysis belongs to a different VEuPathDB account than the one "
+        "signed in now. Open the study again to create one under this account."
+    ) in error.detail
+    assert "STUDY_" not in error.detail
+
+
 def test_404_and_500_map_to_their_own_classes() -> None:
     assert isinstance(eda_failure("GET", "/jobs/x", 404, ""), EdaNotFoundError)
     assert isinstance(

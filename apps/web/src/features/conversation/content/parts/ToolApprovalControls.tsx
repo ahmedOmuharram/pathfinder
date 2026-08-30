@@ -1,19 +1,20 @@
 "use client";
 
 import { getToolName, isToolUIPart, type ToolUIPart, type UIMessage } from "ai";
-import { Check, ShieldAlert, X } from "lucide-react";
+import type { ReactElement } from "react";
 import { toast } from "sonner";
 
-import { ToolInput } from "@/components/ai-elements/tool";
-import { Button } from "@/components/ui/button";
+import {
+  ApprovalCard,
+  type ApprovalDecision,
+} from "@/lib/components/thread/ApprovalCard";
 import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { useChatHelpersOptional } from "../../runtime/chatHelpersContext";
+import { useThreadDevMode } from "../../thread/useThreadDevMode";
 
 // The consult carousel answers this tool's approval with the user's answers.
 const CONSULT_TOOL_NAME = "consult_user";
-
-export type ApprovalDecision = "pending" | "approved" | "denied";
 
 export interface ToolApprovalView {
   approvalId: string;
@@ -51,30 +52,16 @@ export function findToolApproval(
   return null;
 }
 
-export function ToolApprovalControls({ toolCallId }: { toolCallId: string }) {
+export function ToolApprovalControls({
+  toolCallId,
+}: {
+  toolCallId: string;
+}): ReactElement | null {
   const chat = useChatHelpersOptional();
+  const { showRaw } = useThreadDevMode();
   if (chat === null) return null;
   const approval = findToolApproval(chat.messages, toolCallId);
   if (approval === null || approval.toolName === CONSULT_TOOL_NAME) return null;
-
-  if (approval.decision !== "pending") {
-    const approved = approval.decision === "approved";
-    return (
-      <div
-        data-testid="tool-approval-decision"
-        className={`flex items-center gap-1.5 px-3 pb-2 text-xs ${
-          approved ? "text-success" : "text-destructive"
-        }`}
-      >
-        {approved ? (
-          <Check className="size-3.5" aria-hidden />
-        ) : (
-          <X className="size-3.5" aria-hidden />
-        )}
-        {approved ? "Approved" : "Denied"}
-      </div>
-    );
-  }
 
   const respond = (approved: boolean) => {
     Promise.resolve(
@@ -85,34 +72,13 @@ export function ToolApprovalControls({ toolCallId }: { toolCallId: string }) {
   };
 
   return (
-    <div
-      data-testid="tool-approval-controls"
-      className="mx-3 mb-3 space-y-2 rounded-md border border-warning/40 bg-warning/10 p-2"
-    >
-      <p className="flex items-center gap-1.5 text-xs font-medium">
-        <ShieldAlert className="size-3.5 text-warning" aria-hidden />
-        {humanizeToolName(approval.toolName)} needs your approval before it runs.
-      </p>
-      <ToolInput input={approval.input} className="p-0" />
-      <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => respond(false)}
-          data-testid="tool-approval-deny"
-        >
-          <X className="mr-1 size-3.5" aria-hidden /> Deny
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => respond(true)}
-          data-testid="tool-approval-approve"
-        >
-          <Check className="mr-1 size-3.5" aria-hidden /> Approve
-        </Button>
-      </div>
-    </div>
+    <ApprovalCard
+      title={humanizeToolName(approval.toolName)}
+      input={approval.input}
+      showRaw={showRaw}
+      onApprove={() => respond(true)}
+      onDeny={() => respond(false)}
+      decision={approval.decision}
+    />
   );
 }

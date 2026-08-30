@@ -169,7 +169,7 @@ export function EnsemblePanel() {
                     </td>
                     <td className="px-3 py-1.5 text-center">
                       {r.inPositives ? (
-                        <span className="text-green-700 dark:text-green-400">Yes</span>
+                        <span className="text-success">Yes</span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}

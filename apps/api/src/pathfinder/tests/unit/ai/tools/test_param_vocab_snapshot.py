@@ -22,6 +22,7 @@ from pathfinder.services.catalog.param_formatting import ParameterInfo
 
 def _ctx_with_state(state: AgentToolState) -> Any:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.site_id = "plasmodb"
     ctx.deps.agent_state = state
@@ -98,11 +99,13 @@ async def test_get_parameter_options_writes_param_vocab_snapshot(
         lambda *args, **kw: fake_info,
     )
 
-    result = await catalog_discovery.get_parameter_options(
-        _ctx_with_state(state),
-        search_name="RNASeqHardFloor",
-        parameter_id="hard_floor",
-    )
+    result = (
+        await catalog_discovery.get_parameter_options(
+            _ctx_with_state(state),
+            search_name="RNASeqHardFloor",
+            parameter_id="hard_floor",
+        )
+    ).return_value
     assert result is fake_info
 
     overview = state.get_overview("RNASeqHardFloor")
@@ -216,6 +219,7 @@ def test_pinned_discovered_searches_renders_param_vocab() -> None:
     state.register_search(overview.search_name, overview)
 
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.agent_state = state
     rendered = pinned_discovered_searches(ctx)
@@ -257,6 +261,7 @@ def test_pinned_discovered_searches_omits_vocab_for_rejected() -> None:
     state.register_search(overview.search_name, overview)
 
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.agent_state = state
     rendered = pinned_discovered_searches(ctx)

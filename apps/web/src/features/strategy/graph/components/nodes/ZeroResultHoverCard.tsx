@@ -24,7 +24,7 @@ export function ZeroResultHoverCard({ step, count }: ZeroResultHoverCardProps) {
         <button
           type="button"
           data-testid="zero-result-trigger"
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-warning hover:bg-warning/10"
         >
           <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
           <span>0 results</span>
@@ -34,7 +34,7 @@ export function ZeroResultHoverCard({ step, count }: ZeroResultHoverCardProps) {
         data-testid="zero-result-content"
         align="center"
         side="top"
-        className="w-64 border-amber-200 bg-card text-xs text-amber-900"
+        className="w-64 border-warning/40 bg-card text-xs text-warning"
       >
         <div className="mb-1.5 font-semibold">0 results — try:</div>
         <ul className="list-disc space-y-1 pl-4">

@@ -25,6 +25,7 @@ from pathfinder.ai.lead.lead_agent import consult_user
 
 def _ctx(state: PipelineState) -> Any:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.state = state
     return ctx

@@ -3,52 +3,66 @@
 import type { EdaDistributionSeries, EdaSubsetPreview } from "@pathfinder/shared";
 
 import { HistogramChart } from "@/lib/components/charts/HistogramChart";
+import { Figure } from "@/lib/components/thread/Figure";
 import { useHydrateEdaPart } from "@/state/eda";
+
+import { entityCountCaption } from "./entityCounts";
 
 const HISTOGRAM_HEIGHT = 72;
 const MUTED = "text-[11px] text-muted-foreground";
 const MULTIVALUED_NOTE =
   "one record can carry several values, so these counts do not add up to the subset size";
 
+function variableName(series: EdaDistributionSeries): string {
+  return series.variableDisplayName.length > 0
+    ? series.variableDisplayName
+    : series.variableId;
+}
+
 export function DataEdaSubsetPreview({ data }: { data: EdaSubsetPreview }) {
   useHydrateEdaPart({ kind: "subset-preview", data });
   const note = data.distributionNote ?? "";
+  const series = data.distribution;
+  const counts = entityCountCaption(data.entityCounts);
 
   return (
-    <div
-      data-testid="data-eda-subset-preview"
-      className="my-2 rounded-md border border-border bg-card px-3 py-2 text-xs"
+    <Figure
+      testId="data-eda-subset-preview"
+      title={series !== null ? variableName(series) : null}
+      caption={
+        series !== null
+          ? `${counts}, ${series.numVarValues.toLocaleString()} values`
+          : counts
+      }
     >
-      <ul className={MUTED}>
-        {data.entityCounts.map((entity) => (
-          <li key={entity.entityId}>
-            {`${entity.count.toLocaleString()} of ${entity.unfilteredCount.toLocaleString()} ${
-              entity.entityDisplayName.length > 0
-                ? entity.entityDisplayName
-                : entity.entityId
-            }`}
-          </li>
-        ))}
-      </ul>
-      {data.distribution !== null ? <Distribution series={data.distribution} /> : null}
-      {note.length > 0 ? (
-        <p data-testid="data-eda-subset-note" className={`mt-1 ${MUTED}`}>
-          {note}
-        </p>
-      ) : null}
-    </div>
+      <div className="text-xs">
+        <ul className={MUTED}>
+          {data.entityCounts.map((entity) => (
+            <li key={entity.entityId}>
+              {`${entity.count.toLocaleString()} of ${entity.unfilteredCount.toLocaleString()} ${
+                entity.entityDisplayName.length > 0
+                  ? entity.entityDisplayName
+                  : entity.entityId
+              }`}
+            </li>
+          ))}
+        </ul>
+        {series !== null ? <Distribution series={series} /> : null}
+        {note.length > 0 ? (
+          <p data-testid="data-eda-subset-note" className={`mt-1 ${MUTED}`}>
+            {note}
+          </p>
+        ) : null}
+      </div>
+    </Figure>
   );
 }
 
 function Distribution({ series }: { series: EdaDistributionSeries }) {
-  const name =
-    series.variableDisplayName.length > 0
-      ? series.variableDisplayName
-      : series.variableId;
+  const name = variableName(series);
 
   return (
     <div className="mt-2">
-      <div className="text-xs font-medium">{name}</div>
       <HistogramChart
         series={[{ name, labels: series.labels, values: series.values }]}
         barMode="stack"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 from pydantic_ai import RunContext
@@ -239,23 +240,32 @@ async def create_eda_step(
                 title=graph.name,
             ),
         )
-    return ToolReturn(
-        return_value=EdaStepCreated(
-            search_name=node.search_name,
-            step_id=node.id,
-            dataset_id=binding.dataset_id,
-            analysis_id=binding.analysis_id,
-            is_compute_backed=is_compute_backed,
-            effect_size_threshold=effect_size_threshold,
-            significance_threshold=significance_threshold,
-            effect_direction=effect_direction if is_compute_backed else None,
-            wdk_strategy_id=sync.wdk_strategy_id if sync is not None else None,
-            wdk_url=sync.wdk_url if sync is not None else None,
-            failed_step_ids=result.failed_step_ids,
-            guidance=_guidance(
-                sync.wdk_strategy_id if sync is not None else None,
-                is_compute_backed=is_compute_backed,
-            ),
-        ),
-        metadata=metadata,
+    wdk_strategy_id = sync.wdk_strategy_id if sync is not None else None
+    created = EdaStepCreated(
+        search_name=node.search_name,
+        step_id=node.id,
+        dataset_id=binding.dataset_id,
+        analysis_id=binding.analysis_id,
+        is_compute_backed=is_compute_backed,
+        effect_size_threshold=effect_size_threshold,
+        significance_threshold=significance_threshold,
+        effect_direction=effect_direction if is_compute_backed else None,
+        wdk_strategy_id=wdk_strategy_id,
+        wdk_url=sync.wdk_url if sync is not None else None,
+        failed_step_ids=result.failed_step_ids,
+        guidance=_guidance(wdk_strategy_id, is_compute_backed=is_compute_backed),
+    )
+    if created.failed_step_ids:
+        return with_summary(
+            created,
+            f"Step {node.id} added, {len(created.failed_step_ids)} steps failed",
+            ctx=ctx,
+            status="warn",
+            extra=metadata,
+        )
+    return with_summary(
+        created,
+        f"Step {node.id} added to strategy {wdk_strategy_id}",
+        ctx=ctx,
+        extra=metadata,
     )

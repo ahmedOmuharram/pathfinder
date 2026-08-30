@@ -12,30 +12,30 @@ export const SOURCE_CONFIG: Record<GeneSet["source"], SourceConfig> = {
   strategy: {
     icon: Database,
     label: "Strategy",
-    badgeClass: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+    badgeClass:
+      "bg-[hsl(var(--chart-1)/0.1)] text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1)/0.2)]",
   },
   paste: {
     icon: ClipboardPaste,
     label: "Paste",
     badgeClass:
-      "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+      "bg-[hsl(var(--chart-3)/0.1)] text-[hsl(var(--chart-3))] border-[hsl(var(--chart-3)/0.2)]",
   },
   upload: {
     icon: Upload,
     label: "Upload",
     badgeClass:
-      "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+      "bg-[hsl(var(--chart-5)/0.1)] text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5)/0.2)]",
   },
   derived: {
     icon: GitMerge,
     label: "Derived",
     badgeClass:
-      "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
+      "bg-[hsl(var(--chart-2)/0.1)] text-[hsl(var(--chart-2))] border-[hsl(var(--chart-2)/0.2)]",
   },
   saved: {
     icon: Bookmark,
     label: "Saved",
-    badgeClass:
-      "bg-slate-500/10 text-slate-700 dark:text-slate-400 border-slate-500/20",
+    badgeClass: "bg-muted text-muted-foreground border-border",
   },
 };

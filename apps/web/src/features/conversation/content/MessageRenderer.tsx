@@ -9,11 +9,9 @@ import {
   type ReasoningMessagePartComponent,
   type TextMessagePartComponent,
   type ThreadMessage,
-  type ToolCallMessagePartComponent,
 } from "@assistant-ui/react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ToolUIPart } from "ai";
 import { Check, Copy, Pencil, ThumbsDown, ThumbsUp, X } from "lucide-react";
 
 import { BranchMessageAction } from "./BranchMessageAction";
@@ -33,15 +31,7 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
-import {
-  Tool,
-  ToolContent,
-  ToolHeader,
-  ToolInput,
-  ToolOutput,
-} from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
-import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
 import { FailureNotice } from "./FailureNotice";
@@ -50,8 +40,7 @@ import { SupersededBadge } from "./SupersededBadge";
 import { ConsultCarousel } from "./parts/ConsultCarousel";
 import { StoppedNotice } from "./StoppedNotice";
 import { dataPartRenderers } from "./dataPartRegistry";
-import { ToolApprovalControls } from "./parts/ToolApprovalControls";
-import { ToolThink } from "./parts/ToolThink";
+import { TraceAnchor } from "../thread/TraceAnchor";
 
 const markdownRemarkPlugins = [remarkGfm];
 
@@ -62,49 +51,14 @@ const Text: TextMessagePartComponent = () => (
   />
 );
 
-const ReasoningPart: ReasoningMessagePartComponent = ({ text, status }) => (
-  <Reasoning isStreaming={status.type === "running"}>
-    <ReasoningTrigger />
-    <ReasoningContent>{text}</ReasoningContent>
-  </Reasoning>
-);
-
-export function toolUIState(
-  statusType: "running" | "complete" | "incomplete" | "requires-action",
-  result: unknown,
-): ToolUIPart["state"] {
-  if (result !== undefined) return "output-available";
-  if (statusType === "requires-action") return "approval-requested";
-  if (statusType === "running") return "input-available";
-  if (statusType === "incomplete") return "output-error";
-  return "input-streaming";
-}
-
-const ToolCall: ToolCallMessagePartComponent<unknown, unknown> = ({
-  toolName,
-  toolCallId,
-  args,
-  result,
-  status,
-}) => {
-  const state = toolUIState(status.type, result);
-  const errorText =
-    status.type === "incomplete" && "error" in status && status.error != null
-      ? String(status.error)
-      : undefined;
+export const ReasoningPart: ReasoningMessagePartComponent = ({ text, status }) => {
+  const streaming = status.type === "running";
+  if (!streaming && text.trim() === "") return null;
   return (
-    <Tool data-testid="tool-call-part">
-      <ToolHeader
-        title={humanizeToolName(toolName)}
-        type={`tool-${toolName}`}
-        state={state}
-      />
-      <ToolApprovalControls toolCallId={toolCallId} />
-      <ToolContent>
-        <ToolInput input={args as ToolUIPart["input"]} />
-        <ToolOutput output={result} errorText={errorText} />
-      </ToolContent>
-    </Tool>
+    <Reasoning isStreaming={streaming}>
+      <ReasoningTrigger />
+      <ReasoningContent>{text}</ReasoningContent>
+    </Reasoning>
   );
 };
 
@@ -126,8 +80,8 @@ const contentComponents = {
   Text,
   Reasoning: ReasoningPart,
   tools: {
-    by_name: { think: ToolThink },
-    Fallback: ToolCall,
+    by_name: { think: TraceAnchor },
+    Fallback: TraceAnchor,
   },
   data: { by_name: dataPartRenderers, Fallback: UnknownDataPartError },
 } as const;

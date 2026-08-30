@@ -67,10 +67,13 @@ export function toUserMessage(err: unknown, fallback = "Request failed."): strin
   }
 }
 
-const wdkLoginRequiredProblemSchema = z.object({
-  code: z.literal("WDK_LOGIN_REQUIRED"),
+const wdkAuthRefusalSchema = z.object({
+  code: z.union([z.literal("WDK_LOGIN_REQUIRED"), z.literal("WDK_IDENTITY_MISMATCH")]),
   detail: z.string().min(1),
 });
+
+/** A refusal about which VEuPathDB account the request acts as. */
+export type WdkAuthRefusal = z.infer<typeof wdkAuthRefusalSchema>;
 
 function parseJson(text: string): unknown {
   try {
@@ -81,14 +84,15 @@ function parseJson(text: string): unknown {
 }
 
 /**
- * The server's explanation when a route refuses for want of a VEuPathDB login,
- * or null for every other error. The chat transport rethrows the response body
- * as the message of a plain Error, so both shapes are read here.
+ * The server's refusal when a route wants a VEuPathDB login or reports that the
+ * token names another account, or null for every other error. The chat
+ * transport rethrows the response body as the message of a plain Error, so both
+ * shapes are read here.
  */
-export function wdkLoginRequiredDetail(err: unknown): string | null {
+export function wdkAuthRefusal(err: unknown): WdkAuthRefusal | null {
   if (!(err instanceof Error)) return null;
   if (err instanceof APIError && err.status !== 401) return null;
   const body = err instanceof APIError ? err.data : parseJson(err.message);
-  const problem = wdkLoginRequiredProblemSchema.safeParse(body);
-  return problem.success ? problem.data.detail : null;
+  const problem = wdkAuthRefusalSchema.safeParse(body);
+  return problem.success ? problem.data : null;
 }

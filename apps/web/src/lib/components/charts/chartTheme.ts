@@ -1,3 +1,7 @@
+import { hslFromTriple } from "@/lib/color/hsl";
+
+import { UNRESOLVED_SERIES_COLOR } from "./unresolved";
+
 export interface ChartTokens {
   series: string[];
   positive: string;
@@ -9,23 +13,11 @@ export interface ChartTokens {
   background: string;
 }
 
-export const CHART_TOKEN_FALLBACKS: ChartTokens = {
-  series: [
-    "hsl(215 70% 50%)",
-    "hsl(160 60% 45%)",
-    "hsl(38 92% 50%)",
-    "hsl(0 72% 51%)",
-    "hsl(270 60% 55%)",
-    "hsl(190 70% 50%)",
-  ],
-  positive: "hsl(160 60% 45%)",
-  negative: "hsl(0 72% 51%)",
-  foreground: "hsl(222 47% 11%)",
-  mutedForeground: "hsl(215 16% 40%)",
-  border: "hsl(200 20% 89%)",
-  card: "hsl(0 0% 100%)",
-  background: "hsl(200 20% 97%)",
-};
+/** An unresolved ink role inherits the color of the text around the chart. */
+const UNRESOLVED_INK = "currentColor";
+
+/** An unresolved surface role paints nothing. */
+const UNRESOLVED_SURFACE = "transparent";
 
 const SERIES_VARS = [
   "--chart-1",
@@ -36,6 +28,17 @@ const SERIES_VARS = [
   "--chart-6",
 ];
 
+export const CHART_TOKEN_FALLBACKS: ChartTokens = {
+  series: SERIES_VARS.map(() => UNRESOLVED_SERIES_COLOR),
+  positive: UNRESOLVED_SERIES_COLOR,
+  negative: UNRESOLVED_SERIES_COLOR,
+  foreground: UNRESOLVED_INK,
+  mutedForeground: UNRESOLVED_INK,
+  border: UNRESOLVED_INK,
+  card: UNRESOLVED_SURFACE,
+  background: UNRESOLVED_SURFACE,
+};
+
 function resolve(
   style: CSSStyleDeclaration | null,
   variable: string,
@@ -43,15 +46,15 @@ function resolve(
 ): string {
   if (style === null) return fallback;
   const raw = style.getPropertyValue(variable).trim();
-  return raw === "" ? fallback : `hsl(${raw})`;
+  return raw === "" ? fallback : hslFromTriple(raw);
 }
 
 export function readChartTokens(): ChartTokens {
   const style =
     typeof document === "undefined" ? null : getComputedStyle(document.documentElement);
   return {
-    series: SERIES_VARS.map((v, i) =>
-      resolve(style, v, CHART_TOKEN_FALLBACKS.series[i] ?? "hsl(215 70% 50%)"),
+    series: SERIES_VARS.map((variable) =>
+      resolve(style, variable, UNRESOLVED_SERIES_COLOR),
     ),
     positive: resolve(style, "--chart-positive", CHART_TOKEN_FALLBACKS.positive),
     negative: resolve(style, "--chart-negative", CHART_TOKEN_FALLBACKS.negative),

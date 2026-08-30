@@ -18,7 +18,7 @@ export function VerificationResults({
     <div className="mt-3 rounded-md border border-border bg-muted/30 p-3">
       <div className="flex items-center gap-4 text-xs">
         {resolvedGenes.length > 0 && (
-          <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+          <span className="flex items-center gap-1 text-success">
             <Check className="h-3 w-3" />
             {resolvedGenes.length} valid
           </span>

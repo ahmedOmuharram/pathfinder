@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic_ai import Tool
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 from pathfinder.ai.tools.standalone.strategy import apply_operations, build_strategy
 from pathfinder.ai.tools.toolsets.execution import build_toolset
@@ -39,6 +40,7 @@ def _ctx(graph: StrategyGraph, committed: list[Any]) -> Any:
     session.get_graph.return_value = graph
     session.sync_state = WDKSyncState()
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps.strategy_session = session
 
     async def _commit(*, deps: Any, ops: Any) -> Any:
@@ -291,6 +293,41 @@ class TestBuildStrategyNoLongerClobbersSilently:
         await build_strategy(ctx, root=_leaf("step_a"))
 
         assert len(built) == 1
+
+    async def test_a_zero_gene_build_reports_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A strategy that returns no genes is the failure the reader must see."""
+        graph = StrategyGraph(graph_id="g1", name="g", site_id="plasmodb")
+        ctx, _commit = _ctx(graph, [])
+
+        async def _build(**kwargs: Any) -> Any:
+            del kwargs
+            outcome = MagicMock()
+            outcome.wdk_url = None
+            outcome.fully_succeeded = True
+            outcome.failed_steps = []
+            outcome.wdk_strategy_id = 1
+            outcome.root_count = 0
+            outcome.pushed_step_ids = []
+            outcome.skipped_step_ids = []
+            outcome.zero_step_ids = []
+            outcome.counts = {}
+            return outcome
+
+        monkeypatch.setattr(
+            "pathfinder.ai.tools.standalone.strategy.build_strategy_from_spec",
+            _build,
+        )
+
+        returned = await build_strategy(ctx, root=_leaf("step_a"))
+
+        summaries = [
+            (chunk.data["summary"], chunk.data["status"])
+            for chunk in returned.metadata
+            if isinstance(chunk, DataChunk) and chunk.type == "data-tool-summary"
+        ]
+        assert summaries == [("0 steps, 0 genes", "empty")]
 
     async def test_the_matching_revision_allows_a_deliberate_replacement(
         self, monkeypatch: pytest.MonkeyPatch

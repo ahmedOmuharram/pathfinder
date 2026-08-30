@@ -1,5 +1,6 @@
 import type { ChartTokens } from "./chartTheme";
 import type { EdaCategorySeries } from "./types";
+import { UNRESOLVED_SERIES_COLOR } from "./unresolved";
 
 export interface CategoryOptionModel {
   categories: string[];
@@ -37,7 +38,7 @@ export function buildCategoryOption(
       if (!categories.includes(label)) categories.push(label);
     }
   }
-  const fallback = args.tokens.series[0] ?? "hsl(215 70% 50%)";
+  const fallback = args.tokens.series[0] ?? UNRESOLVED_SERIES_COLOR;
   return {
     categories,
     valueLabel: args.valueLabel,

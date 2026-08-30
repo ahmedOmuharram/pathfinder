@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.graph.turn_state import (
     ConsultQuestion,
     UserQuestionAnswer,
@@ -57,14 +58,14 @@ class LeadResponse(CamelModel):
     ``prose`` is rendered to the user verbatim (no upstream/downstream
     translation). ``next_state`` tells the dispatcher whether the turn is
     paused waiting on the user (``await_user``) or fully resolved
-    (``complete`` — typically after a successful verification).
+    (``complete`` - typically after a successful verification).
     """
 
     prose: str = Field(
         max_length=4000,
         description=(
             "User-facing reply for this turn. Plain markdown. Do NOT "
-            "include sub-agent log noise — synthesize from the Ledger."
+            "include sub-agent log noise - synthesize from the Ledger."
         ),
     )
     next_state: LeadTurnState = "await_user"
@@ -132,7 +133,7 @@ def pinned_user_prompt(ctx: RunContext[LeadDeps]) -> str | None:
 def classify_user_intent(
     ctx: RunContext[LeadDeps],
     intent: UserIntent,
-) -> UserIntent:
+) -> ToolReturn[UserIntent]:
     """Classify the user's intent for this turn. Call this exactly once,
     before any other sub-agent call.
 
@@ -143,7 +144,7 @@ def classify_user_intent(
     asking a comparison question, and any referenced step/strategy IDs.
 
     Populate ``explicit_constraints`` with one typed Constraint for every
-    requirement the user STATES in this message — data type ("RNA-Seq
+    requirement the user STATES in this message - data type ("RNA-Seq
     only"), statistical threshold ("adjusted p <= 0.05"), fold change,
     comparator ("female vs male"), organism, record type. Capture their
     exact stated value. These override scoping's provisional assumptions
@@ -158,26 +159,41 @@ def classify_user_intent(
     but never blocks the turn if substituted.
     """
     ctx.deps.intent = intent
-    return intent
+    return with_summary(
+        intent,
+        f"Intent: {intent.classification.value}",
+        ctx=ctx,
+    )
 
 
-def get_live_strategy_state(ctx: RunContext[LeadDeps]) -> LiveStrategyState:
+def get_live_strategy_state(
+    ctx: RunContext[LeadDeps],
+) -> ToolReturn[LiveStrategyState]:
     """Read the strategy as it exists RIGHT NOW, bypassing the Ledger's cache.
 
     The Ledger's build counts describe the last build this conversation ran.
     The user can change the strategy between turns (graph editor, WDK web
     UI), which leaves those counts wrong. Call this before stating any
-    result count, parameter value, or step list as current fact — and always
+    result count, parameter value, or step list as current fact - and always
     when the Ledger shows a STALE marker or the user asks what the strategy
     does "now".
     """
-    return read_live_state(ctx.deps.runtime.strategy_session)
+    live = read_live_state(ctx.deps.runtime.strategy_session)
+    if not live.step_count:
+        return with_summary(live, "No strategy yet", ctx=ctx, status="empty")
+    genes = live.root_count or 0
+    return with_summary(
+        live,
+        f"{live.step_count} steps, {genes:,} genes",
+        ctx=ctx,
+        status="ok" if genes else "empty",
+    )
 
 
 def read_ledger_section(
     ctx: RunContext[LeadDeps],
     section: LedgerSectionName,
-) -> str:
+) -> ToolReturn[str]:
     """Return the full detail of one Ledger section.
 
     The pinned summary already shows counts and derived booleans; use
@@ -185,16 +201,20 @@ def read_ledger_section(
     questions, fit-report rationales) before deciding the next move.
     """
     ledger = derive_ledger(ctx.deps.state, ctx.deps.intent)
-    return ledger.render_section(section)
+    return with_summary(
+        ledger.render_section(section),
+        f"Read {section}",
+        ctx=ctx,
+    )
 
 
 def _format_answers(answers: list[UserQuestionAnswer]) -> str:
     parts: list[str] = []
     for a in answers:
         chosen = ", ".join(a.chosen_labels) if a.chosen_labels else "(free text)"
-        line = f'"{a.prompt}" → {chosen}'
+        line = f'"{a.prompt}" -> {chosen}'
         if a.note:
-            line += f" — note: {a.note}"
+            line += f" - note: {a.note}"
         parts.append(line)
     return "; ".join(parts)
 
@@ -204,8 +224,8 @@ async def consult_user(
     questions: list[ConsultQuestion],
 ) -> ToolReturn[list[UserQuestionAnswer]]:
     """Ask the user design questions that SHAPE the investigation, before a
-    plan is built. Use this whenever a real fork exists — which searches to
-    combine, a threshold that changes the steps, whether to add an arm —
+    plan is built. Use this whenever a real fork exists - which searches to
+    combine, a threshold that changes the steps, whether to add an arm -
     instead of guessing or bundling the choice into plan approval.
 
     This pauses the turn: the user answers each question in a carousel
@@ -213,7 +233,7 @@ async def consult_user(
     here so you can run (or re-run) ``frame_problem`` with them as hard
     constraints. Ask only the few questions that genuinely change the
     answer; pick sensible defaults for everything else and state your
-    assumptions in prose. Do NOT ask "submit or request changes?" — the
+    assumptions in prose. Do NOT ask "submit or request changes?" - the
     approval card already offers both.
     """
     state = ctx.deps.state
@@ -223,20 +243,20 @@ async def consult_user(
         if pending is not None
         else []
     )
-    if not answers:
-        return ToolReturn(
-            return_value=answers,
-            content=(
-                f"Presented {len(questions)} question(s); awaiting the user's answers."
-            ),
-        )
-    return ToolReturn(
-        return_value=answers,
-        content=(
+    asked = with_summary(
+        answers,
+        f"{len(questions)} questions asked",
+        ctx=ctx,
+    )
+    asked.content = (
+        f"Presented {len(questions)} question(s); awaiting the user's answers."
+        if not answers
+        else (
             f"The user answered your questions: {_format_answers(answers)}. "
             "Now run frame_problem honoring these as hard constraints."
-        ),
+        )
     )
+    return asked
 
 
 LEAD_MODEL = "openai:gpt-5.6-luna"
@@ -276,7 +296,7 @@ def build_lead_agent() -> LeadAgent:
             *(ProcessHistory[LeadDeps](p) for p in PHASE_HISTORY_PROCESSORS),
         ],
         retries=3,
-        description="The user's voice — orchestrates sub-agents via the Ledger",
+        description="The user's voice - orchestrates sub-agents via the Ledger",
         name="lead",
         defer_model_check=True,
     )

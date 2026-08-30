@@ -25,6 +25,7 @@ def _make_deps(site_id: str = "plasmodb") -> AgentDeps:
 
 def _make_ctx(deps: AgentDeps) -> MagicMock:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = deps
     return ctx
 
@@ -52,7 +53,7 @@ async def test_get_record_types_returns_site_record_types(
     deps = _make_deps()
     ctx = _make_ctx(deps)
 
-    result = await get_record_types(ctx)
+    result = (await get_record_types(ctx)).return_value
 
     assert len(result) == 2
     assert result[0]["name"] == "transcript"
@@ -85,10 +86,12 @@ async def test_search_for_searches_returns_matches_with_universal(
     deps = _make_deps()
     ctx = _make_ctx(deps)
 
-    result = await search_for_searches(
-        ctx,
-        query="find genes by organism taxonomy plasmodium falciparum",
-    )
+    result = (
+        await search_for_searches(
+            ctx,
+            query="find genes by organism taxonomy plasmodium falciparum",
+        )
+    ).return_value
 
     # Should include the matched search plus universal searches
     names = [str(r["name"]) for r in result]
@@ -153,10 +156,12 @@ async def test_search_for_searches_hides_already_decided(
     )
     ctx = _make_ctx(deps)
 
-    result = await search_for_searches(
-        ctx,
-        query="find genes by organism taxonomy or go term plasmodium",
-    )
+    result = (
+        await search_for_searches(
+            ctx,
+            query="find genes by organism taxonomy or go term plasmodium",
+        )
+    ).return_value
 
     names = [str(r.get("name")) for r in result]
     assert "GenesByTaxon" not in names  # decided → hidden
@@ -172,7 +177,7 @@ async def test_search_for_searches_rejects_vague_query() -> None:
     deps = _make_deps()
     ctx = _make_ctx(deps)
 
-    result = await search_for_searches(ctx, query="genes")
+    result = (await search_for_searches(ctx, query="genes")).return_value
 
     assert len(result) == 1
     assert result[0]["error"] == "query_too_vague"
@@ -194,7 +199,7 @@ async def test_list_searches_for_record_type(
     deps = _make_deps()
     ctx = _make_ctx(deps)
 
-    result = await list_searches(ctx, record_type="transcript")
+    result = (await list_searches(ctx, record_type="transcript")).return_value
 
     assert len(result) == 3
     assert result[0]["name"] == "GenesByTaxon"
@@ -232,7 +237,7 @@ async def test_list_searches_hides_already_decided(
     )
     ctx = _make_ctx(deps)
 
-    result = await list_searches(ctx, record_type="transcript")
+    result = (await list_searches(ctx, record_type="transcript")).return_value
 
     names = [r["name"] for r in result]
     assert names == ["GenesByText"]

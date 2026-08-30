@@ -23,7 +23,7 @@ import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/u
 import { strategyQueryKey, strategyQueryOptions } from "@/lib/api/strategy";
 import { getMyQuotaQueryKey } from "@pathfinder/shared/generated/hooks/useGetMyQuota";
 import { listScratchpadNotesQueryOptions } from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
-import { handleWdkLoginRequired } from "@/state/useAuthGateStore";
+import { handleWdkAuthRefusal } from "@/state/useAuthGateStore";
 import { useRightRailStore } from "@/state/useRightRailStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useSettingsStore } from "@/state/useSettingsStore";
@@ -145,7 +145,7 @@ export function useChatRuntime({
       }
     },
     onError: (err) => {
-      handleWdkLoginRequired(err);
+      handleWdkAuthRefusal(err);
     },
     onFinish: () => {
       void queryClient.invalidateQueries({

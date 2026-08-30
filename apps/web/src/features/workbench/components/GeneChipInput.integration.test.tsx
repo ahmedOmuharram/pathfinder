@@ -264,7 +264,7 @@ describe("GeneChipInput integration", () => {
     );
 
     const wrapper = container.firstElementChild;
-    expect(wrapper?.className).toContain("border-l-green-500");
+    expect(wrapper?.className).toContain("border-l-success");
   });
 
   it("applies negative tint styling", () => {
@@ -279,7 +279,7 @@ describe("GeneChipInput integration", () => {
     );
 
     const wrapper = container.firstElementChild;
-    expect(wrapper?.className).toContain("border-l-amber-500");
+    expect(wrapper?.className).toContain("border-l-warning");
   });
 
   it("mixed verification: some verified, some invalid", async () => {

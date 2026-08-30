@@ -4,6 +4,7 @@ gene sets in-conversation (exploratory, no control sets). Routes a user's
 
 from __future__ import annotations
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -31,7 +32,7 @@ def _summary(comparison: VariantComparison) -> str:
         for v in comparison.variants
         if v.error is not None
     )
-    fail_note = f" Some variants failed — {failed}." if failed else ""
+    fail_note = f" Some variants failed - {failed}." if failed else ""
     overlaps = "; ".join(
         f"{o.a} vs {o.b}: {o.shared} shared (Jaccard {o.jaccard})"
         for o in comparison.overlaps
@@ -42,9 +43,9 @@ def _summary(comparison: VariantComparison) -> str:
         else ""
     )
     return (
-        f"Ran {len(comparison.variants)} variants. Sizes — {sizes}. "
-        f"Overlap — {overlaps}.{note}{fail_note} Summarize the trade-off for "
-        "the user and ask which to proceed with (no scoring — no controls)."
+        f"Ran {len(comparison.variants)} variants. Sizes - {sizes}. "
+        f"Overlap - {overlaps}.{note}{fail_note} Summarize the trade-off for "
+        "the user and ask which to proceed with (no scoring - no controls)."
     )
 
 
@@ -55,7 +56,7 @@ async def compare_search_variants(
     """Run 2+ search-config variants and compare how their results differ.
 
     Use this when the user chose to "try both" / sweep a parameter across
-    values / ablate a step — instead of committing to one plan. Each variant
+    values / ablate a step - instead of committing to one plan. Each variant
     runs as an anonymous WDK report (no step or strategy is created, so the
     user's workspace is untouched). Returns result sizes, pairwise overlap,
     and the genes unique to each variant, rendered as a comparison card.
@@ -85,7 +86,7 @@ async def compare_search_variants(
             f"{v.label}: {v.error}" for v in comparison.variants if v.error
         )
         msg = (
-            f"Every variant failed to run — {failures}. Check each variant's "
+            f"Every variant failed to run - {failures}. Check each variant's "
             "search_name and that all REQUIRED parameters are provided with "
             "valid values, then retry."
         )
@@ -94,6 +95,22 @@ async def compare_search_variants(
         type="data-variant-comparison",
         data=comparison.model_dump(by_alias=True, mode="json"),
     )
-    return ToolReturn(
-        return_value=comparison, content=_summary(comparison), metadata=[chunk]
+    ran = with_summary(
+        comparison,
+        _variant_line(comparison),
+        ctx=ctx,
+        extra=[chunk],
+    )
+    ran.content = _summary(comparison)
+    return ran
+
+
+def _variant_line(comparison: VariantComparison) -> str:
+    """The variant that returned the most genes, and how many ran."""
+    scored = [v for v in comparison.variants if v.error is None]
+    if not scored:
+        return f"{len(comparison.variants)} variants, none ran"
+    best = max(scored, key=lambda v: v.gene_count)
+    return (
+        f"{len(comparison.variants)} variants: {best.label} {best.gene_count:,} genes"
     )

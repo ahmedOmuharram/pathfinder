@@ -277,8 +277,8 @@ export function triStateIcon(state: TriState): string {
 }
 
 export function triStateColor(state: TriState): string {
-  if (state === "include") return "text-green-500";
-  if (state === "exclude") return "text-red-500";
+  if (state === "include") return "text-success";
+  if (state === "exclude") return "text-destructive";
   return "text-muted-foreground";
 }
 

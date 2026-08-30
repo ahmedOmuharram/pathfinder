@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { contrast, hslToRgb, type Rgb } from "@/lib/color/contrast";
+
 import { applySiteTheme } from "./siteTheme";
 
 const SITE_IDS = [
@@ -20,6 +23,21 @@ const SITE_IDS = [
   "trichdb",
 ];
 
+const WRITTEN = [
+  "--primary",
+  "--primary-foreground",
+  "--ring",
+  "--secondary",
+  "--accent",
+  "--muted",
+];
+
+const WHITE: Rgb = [1, 1, 1];
+const AA_NORMAL_TEXT = 4.5;
+
+/** plasmodb's brand hex #634697 is hsl(261 37% 43%). */
+const PLASMODB_BRAND_LIGHTNESS = 43;
+
 function parseHsl(value: string): [number, number, number] {
   const match = /^(\d+(?:\.\d+)?) (\d+(?:\.\d+)?)% (\d+(?:\.\d+)?)%$/.exec(
     value.trim(),
@@ -28,48 +46,91 @@ function parseHsl(value: string): [number, number, number] {
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
-function whiteTextContrast(h: number, s: number, l: number): number {
-  const sN = s / 100;
-  const lN = l / 100;
-  const c = (1 - Math.abs(2 * lN - 1)) * sN;
-  const hp = h / 60;
-  const x = c * (1 - Math.abs((hp % 2) - 1));
-  const [r1, g1, b1] =
-    hp < 1
-      ? [c, x, 0]
-      : hp < 2
-        ? [x, c, 0]
-        : hp < 3
-          ? [0, c, x]
-          : hp < 4
-            ? [0, x, c]
-            : hp < 5
-              ? [x, 0, c]
-              : [c, 0, x];
-  const m = lN - c / 2;
-  const channel = (v: number): number =>
-    v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  const lum =
-    0.2126 * channel(r1 + m) + 0.7152 * channel(g1 + m) + 0.0722 * channel(b1 + m);
-  return 1.05 / (lum + 0.05);
+function written(name: string): [number, number, number] {
+  return parseHsl(document.documentElement.style.getPropertyValue(name));
 }
 
-describe("applySiteTheme", () => {
+afterEach(() => {
+  document.documentElement.removeAttribute("data-theme");
+  for (const name of WRITTEN) {
+    document.documentElement.style.removeProperty(name);
+  }
+});
+
+describe("applySiteTheme on the light ground", () => {
   it.each(SITE_IDS)(
     "sets a --primary that meets WCAG AA white-text contrast for %s",
     (siteId) => {
       applySiteTheme(siteId);
-      const primary = document.documentElement.style.getPropertyValue("--primary");
-      const [h, s, l] = parseHsl(primary);
-      expect(whiteTextContrast(h, s, l)).toBeGreaterThanOrEqual(4.5);
+      const [h, s, l] = written("--primary");
+      expect(contrast(WHITE, hslToRgb(h, s, l))).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     },
   );
 
   it("preserves the brand hue while darkening for contrast (toxodb green)", () => {
     applySiteTheme("toxodb");
-    const [h] = parseHsl(document.documentElement.style.getPropertyValue("--primary"));
-    // #569551 → ~116° green; clamping only lowers lightness, hue is untouched.
+    const [h] = written("--primary");
     expect(h).toBeGreaterThan(90);
     expect(h).toBeLessThan(150);
+  });
+
+  it("writes a white primary foreground and near-white tinted surfaces", () => {
+    applySiteTheme("plasmodb");
+    expect(written("--primary-foreground")).toEqual([0, 0, 100]);
+    expect(written("--secondary")[2]).toBe(95);
+    expect(written("--accent")[2]).toBe(93);
+    expect(written("--muted")[2]).toBe(96);
+  });
+});
+
+describe("applySiteTheme on the dark ground", () => {
+  it("raises the brand lightness instead of lowering it", () => {
+    document.documentElement.setAttribute("data-theme", "dark");
+    applySiteTheme("plasmodb");
+    const [, , l] = written("--primary");
+    expect(l).toBeGreaterThan(PLASMODB_BRAND_LIGHTNESS);
+  });
+
+  it("keeps the brand hue while lightening (plasmodb purple)", () => {
+    document.documentElement.setAttribute("data-theme", "dark");
+    applySiteTheme("plasmodb");
+    const [h] = written("--primary");
+    expect(h).toBeGreaterThan(240);
+    expect(h).toBeLessThan(290);
+  });
+
+  it("writes a dark primary foreground that reads on the brand fill", () => {
+    document.documentElement.setAttribute("data-theme", "dark");
+    applySiteTheme("plasmodb");
+    const foreground = written("--primary-foreground");
+    const primary = written("--primary");
+    expect(foreground).toEqual([215, 28, 9]);
+    expect(
+      contrast(hslToRgb(...foreground), hslToRgb(...primary)),
+    ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+  });
+
+  it("writes dark tinted surfaces, not near-white ones", () => {
+    document.documentElement.setAttribute("data-theme", "dark");
+    applySiteTheme("plasmodb");
+    expect(written("--secondary")[2]).toBe(16);
+    expect(written("--accent")[2]).toBe(18);
+    expect(written("--muted")[2]).toBe(15);
+  });
+
+  it.each(SITE_IDS)("keeps the dark foreground legible on %s", (siteId) => {
+    document.documentElement.setAttribute("data-theme", "dark");
+    applySiteTheme(siteId);
+    const primary = written("--primary");
+    const foreground = written("--primary-foreground");
+    expect(
+      contrast(hslToRgb(...foreground), hslToRgb(...primary)),
+    ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+  });
+
+  it("points --ring at the same value as --primary", () => {
+    document.documentElement.setAttribute("data-theme", "dark");
+    applySiteTheme("plasmodb");
+    expect(written("--ring")).toEqual(written("--primary"));
   });
 });

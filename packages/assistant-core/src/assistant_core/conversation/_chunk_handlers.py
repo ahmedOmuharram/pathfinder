@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from pydantic import ValidationError
+
 from assistant_core.conversation._chunk_state import (
     Chunk,
     Part,
     _apply_optional,
+    _find_tool_part_by_id,
     _get_tool_invocation,
     _is_static_tool_part,
     _is_tool_part,
@@ -17,6 +20,9 @@ from assistant_core.conversation._chunk_state import (
     _try_parse_partial_json,
     _upsert_tool_part,
 )
+from assistant_core.graph.stream_events import ToolSummaryPayload
+
+TOOL_SUMMARY_KIND = "data-tool-summary"
 
 
 def _h_text_start(state: _State, chunk: Chunk) -> None:
@@ -310,8 +316,34 @@ def _h_message_metadata(state: _State, chunk: Chunk) -> None:
         )
 
 
+def _read_tool_summary(chunk: Chunk) -> ToolSummaryPayload | None:
+    """The summary a chunk carries, or nothing when the wire malformed it."""
+    try:
+        return ToolSummaryPayload.model_validate(chunk.get("data"))
+    except ValidationError:
+        return None
+
+
+def _h_tool_summary(state: _State, chunk: Chunk) -> None:
+    payload = _read_tool_summary(chunk)
+    if payload is None:
+        return
+    part = _find_tool_part_by_id(
+        state,
+        payload.tool_call_id,
+        dynamic=False,
+    ) or _find_tool_part_by_id(state, payload.tool_call_id, dynamic=True)
+    if part is None:
+        return
+    part["summary"] = payload.summary
+    part["summaryStatus"] = payload.status
+
+
 def _h_data(state: _State, chunk: Chunk) -> None:
     if chunk.get("transient"):
+        return
+    if chunk.get("type") == TOOL_SUMMARY_KIND:
+        _h_tool_summary(state, chunk)
         return
     chunk_id = chunk.get("id")
     chunk_type = chunk.get("type")

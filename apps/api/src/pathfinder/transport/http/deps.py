@@ -15,7 +15,10 @@ from pathfinder.services import quota as quota_service
 from pathfinder.services.experiment.store import get_experiment_store
 from pathfinder.services.experiment.types import Experiment
 from pathfinder.services.users import ensure_user_exists
-from pathfinder.services.wdk_identity import require_registered_wdk_login
+from pathfinder.services.wdk_identity import (
+    require_registered_wdk_login,
+    require_session_matches_wdk_identity,
+)
 from pathfinder.transport.http.schemas.site_id import SiteId
 
 # Type aliases for dependencies
@@ -57,9 +60,11 @@ async def require_registered_wdk_identity(
 ) -> UUID:
     """Refuse a request that acts on WDK without a registered VEuPathDB login.
 
-    Routes that read or write a WDK account attach this.
+    Routes that read or write a WDK account attach this. The token must also
+    name the session's own user, so one session writes to one WDK account.
     """
     await require_registered_wdk_login()
+    await require_session_matches_wdk_identity(user_id)
     return user_id
 
 

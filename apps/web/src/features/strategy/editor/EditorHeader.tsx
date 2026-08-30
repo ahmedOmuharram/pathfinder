@@ -27,9 +27,12 @@ interface EditorHeaderProps {
 }
 
 const KIND_BG: Record<StepKind, string> = {
-  search: "bg-emerald-100 text-emerald-900 hover:bg-emerald-100",
-  combine: "bg-indigo-100 text-indigo-900 hover:bg-indigo-100",
-  transform: "bg-violet-100 text-violet-900 hover:bg-violet-100",
+  search:
+    "bg-[hsl(var(--kind-leaf)/0.15)] text-foreground hover:bg-[hsl(var(--kind-leaf)/0.15)]",
+  combine:
+    "bg-[hsl(var(--kind-combine)/0.15)] text-foreground hover:bg-[hsl(var(--kind-combine)/0.15)]",
+  transform:
+    "bg-[hsl(var(--kind-transform)/0.15)] text-foreground hover:bg-[hsl(var(--kind-transform)/0.15)]",
 };
 
 const isDevEnv = process.env.NODE_ENV === "development";

@@ -9,6 +9,7 @@ from assistant_core.graph.stream_events import (
     SubAgentCallPayload,
     sub_agent_call_event,
 )
+from assistant_core.graph.tool_summary import count_noun
 from pydantic import BaseModel
 from pydantic_ai.messages import (
     AgentStreamEvent,
@@ -29,16 +30,25 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     ToolOutputErrorChunk,
 )
 
+from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.graph.stream_events import ledger_update_event
 from pathfinder.ai.lead.derive import derive_ledger
-from pathfinder.ai.lead.sub_agent_tools import LeadDeps, sub_agent_model_id
+from pathfinder.ai.lead.sub_agent_tools import (
+    TOOL_TO_PHASE_ROLE,
+    WIRE_PHASE_BY_ROLE,
+    LeadDeps,
+    sub_agent_model_id,
+)
 
+# One phase vocabulary for the wire. Every dispatch that runs a sub-agent reads
+# it through the role map, so a chunk from the dispatch and a chunk from the run
+# name the same phase. ``build_strategy`` runs no sub-agent and names its own.
+_SUB_AGENT_ROLE_BY_TOOL: dict[str, PhaseRole] = {
+    **TOOL_TO_PHASE_ROLE,
+    "build_strategy": "execution",
+}
 _SUB_AGENT_TOOL_TO_PHASE: dict[str, str] = {
-    "frame_problem": "frame",
-    "edit_strategy": "frame",
-    "build_strategy": "build",
-    "recover_failed_steps": "build",
-    "verify_strategy": "verification",
+    tool: WIRE_PHASE_BY_ROLE[role] for tool, role in _SUB_AGENT_ROLE_BY_TOOL.items()
 }
 _SUB_AGENT_TOOL_NAMES = frozenset(_SUB_AGENT_TOOL_TO_PHASE.keys())
 
@@ -118,11 +128,8 @@ def _summarize_sub_agent_result(result: ToolReturnPart) -> str:
 
 
 def _summarize_delta(delta: BaseModel) -> str:
+    """One line about what a sub-agent's typed delta reports."""
     return _summarize_delta_dict(delta.model_dump())
-
-
-def _plural(count: int, noun: str) -> str:
-    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
 def _summarize_outcome(outcome: dict[str, Any]) -> str:
@@ -130,7 +137,7 @@ def _summarize_outcome(outcome: dict[str, Any]) -> str:
     failed = len(outcome.get("failed_steps") or [])
     if failed > 0:
         return f"Built {built}, {failed} failed"
-    return f"Built {_plural(built, 'step')}"
+    return f"Built {count_noun(built, 'step')}"
 
 
 def _summarize_delta_dict(data: dict[str, Any]) -> str:
@@ -138,10 +145,10 @@ def _summarize_delta_dict(data: dict[str, Any]) -> str:
     if "disposition" in data:
         disposition = data.get("disposition")
         if disposition == "needs_user":
-            return _plural(len(data.get("open_questions") or []), "open question")
+            return count_noun(len(data.get("open_questions") or []), "open question")
         return _truncate_summary(str(data.get("summary") or "Framed"))
     if "actions_taken" in data:
-        return _plural(len(data.get("actions_taken") or []), "recovery action")
+        return count_noun(len(data.get("actions_taken") or []), "recovery action")
     if "outcome" in data:
         return _summarize_outcome(data.get("outcome") or {})
     if "digest" in data:
@@ -182,7 +189,7 @@ def handle_sub_agent_event(
             sub_agent_call_event(
                 SubAgentCallPayload(
                     tool_call_id=event.tool_call_id,
-                    sub_agent=tool_name,
+                    sub_agent=_SUB_AGENT_ROLE_BY_TOOL[tool_name],
                     phase=_SUB_AGENT_TOOL_TO_PHASE[tool_name],
                     state="started",
                     model_id=sub_agent_model_id(tool_name),
@@ -212,7 +219,7 @@ def handle_sub_agent_event(
             sub_agent_call_event(
                 SubAgentCallPayload(
                     tool_call_id=event.tool_call_id,
-                    sub_agent=result_tool_name,
+                    sub_agent=_SUB_AGENT_ROLE_BY_TOOL[result_tool_name],
                     phase=_SUB_AGENT_TOOL_TO_PHASE[result_tool_name],
                     state="failed" if failed else "completed",
                     model_id=sub_agent_model_id(result_tool_name),

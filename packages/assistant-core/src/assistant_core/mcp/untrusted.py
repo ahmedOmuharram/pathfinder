@@ -13,6 +13,7 @@ from pydantic_ai.toolsets.wrapper import WrapperToolset
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 from pydantic_core import to_json
 
+from assistant_core.graph.stream_events import tool_summary_event
 from assistant_core.platform.logging import get_logger
 
 STREAM_PART_META_KEY = "org.veupathdb.assistant/streamPart"
@@ -131,21 +132,40 @@ class UntrustedOutputToolset(WrapperToolset[AgentDepsT]):
             return verdict.text
         declared = _declared_part(tool.tool_def.metadata)
         if declared is None:
-            return result
+            return _answered(result, name, ctx.tool_call_id, ())
         refusal = _schema_refusal(result, tool.tool_def.return_schema)
         if refusal is not None:
             self.record_violation(
                 PartViolation(tool_name=name, kind=declared.kind, reason=refusal),
             )
-            return result
-        return ToolReturn(
-            return_value=result,
-            metadata=[DataChunk(type=declared.kind, data=result)],
-        )
+            return _answered(result, name, ctx.tool_call_id, ())
+        part = DataChunk(type=declared.kind, data=result)
+        return _answered(result, name, ctx.tool_call_id, (part,))
 
     @property
     def _kind_prefix(self) -> str:
         return f"data-{self.part_namespace}."
+
+
+def _answered(
+    result: Any,
+    tool_name: str,
+    tool_call_id: str | None,
+    parts: tuple[DataChunk, ...],
+) -> Any:
+    """The result, with its declared part and the line saying the source answered.
+
+    A call with no id is unaddressable, so it keeps whatever it already carries.
+    """
+    if tool_call_id is None:
+        return (
+            ToolReturn(return_value=result, metadata=list(parts)) if parts else result
+        )
+    summary = tool_summary_event(
+        tool_call_id=tool_call_id,
+        summary=f"{tool_name} returned",
+    )
+    return ToolReturn(return_value=result, metadata=[*parts, summary])
 
 
 def _declared_part(metadata: dict[str, Any] | None) -> StreamPartDeclaration | None:

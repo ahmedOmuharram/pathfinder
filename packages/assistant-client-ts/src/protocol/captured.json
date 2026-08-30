@@ -1,5 +1,5 @@
 {
-  "version": "1.3.1",
+  "version": "1.4.1",
   "chunkKinds": [
     "start",
     "start-step",
@@ -38,7 +38,8 @@
     "data-conversation-title",
     "data-background-task-started",
     "data-task-progress",
-    "data-task-completed"
+    "data-task-completed",
+    "data-tool-summary"
   ],
   "envelopeKinds": [
     "user-message",
@@ -82,6 +83,10 @@
     ]
   },
   "examples": [
+    {
+      "kind": "data-tool-summary",
+      "json": "{\n  \"type\": \"data-tool-summary\",\n  \"data\": {\n    \"status\": \"ok\",\n    \"summary\": \"2 plus 3 is 5\",\n    \"toolCallId\": \"call_add\"\n  }\n}"
+    },
     {
       "kind": "data-turn-status",
       "json": "{\n  \"type\": \"data-turn-status\",\n  \"data\": {\n    \"label\": \"Preparing context\",\n    \"waitingOnLlm\": false\n  }\n}"

@@ -16,10 +16,10 @@ import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 // ---------------------------------------------------------------------------
 
 const verdictColors: Record<StepContributionVerdict, string> = {
-  essential: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  helpful: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  neutral: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  harmful: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  essential: "bg-success/15 text-success",
+  helpful: "bg-primary/15 text-primary",
+  neutral: "bg-muted text-muted-foreground",
+  harmful: "bg-destructive/15 text-destructive",
 };
 
 function VerdictBadge({ verdict }: { verdict: StepContributionVerdict }) {
@@ -98,9 +98,7 @@ function OperatorComparisonTable({
                   <td className="py-1.5 pr-3">
                     {v.operator}
                     {v.operator === c.recommendedOperator && (
-                      <span className="ml-1 text-[10px] text-green-600 dark:text-green-400">
-                        *
-                      </span>
+                      <span className="ml-1 text-[10px] text-success">*</span>
                     )}
                   </td>
                   <td className="py-1.5 pr-3">{v.recall.toFixed(2)}</td>

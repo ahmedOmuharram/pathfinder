@@ -36,6 +36,42 @@ describe("DataEdaSubsetPreview", () => {
     );
   });
 
+  it("captions the figure with the entity counts and the value count", () => {
+    render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
+    expect(screen.getByTestId("figure-caption")).toHaveTextContent(
+      "6 of 12 Sample, 6 values",
+    );
+  });
+
+  it("titles the figure with the distribution variable", () => {
+    render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
+    const title = screen.getByText("Temperature");
+    expect(title.tagName).toBe("FIGCAPTION");
+  });
+
+  it("drops the value clause when the part carries no distribution", () => {
+    render(
+      <DataEdaSubsetPreview
+        data={{ ...EDA_SUBSET_PREVIEW_FIXTURE, distribution: null }}
+      />,
+    );
+    expect(screen.getByTestId("figure-caption")).toHaveTextContent("6 of 12 Sample");
+    expect(screen.getByTestId("figure-caption").textContent).toBe("6 of 12 Sample");
+  });
+
+  it("separates itself with a hairline, never with a card", () => {
+    render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
+    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
+      "my-6",
+      "border-t",
+      "border-border/60",
+      "pt-4",
+    ]);
+    expect(screen.getByTestId("data-eda-subset-preview").className).not.toMatch(
+      /\bborder\b|\brounded-md\b|\bbg-card\b/,
+    );
+  });
+
   it("draws the distribution as a mini histogram named after the variable", () => {
     render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
     expect(screen.getByTestId("data-eda-subset-histogram")).toHaveAttribute(

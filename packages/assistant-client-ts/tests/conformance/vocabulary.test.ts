@@ -46,8 +46,14 @@ describe("section 10, what a client recognises", () => {
 });
 
 describe("section 5.2, data parts", () => {
-  it("reduces every data part kind the document defines to a part", () => {
-    for (const kind of captured.dataPartKinds) {
+  // `data-tool-summary` patches the call it names instead of appending, under
+  // the rule section 9 states for it.
+  const APPENDING = captured.dataPartKinds.filter(
+    (kind) => kind !== "data-tool-summary",
+  );
+
+  it("reduces every appending data part kind the document defines to a part", () => {
+    for (const kind of APPENDING) {
       const message = reduceTurn([
         { type: "start", messageId: "m" },
         { type: kind, data: { probe: kind } },
@@ -55,6 +61,15 @@ describe("section 5.2, data parts", () => {
 
       expect(message.parts).toEqual([{ type: kind, data: { probe: kind } }]);
     }
+  });
+
+  it("appends no part for the one kind section 9 says patches a call", () => {
+    const message = reduceTurn([
+      { type: "start", messageId: "m" },
+      { type: "data-tool-summary", data: { toolCallId: "call_1", summary: "3 rows" } },
+    ]);
+
+    expect(message.parts).toEqual([]);
   });
 });
 

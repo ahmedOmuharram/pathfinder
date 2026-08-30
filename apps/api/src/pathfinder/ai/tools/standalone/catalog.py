@@ -4,9 +4,13 @@ transforms, phyletic codes, and example public strategies."""
 from typing import cast
 
 from assistant_core.embeddings.embedder import EmbeddingUnavailableError
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
 from assistant_core.platform.types import JSONObject
+from pydantic import ConfigDict, model_validator
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import _UNIVERSAL_SEARCHES
@@ -23,19 +27,37 @@ from pathfinder.services.wdk import get_strategy_api
 logger = get_logger(__name__)
 
 
+class _PhyleticLookup(CamelModel):
+    """How many codes a phyletic lookup matched."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    total: int = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _mapping_only(cls, raw: object) -> object:
+        """An error payload carries no matches, so it counts as none."""
+        return raw if isinstance(raw, dict) else {}
+
+
 async def get_record_types(
     ctx: RunContext[AgentDeps],
-) -> list[dict[str, str]]:
+) -> ToolReturn[list[dict[str, str]]]:
     """List available record types for this site."""
     record_types = await catalog.get_record_types(ctx.deps.site_id)
-    return [
-        {
-            "name": rt.name,
-            "displayName": rt.display_name,
-            "description": rt.description,
-        }
-        for rt in record_types
-    ]
+    return with_summary(
+        [
+            {
+                "name": rt.name,
+                "displayName": rt.display_name,
+                "description": rt.description,
+            }
+            for rt in record_types
+        ],
+        f"{len(record_types)} record types",
+        ctx=ctx,
+    )
 
 
 async def search_for_searches(
@@ -45,7 +67,7 @@ async def search_for_searches(
     keywords: list[str] | None = None,
     category: str | None = None,
     limit: int = 20,
-) -> list[JSONObject]:
+) -> ToolReturn[list[JSONObject]]:
     """Find WDK searches by description and/or keywords.
 
     Returns a ranked list with name, displayName, description, category,
@@ -76,12 +98,20 @@ async def search_for_searches(
             limit=limit,
         )
     except VagueSearchQueryError as exc:
-        return [cast("JSONObject", exc.rejection.model_dump(exclude_none=True))]
+        return with_summary(
+            [cast("JSONObject", exc.rejection.model_dump(exclude_none=True))],
+            f"The query {query} is too vague to rank searches",
+            ctx=ctx,
+            status="warn",
+        )
     results: list[JSONObject] = cast("list[JSONObject]", [m.to_dict() for m in matches])
 
     decided = ctx.deps.agent_state.decided_search_names()
     hidden = sorted({str(r["name"]) for r in results if str(r["name"]) in decided})
     results = [r for r in results if str(r["name"]) not in decided]
+    # The reader's number is what the query ranked, not the universal searches
+    # every result list carries.
+    found = len(results)
 
     seen = {str(r["name"]) for r in results}
     results.extend(u for u in _UNIVERSAL_SEARCHES if str(u["name"]) not in seen)
@@ -99,13 +129,18 @@ async def search_for_searches(
         }
         results.append(note)
 
-    return results
+    return with_summary(
+        results,
+        f"{found} searches",
+        ctx=ctx,
+        status="ok" if found else "empty",
+    )
 
 
 async def browse_search_categories(
     ctx: RunContext[AgentDeps],
     record_type: str = "transcript",
-) -> list[dict[str, str | int | list[str]]]:
+) -> ToolReturn[list[dict[str, str | int | list[str]]]]:
     """Browse available search categories and their example searches.
 
     Call this BEFORE search_for_searches to see what categories and search
@@ -119,13 +154,14 @@ async def browse_search_categories(
         record_type: Record type. Defaults to 'transcript' (gene searches).
             Use 'snp', 'pathway', etc. for non-gene searches.
     """
-    return await catalog.browse_search_categories(ctx.deps.site_id, record_type)
+    categories = await catalog.browse_search_categories(ctx.deps.site_id, record_type)
+    return with_summary(categories, f"{len(categories)} categories", ctx=ctx)
 
 
 async def list_searches(
     ctx: RunContext[AgentDeps],
     record_type: str = "transcript",
-) -> list[dict[str, str]]:
+) -> ToolReturn[list[dict[str, str]]]:
     """List all search names (names only, no descriptions).
 
     Use search_for_searches first for targeted discovery with descriptions.
@@ -140,13 +176,17 @@ async def list_searches(
     ctx.deps.agent_state.record_catalog_searches(
         [str(r["name"]) for r in visible if r.get("name")]
     )
-    return visible
+    return with_summary(
+        visible,
+        f"{len(visible)} searches on {record_type}",
+        ctx=ctx,
+    )
 
 
 async def list_transforms(
     ctx: RunContext[AgentDeps],
     record_type: str = "transcript",
-) -> list[dict[str, str]]:
+) -> ToolReturn[list[dict[str, str]]]:
     """List available transform and combine operations (with descriptions).
 
     Returns searches that chain onto a previous step's results -- such as
@@ -156,14 +196,19 @@ async def list_transforms(
         ctx: Agent run context.
         record_type: Record type. Defaults to 'transcript'.
     """
-    return await catalog.list_transforms(ctx.deps.site_id, record_type)
+    transforms = await catalog.list_transforms(ctx.deps.site_id, record_type)
+    return with_summary(
+        transforms,
+        f"{len(transforms)} transforms on {record_type}",
+        ctx=ctx,
+    )
 
 
 async def lookup_phyletic_codes(
     ctx: RunContext[AgentDeps],
     query: str,
     record_type: str = "transcript",
-) -> JSONObject | ToolErrorPayload:
+) -> ToolReturn[JSONObject | ToolErrorPayload]:
     """Look up phyletic species/clade codes by name for GenesByOrthologPattern.
 
     Returns {code, label, leaf} triples. Put a code or its label in
@@ -177,14 +222,19 @@ async def lookup_phyletic_codes(
             species under it.
         record_type: Record type. Defaults to 'transcript'.
     """
-    return await catalog.lookup_phyletic_codes(ctx.deps.site_id, record_type, query)
+    codes = await catalog.lookup_phyletic_codes(ctx.deps.site_id, record_type, query)
+    return with_summary(
+        codes,
+        f"{_PhyleticLookup.model_validate(codes).total} phyletic codes for {query}",
+        ctx=ctx,
+    )
 
 
 async def search_example_plans(
     ctx: RunContext[AgentDeps],
     query: str,
     limit: int = 3,
-) -> list[JSONObject]:
+) -> ToolReturn[list[JSONObject]]:
     """Retrieve relevant public strategies from WDK, ranked by semantic
     similarity to the query (falls back to lexical token overlap when the
     embedding API is unreachable).
@@ -199,9 +249,9 @@ async def search_example_plans(
         public_strategies = await api.list_public_strategies()
     except (AppError, OSError) as exc:
         logger.warning("Failed to fetch public strategies", error=str(exc))
-        return []
+        return with_summary([], "0 example plans", ctx=ctx, status="warn")
     try:
-        return await rank_public_strategies_semantic(
+        plans = await rank_public_strategies_semantic(
             public_strategies, query, site_id=ctx.deps.site_id, limit=limit
         )
     except EmbeddingUnavailableError as exc:
@@ -209,4 +259,5 @@ async def search_example_plans(
             "Semantic strategy ranking unavailable; using lexical fallback",
             error=str(exc),
         )
-        return rank_public_strategies(public_strategies, query=query, limit=limit)
+        plans = rank_public_strategies(public_strategies, query=query, limit=limit)
+    return with_summary(plans, f"{len(plans)} example plans", ctx=ctx)

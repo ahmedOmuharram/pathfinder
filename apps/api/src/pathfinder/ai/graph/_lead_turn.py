@@ -36,7 +36,7 @@ from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.dispatch_resume import SubAgentOutcome, resume_sub_agent
 from pathfinder.ai.lead.memory_candidates import PRODUCT_MEMORY_KINDS
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
-from pathfinder.ai.lead.sub_agent_tools import SUB_AGENT_APPROVAL_PHASE, LeadDeps
+from pathfinder.ai.lead.sub_agent_tools import WIRE_PHASE_BY_ROLE, LeadDeps
 
 _DENIED_BY_REPLY = "The user replied instead of answering the approval."
 
@@ -105,7 +105,7 @@ def pending_approval(
         sub_agent = deps.pending_sub_agent_approvals[dispatches[0].tool_call_id]
         parked = approvals.parked_call(
             call=dispatches[0],
-            phase=SUB_AGENT_APPROVAL_PHASE[sub_agent.role],
+            phase=WIRE_PHASE_BY_ROLE[sub_agent.role],
             messages=messages,
         )
         return parked.model_copy(

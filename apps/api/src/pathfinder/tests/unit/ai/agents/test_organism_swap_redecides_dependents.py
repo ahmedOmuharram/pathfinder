@@ -132,6 +132,7 @@ def _serve(monkeypatch: pytest.MonkeyPatch, at: ParamsAt) -> None:
 
 def _ctx(state: AgentToolState) -> MagicMock:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps.agent_state = state
     ctx.deps.site_id = "plasmodb"
     graph = MagicMock()
@@ -141,13 +142,15 @@ def _ctx(state: AgentToolState) -> MagicMock:
 
 
 async def _bind(state: AgentToolState, params: ParamProposals) -> SetCriterionResult:
-    return await set_criterion(
-        _ctx(state),
-        criterion_id="step_expr",
-        text="expression profile of the protease genes",
-        search_name="GenesByProfile",
-        params=params,
-    )
+    return (
+        await set_criterion(
+            _ctx(state),
+            criterion_id="step_expr",
+            text="expression profile of the protease genes",
+            search_name="GenesByProfile",
+            params=params,
+        )
+    ).return_value
 
 
 async def test_the_swap_hands_back_the_dependent_it_invalidated(

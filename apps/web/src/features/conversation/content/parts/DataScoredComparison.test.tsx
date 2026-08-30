@@ -4,7 +4,72 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
+import type { ScoredComparison } from "@pathfinder/shared";
+
 import { DataScoredComparison } from "./DataScoredComparison";
+
+const SCORED: ScoredComparison = {
+  objective: "mcc",
+  winnerLabel: "strict",
+  variants: [
+    {
+      label: "lenient",
+      searchName: "SA",
+      mcc: 0.6,
+      f1: 0.8,
+      precision: 0.8,
+      sensitivity: 0.8,
+      balancedAccuracy: 0.8,
+      experimentId: "exp_a",
+      error: null,
+    },
+    {
+      label: "strict",
+      searchName: "SB",
+      mcc: 0.82,
+      f1: 0.9,
+      precision: 0.9,
+      sensitivity: 0.9,
+      balancedAccuracy: 0.95,
+      experimentId: "exp_b",
+      error: null,
+    },
+  ],
+};
+
+describe("DataScoredComparison figure", () => {
+  it("captions the figure with the variant count and the winning score", () => {
+    render(<DataScoredComparison data={SCORED} />);
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "2 variants, winner strict at 0.82",
+    );
+  });
+
+  it("says so in the caption when nothing scored", () => {
+    render(<DataScoredComparison data={{ ...SCORED, winnerLabel: null }} />);
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "2 variants, no winner",
+    );
+  });
+
+  it("titles the figure Scored variants", () => {
+    render(<DataScoredComparison data={SCORED} />);
+    expect(screen.getByText("Scored variants").tagName).toBe("FIGCAPTION");
+  });
+
+  it("separates itself with a hairline, never with a card", () => {
+    render(<DataScoredComparison data={SCORED} />);
+    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
+      "my-6",
+      "border-t",
+      "border-border/60",
+      "pt-4",
+    ]);
+    expect(screen.getByTestId("data-scored-comparison").className).not.toMatch(
+      /\bborder\b|\brounded-md\b|\bbg-card\b/,
+    );
+  });
+});
 
 describe("DataScoredComparison", () => {
   it("ranks variants, flags the winner, and shows metrics", () => {

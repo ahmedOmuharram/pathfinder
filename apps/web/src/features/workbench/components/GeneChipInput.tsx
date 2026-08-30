@@ -70,9 +70,9 @@ export function GeneChipInput({
 
   const tintBorder =
     tint === "positive"
-      ? "border-l-green-500"
+      ? "border-l-success"
       : tint === "negative"
-        ? "border-l-amber-500"
+        ? "border-l-warning"
         : "border-l-muted";
 
   return (

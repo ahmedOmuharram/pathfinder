@@ -96,7 +96,7 @@ export function NodeShell({
     !hasError && "hover:-translate-y-px hover:shadow-md",
     hasError && "border-l-[3px] !border-l-destructive",
     isSyncing && "node-syncing-pulse",
-    isOrphan && "border-dashed !border-amber-500/60",
+    isOrphan && "border-dashed !border-warning/60",
   );
 
   function handleRenameCommit(next: string) {

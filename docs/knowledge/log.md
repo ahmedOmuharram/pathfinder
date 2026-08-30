@@ -1,6 +1,200 @@
 # Log
 
+## 2026-08-30
+
+* **One PathFinder session wrote two EDA analyses under WDK user 1216062453 and
+  then read them back as WDK user 1202189953, which answered
+  `GET /users/1202189953/analyses/PlasmoDB/Vd6RDIz -> HTTP 403`.** The
+  `pathfinder-auth` cookie and the `Authorization` cookie are independent: the
+  worker created the analyses with the token the tab carried at dispatch, a
+  second VEuPathDB sign-in replaced that token, and the next read ran as the
+  other account. Nothing compared the two: `require_registered_wdk_identity`
+  asked only whether the token was registered, and `refresh_internal_auth`
+  returned early on any `pathfinder-auth` cookie that decoded, so it could never
+  relink.
+
+  `services/wdk_identity.py::require_session_matches_wdk_identity` resolves the
+  request's token through the cached `resolve_veupathdb_user_id` and raises the
+  new 401 `WDK_IDENTITY_MISMATCH` when the internal user differs from the
+  session's. The route gate runs it after the login check, and
+  `resolve_chat_assistant` runs it for an assistant that declares an identity
+  gate, so a mismatched turn is refused before a `chat_turn` job is deferred.
+  A token that resolves to nobody is an outage, not a second account, and passes.
+  The refresh route now resolves the token's account on every call and mints the
+  new internal token when it differs. On the web, `wdkAuthRefusal` reads both
+  codes and `handleWdkAuthRefusal` calls the refresh once for a burst and retries
+  before it offers the sign-in prompt. The EDA 403 hint is path-aware: a path
+  under `/users/` names ownership, not the study-id trap.
+
+* **A model-written `eda_analysis_spec` reached WDK, and every report on that
+  step answered `JSONObject["studyId"] not found`.** One conversation held a
+  step on `GenesByRNASeq...Febrile_temps_RNASeq_ebi_rnaSeq_RSRCDESeq` whose
+  spec parameter read `{"data_type":"read counts","comparison":{...},
+  "fold_change":{...},"adjusted_p_value":{...}}` - a document the model
+  invented, not an EDA analysis. WDK stores that parameter as a string and
+  validates nothing, so the step was created and every `reports/standard` on it
+  answered HTTP 400; verification could not read the gene set, and the
+  researcher was told the result remains unverified. Prose in the Lead
+  instructions was the only defence, and `EdaStepRequest` guarded the
+  `create_eda_step` path alone, so `set_criterion` and the four other callers of
+  `validate_parameters` accepted any string.
+
+  `validate_parameters` is the one seam every build path crosses, so the check
+  lives there. `EdaStepRequest` moved from `services/eda/authoring.py` to
+  `services/catalog/eda_backed.py`, beside the two parameter names and the
+  guidance it is judged against, and `check_eda_parameters` refuses a value that
+  does not parse as an `EdaNewAnalysis` naming the same dataset. An empty spec
+  stays valid for a search that is not compute-backed and is refused for one
+  that is, because that plugin exports what a computation ranks. The refusal
+  carries `eda_backed_guidance` as its detail, so the FRAME retry names
+  `open_eda_analysis`, `set_eda_filters`, `run_eda_compute` and
+  `create_eda_step` instead of repeating the rejection, and the declarative
+  build fails the node before `push_step_to_wdk` is reached.
+
+* **The EDA tab's compute never landed on the analysis, and the consult recap
+  could not read the answer it was given.** Running the differential
+  expression from the tab answered `PATCH .../eda -> 200` four times and then
+  `POST /api/v1/eda/viz -> 409: Analysis HBQKQbX carries no compute`: the
+  route submitted the job and never wrote the computation into the analysis
+  document, which is the SSOT the volcano reader checks, while the chat path
+  already did through `apply_computation`. `run_analysis_compute` now reads
+  the document once, applies the computation only when it is missing or
+  different (which is also where a study-rejected config is refused before
+  any job starts), and submits; a poll tick writes nothing. Route tests pin
+  compute-then-volcano and the single write. The recap showed `-` for an
+  answered question because pydantic-ai dumps a tool return without aliases:
+  the answer reached the log as `question_id`/`chosen_labels` while the
+  protocol names `questionId`/`chosenLabels`. `UserQuestionAnswer` now
+  serializes by alias; an adapter test pins the wire names, and the recap's
+  arrow and placeholder are ASCII. Threads answered before this stay
+  snake_case in the log and still show the placeholder; no dual-casing reader
+  was added, because a tolerant reader would hide the next mismatch.
+
+* **A real turn drew six one-row traces instead of one, and the cause was an
+  empty reasoning part before every tool call.** The first prompt run against
+  the redesigned thread on the real provider (the heat shock RNA-seq study,
+  febrile versus normal) showed `1 step` six times in a column. The durable
+  log for that turn holds eight `reasoning-start`/`reasoning-end` pairs with
+  zero `reasoning-delta` between them, one before each call: the model's
+  reasoning item carries an empty summary, the adapter emits the part anyway,
+  and `buildTrace` rule 1 closed the run on every `reasoning` part. Two fixes,
+  each pinned. The grouping rule now says only a `text` part with content
+  closes a run; `reasoning`, empty `text` and `step-start` close nothing (the
+  overview, the batch-1 card, the conformance suite and the frozen client
+  module all say so, and the same three-part shape from the log is the frozen
+  case). And the runtime stops writing such parts at all: PROTOCOL 1.4.1
+  section 6 states that a text or reasoning part that would stay empty is
+  never written, implemented as `EmptyPartGate` in the chat event writer,
+  which holds a start until its first delta and drops the pair when the end
+  comes first. The thread also renders nothing for a settled reasoning part
+  with no text, so the eight empty disclosures that stood above the rows are
+  gone with the rows' splitting. The recorded acceptance turn never had an
+  empty part, which is why fifty frozen tests and two live journeys passed
+  over a shape the real model produces on every step.
+
+  The same turn showed two more things the recorded turn had hidden. The
+  trace read `Working...` while the assistant was in fact waiting on the
+  user's answer to a consult question: the summary now derives from the rows,
+  `Working...` only while a call runs, `Waiting for you` while none runs and
+  one waits on an approval or an answer, `N steps` once settled; the frozen
+  calm-default module and the frozen e2e journey pin the new word. And the
+  first thing a reader saw was `Title set: ...` drawn as a figure with a rule
+  and 24 px margins, for a title the sidebar already shows; the
+  `data-conversation-title` part now draws nothing in the thread.
+
 ## 2026-08-29
+
+* **Thread redesign batch 3 is closed, and with it the plan: every color is
+  a token and every token has both grounds.** `globals.css` now holds one
+  light palette on `:root` (neutrals moved onto a single 210 to 215 hue
+  family, the status trio untouched, a new chart series that clears 3:1 on
+  white) and one dark palette under `:root[data-theme="dark"]`, the `dark`
+  variant bound to that attribute so no operating-system setting can fire it,
+  the `.dark` class gone, and every shadow, chart, step-kind and scrim token
+  defined twice. `chartTheme` reads the ground it is on, `applySiteTheme`
+  computes a legible brand primary and its own foreground for either ground,
+  the WCAG math exists once in `lib/color/contrast.ts` with a dark gate beside
+  the light one, and 110 palette-shade utilities across seven consumer
+  clusters became token classes or runtime token reads with value-asserting
+  tests. Dark `--destructive` moved from the plan's 65 to 73 percent lightness
+  because its own tint measured 3.80:1; the plan's dark kind soft and ring
+  literals became `hsl(var(--kind-X) / a)` references because the frozen theme
+  module reads `rgb()` as a color and `hsl()` as not. The verifier's first
+  pass failed on an undeleted backlog card, a `dark:bg-destructive/60` twin
+  that measured 3.55:1 under the new dark foreground, and a validation
+  definition an external palette script disputes; the card now states which
+  criteria "validated" means. Sixteen dead keyframes, utilities and classes
+  left the stylesheet with a referrer proof for each survivor. Both frozen
+  journeys pass on the e2e stack; the chart-token backlog item and the
+  initiative card are deleted.
+
+* **Thread redesign batch 2 is closed: the thread reads as prose with a quiet
+  trace under it.** A turn now renders through `TraceAnchor`, which runs
+  `buildTrace` over the whole message and draws the trace once, at the run's
+  first row-bearing part: one line per tool call (glyph, verb, the tool's own
+  summary), sub-agent phases as labelled groups with their usage, the trace
+  open while the turn runs and folded to `7 steps` once it settles. Durable
+  jobs are task rows, the approval card is the one bordered box left, the
+  fourteen science parts are flat figures with numeric captions (`6 of 12
+  Sample, 34,320 of 68,640 pfal3D7 htseq counts`, `1,543 of 5,511 genes
+  retained`), and raw JSON exists only under `showRawToolCalls`. Deleted:
+  `SubAgentCallCard`, `ToolThink`, `DataTaskProgress`, `DataTaskCompleted`,
+  `subAgentStep.ts`, and `Tool`/`ToolHeader`/`ToolContent` from the vendored
+  primitives. The verifier's first pass failed on four things: an alpha-faded
+  muted class the batch doc itself prescribed and the repo's status-token
+  gate forbids; `turn-trace-summary` outside `turn-trace`, which the frozen
+  e2e journey scopes inside it; the EDA study title outside
+  `data-eda-analysis-state`, which the frozen EDA journey asserts inside; and
+  weak assertions in four changed test files. Each became a lead ruling on the
+  batch card and a fix; the second pass was green on every gate, both frozen
+  Playwright journeys on the e2e stack, and five killed mutation probes, with
+  one em dash left for the lead to strip. Batch 3 (tokens) is next.
+
+* **Thread redesign batch 1 is closed: every tool call now says what it did.**
+  The wire carries one additive data part, `data-tool-summary` (PROTOCOL
+  1.4.0, sections 5.2, 6.3, 9, 12.2), and both conforming reducers fold it
+  onto the tool part it names and append nothing. The client gained
+  `buildTrace`, the one place the trace grouping rule lives, and
+  `mergeSubAgentSteps` moved into it from the app. On the runtime side the
+  helper is `assistant_core.graph.tool_summary` (`with_summary`,
+  `truncate_summary`, `count_noun`): it lives in the runtime because the
+  pilot's boundary test forbids `site_help` from importing `pathfinder.ai`,
+  and because nothing in it names a gene. Eighty-three registered tools plus
+  `site_help`'s two return through it; the four durable tools emit their line
+  at resume; an inner sub-agent call's line becomes the step row's text and
+  never reaches the main stream; one call id carries one phase name and one
+  sub-agent role. The verifier's first pass failed on three things the
+  implementers' own suites could not see: two `empty` statuses (`0 of 4,279
+  Gene Phenotype Data`, `0 steps, 0 genes`) that no test drove, and a golden
+  SSE gate that did not admit the kind. Fixed with value-asserting tests that
+  now kill those probes. Sixty-two redundant `truncate_summary` wrappers came
+  off the call sites because the helper normalises once; the five Lead
+  dispatch tools emit no summary because their native chunks never reach the
+  wire and the sub-agent card already carries the line. A live worker turn
+  after the rebuild shows the summaries on the log with every id resolvable.
+  Process ruling from this batch: implementers run only their own tests; every
+  full ladder, integration run, rebuild and live proof belongs to the verifier.
+
+* **Thread redesign batch 0 is frozen: the tests exist before the code.**
+  `docs/knowledge/thread/plan/` records the decision to replace the thread's
+  stacked cards and raw tool JSON with a calm science-first default: one
+  column of prose, tool activity as a quiet trace of one-line summaries, typed
+  science parts as flat figures, durable jobs as task rows, an approval card
+  only when the user must act, and the two existing settings flags as the
+  whole dev mode. The plan was drafted, then verified line by line against the
+  code (about forty citation corrections) and eight lead rulings settled the
+  wire (`data-tool-summary` rides its own data chunk because the AI SDK's live
+  reducer rejects extra keys on tool chunks; a summary may precede or follow
+  its call's output; inner sub-agent summaries are lifted onto the step; one
+  entity-count caption format; ASCII usage separator; one phase-label set;
+  notices and task rows are never figures). The frozen layer: a recorded
+  42-chunk turn built from real EDA fixtures, 22 frontend tests for the calm
+  default, the dev mode and the figures, 20 client conformance cases for the
+  summary reduction and `buildTrace` (one non-empty run, seven rows, three
+  figures, `Working...` while a call awaits approval), an e2e journey gated on
+  `THREAD_ACCEPTANCE=1`, and a theme completeness test that skips until the
+  dark block exists. All fifty skip cleanly today; the EDA suites are the
+  regression net and stay at 41.
 
 * **Embeddings became an API call and two Postgres tables.** The local
   `nomic-embed-text-v1.5` is deleted: 547 MB on disk, 967 MB resident per

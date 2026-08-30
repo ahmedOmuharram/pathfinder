@@ -1,0 +1,59 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import type { GraphSnapshot } from "@pathfinder/shared";
+
+import { DataGraphSnapshot } from "./DataGraphSnapshot";
+
+type GraphNode = GraphSnapshot["nodes"][number];
+
+const TEXT_STEP: GraphNode = {
+  id: "1",
+  searchName: "GenesByText",
+  estimatedSize: 2000,
+};
+const GO_STEP: GraphNode = {
+  id: "2",
+  searchName: "GenesByGoTerm",
+  estimatedSize: 1342,
+};
+
+const SNAPSHOT: GraphSnapshot = {
+  strategyId: "s1",
+  geneCount: 1342,
+  nodes: [TEXT_STEP, GO_STEP],
+  edges: [],
+};
+
+describe("DataGraphSnapshot", () => {
+  it("renders one caption line counting the steps and the genes", () => {
+    render(<DataGraphSnapshot data={SNAPSHOT} />);
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "2 steps, 1,342 genes",
+    );
+  });
+
+  it("says one step in the singular", () => {
+    render(<DataGraphSnapshot data={{ ...SNAPSHOT, nodes: [TEXT_STEP] }} />);
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "1 step, 1,342 genes",
+    );
+  });
+
+  it("carries its own testid and stops being a bordered pill", () => {
+    const { container } = render(<DataGraphSnapshot data={SNAPSHOT} />);
+    const line = screen.getByTestId("data-graph-snapshot");
+    const figure = screen.getByTestId("figure");
+    expect(line).toHaveTextContent("2 steps, 1,342 genes");
+    expect(figure.contains(line)).toBe(true);
+    expect(figure.className.split(/\s+/)).toEqual([
+      "my-6",
+      "border-t",
+      "border-border/60",
+      "pt-4",
+    ]);
+    expect(container.querySelectorAll("figcaption")).toHaveLength(0);
+  });
+});

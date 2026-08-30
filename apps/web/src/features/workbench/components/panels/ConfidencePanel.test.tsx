@@ -164,6 +164,43 @@ describe("ConfidencePanel", () => {
     expect(g2Row).toHaveTextContent("-1.0");
   });
 
+  it("colors a positive score with success and a negative score with destructive", async () => {
+    mockRequestJson.mockResolvedValueOnce([
+      {
+        geneId: "G1",
+        compositeScore: 0.333,
+        classificationScore: 1.0,
+        ensembleScore: 0.0,
+        enrichmentScore: 0.0,
+      },
+      {
+        geneId: "G2",
+        compositeScore: -0.333,
+        classificationScore: -1.0,
+        ensembleScore: 0.0,
+        enrichmentScore: 0.0,
+      },
+    ]);
+
+    storeState["lastExperiment"] = makeExperiment({
+      truePositiveGenes: [{ id: "G1", name: "Gene1" }],
+      falsePositiveGenes: [{ id: "G2", name: "Gene2" }],
+    });
+    storeState["lastExperimentSetId"] = "set-1";
+
+    render(<ConfidencePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeTruthy();
+    });
+
+    expect(screen.getByText("0.333")).toHaveClass("text-success");
+    expect(screen.getByText("-0.333")).toHaveClass("text-destructive");
+    const table = screen.getByRole("table");
+    expect(table.innerHTML).not.toContain("green-");
+    expect(table.innerHTML).not.toContain("dark:text-");
+  });
+
   it("sends correct request body with gene IDs", async () => {
     mockRequestJson.mockResolvedValueOnce([]);
 

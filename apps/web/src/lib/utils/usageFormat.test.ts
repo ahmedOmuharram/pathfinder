@@ -28,7 +28,8 @@ describe("formatCost", () => {
 
 describe("formatUsage", () => {
   it("joins compact tokens and cost", () => {
-    expect(formatUsage(12300, "0.004")).toBe("12.3K · $0.004");
-    expect(formatUsage(49401, 0.0228)).toBe("49.4K · $0.02");
+    expect(formatUsage(12300, "0.004")).toBe("12.3K, $0.004");
+    expect(formatUsage(49401, 0.0228)).toBe("49.4K, $0.02");
+    expect(formatUsage(41800, "0.0131")).toBe("41.8K, $0.01");
   });
 });

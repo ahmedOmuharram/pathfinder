@@ -16,7 +16,9 @@ from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.models.catalog import get_model_entry
 
 _TURN_FACTS = frozenset({"errors", "aborted", "finishReason"})
-_PART_STREAM_FACTS = frozenset({"resultProviderMetadata"})
+_PART_STREAM_FACTS = frozenset(
+    {"resultProviderMetadata", "summary", "summaryStatus"},
+)
 
 
 def _without_stream_facts(entry: dict[str, object]) -> dict[str, object]:

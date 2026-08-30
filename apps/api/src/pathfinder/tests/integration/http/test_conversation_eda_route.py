@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -16,12 +17,13 @@ from fastapi import FastAPI
 from shared_py.stream_parts.eda import EdaAnalysisState
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from pathfinder.integrations.eda import factory
 from pathfinder.integrations.eda.client import EdaClient
 from pathfinder.integrations.eda.models import (
     EdaAnalysisDescriptor,
     EdaAnalysisDetail,
+    EdaComputationDescriptor,
     EdaComputeJob,
-    EdaPermissionEntry,
     EdaStringSetFilter,
     EdaSubsetDescriptor,
 )
@@ -29,7 +31,7 @@ from pathfinder.persistence.repositories.conversation_analysis import (
     ConversationAnalysesRepository,
 )
 from pathfinder.services.catalog.eda_backed import SUBSET_QUERY
-from pathfinder.services.eda import authoring, binding, catalog
+from pathfinder.services.eda import authoring, binding, catalog, compute
 from pathfinder.services.eda.authoring import SubsetRejectedError
 from pathfinder.services.strategies import commit
 from pathfinder.services.strategies.commit import _WDKCommitOutcome
@@ -95,18 +97,30 @@ def _analysis_state(*, num_filters: int) -> EdaAnalysisState:
     )
 
 
-def _computation_json() -> JSONObject:
+_SAMPLE_ENTITY = "ENT_8151325d"
+_COUNTS_ENTITY = "ENT_fd574cd6"
+_CONDITION = "VAR_081ab087"
+
+
+def _computation_json(
+    group_a: str = "febrile",
+    value_variable: str = "SEQUENCE_READ_COUNT_SENSE",
+) -> JSONObject:
+    """A differential expression the DE study declares every variable of."""
     return {
         "type": "differentialexpression",
         "configuration": {
             "identifierVariable": {
-                "entityId": _ENTITY,
-                "variableId": "VAR_gene",
+                "entityId": _COUNTS_ENTITY,
+                "variableId": "VEUPATHDB_GENE_ID",
             },
-            "valueVariable": {"entityId": _ENTITY, "variableId": "VAR_counts"},
+            "valueVariable": {
+                "entityId": _COUNTS_ENTITY,
+                "variableId": value_variable,
+            },
             "comparator": {
-                "variable": {"entityId": _ENTITY, "variableId": "VAR_state"},
-                "groupA": [{"label": "febrile"}],
+                "variable": {"entityId": _SAMPLE_ENTITY, "variableId": _CONDITION},
+                "groupA": [{"label": group_a}],
                 "groupB": [{"label": "normal"}],
             },
         },
@@ -397,19 +411,13 @@ async def test_run_compute_answers_with_the_job_reference(
 ) -> None:
     client, conversation_id = thread
     await _bind(session_maker, conversation_id)
-    submitted: list[object] = []
+    ran: list[object] = []
 
-    async def read(_site: str, *, analysis_id: str) -> EdaAnalysisDetail:
-        del analysis_id
-        return _detail()
-
-    async def resolve(_site: str, dataset_id: str) -> EdaPermissionEntry:
-        assert dataset_id == _DATASET
-        return EdaPermissionEntry.model_validate({"studyId": _STUDY})
-
-    async def submit(_site: str, **kwargs: object) -> EdaComputeJob:
-        assert kwargs["study_id"] == _STUDY
-        submitted.append(kwargs["compute_name"])
+    async def run(site_id: str, **kwargs: object) -> EdaComputeJob:
+        ran.append((site_id, kwargs["analysis_id"], kwargs["dataset_id"]))
+        computation = kwargs["computation"]
+        assert isinstance(computation, EdaComputationDescriptor)
+        ran.append(computation.type)
         return EdaComputeJob.model_validate(
             {"jobID": "db04204e5386396e1ca2cb78469ab6fb", "status": "queued"}
         )
@@ -417,9 +425,7 @@ async def test_run_compute_answers_with_the_job_reference(
     async def state(**_kwargs: object) -> EdaAnalysisState:
         return _analysis_state(num_filters=1)
 
-    monkeypatch.setattr(eda_router, "read_analysis", read)
-    monkeypatch.setattr(eda_router, "resolve_dataset", resolve)
-    monkeypatch.setattr(eda_router, "submit_compute", submit)
+    monkeypatch.setattr(eda_router, "run_analysis_compute", run)
     monkeypatch.setattr(eda_router, "mutated_analysis_state", state)
 
     response = await client.patch(
@@ -428,13 +434,215 @@ async def test_run_compute_answers_with_the_job_reference(
     )
     assert response.status_code == 200
     body = response.json()
-    assert submitted == ["differentialexpression"]
+    assert ran == [("plasmodb", _ANALYSIS, _DATASET), "differentialexpression"]
     assert body["job"]["jobId"] == "db04204e5386396e1ca2cb78469ab6fb"
     assert body["job"]["status"] == "queued"
     assert body["job"]["taskId"] is None
     assert body["job"]["appName"] == "differentialexpression"
     assert body["analysis"]["revision"] == 1
     assert body["step"] is None
+
+
+_JOB = "b" * 32
+
+
+@dataclass
+class _AnalysisStore:
+    """The upstream document, as the service's read-patch-read really sees it."""
+
+    detail: EdaAnalysisDetail
+    patches: int = 0
+
+    def patched(self, request: httpx.Request) -> httpx.Response:
+        if request.method != "PATCH":
+            return httpx.Response(
+                200, json=self.detail.model_dump(by_alias=True, mode="json")
+            )
+        self.patches += 1
+        written = EdaAnalysisDescriptor.model_validate(
+            json.loads(request.content)["descriptor"]
+        )
+        self.detail = self.detail.model_copy(
+            update={
+                "descriptor": written,
+                "num_computations": len(written.computations),
+            }
+        )
+        return httpx.Response(204)
+
+
+_DE_FIXTURE_BY_SUFFIX = {
+    "/permissions": "permissions.json",
+    "/eda/studies": "studies_list.json",
+    f"/eda/studies/{_STUDY}": "study_detail_de.json",
+    "/statistics": "volcano_statistics.json",
+}
+
+
+def _de_recorded(path: str) -> Any | None:
+    for suffix, name in _DE_FIXTURE_BY_SUFFIX.items():
+        if path.endswith(suffix):
+            return _fixture(name)
+    return None
+
+
+def _de_wire(store: _AnalysisStore) -> httpx.MockTransport:
+    """The DE study, plus an analysis document a PATCH really rewrites."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if "/analyses/" in path:
+            return store.patched(request)
+        if path.endswith("/count"):
+            return httpx.Response(200, json={"count": 66132})
+        if path.startswith("/eda/computes/") and not path.endswith("/statistics"):
+            return httpx.Response(200, json={"jobID": _JOB, "status": "complete"})
+        recorded = _de_recorded(path)
+        if recorded is None:
+            return httpx.Response(404, json={"status": "not-found"})
+        return httpx.Response(200, json=recorded)
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.fixture
+def de_wired(monkeypatch: pytest.MonkeyPatch) -> Iterator[_AnalysisStore]:
+    """One client for the catalog, the authoring module and the analysis store."""
+    catalog.clear_study_caches()
+    store = _AnalysisStore(
+        detail=EdaAnalysisDetail(
+            analysis_id=_ANALYSIS,
+            display_name="de analysis",
+            study_id=_DATASET,
+            num_filters=0,
+            num_computations=0,
+            descriptor=EdaAnalysisDescriptor(),
+        )
+    )
+    client = EdaClient(base_url="https://plasmodb.org/eda")
+    client.install_transport(_de_wire(store))
+    for module in (catalog, authoring, compute, factory):
+        monkeypatch.setattr(module, "get_eda_client", lambda _s: client)
+
+    async def user_id(_site: str) -> str:
+        return "9001"
+
+    monkeypatch.setattr(authoring, "resolve_eda_user_id", user_id)
+    monkeypatch.setattr(binding, "resolve_eda_user_id", user_id)
+    yield store
+    catalog.clear_study_caches()
+
+
+async def test_run_compute_writes_the_computation_into_the_analysis(
+    thread: tuple[httpx.AsyncClient, UUID],
+    session_maker: async_sessionmaker[AsyncSession],
+    de_wired: _AnalysisStore,
+) -> None:
+    """The analysis is the SSOT the volcano reads, so the tab's run writes it."""
+    del de_wired
+    client, conversation_id = thread
+    await _bind(session_maker, conversation_id)
+
+    ran = await client.patch(
+        f"/api/v1/conversations/{conversation_id}/eda",
+        json={"action": "run-compute", "computation": _computation_json()},
+    )
+    assert ran.status_code == 200
+    assert ran.json()["job"]["jobId"] == _JOB
+
+    read = await client.get(f"/api/v1/conversations/{conversation_id}/eda")
+    assert read.status_code == 200
+    computations = read.json()["descriptor"]["computations"]
+    assert len(computations) == 1
+    assert computations[0]["descriptor"]["type"] == "differentialexpression"
+    assert read.json()["analysis"]["numComputations"] == 1
+
+    plotted = await client.post(
+        "/api/v1/eda/viz",
+        params={"siteId": "plasmodb", "conversationId": str(conversation_id)},
+        json={
+            "datasetId": _DATASET,
+            "chart": "volcano",
+            "effectSizeThreshold": 1.0,
+            "significanceThreshold": 0.05,
+            "effectDirection": "upAndDown",
+        },
+    )
+    assert plotted.status_code == 200
+    assert plotted.json()["totalPoints"] == 201
+
+
+async def test_repeating_the_identical_run_compute_writes_the_analysis_once(
+    thread: tuple[httpx.AsyncClient, UUID],
+    session_maker: async_sessionmaker[AsyncSession],
+    de_wired: _AnalysisStore,
+) -> None:
+    """The identical action is the status poll, and a poll writes nothing."""
+    client, conversation_id = thread
+    await _bind(session_maker, conversation_id)
+    body = {"action": "run-compute", "computation": _computation_json()}
+    url = f"/api/v1/conversations/{conversation_id}/eda"
+
+    first = await client.patch(url, json=body)
+    second = await client.patch(url, json=body)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["job"]["jobId"] == _JOB
+    assert de_wired.patches == 1
+    assert len(de_wired.detail.descriptor.computations) == 1
+
+
+async def test_a_changed_configuration_writes_the_analysis_again(
+    thread: tuple[httpx.AsyncClient, UUID],
+    session_maker: async_sessionmaker[AsyncSession],
+    de_wired: _AnalysisStore,
+) -> None:
+    """Another configuration is another compute, so the document follows it."""
+    client, conversation_id = thread
+    await _bind(session_maker, conversation_id)
+    url = f"/api/v1/conversations/{conversation_id}/eda"
+
+    await client.patch(
+        url, json={"action": "run-compute", "computation": _computation_json()}
+    )
+    changed = await client.patch(
+        url,
+        json={
+            "action": "run-compute",
+            "computation": _computation_json(
+                value_variable="SEQUENCE_READ_COUNT_ANTISENSE"
+            ),
+        },
+    )
+
+    assert changed.status_code == 200
+    assert de_wired.patches == 2
+    computations = de_wired.detail.descriptor.computations
+    assert len(computations) == 1
+    value_variable = computations[0].descriptor.configuration.value_variable
+    assert value_variable.variable_id == "SEQUENCE_READ_COUNT_ANTISENSE"
+
+
+async def test_run_compute_refuses_a_config_the_study_rejects_before_the_job(
+    thread: tuple[httpx.AsyncClient, UUID],
+    session_maker: async_sessionmaker[AsyncSession],
+    de_wired: _AnalysisStore,
+) -> None:
+    """A label outside the vocabulary reaches a failed job, so it never starts."""
+    client, conversation_id = thread
+    await _bind(session_maker, conversation_id)
+
+    response = await client.patch(
+        f"/api/v1/conversations/{conversation_id}/eda",
+        json={
+            "action": "run-compute",
+            "computation": _computation_json(group_a="hypothermic"),
+        },
+    )
+    assert response.status_code == 422
+    assert "hypothermic" in json.dumps(response.json())
+    assert de_wired.detail.descriptor.computations == []
 
 
 async def test_export_step_answers_with_the_refreshed_strategy(

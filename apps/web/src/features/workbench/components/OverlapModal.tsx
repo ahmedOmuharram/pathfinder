@@ -105,7 +105,7 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
       <div className="p-5 space-y-5">
         {/* Warning for unresolved strategy-backed sets */}
         {unresolvedSets.length > 0 && (
-          <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
+          <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
             Overlap cannot be computed for strategy-backed sets without resolved gene
             IDs: {unresolvedSets.map((s) => s.name).join(", ")}
           </div>

@@ -7,7 +7,7 @@ token, or with a guest one, is answered before it reaches WDK.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -19,6 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.integrations.veupathdb.auth_login import clear_oauth_signing_key_cache
 from pathfinder.platform.config import get_settings
+from pathfinder.services.users import get_or_create_user_id
+from pathfinder.services.wdk import get_site
+from pathfinder.services.wdk_identity import clear_veupathdb_identity_cache
 from pathfinder.tests._support.veupathdb_tokens import (
     JWKS_URL,
     OAUTH_URL,
@@ -41,6 +44,8 @@ LOGIN_TITLE = "VEuPathDB login required"
 LOGIN_DETAIL = "Sign in to VEuPathDB to use searches, strategies and gene sets."
 LOGIN_CODE = "WDK_LOGIN_REQUIRED"
 
+TOKEN_ACCOUNT_EMAIL = "registered.account@example.org"
+
 
 @pytest.fixture
 def signing_key() -> ec.EllipticCurvePrivateKey:
@@ -56,13 +61,25 @@ def stubbed_oauth(
     monkeypatch.setenv("VEUPATHDB_OAUTH_URL", OAUTH_URL)
     get_settings.cache_clear()
     clear_oauth_signing_key_cache()
+    clear_veupathdb_identity_cache()
+    service_url = get_site(get_settings().veupathdb_default_site).service_url
     with respx.mock(assert_all_called=False) as router:
         router.get(JWKS_URL).mock(
             return_value=httpx.Response(200, json=jwks_body(signing_key)),
         )
+        router.get(service_url.replace("/service", "/app")).mock(
+            return_value=httpx.Response(200, text="ok"),
+        )
+        router.get(f"{service_url}/users/current").mock(
+            return_value=httpx.Response(
+                200,
+                json={"id": 1248677203, "isGuest": False, "email": TOKEN_ACCOUNT_EMAIL},
+            ),
+        )
         yield signing_key
     get_settings.cache_clear()
     clear_oauth_signing_key_cache()
+    clear_veupathdb_identity_cache()
 
 
 @pytest.fixture
@@ -80,6 +97,19 @@ async def signed_out(app: FastAPI, owned: Owned) -> AsyncIterator[httpx.AsyncCli
     """The owner of every resource, holding no VEuPathDB session."""
     async with client_for(app, owned.user_id) as client:
         yield client
+
+
+@pytest.fixture
+async def token_account_user_id(db_session: AsyncSession, owned: Owned) -> UUID:
+    """The internal user the stubbed WDK account maps to.
+
+    One session acts as one VEuPathDB account, so a request that passes the
+    gate names this user and not another.
+    """
+    del owned
+    user_id = await get_or_create_user_id(db_session, TOKEN_ACCOUNT_EMAIL)
+    await db_session.commit()
+    return user_id
 
 
 def _assert_login_required(response: httpx.Response) -> None:
@@ -178,12 +208,12 @@ class TestARegisteredTokenPassesTheGate:
     async def test_the_route_answers_its_own_404_instead(
         self,
         app: FastAPI,
-        owned: Owned,
+        token_account_user_id: UUID,
         stubbed_oauth: ec.EllipticCurvePrivateKey,
     ) -> None:
         """A registered token reaches the handler, which then finds no such set."""
         registered = veupathdb_token(stubbed_oauth)
-        async with client_for(app, owned.user_id) as client:
+        async with client_for(app, token_account_user_id) as client:
             client.headers[WDK_AUTH_HEADER] = registered
             response = await client.post(
                 f"/api/v1/gene-sets/{uuid4()}/enrich",
@@ -195,12 +225,12 @@ class TestARegisteredTokenPassesTheGate:
     async def test_the_authorization_cookie_is_read_like_the_header(
         self,
         app: FastAPI,
-        owned: Owned,
+        token_account_user_id: UUID,
         stubbed_oauth: ec.EllipticCurvePrivateKey,
     ) -> None:
         """A browser session carries the token as a cookie, not as a header."""
         registered = veupathdb_token(stubbed_oauth)
-        async with client_for(app, owned.user_id) as client:
+        async with client_for(app, token_account_user_id) as client:
             client.cookies.set("Authorization", registered)
             response = await client.post(
                 f"/api/v1/gene-sets/{uuid4()}/enrich",

@@ -28,6 +28,7 @@ from pathfinder.services.catalog.param_formatting import (
 
 def _ctx() -> Any:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.site_id = "plasmodb"
     ctx.deps.agent_state = AgentToolState()
@@ -98,11 +99,13 @@ async def test_known_parameter_returns_normally(
         "format_typed_param",
         lambda *args, **kw: fake_info,
     )
-    result = await catalog_discovery.get_parameter_options(
-        _ctx(),
-        search_name="GenesByESTOverlap",
-        parameter_id="min_pct_idents",
-    )
+    result = (
+        await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByESTOverlap",
+            parameter_id="min_pct_idents",
+        )
+    ).return_value
     assert result is fake_info
 
 
@@ -121,11 +124,13 @@ async def test_unknown_parameter_returns_not_on_search_with_close_match(
             "expansion_factor",
         ],
     )
-    result = await catalog_discovery.get_parameter_options(
-        _ctx(),
-        search_name="GenesByESTOverlap",
-        parameter_id="minOverlap",
-    )
+    result = (
+        await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByESTOverlap",
+            parameter_id="minOverlap",
+        )
+    ).return_value
     assert isinstance(result, ParameterNotOnSearch)
     assert result.requested_parameter_id == "minOverlap"
     assert result.search_name == "GenesByESTOverlap"
@@ -150,11 +155,13 @@ async def test_no_close_match_still_lists_all_valid(
         record_type="transcript",
         param_names=["taxon", "go_term"],
     )
-    result = await catalog_discovery.get_parameter_options(
-        _ctx(),
-        search_name="GenesByGoTerm",
-        parameter_id="completely_unrelated_xyz",
-    )
+    result = (
+        await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByGoTerm",
+            parameter_id="completely_unrelated_xyz",
+        )
+    ).return_value
     assert isinstance(result, ParameterNotOnSearch)
     assert result.requested_parameter_id == "completely_unrelated_xyz"
     assert set(result.valid_parameter_ids) == {"taxon", "go_term"}
@@ -180,18 +187,22 @@ async def test_second_identical_read_returns_already_read_notice(
         lambda *args, **kw: fake_info,
     )
     ctx = _ctx()
-    first = await catalog_discovery.get_parameter_options(
-        ctx,
-        search_name="GenesByGoTerm",
-        parameter_id="go_term",
-    )
+    first = (
+        await catalog_discovery.get_parameter_options(
+            ctx,
+            search_name="GenesByGoTerm",
+            parameter_id="go_term",
+        )
+    ).return_value
     assert first is fake_info
 
-    second = await catalog_discovery.get_parameter_options(
-        ctx,
-        search_name="GenesByGoTerm",
-        parameter_id="go_term",
-    )
+    second = (
+        await catalog_discovery.get_parameter_options(
+            ctx,
+            search_name="GenesByGoTerm",
+            parameter_id="go_term",
+        )
+    ).return_value
     assert isinstance(second, AlreadyReadNotice)
     assert second.search_name == "GenesByGoTerm"
     assert second.parameter_id == "go_term"
@@ -214,18 +225,22 @@ async def test_failed_read_is_not_marked_so_retry_works(
         lambda *args, **kw: fake_info,
     )
     ctx = _ctx()
-    wrong = await catalog_discovery.get_parameter_options(
-        ctx,
-        search_name="GenesByGoTerm",
-        parameter_id="goTerm",
-    )
+    wrong = (
+        await catalog_discovery.get_parameter_options(
+            ctx,
+            search_name="GenesByGoTerm",
+            parameter_id="goTerm",
+        )
+    ).return_value
     assert isinstance(wrong, ParameterNotOnSearch)
 
-    fixed = await catalog_discovery.get_parameter_options(
-        ctx,
-        search_name="GenesByGoTerm",
-        parameter_id="go_term",
-    )
+    fixed = (
+        await catalog_discovery.get_parameter_options(
+            ctx,
+            search_name="GenesByGoTerm",
+            parameter_id="go_term",
+        )
+    ).return_value
     assert fixed is fake_info
 
 
@@ -305,9 +320,11 @@ class TestInheritsBoundParentContext:
             lambda *a, **k: MagicMock(kind="parameter_info"),
         )
 
-        result = await catalog_discovery.get_parameter_options(
-            _ctx(), search_name="GenesByGoTerm", parameter_id="go_term"
-        )
+        result = (
+            await catalog_discovery.get_parameter_options(
+                _ctx(), search_name="GenesByGoTerm", parameter_id="go_term"
+            )
+        ).return_value
 
         assert not isinstance(result, ParameterNotOnSearch)
 
@@ -378,11 +395,13 @@ class TestADependentReadNeedsItsParent:
             monkeypatch, "samples_percentile_generic", "profileset_generic"
         )
 
-        result = await catalog_discovery.get_parameter_options(
-            _ctx(),
-            search_name="GenesByProfile",
-            parameter_id="samples_percentile_generic",
-        )
+        result = (
+            await catalog_discovery.get_parameter_options(
+                _ctx(),
+                search_name="GenesByProfile",
+                parameter_id="samples_percentile_generic",
+            )
+        ).return_value
 
         assert isinstance(result, ParentContextRequired)
 
@@ -394,11 +413,13 @@ class TestADependentReadNeedsItsParent:
             monkeypatch, "samples_percentile_generic", "profileset_generic"
         )
 
-        result = await catalog_discovery.get_parameter_options(
-            _ctx(),
-            search_name="GenesByProfile",
-            parameter_id="samples_percentile_generic",
-        )
+        result = (
+            await catalog_discovery.get_parameter_options(
+                _ctx(),
+                search_name="GenesByProfile",
+                parameter_id="samples_percentile_generic",
+            )
+        ).return_value
 
         assert isinstance(result, ParentContextRequired)
         assert result.parent_parameter_ids == ["profileset_generic"]
@@ -415,12 +436,14 @@ class TestADependentReadNeedsItsParent:
             search_inspection, "format_typed_param", lambda *a, **kw: fake_info
         )
 
-        result = await catalog_discovery.get_parameter_options(
-            _ctx(),
-            search_name="GenesByProfile",
-            parameter_id="samples_percentile_generic",
-            context_values={"profileset_generic": "DeRisi 3D7 Smoothed"},
-        )
+        result = (
+            await catalog_discovery.get_parameter_options(
+                _ctx(),
+                search_name="GenesByProfile",
+                parameter_id="samples_percentile_generic",
+                context_values={"profileset_generic": "DeRisi 3D7 Smoothed"},
+            )
+        ).return_value
 
         assert result is fake_info
 
@@ -436,9 +459,11 @@ class TestADependentReadNeedsItsParent:
             search_inspection, "format_typed_param", lambda *a, **kw: fake_info
         )
 
-        result = await catalog_discovery.get_parameter_options(
-            _ctx(), search_name="GenesByTaxon", parameter_id="organism"
-        )
+        result = (
+            await catalog_discovery.get_parameter_options(
+                _ctx(), search_name="GenesByTaxon", parameter_id="organism"
+            )
+        ).return_value
 
         assert result is fake_info
 
@@ -509,12 +534,14 @@ class TestReadingOnePhyleticList:
         query: str | None = None,
     ) -> Any:
         _patch_phyletic_client(monkeypatch)
-        return await catalog_discovery.get_parameter_options(
-            _ctx(),
-            search_name="GenesByOrthologPattern",
-            parameter_id=parameter_id,
-            query=query,
-        )
+        return (
+            await catalog_discovery.get_parameter_options(
+                _ctx(),
+                search_name="GenesByOrthologPattern",
+                parameter_id=parameter_id,
+                query=query,
+            )
+        ).return_value
 
     @pytest.mark.asyncio
     async def test_a_query_returns_the_matching_species(

@@ -9,19 +9,7 @@ import {
   logScaleVennData,
   type VennInput,
 } from "@/lib/utils/vennData";
-
-const CHART_VARS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5"];
-const FALLBACK_COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed"];
-
-/** Resolve CSS custom properties to actual color strings D3/chroma can parse. */
-function resolveChartColors(): string[] {
-  if (typeof document === "undefined") return FALLBACK_COLORS;
-  const style = getComputedStyle(document.documentElement);
-  return CHART_VARS.map((v, i) => {
-    const raw = style.getPropertyValue(v).trim();
-    return raw !== "" ? `hsl(${raw})` : (FALLBACK_COLORS[i] ?? "#2563eb");
-  });
-}
+import { CHART_TOKEN_FALLBACKS, readChartTokens } from "./charts/chartTheme";
 
 type VennLayoutItem = {
   data: { key: string; sets: string[]; size: number };
@@ -42,9 +30,9 @@ export function SetVenn({
   width = 380,
   onRegionClick,
 }: SetVennProps) {
-  const [colors, setColors] = useState(FALLBACK_COLORS);
+  const [colors, setColors] = useState(CHART_TOKEN_FALLBACKS.series);
   useIsomorphicLayoutEffect(() => {
-    setColors(resolveChartColors());
+    setColors(readChartTokens().series);
   }, []);
 
   // Real counts for display, log-scaled data for circle sizing

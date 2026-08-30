@@ -87,7 +87,7 @@ export function FilterParam({ spec, name, field }: ParamWidgetProps) {
       </div>
 
       {!decoded.ok && raw !== "" && (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning">
           Existing value is not a recognized filter shape. Use Edit JSON to inspect.
         </p>
       )}

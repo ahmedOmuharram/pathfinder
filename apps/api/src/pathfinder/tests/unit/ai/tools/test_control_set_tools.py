@@ -34,6 +34,7 @@ class _SessionCM:
 
 def _ctx() -> Any:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.runtime.site_id = "plasmodb"
     ctx.deps.runtime.user_id = uuid4()
@@ -71,12 +72,14 @@ async def test_build_control_set_validates_persists_and_reports_unresolved(
     service.create = AsyncMock(return_value=created)
     monkeypatch.setattr(control_sets, "ControlSetService", lambda _s: service)
 
-    out = await build_control_set(
-        _ctx(),
-        name="my controls",
-        positive_ids=["g1", "typo", "g2"],
-        negative_ids=["n1"],
-    )
+    out = (
+        await build_control_set(
+            _ctx(),
+            name="my controls",
+            positive_ids=["g1", "typo", "g2"],
+            negative_ids=["n1"],
+        )
+    ).return_value
 
     assert out.control_set_id == "cs_123"
     assert out.positive_count == 2
@@ -110,7 +113,7 @@ async def test_list_control_sets_summarizes(monkeypatch: pytest.MonkeyPatch) -> 
     service.list_for_site = AsyncMock(return_value=[cs])
     monkeypatch.setattr(control_sets, "ControlSetService", lambda _s: service)
 
-    out = await list_control_sets(_ctx())
+    out = (await list_control_sets(_ctx())).return_value
     assert len(out) == 1
     assert out[0].control_set_id == "cs_1"
     assert out[0].positive_count == 2

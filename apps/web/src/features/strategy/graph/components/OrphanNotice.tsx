@@ -22,7 +22,7 @@ export function OrphanNotice({
   return (
     <Alert
       data-testid="orphan-notice"
-      className="pointer-events-auto w-auto max-w-2xl border-amber-300 bg-amber-50 text-amber-900 *:data-[slot=alert-description]:text-amber-800/80 [&>svg]:text-amber-700"
+      className="pointer-events-auto w-auto max-w-2xl border-warning/40 bg-warning/10 text-warning *:data-[slot=alert-description]:text-warning [&>svg]:text-warning"
     >
       <Unlink className="size-4" aria-hidden />
       <AlertTitle className="flex items-center justify-between gap-3">
@@ -36,7 +36,7 @@ export function OrphanNotice({
               variant="ghost"
               size="sm"
               onClick={() => onClickFirst(firstOrphanId)}
-              className="h-7 px-2 text-amber-900 hover:bg-amber-100 hover:text-amber-900"
+              className="h-7 px-2 text-warning hover:bg-warning/20 hover:text-warning"
             >
               View →
             </Button>
@@ -47,7 +47,7 @@ export function OrphanNotice({
               variant="ghost"
               size="sm"
               onClick={onRemoveAll}
-              className="h-7 gap-1 px-2 text-amber-900 hover:bg-amber-100 hover:text-amber-900"
+              className="h-7 gap-1 px-2 text-warning hover:bg-warning/20 hover:text-warning"
             >
               <Trash2 className="size-3.5" aria-hidden />
               Remove all

@@ -22,6 +22,7 @@ from pathfinder.services.catalog import search_inspection, searches
 
 def _ctx() -> Any:
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.site_id = "plasmodb"
     ctx.deps.agent_state = AgentToolState()
@@ -66,16 +67,16 @@ async def test_first_read_registers_second_read_is_notice(
     client = _patch(monkeypatch)
     ctx = _ctx()
 
-    first = await catalog_discovery.get_search_overview(
-        ctx, search_name="GenesByGoTerm"
-    )
+    first = (
+        await catalog_discovery.get_search_overview(ctx, search_name="GenesByGoTerm")
+    ).return_value
     assert not isinstance(first, AlreadyReadNotice)
     assert ctx.deps.agent_state.get_overview("GenesByGoTerm") is not None
     assert client.get_search_details.await_count == 1
 
-    second = await catalog_discovery.get_search_overview(
-        ctx, search_name="GenesByGoTerm"
-    )
+    second = (
+        await catalog_discovery.get_search_overview(ctx, search_name="GenesByGoTerm")
+    ).return_value
     assert isinstance(second, AlreadyReadNotice)
     assert second.search_name == "GenesByGoTerm"
     # No second WDK round-trip on the repeat read.

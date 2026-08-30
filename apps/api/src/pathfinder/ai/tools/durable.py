@@ -21,7 +21,14 @@ from uuid import UUID
 
 from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
-from pydantic import TypeAdapter
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    model_validator,
+)
 from pydantic_ai.tools import RunContext
 from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
 
@@ -33,7 +40,26 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
-ChunkBuilder = Callable[[Any, UUID], list[BaseChunk]]
+class DurableOutcome(BaseModel):
+    """The payload the worker resumes a durable tool with."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    status: str = ""
+    result: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _mapping_only(cls, raw: object) -> object:
+        return raw if isinstance(raw, dict) else {}
+
+    @property
+    def succeeded(self) -> bool:
+        """Whether the worker reported a result to describe."""
+        return self.status == "success"
+
+
+ChunkBuilder = Callable[[Any, UUID, str | None], list[BaseChunk]]
 
 
 class DurableIdentity(Protocol):
@@ -57,7 +83,7 @@ def durable_tool(
     """Mark an agent-side pydantic-ai tool as durable.
 
     ``chunks_from_result`` lets a tool emit chat-visible SSE chunks built
-    from the resumed payload — runs at resume time inside the LangGraph
+    from the resumed payload - runs at resume time inside the LangGraph
     node, so chunks are persisted/replayed via the same writer as the
     agent's own stream output.
     """
@@ -103,7 +129,7 @@ def durable_tool(
             )
             if chunks_from_result is not None:
                 writer = get_stream_writer()
-                for chunk in chunks_from_result(resumed, task_id):
+                for chunk in chunks_from_result(resumed, task_id, ctx.tool_call_id):
                     writer(
                         {
                             "chunk": chunk.model_dump(

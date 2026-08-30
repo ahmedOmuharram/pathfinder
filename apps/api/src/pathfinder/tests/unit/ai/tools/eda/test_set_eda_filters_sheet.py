@@ -292,7 +292,8 @@ async def test_a_first_call_with_no_filters_returns_the_sheet(
 ) -> None:
     monkeypatch.setattr(eda_analysis, "get_study_detail_for_dataset", _phenotype_study)
     monkeypatch.setattr(eda_analysis, "bound_analysis", _bound)
-    result = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    returned = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    result = returned.return_value
     assert result.decide
     assert result.filters_template == []
     assert result.applied is False
@@ -303,7 +304,8 @@ async def test_the_sheet_names_the_exact_filter_type_per_variable(
 ) -> None:
     monkeypatch.setattr(eda_analysis, "get_study_detail_for_dataset", _phenotype_study)
     monkeypatch.setattr(eda_analysis, "bound_analysis", _bound)
-    result = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    returned = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    result = returned.return_value
     species = next(e for e in result.decide if e.variable_id == _SPECIES)
     assert species.filter_type == "stringSet"
     assert species.example == {
@@ -323,7 +325,8 @@ async def test_a_date_example_carries_the_time_part_the_service_requires(
         eda_analysis, "get_study_detail_for_dataset", _date_and_number_study
     )
     monkeypatch.setattr(eda_analysis, "bound_analysis", _bound)
-    result = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    returned = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    result = returned.return_value
     collected = next(e for e in result.decide if e.variable_id == "VAR_collected")
     assert collected.filter_type == "dateRange"
     assert collected.date_min == "2017-05-05T00:00:00"
@@ -345,7 +348,8 @@ async def test_a_longitude_variable_is_not_a_number_variable(
     """A longitude takes left and right, so a numberRange on it selects wrongly."""
     monkeypatch.setattr(eda_analysis, "get_study_detail_for_dataset", _longitude_study)
     monkeypatch.setattr(eda_analysis, "bound_analysis", _bound)
-    result = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    returned = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    result = returned.return_value
     longitude = next(e for e in result.decide if e.variable_id == "VAR_lon")
     assert longitude.filter_type == "longitudeRange"
     assert longitude.example == {
@@ -431,8 +435,12 @@ async def test_the_second_sheet_for_the_same_study_omits_the_vocabularies(
     """The model already holds them; resending costs the whole prompt cache."""
     monkeypatch.setattr(eda_analysis, "get_study_detail_for_dataset", _phenotype_study)
     monkeypatch.setattr(eda_analysis, "bound_analysis", _bound)
-    first = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
-    second = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    first = (
+        await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    ).return_value
+    second = (
+        await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
+    ).return_value
     assert any(e.vocabulary for e in first.decide)
     assert all(e.vocabulary == [] for e in second.decide)
     assert all(e.vocabulary_note for e in second.decide if e.vocabulary_total)

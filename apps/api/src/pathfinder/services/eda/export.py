@@ -12,7 +12,8 @@ from pathfinder.integrations.eda.models import (
     EdaVolcanoConfiguration,
     EdaVolcanoDescriptor,
 )
-from pathfinder.services.eda.authoring import EdaStepRequest, serialize_spec
+from pathfinder.services.catalog.eda_backed import EdaStepRequest
+from pathfinder.services.eda.authoring import serialize_spec
 from pathfinder.services.eda.compute import NoComputationError
 
 

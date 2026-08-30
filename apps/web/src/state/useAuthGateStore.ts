@@ -6,8 +6,10 @@
 
 import { toast } from "sonner";
 
-import { wdkLoginRequiredDetail } from "@/lib/api/errors";
+import { wdkAuthRefusal } from "@/lib/api/errors";
+import { refreshAuth } from "@/lib/api/veupathdb-auth";
 import { createStore } from "./middleware";
+import { useSessionStore } from "./useSessionStore";
 
 interface AuthGateState {
   signInRequired: boolean;
@@ -40,15 +42,41 @@ export const useAuthGateStore = createStore<AuthGateState>("AuthGateStore", (set
 /** One toast for the whole gate, so concurrent refusals replace it. */
 export const WDK_LOGIN_REQUIRED_TOAST_ID = "wdk-login-required";
 
-/**
- * Route a refusal that names a missing VEuPathDB login to the sign-in prompt.
- * Returns false for every other error, which stays with its own handler.
- */
-export function handleWdkLoginRequired(err: unknown): boolean {
-  const detail = wdkLoginRequiredDetail(err);
-  if (detail === null) return false;
+function promptSignIn(detail: string): void {
   toast.error(detail, { id: WDK_LOGIN_REQUIRED_TOAST_ID });
   useAuthGateStore.getState().requestSignIn(detail);
+}
+
+/** The relink in flight, so a burst of refusals costs one refresh. */
+let relinking: Promise<boolean> | null = null;
+
+async function relink(detail: string, retry?: () => void): Promise<void> {
+  relinking ??= refreshAuth(useSessionStore.getState().selectedSite)
+    .then((result) => result.success)
+    .catch(() => false);
+  const relinked = await relinking;
+  relinking = null;
+  if (!relinked) {
+    promptSignIn(detail);
+    return;
+  }
+  retry?.();
+}
+
+/**
+ * Route a refusal about the caller's VEuPathDB account. A missing login opens
+ * the sign-in prompt. A token that names another account relinks the session
+ * first, and calls ``retry`` when the relink succeeds. Returns false for every
+ * other error, which stays with its own handler.
+ */
+export function handleWdkAuthRefusal(err: unknown, retry?: () => void): boolean {
+  const refusal = wdkAuthRefusal(err);
+  if (refusal === null) return false;
+  if (refusal.code === "WDK_IDENTITY_MISMATCH") {
+    void relink(refusal.detail, retry);
+    return true;
+  }
+  promptSignIn(refusal.detail);
   return true;
 }
 

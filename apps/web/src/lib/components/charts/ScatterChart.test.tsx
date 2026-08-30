@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 
 const { setOption } = vi.hoisted(() => ({ setOption: vi.fn() }));
@@ -15,7 +15,11 @@ vi.mock("./echartsRegistry", () => ({
 }));
 
 import { ScatterChart } from "./ScatterChart";
-import { CHART_TOKEN_FALLBACKS } from "./chartTheme";
+import {
+  applyDistinctChartTokens,
+  clearDistinctChartTokens,
+  DISTINCT_CHART_TOKENS,
+} from "./__fixtures__/chartTokens";
 
 const flush = () => new Promise<void>((resolve) => queueMicrotask(resolve));
 
@@ -46,6 +50,9 @@ type ScatterOption = {
   }[];
 };
 
+beforeEach(applyDistinctChartTokens);
+afterEach(clearDistinctChartTokens);
+
 describe("ScatterChart", () => {
   it("hands ECharts one scatter series of plottable points", async () => {
     setOption.mockClear();
@@ -57,7 +64,7 @@ describe("ScatterChart", () => {
       [3.94437533216012, 4.708, "PF3D7_0100200"],
       [-2.5, 3, "PF3D7_0100300"],
     ]);
-    expect(option.series[0]?.itemStyle.color).toBe(CHART_TOKEN_FALLBACKS.series[0]);
+    expect(option.series[0]?.itemStyle.color).toBe(DISTINCT_CHART_TOKENS.series[0]);
   });
 
   it("names both axes from the labels it is given", async () => {

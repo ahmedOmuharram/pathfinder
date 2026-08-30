@@ -56,6 +56,25 @@ describe("FilterParam — empty value", () => {
     );
     expect(screen.getByText(/0 active filters/i)).toBeTruthy();
   });
+
+  it("paints the unrecognized-shape notice from the warning token", () => {
+    render(
+      <WidgetTestForm name="test_filter" defaultValue="not-a-filter">
+        {(field) => (
+          <FilterParam
+            spec={makeSpec()}
+            name="test_filter"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+    const notice = screen.getByText(/not a recognized filter shape/);
+    expect(notice).toHaveClass("text-warning");
+    expect(notice.className).not.toContain("amber");
+  });
 });
 
 describe("FilterParam — populated value", () => {

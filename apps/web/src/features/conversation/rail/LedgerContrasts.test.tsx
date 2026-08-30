@@ -58,6 +58,21 @@ describe("LedgerContrasts", () => {
     expect(screen.getByText(/incomplete/i)).toBeTruthy();
   });
 
+  it("paints an incomplete contrast with the warning token and no alpha", () => {
+    render(
+      <LedgerContrasts
+        contrasts={[
+          contrast({ reference: null, summary: "up-regulated in female vs (unset)" }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("up-regulated in female vs (unset)")).toHaveClass(
+      "text-warning",
+    );
+    expect(screen.getByText("(incomplete)")).toHaveClass("text-warning");
+    expect(screen.getByText("(incomplete)").className).not.toContain("text-warning/");
+  });
+
   it("renders nothing when no criterion contrasts two groups", () => {
     const { container } = render(<LedgerContrasts contrasts={[]} />);
     expect(container.textContent).toBe("");

@@ -24,13 +24,12 @@ from pathfinder.services.eda.binding import (
 from pathfinder.services.eda.catalog import (
     browse_studies,
     get_study_detail_for_dataset,
-    resolve_dataset,
     search_studies,
 )
 from pathfinder.services.eda.compute import (
     VolcanoThresholds,
     bound_volcano,
-    submit_compute,
+    run_analysis_compute,
 )
 from pathfinder.services.eda.description import describe_study, permission_facts
 from pathfinder.services.eda.steps import export_analysis_step
@@ -257,14 +256,11 @@ async def _run_compute(
     body: EdaRunComputeAction,
 ) -> EdaAnalysisPatchResponse:
     bound = await bound_or_conflict(conversation_id=conversation_id)
-    analysis = await read_analysis(bound.site_id, analysis_id=bound.analysis_id)
-    entry = await resolve_dataset(bound.site_id, bound.dataset_id)
-    job = await submit_compute(
+    job = await run_analysis_compute(
         bound.site_id,
-        compute_name=body.computation.type,
-        study_id=entry.study_id,
-        config=body.computation.configuration,
-        filters=analysis.descriptor.subset.descriptor,
+        analysis_id=bound.analysis_id,
+        dataset_id=bound.dataset_id,
+        computation=body.computation,
     )
     return EdaAnalysisPatchResponse(
         analysis=await mutated_analysis_state(conversation_id=conversation_id),

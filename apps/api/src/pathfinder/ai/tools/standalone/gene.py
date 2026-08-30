@@ -1,6 +1,8 @@
 """Standalone gene record lookup tools for pydantic-ai migration."""
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.services.gene_lookup import (
@@ -18,7 +20,7 @@ async def lookup_gene_records(
     query: str,
     organism: str | None = None,
     limit: int = 10,
-) -> GeneSearchResult:
+) -> ToolReturn[GeneSearchResult]:
     """Look up gene records by name, symbol, or description using VEuPathDB site-search.
 
     Use this to resolve human-readable gene names (from literature or user input)
@@ -34,11 +36,17 @@ async def lookup_gene_records(
             Omit to search across all organisms on the site.
         limit: Max results to return (default 10).
     """
-    return await lookup_genes_by_text(
+    found = await lookup_genes_by_text(
         ctx.deps.site_id,
         query,
         organism=organism,
         limit=max(1, min(limit, 50)),
+    )
+    return with_summary(
+        found,
+        f"{found.total_count} genes matched {query}",
+        ctx=ctx,
+        status="ok" if found.total_count else "empty",
     )
 
 
@@ -48,7 +56,7 @@ async def resolve_gene_ids_to_records(
     record_type: str = "transcript",
     search_name: str = "GeneByLocusTag",
     param_name: str = "ds_gene_ids",
-) -> GeneResolveResult:
+) -> ToolReturn[GeneResolveResult]:
     """Resolve known gene IDs to full records (product name, organism, gene type).
 
     Use this to validate gene IDs or fetch metadata for IDs you already have
@@ -64,19 +72,34 @@ async def resolve_gene_ids_to_records(
     """
     ids = [str(x).strip() for x in (gene_ids or []) if str(x).strip()]
     if not ids:
-        return GeneResolveResult(
-            records=[], total_count=0, error="No gene IDs provided."
+        return with_summary(
+            GeneResolveResult(records=[], total_count=0, error="No gene IDs provided."),
+            "0 of 0 ids resolved",
+            ctx=ctx,
+            status="warn",
         )
     if len(ids) > _MAX_GENE_IDS:
-        return GeneResolveResult(
-            records=[],
-            total_count=0,
-            error=f"Too many IDs (max {_MAX_GENE_IDS}). Reduce the list.",
+        return with_summary(
+            GeneResolveResult(
+                records=[],
+                total_count=0,
+                error=f"Too many IDs (max {_MAX_GENE_IDS}). Reduce the list.",
+            ),
+            f"0 of {len(ids)} ids resolved",
+            ctx=ctx,
+            status="warn",
         )
-    return await resolve_gene_ids(
+    resolved = await resolve_gene_ids(
         ctx.deps.site_id,
         ids,
         record_type=record_type,
         search_name=search_name,
         param_name=param_name,
+    )
+    found = len(resolved.records)
+    return with_summary(
+        resolved,
+        f"{found} of {len(ids)} ids resolved",
+        ctx=ctx,
+        status="ok" if found == len(ids) else "warn",
     )

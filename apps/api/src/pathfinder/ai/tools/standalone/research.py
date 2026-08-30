@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
@@ -51,9 +52,12 @@ async def web_search(
         include_summary=include_summary,
         summary_max_chars=summary_max_chars,
     )
-    return ToolReturn(
-        return_value=response,
-        metadata=source_url_chunks_from_citations(list(response.citations)),
+    return with_summary(
+        response,
+        f"{len(response.results)} results for {query}",
+        ctx=ctx,
+        status="ok" if response.results else "empty",
+        extra=source_url_chunks_from_citations(list(response.citations)),
     )
 
 
@@ -100,7 +104,10 @@ async def literature_search(
             require_doi=filters.require_doi,
         ),
     )
-    return ToolReturn(
-        return_value=response,
-        metadata=source_url_chunks_from_citations(list(response.citations)),
+    return with_summary(
+        response,
+        f"{len(response.results)} papers for {query}",
+        ctx=ctx,
+        status="ok" if response.results else "empty",
+        extra=source_url_chunks_from_citations(list(response.citations)),
     )

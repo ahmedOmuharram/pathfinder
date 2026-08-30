@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from "vitest";
 import type { EnrichmentTerm } from "@pathfinder/shared";
 import {
   compareNullableAsc,
@@ -6,6 +7,7 @@ import {
   formatProbability,
   formatRatio,
   pvalColor,
+  pvalGradient,
 } from "./enrichment-utils";
 
 function term(overrides: Partial<EnrichmentTerm> = {}): EnrichmentTerm {
@@ -85,11 +87,52 @@ describe("filterByPThreshold", () => {
 });
 
 describe("pvalColor", () => {
-  it("gives a term with no p-value a neutral colour", () => {
-    expect(pvalColor(null)).toBe("hsl(0, 0%, 60%)");
+  function setRamp(): void {
+    const root = document.documentElement;
+    root.style.setProperty("--chart-1", "215 75% 45%");
+    root.style.setProperty("--chart-4", "355 70% 45%");
+    root.style.setProperty("--muted-foreground", "215 16% 40%");
+  }
+
+  afterEach(() => document.documentElement.removeAttribute("style"));
+
+  it("gives a term with no p-value the muted-foreground token", () => {
+    setRamp();
+    expect(pvalColor(null)).toBe("hsl(215 16% 40%)");
   });
 
-  it("gives a significant term a colour off the gradient", () => {
-    expect(pvalColor(1e-10)).toBe("hsl(0, 80%, 50%)");
+  it("starts the ramp on the chart-1 token", () => {
+    setRamp();
+    expect(pvalColor(1)).toBe("hsl(215 75% 45%)");
+  });
+
+  it("ends the ramp on the chart-4 token", () => {
+    setRamp();
+    expect(pvalColor(1e-10)).toBe("hsl(355 70% 45%)");
+  });
+
+  it("follows the ground the document is on", () => {
+    setRamp();
+    document.documentElement.style.setProperty("--chart-4", "355 80% 70%");
+    expect(pvalColor(1e-10)).toBe("hsl(355 80% 70%)");
+  });
+
+  it("inherits the surrounding ink when the stylesheet defines nothing", () => {
+    expect(pvalColor(1e-10)).toBe("currentColor");
+    expect(pvalColor(null)).toBe("currentColor");
+  });
+});
+
+describe("pvalGradient", () => {
+  afterEach(() => document.documentElement.removeAttribute("style"));
+
+  it("ramps the legend between the same two tokens, in four stops", () => {
+    const root = document.documentElement;
+    root.style.setProperty("--chart-1", "215 75% 45%");
+    root.style.setProperty("--chart-4", "355 70% 45%");
+    expect(pvalGradient()).toBe(
+      "linear-gradient(to right, hsl(215 75% 45%), hsl(261.67 73.33% 45%), " +
+        "hsl(308.33 71.67% 45%), hsl(355 70% 45%))",
+    );
   });
 });

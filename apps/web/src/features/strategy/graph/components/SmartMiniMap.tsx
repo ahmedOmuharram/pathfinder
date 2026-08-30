@@ -4,23 +4,31 @@ import { motion } from "motion/react";
 import { MiniMap } from "@xyflow/react";
 import type { StepKind } from "@pathfinder/shared";
 import { useCanvasIdle } from "@/features/strategy/graph/hooks/useCanvasIdle";
+import { hslFromTriple } from "@/lib/color/hsl";
 
-const MINIMAP_NODE_COLOR: Record<StepKind, string> = {
-  search: "#10b981",
-  combine: "#0ea5e9",
-  transform: "#8b5cf6",
+const MINIMAP_NODE_TOKEN: Record<StepKind, string> = {
+  search: "--kind-leaf",
+  combine: "--kind-combine",
+  transform: "--kind-transform",
 };
 
-function minimapNodeColor(node: { data?: { step?: { kind?: string } } }): string {
+const MINIMAP_MASK_COLOR = "hsl(var(--foreground) / 0.1)";
+
+/** Resolved paint for one minimap node. An empty token means no stylesheet. */
+export function minimapNodeColor(node: {
+  data?: { step?: { kind?: string } };
+}): string {
   const kind = node.data?.step?.kind;
-  if (kind === "search" || kind === "combine" || kind === "transform") {
-    return MINIMAP_NODE_COLOR[kind];
-  }
-  return "#94a3b8";
+  const token =
+    kind === "search" || kind === "combine" || kind === "transform"
+      ? MINIMAP_NODE_TOKEN[kind]
+      : "--muted-foreground";
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+  return raw === "" ? "currentColor" : hslFromTriple(raw);
 }
 
 interface SmartMiniMapProps {
-  /** Total node count. The minimap is hidden when this is ≤ 8. */
+  /** Total node count. The minimap is hidden when this is 8 or less. */
   nodeCount: number;
   /** Idle threshold in ms. Defaults to 3000. */
   idleMs?: number;
@@ -39,7 +47,7 @@ export function SmartMiniMap({ nodeCount, idleMs = 3000 }: SmartMiniMapProps) {
     >
       <MiniMap
         nodeColor={minimapNodeColor}
-        maskColor="rgba(0,0,0,0.1)"
+        maskColor={MINIMAP_MASK_COLOR}
         className="rounded-lg border border-border bg-card"
       />
     </motion.div>

@@ -54,6 +54,7 @@ async def test_the_sheet_is_ranked_on_the_goal(
     _patch(monkeypatch, captured)
 
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = MagicMock()
     ctx.deps.site_id = "plasmodb"
     ctx.deps.agent_state = AgentToolState()

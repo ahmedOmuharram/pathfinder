@@ -166,6 +166,7 @@ class _Runtime:
     context: Context | None
 
 
+@pytest.mark.usefixtures("patch_app_db_engine")
 async def test_finalize_triggers_compactor(
     db_session: AsyncSession,
     db_session_factory: DBSessionFactory,

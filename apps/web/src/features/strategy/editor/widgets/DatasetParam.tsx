@@ -174,7 +174,7 @@ export function DatasetParam({ spec, name, field }: ParamWidgetProps) {
       </Tabs>
 
       {raw !== "" && decoded === null && (
-        <p className="mt-2 text-xs text-amber-600">
+        <p className="mt-2 text-xs text-warning">
           Existing value is not a recognized DatasetConfig; pick a tab to overwrite.
         </p>
       )}

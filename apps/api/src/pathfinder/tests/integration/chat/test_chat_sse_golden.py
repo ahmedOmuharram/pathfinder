@@ -59,6 +59,7 @@ _ALLOWED_CHUNK_TYPES: frozenset[str] = frozenset(
         "tool-input-delta",
         "tool-input-available",
         "tool-output-available",
+        "data-tool-summary",
         "data-sub-agent-call",
         "data-ledger-update",
         "data-turn-usage",

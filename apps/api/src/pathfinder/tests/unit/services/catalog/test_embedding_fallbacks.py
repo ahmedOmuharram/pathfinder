@@ -71,6 +71,7 @@ class _Deps:
 
 class _Ctx:
     deps = _Deps()
+    tool_call_id = "call_1"
 
 
 def _agent_ctx() -> RunContext[AgentDeps]:
@@ -84,7 +85,9 @@ async def test_the_agent_tool_falls_back_to_lexical_ranking(
     monkeypatch.setattr(catalog_tools, "get_strategy_api", lambda _site: _StrategyApi())
     monkeypatch.setattr(catalog_tools, "rank_public_strategies_semantic", _refuse)
 
-    found = await catalog_tools.search_example_plans(_agent_ctx(), "vaccine", limit=3)
+    found = (
+        await catalog_tools.search_example_plans(_agent_ctx(), "vaccine", limit=3)
+    ).return_value
 
     assert [row["name"] for row in found] == ["Vaccine antigens"]
 

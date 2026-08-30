@@ -81,12 +81,12 @@ async def test_promote_creates_memory_and_keeps_note(
     nid = created.return_value["id"]
     assert isinstance(nid, str)
 
-    key = await sc_tools.promote_to_memory(ctx, note_id=nid)
+    key = (await sc_tools.promote_to_memory(ctx, note_id=nid)).return_value
     assert isinstance(key, str)
     assert key
 
     # Scratchpad note still exists
-    read = await sc_tools.read_note(ctx, note_id=nid)
+    read = (await sc_tools.read_note(ctx, note_id=nid)).return_value
     assert read["title"] == "Gametocyte stage-specific markers"
 
     # Memory is actually in the store under the knowledge namespace

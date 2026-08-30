@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.standalone._eda_models import (
@@ -42,7 +44,7 @@ async def search_eda_studies(
     ctx: RunContext[LeadDeps],
     query: str,
     limit: int = 5,
-) -> EdaStudySearchResult:
+) -> ToolReturn[EdaStudySearchResult]:
     """Find an EDA study by what it measures.
 
     EDA studies are the sample-level datasets behind VEuPathDB's expression,
@@ -64,15 +66,20 @@ async def search_eda_studies(
     """
     found = await search_studies(ctx.deps.runtime.site_id, query, limit=limit)
     if not found.cards:
-        return EdaStudySearchResult(
-            guidance=(
-                f"No EDA study on this site matches {query!r}. EDA covers "
-                f"sample-level expression, phenotype and antibody-array "
-                f"datasets only. If the question is about gene attributes, use "
-                f"search_for_searches instead."
+        return with_summary(
+            EdaStudySearchResult(
+                guidance=(
+                    f"No EDA study on this site matches {query!r}. EDA covers "
+                    f"sample-level expression, phenotype and antibody-array "
+                    f"datasets only. If the question is about gene attributes, "
+                    f"use search_for_searches instead."
+                ),
             ),
+            f"No study matched {query}",
+            ctx=ctx,
+            status="empty",
         )
-    return EdaStudySearchResult(
+    result = EdaStudySearchResult(
         studies=[
             EdaStudyCardOut(
                 dataset_id=card.dataset_id,
@@ -97,13 +104,18 @@ async def search_eda_studies(
             if part
         ),
     )
+    return with_summary(
+        result,
+        f"{len(found.cards)} studies matched {query}",
+        ctx=ctx,
+    )
 
 
 async def describe_eda_study(
     ctx: RunContext[LeadDeps],
     dataset_id: str,
     entity_id: str | None = None,
-) -> EdaStudyDescription:
+) -> ToolReturn[EdaStudyDescription]:
     """Read an EDA study's entity tree, and one entity's filterable variables.
 
     Call it first with no ``entityId`` to get the entity tree: each entity is
@@ -141,7 +153,19 @@ async def describe_eda_study(
     # A study can declare thousands of variables, so they travel one entity
     # at a time and the tree call carries none of them.
     variables = [] if entity_id is None else described.variables
-    return EdaStudyDescription(
+    description = EdaStudyDescription(
         **described.model_dump() | {"variables": variables},
         guidance=_FILTER_GUIDANCE if entity_id is not None else _ENTITY_GUIDANCE,
     )
+    shape = (
+        f"{description.display_name}: {len(description.entities)} entities, "
+        f"{len(variables)} variables"
+    )
+    if description.gene_entity_id is None:
+        return with_summary(
+            description,
+            f"{shape}, no gene id variable",
+            ctx=ctx,
+            status="warn",
+        )
+    return with_summary(description, shape, ctx=ctx)

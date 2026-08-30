@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import select, text
 
+from assistant_core.conversation.empty_parts import EmptyPartGate
 from assistant_core.conversation.ui_message_reducer import (
     USER_MESSAGE_CHUNK_TYPE,
     user_message_chunk,
@@ -93,10 +94,18 @@ class ChatEventWriter:
     def __init__(self, *, conversation_id: UUID, turn_id: UUID) -> None:
         self.conversation_id = conversation_id
         self.turn_id = turn_id
+        self._gate = EmptyPartGate()
+        self._last_event_id = 0
 
     async def write(self, chunk: dict[str, Any]) -> int:
-        return await append_chunk(
-            conversation_id=self.conversation_id,
-            chunk=chunk,
-            turn_id=self.turn_id,
-        )
+        """Append the chunk and return the event id of the last row written.
+
+        A start chunk the gate holds returns the id of the row before it.
+        """
+        for admitted in self._gate.admit(chunk):
+            self._last_event_id = await append_chunk(
+                conversation_id=self.conversation_id,
+                chunk=admitted,
+                turn_id=self.turn_id,
+            )
+        return self._last_event_id

@@ -9,9 +9,18 @@ import type { StepNodeProps } from "./types";
 vi.mock("@xyflow/react", async () => {
   const React = await import("react");
   return {
-    Handle: ({ id, type }: { id?: string; type: string }) =>
+    Handle: ({
+      id,
+      type,
+      className,
+    }: {
+      id?: string;
+      type: string;
+      className?: string;
+    }) =>
       React.createElement("span", {
         "data-testid": `flow-handle-${type}-${id ?? "default"}`,
+        className,
       }),
     NodeToolbar: ({ children }: { children?: React.ReactNode }) =>
       React.createElement("div", { "data-testid": "node-toolbar" }, children),
@@ -94,5 +103,15 @@ describe("CombineNode", () => {
     expect(screen.getByTestId("flow-handle-target-left")).toBeTruthy();
     expect(screen.getByTestId("flow-handle-target-left-secondary")).toBeTruthy();
     expect(screen.getByTestId("flow-handle-source-right")).toBeTruthy();
+  });
+
+  it("rings each input handle with the card token", () => {
+    const step = makeStep();
+    render(<CombineNode {...defaultProps(step)} />);
+    for (const id of ["flow-handle-target-left", "flow-handle-target-left-secondary"]) {
+      const handle = screen.getByTestId(id);
+      expect(handle).toHaveClass("border-card");
+      expect(handle.className).not.toContain("border-white");
+    }
   });
 });

@@ -46,9 +46,15 @@ export interface DataPart {
   data: unknown;
 }
 
-interface ToolPartIdentity {
+/** How a tool's own one-line summary reads. Section 6.3. */
+export type ToolSummaryStatus = "ok" | "empty" | "warn";
+
+/** What every state of a call shares, including the line the tool wrote. */
+export interface ToolPartIdentity {
   type: `tool-${string}`;
   toolCallId: string;
+  summary?: string;
+  summaryStatus?: ToolSummaryStatus;
 }
 
 /** The call's state, as section 9 walks it. */
@@ -73,6 +79,16 @@ export type ToolPart = ToolPartIdentity &
         approval: { id: string; approved: false };
       }
   );
+
+/** Report whether a part is a tool call, so a reader may address its call id. */
+export function isToolPart(part: MessagePart): part is ToolPart {
+  return part.type.startsWith("tool-");
+}
+
+/** Report whether a part is a data part, whoever registered its kind. */
+export function isDataPart(part: MessagePart): part is DataPart {
+  return part.type.startsWith("data-");
+}
 
 export type MessagePart =
   | TextPart

@@ -2,14 +2,45 @@ import type { Edge, Node } from "@xyflow/react";
 import { MarkerType, Position } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { walkSubtreeIds } from "@/features/strategy/operations";
+import { hslFromTriple } from "@/lib/color/hsl";
 import { inferStepKind } from "./kind";
 import type { StepPositions } from "./layout";
+
+export interface EdgeColors {
+  border: string;
+  foreground: string;
+  card: string;
+  mutedForeground: string;
+}
+
+/** An unresolved ink role inherits the color of the text around the canvas. */
+const UNRESOLVED_INK = "currentColor";
+
+/** An unresolved surface role paints nothing. */
+const UNRESOLVED_SURFACE = "transparent";
+
+/** The canvas paint for one deserialization, read once from the ground. */
+export function readEdgeColors(): EdgeColors {
+  const style =
+    typeof document === "undefined" ? null : getComputedStyle(document.documentElement);
+  const read = (variable: string, fallback: string): string => {
+    if (style === null) return fallback;
+    const raw = style.getPropertyValue(variable).trim();
+    return raw === "" ? fallback : hslFromTriple(raw);
+  };
+  return {
+    border: read("--border", UNRESOLVED_INK),
+    foreground: read("--foreground", UNRESOLVED_INK),
+    card: read("--card", UNRESOLVED_SURFACE),
+    mutedForeground: read("--muted-foreground", UNRESOLVED_INK),
+  };
+}
 
 type ExistingPositions = Map<string, { x: number; y: number }>;
 type DeserializeOptions = {
   /**
    * Fresh layout positions (ELK). Used for nodes without an existing position
-   * and — when `forceRelayout` is set — for every node.
+   * and - when `forceRelayout` is set - for every node.
    */
   computedPositions?: StepPositions;
   /**
@@ -33,6 +64,7 @@ export function deserializeStrategyToGraph(
     return { nodes: [], edges: [] };
   }
 
+  const colors = readEdgeColors();
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   const stepMap = new Map<string, Step>();
@@ -164,20 +196,24 @@ export function deserializeStrategyToGraph(
         sourceHandle: "right",
         targetHandle: "left",
         type: "step",
-        style: { stroke: "#94a3b8", strokeWidth: 2 },
+        style: { stroke: colors.border, strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: "#94a3b8",
+          color: colors.border,
           width: 14,
           height: 14,
         },
       };
       if (hasSecondary) {
         primaryEdge.label = "L (primary)";
-        primaryEdge.labelStyle = { fontSize: 11, fontWeight: 700, fill: "#0f172a" };
+        primaryEdge.labelStyle = {
+          fontSize: 11,
+          fontWeight: 700,
+          fill: colors.foreground,
+        };
         primaryEdge.labelBgStyle = {
-          fill: "#ffffff",
-          stroke: "#cbd5e1",
+          fill: colors.card,
+          stroke: colors.border,
           strokeWidth: 1,
         };
         primaryEdge.labelBgPadding = [6, 2];
@@ -196,14 +232,14 @@ export function deserializeStrategyToGraph(
         targetHandle: "left-secondary",
         type: "step",
         label: "R (secondary)",
-        labelStyle: { fontSize: 11, fontWeight: 700, fill: "#0f172a" },
-        labelBgStyle: { fill: "#ffffff", stroke: "#cbd5e1", strokeWidth: 1 },
+        labelStyle: { fontSize: 11, fontWeight: 700, fill: colors.foreground },
+        labelBgStyle: { fill: colors.card, stroke: colors.border, strokeWidth: 1 },
         labelBgPadding: [6, 2],
         labelBgBorderRadius: 6,
-        style: { stroke: "#64748b", strokeWidth: 2 },
+        style: { stroke: colors.mutedForeground, strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: "#64748b",
+          color: colors.mutedForeground,
           width: 14,
           height: 14,
         },

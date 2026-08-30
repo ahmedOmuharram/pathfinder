@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from typing import Any, Literal
+from uuid import UUID
 
+from assistant_core.graph.tool_summary import summary_chunks
 from assistant_core.platform.pydantic_base import CamelModel
+from pydantic import ConfigDict
 from pydantic_ai import RunContext
+from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
 
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
-from pathfinder.ai.tools.durable import durable_tool
+from pathfinder.ai.tools.durable import DurableOutcome, durable_tool
 
 _ESTIMATED_SECONDS = 120
 
@@ -20,9 +24,39 @@ class EdaVariableSpecIn(CamelModel):
     variable_id: str
 
 
+class _ComputeOutcome(CamelModel):
+    """The counts a finished differential expression reports."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    genes_tested: int = 0
+    retained_up: int = 0
+    retained_down: int = 0
+
+
+def _compute_chunks_from_result(
+    resumed: Any,
+    task_id: UUID,
+    tool_call_id: str | None,
+) -> list[BaseChunk]:
+    del task_id
+    outcome = DurableOutcome.model_validate(resumed)
+    if not outcome.succeeded:
+        return []
+    counts = _ComputeOutcome.model_validate(outcome.result)
+    retained = counts.retained_up + counts.retained_down
+    return summary_chunks(
+        tool_call_id,
+        f"{counts.genes_tested:,} genes tested, {counts.retained_up:,} up "
+        f"and {counts.retained_down:,} down",
+        status="ok" if retained else "empty",
+    )
+
+
 @durable_tool(
     tool_name="run_eda_compute",
     estimated_duration_seconds=_ESTIMATED_SECONDS,
+    chunks_from_result=_compute_chunks_from_result,
 )
 async def run_eda_compute(
     ctx: RunContext[LeadDeps],

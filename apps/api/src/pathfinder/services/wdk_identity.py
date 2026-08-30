@@ -18,7 +18,10 @@ from pathfinder.integrations.veupathdb.auth_login import validate_oauth_token
 from pathfinder.integrations.veupathdb.factory import get_site, get_wdk_client
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import veupathdb_auth_token_ctx
-from pathfinder.platform.errors import WDKLoginRequiredError
+from pathfinder.platform.errors import (
+    WDKIdentityMismatchError,
+    WDKLoginRequiredError,
+)
 from pathfinder.services.users import get_or_create_user_id
 
 logger = get_logger(__name__)
@@ -121,6 +124,22 @@ async def resolve_veupathdb_user_id(token: str, site_id: str) -> UUID | None:
         _identities.clear()
     _identities[key] = (time.monotonic() + _IDENTITY_CACHE_SECONDS, user_id)
     return user_id
+
+
+async def require_session_matches_wdk_identity(session_user_id: UUID) -> None:
+    """Refuse a request whose VEuPathDB token names another internal user.
+
+    A token that names nobody is a WDK outage, not a second account, and the
+    session keeps its own identity.
+    """
+    token = veupathdb_auth_token_ctx.get()
+    if not token:
+        raise WDKLoginRequiredError
+    token_user_id = await resolve_veupathdb_user_id(
+        token, get_settings().veupathdb_default_site
+    )
+    if token_user_id is not None and token_user_id != session_user_id:
+        raise WDKIdentityMismatchError
 
 
 class VEuPathDBBearer(BaseModel):

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import { UNRESOLVED_SERIES_COLOR } from "./charts/unresolved";
 import { SetVenn } from "./SetVenn";
 
 // Mock reaviz — D3/SVG doesn't work in jsdom
@@ -8,9 +9,11 @@ vi.mock("reaviz", () => ({
   VennDiagram: ({
     data,
     type,
+    series,
   }: {
     data: { key: string[]; data: number }[];
     type: string;
+    series: React.ReactNode;
   }) => (
     <div data-testid="reaviz-venn" data-type={type} data-count={data.length}>
       {data.map((d: { key: string[]; data: number }) => (
@@ -18,9 +21,12 @@ vi.mock("reaviz", () => ({
           {d.data}
         </span>
       ))}
+      {series}
     </div>
   ),
-  VennSeries: () => <div />,
+  VennSeries: ({ colorScheme }: { colorScheme: string[] }) => (
+    <div data-testid="venn-series" data-colors={colorScheme.join(",")} />
+  ),
   VennArc: () => <div />,
   VennLabel: () => <div />,
   ChartTooltip: () => <div />,
@@ -79,5 +85,26 @@ describe("SetVenn", () => {
   it("does not render instruction text when no onRegionClick", () => {
     render(<SetVenn sets={twoSets} />);
     expect(screen.queryByText("Click a region to create a gene set")).toBeNull();
+  });
+
+  it("colors the arcs from the chart tokens on the document", () => {
+    const root = document.documentElement;
+    root.style.setProperty("--chart-1", "215 75% 45%");
+    root.style.setProperty("--chart-2", "160 65% 33%");
+    try {
+      render(<SetVenn sets={twoSets} />);
+      expect(screen.getByTestId("venn-series").dataset["colors"]).toBe(
+        "hsl(215 75% 45%),hsl(160 65% 33%)",
+      );
+    } finally {
+      root.removeAttribute("style");
+    }
+  });
+
+  it("paints the unresolved neutral when the stylesheet defines nothing", () => {
+    render(<SetVenn sets={twoSets} />);
+    expect(screen.getByTestId("venn-series").dataset["colors"]).toBe(
+      `${UNRESOLVED_SERIES_COLOR},${UNRESOLVED_SERIES_COLOR}`,
+    );
   });
 });

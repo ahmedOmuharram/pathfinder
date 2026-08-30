@@ -2926,6 +2926,349 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/eda/studies:
+    get:
+      tags:
+      - eda
+      summary: List Eda Studies
+      description: Search the studies this account can see, or list them when q is empty.
+      operationId: list_eda_studies_api_v1_eda_studies_get
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 50
+          title: Siteid
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 500
+          default: ''
+          title: Q
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdaStudyListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/eda/studies/{dataset_id}:
+    get:
+      tags:
+      - eda
+      summary: Get Eda Study
+      description: One study's entity tree, and one entity's variables when named.
+      operationId: get_eda_study_api_v1_eda_studies__dataset_id__get
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: dataset_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Dataset Id
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 50
+          title: Siteid
+      - name: entityId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entityid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdaStudyDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/eda/count:
+    post:
+      tags:
+      - eda
+      summary: Count Eda Subset
+      description: The subset's size on one entity, against that entity's whole size.
+      operationId: count_eda_subset_api_v1_eda_count_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 50
+          title: Siteid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdaCountRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdaCountResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/eda/distribution:
+    post:
+      tags:
+      - eda
+      summary: Read Eda Distribution
+      description: One variable's histogram under the subset the request names.
+      operationId: read_eda_distribution_api_v1_eda_distribution_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 50
+          title: Siteid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdaDistributionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdaDistributionSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/eda/viz:
+    post:
+      tags:
+      - eda
+      summary: Read Eda Viz
+      description: The bound analysis's volcano under one cut. It starts no compute.
+      operationId: read_eda_viz_api_v1_eda_viz_post
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 50
+          title: Siteid
+      - name: conversationId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversationid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdaVizRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdaVizResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/v1/conversations/{conversation_id}/eda:
+    get:
+      tags:
+      - eda
+      summary: Get Conversation Eda
+      description: The analysis this thread has open, with the upstream descriptor.
+      operationId: get_conversation_eda_api_v1_conversations__conversation_id__eda_get
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationEdaResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    patch:
+      tags:
+      - eda
+      summary: Patch Conversation Eda
+      description: 'Mutate the thread''s bound analysis: bind, subset, compute, export, unbind.'
+      operationId: patch_conversation_eda_api_v1_conversations__conversation_id__eda_patch
+      security:
+      - APIKeyCookie: []
+      - HTTPBearer: []
+      - APIKeyHeader: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - $ref: '#/components/schemas/EdaBindAction'
+              - $ref: '#/components/schemas/EdaSetFiltersAction'
+              - $ref: '#/components/schemas/EdaRunComputeAction'
+              - $ref: '#/components/schemas/EdaExportStepAction'
+              - $ref: '#/components/schemas/EdaUnbindAction'
+              discriminator:
+                propertyName: action
+                mapping:
+                  bind: '#/components/schemas/EdaBindAction'
+                  set-filters: '#/components/schemas/EdaSetFiltersAction'
+                  run-compute: '#/components/schemas/EdaRunComputeAction'
+                  export-step: '#/components/schemas/EdaExportStepAction'
+                  unbind: '#/components/schemas/EdaUnbindAction'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdaAnalysisPatchResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Not Found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/v1/veupathdb/auth/login:
     post:
       tags:
@@ -3021,9 +3364,9 @@ paths:
       description: 'Re-derive the internal auth token from a live VEuPathDB session.
 
 
-        Use this when the internal token is absent or expired but the VEuPathDB
+        Use this when the internal token is absent or expired, and to relink a
 
-        cookie is still valid.'
+        session whose VEuPathDB cookie now names another account.'
       operationId: refresh_internal_auth_api_v1_veupathdb_auth_refresh_post
       parameters:
       - name: siteId
@@ -5544,6 +5887,31 @@ components:
       - id
       - name
       title: ConversationDuplicateResponse
+    ConversationEdaResponse:
+      properties:
+        analysis:
+          anyOf:
+          - $ref: '#/components/schemas/EdaAnalysisState'
+          - type: 'null'
+        descriptor:
+          anyOf:
+          - $ref: '#/components/schemas/JSONObject'
+          - type: 'null'
+      type: object
+      required:
+      - analysis
+      - descriptor
+      title: ConversationEdaResponse
+      description: 'The thread''s bound analysis, as the tab hydrates from it.
+
+
+        ``analysis`` is the same state the PATCH answers and the
+
+        ``data-eda.analysis-state`` part carry, so one reducer serves all three.
+
+        Both keys are always present and nullable; both are null on a thread with
+
+        no analysis open.'
     ConversationResponse:
       properties:
         id:
@@ -6827,6 +7195,1125 @@ components:
       - errorText
       title: DynamicToolOutputErrorPart
       description: Dynamic tool part in output-error state.
+    EdaAnalysisPatchResponse:
+      properties:
+        analysis:
+          anyOf:
+          - $ref: '#/components/schemas/EdaAnalysisState'
+          - type: 'null'
+        job:
+          anyOf:
+          - $ref: '#/components/schemas/EdaJobRefResponse'
+          - type: 'null'
+        step:
+          anyOf:
+          - $ref: '#/components/schemas/JSONObject'
+          - type: 'null'
+      type: object
+      required:
+      - analysis
+      - job
+      - step
+      title: EdaAnalysisPatchResponse
+      description: 'Every PATCH answers with the analysis state the surfaces re-render from.
+
+
+        ``analysis`` is always present and nullable, never omitted.'
+    EdaAnalysisState:
+      properties:
+        siteId:
+          type: string
+          title: Siteid
+        datasetId:
+          type: string
+          title: Datasetid
+        studyId:
+          type: string
+          title: Studyid
+        analysisId:
+          type: string
+          title: Analysisid
+        revision:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Revision
+        studyDisplayName:
+          type: string
+          title: Studydisplayname
+        displayName:
+          type: string
+          title: Displayname
+        numFilters:
+          type: integer
+          minimum: 0.0
+          title: Numfilters
+        numComputations:
+          type: integer
+          minimum: 0.0
+          title: Numcomputations
+        filters:
+          items:
+            additionalProperties:
+              $ref: '#/components/schemas/JsonValue'
+            type: object
+          type: array
+          title: Filters
+        filterSummaries:
+          items:
+            type: string
+          type: array
+          title: Filtersummaries
+        entityCounts:
+          items:
+            $ref: '#/components/schemas/EdaEntityCount'
+          type: array
+          title: Entitycounts
+        canExportRows:
+          type: boolean
+          title: Canexportrows
+      type: object
+      required:
+      - siteId
+      - datasetId
+      - studyId
+      - analysisId
+      - revision
+      - studyDisplayName
+      - displayName
+      - numFilters
+      - numComputations
+      - filters
+      - filterSummaries
+      - entityCounts
+      - canExportRows
+      title: EdaAnalysisState
+      description: 'The open analysis, as both surfaces re-render it after every mutation.
+
+
+        ``revision`` is the mutation counter of the binding; ``None`` means
+
+        unknown and the store''s reconcile rule then takes the last write.
+
+        ``filters`` entries are the wire filter objects, kept as JSON because
+
+        this package cannot import the integrations union.'
+    EdaBindAction:
+      properties:
+        action:
+          type: string
+          const: bind
+          title: Action
+        siteId:
+          type: string
+          title: Siteid
+        datasetId:
+          type: string
+          title: Datasetid
+        purpose:
+          type: string
+          title: Purpose
+          default: EDA analysis
+      type: object
+      required:
+      - action
+      - siteId
+      - datasetId
+      title: EdaBindAction
+      description: Open an analysis on a study and bind it to this thread.
+    EdaComparator:
+      properties:
+        variable:
+          $ref: '#/components/schemas/EdaVariableSpec'
+        groupA:
+          items:
+            $ref: '#/components/schemas/EdaLabeledRange'
+          type: array
+          minItems: 1
+          title: Groupa
+        groupB:
+          items:
+            $ref: '#/components/schemas/EdaLabeledRange'
+          type: array
+          minItems: 1
+          title: Groupb
+      type: object
+      required:
+      - variable
+      - groupA
+      - groupB
+      title: EdaComparator
+    EdaComputationDescriptor:
+      properties:
+        type:
+          type: string
+          const: differentialexpression
+          title: Type
+          default: differentialexpression
+        configuration:
+          $ref: '#/components/schemas/EdaDifferentialExpressionConfig'
+      type: object
+      required:
+      - configuration
+      title: EdaComputationDescriptor
+    EdaCountRequest:
+      properties:
+        datasetId:
+          type: string
+          title: Datasetid
+        entityId:
+          type: string
+          title: Entityid
+        filters:
+          items:
+            $ref: '#/components/schemas/EdaFilter'
+          type: array
+          title: Filters
+      type: object
+      required:
+      - datasetId
+      - entityId
+      title: EdaCountRequest
+      description: Count one entity's records under a filter array.
+    EdaCountResponse:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        count:
+          type: integer
+          title: Count
+        unfilteredCount:
+          type: integer
+          title: Unfilteredcount
+      type: object
+      required:
+      - entityId
+      - count
+      - unfilteredCount
+      title: EdaCountResponse
+    EdaDateRangeFilter:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        type:
+          type: string
+          const: dateRange
+          title: Type
+          default: dateRange
+        min:
+          type: string
+          title: Min
+        max:
+          type: string
+          title: Max
+      type: object
+      required:
+      - entityId
+      - variableId
+      - min
+      - max
+      title: EdaDateRangeFilter
+      description: 'Bounds carry a time: a bare YYYY-MM-DD is a server error.'
+    EdaDateSetFilter:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        type:
+          type: string
+          const: dateSet
+          title: Type
+          default: dateSet
+        dateSet:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Dateset
+      type: object
+      required:
+      - entityId
+      - variableId
+      - dateSet
+      title: EdaDateSetFilter
+    EdaDifferentialExpressionConfig:
+      properties:
+        identifierVariable:
+          $ref: '#/components/schemas/EdaVariableSpec'
+        valueVariable:
+          $ref: '#/components/schemas/EdaVariableSpec'
+        comparator:
+          $ref: '#/components/schemas/EdaComparator'
+        differentialExpressionMethod:
+          type: string
+          enum:
+          - DESeq
+          - limma
+          title: Differentialexpressionmethod
+          default: DESeq
+        pValueFloor:
+          type: string
+          title: Pvaluefloor
+          default: 1e-200
+      type: object
+      required:
+      - identifierVariable
+      - valueVariable
+      - comparator
+      title: EdaDifferentialExpressionConfig
+      description: The compute's own configuration. There is no collectionVariable here.
+    EdaDistributionRequest:
+      properties:
+        datasetId:
+          type: string
+          title: Datasetid
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        filters:
+          items:
+            $ref: '#/components/schemas/EdaFilter'
+          type: array
+          title: Filters
+      type: object
+      required:
+      - datasetId
+      - entityId
+      - variableId
+      title: EdaDistributionRequest
+      description: One variable's histogram under a filter array.
+    EdaDistributionSeries:
+      properties:
+        variableId:
+          type: string
+          title: Variableid
+        variableDisplayName:
+          type: string
+          title: Variabledisplayname
+        labels:
+          items:
+            type: string
+          type: array
+          title: Labels
+        values:
+          items:
+            type: number
+          type: array
+          title: Values
+        subsetSize:
+          type: integer
+          minimum: 0.0
+          title: Subsetsize
+        numVarValues:
+          type: integer
+          minimum: 0.0
+          title: Numvarvalues
+        numMissingCases:
+          type: integer
+          minimum: 0.0
+          title: Nummissingcases
+        isMultiValued:
+          type: boolean
+          title: Ismultivalued
+      type: object
+      required:
+      - variableId
+      - variableDisplayName
+      - labels
+      - values
+      - subsetSize
+      - numVarValues
+      - numMissingCases
+      - isMultiValued
+      title: EdaDistributionSeries
+      description: 'One variable''s histogram under the current subset.
+
+
+        ``num_var_values`` can exceed ``subset_size`` on a multi-valued variable,
+
+        so a percentage needs its denominator named.'
+    EdaEntityCount:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        entityDisplayName:
+          type: string
+          title: Entitydisplayname
+        count:
+          type: integer
+          minimum: 0.0
+          title: Count
+        unfilteredCount:
+          type: integer
+          minimum: 0.0
+          title: Unfilteredcount
+      type: object
+      required:
+      - entityId
+      - entityDisplayName
+      - count
+      - unfilteredCount
+      title: EdaEntityCount
+      description: One entity's subset size against its unfiltered size.
+    EdaEntityResponse:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        displayName:
+          type: string
+          title: Displayname
+        displayNamePlural:
+          type: string
+          title: Displaynameplural
+        parentEntityId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parententityid
+        variableCount:
+          type: integer
+          title: Variablecount
+        hasGeneId:
+          type: boolean
+          title: Hasgeneid
+      type: object
+      required:
+      - entityId
+      - displayName
+      - displayNamePlural
+      - parentEntityId
+      - variableCount
+      - hasGeneId
+      title: EdaEntityResponse
+      description: One table of records in the study's tree.
+    EdaExportStepAction:
+      properties:
+        action:
+          type: string
+          const: export-step
+          title: Action
+        thresholds:
+          anyOf:
+          - $ref: '#/components/schemas/VolcanoThresholds'
+          - type: 'null'
+      type: object
+      required:
+      - action
+      title: EdaExportStepAction
+      description: Export the analysis's genes as a step in the thread's strategy.
+    EdaFilter:
+      oneOf:
+      - $ref: '#/components/schemas/EdaStringSetFilter'
+      - $ref: '#/components/schemas/EdaNumberSetFilter'
+      - $ref: '#/components/schemas/EdaDateSetFilter'
+      - $ref: '#/components/schemas/EdaNumberRangeFilter'
+      - $ref: '#/components/schemas/EdaDateRangeFilter'
+      - $ref: '#/components/schemas/EdaLongitudeRangeFilter'
+      - $ref: '#/components/schemas/EdaMultiFilter'
+      discriminator:
+        propertyName: type
+        mapping:
+          dateRange: '#/components/schemas/EdaDateRangeFilter'
+          dateSet: '#/components/schemas/EdaDateSetFilter'
+          longitudeRange: '#/components/schemas/EdaLongitudeRangeFilter'
+          multiFilter: '#/components/schemas/EdaMultiFilter'
+          numberRange: '#/components/schemas/EdaNumberRangeFilter'
+          numberSet: '#/components/schemas/EdaNumberSetFilter'
+          stringSet: '#/components/schemas/EdaStringSetFilter'
+    EdaJobRefResponse:
+      properties:
+        jobId:
+          type: string
+          title: Jobid
+        taskId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Taskid
+        appName:
+          type: string
+          title: Appname
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - jobId
+      - taskId
+      - appName
+      - status
+      title: EdaJobRefResponse
+      description: The compute job a run-compute action addressed.
+    EdaLabeledRange:
+      properties:
+        label:
+          type: string
+          title: Label
+        min:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Min
+        max:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Max
+      type: object
+      required:
+      - label
+      title: EdaLabeledRange
+      description: A comparator bin. ``min``/``max`` are declared required and are optional.
+    EdaLongitudeRangeFilter:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        type:
+          type: string
+          const: longitudeRange
+          title: Type
+          default: longitudeRange
+        left:
+          type: number
+          title: Left
+        right:
+          type: number
+          title: Right
+      type: object
+      required:
+      - entityId
+      - variableId
+      - left
+      - right
+      title: EdaLongitudeRangeFilter
+      description: '``left == right`` is a no-op that keeps every row.'
+    EdaMultiFilter:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        type:
+          type: string
+          const: multiFilter
+          title: Type
+          default: multiFilter
+        operation:
+          type: string
+          enum:
+          - union
+          - intersect
+          title: Operation
+        subFilters:
+          items:
+            $ref: '#/components/schemas/EdaSubFilter'
+          type: array
+          minItems: 1
+          title: Subfilters
+      type: object
+      required:
+      - entityId
+      - variableId
+      - operation
+      - subFilters
+      title: EdaMultiFilter
+      description: The one nested type, and the only way to express OR.
+    EdaNumberRangeFilter:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        type:
+          type: string
+          const: numberRange
+          title: Type
+          default: numberRange
+        min:
+          type: number
+          title: Min
+        max:
+          type: number
+          title: Max
+      type: object
+      required:
+      - entityId
+      - variableId
+      - min
+      - max
+      title: EdaNumberRangeFilter
+    EdaNumberSetFilter:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        type:
+          type: string
+          const: numberSet
+          title: Type
+          default: numberSet
+        numberSet:
+          items:
+            type: number
+          type: array
+          minItems: 1
+          title: Numberset
+      type: object
+      required:
+      - entityId
+      - variableId
+      - numberSet
+      title: EdaNumberSetFilter
+    EdaRunComputeAction:
+      properties:
+        action:
+          type: string
+          const: run-compute
+          title: Action
+        computation:
+          $ref: '#/components/schemas/EdaComputationDescriptor'
+      type: object
+      required:
+      - action
+      - computation
+      title: EdaRunComputeAction
+      description: Submit or poll the analysis's compute. Idempotent per input hash.
+    EdaSetFiltersAction:
+      properties:
+        action:
+          type: string
+          const: set-filters
+          title: Action
+        filters:
+          items:
+            $ref: '#/components/schemas/EdaFilter'
+          type: array
+          title: Filters
+      type: object
+      required:
+      - action
+      title: EdaSetFiltersAction
+      description: Replace the bound analysis's subset.
+    EdaStringSetFilter:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        type:
+          type: string
+          const: stringSet
+          title: Type
+          default: stringSet
+        stringSet:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Stringset
+      type: object
+      required:
+      - entityId
+      - variableId
+      - stringSet
+      title: EdaStringSetFilter
+    EdaStudyDetailResponse:
+      properties:
+        datasetId:
+          type: string
+          title: Datasetid
+        studyId:
+          type: string
+          title: Studyid
+        displayName:
+          type: string
+          title: Displayname
+        entities:
+          items:
+            $ref: '#/components/schemas/EdaEntityResponse'
+          type: array
+          title: Entities
+        variables:
+          items:
+            $ref: '#/components/schemas/EdaVariableResponse'
+          type: array
+          title: Variables
+        geneEntityId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Geneentityid
+        geneEntityProblem:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Geneentityproblem
+        canSubset:
+          type: boolean
+          title: Cansubset
+        canExportRows:
+          type: boolean
+          title: Canexportrows
+      type: object
+      required:
+      - datasetId
+      - studyId
+      - displayName
+      - entities
+      - variables
+      - geneEntityId
+      - geneEntityProblem
+      - canSubset
+      - canExportRows
+      title: EdaStudyDetailResponse
+      description: A study's entity tree and its filterable variables.
+    EdaStudyListResponse:
+      properties:
+        studies:
+          items:
+            $ref: '#/components/schemas/EdaStudySummaryResponse'
+          type: array
+          title: Studies
+      type: object
+      required:
+      - studies
+      title: EdaStudyListResponse
+    EdaStudySummaryResponse:
+      properties:
+        datasetId:
+          type: string
+          title: Datasetid
+        studyId:
+          type: string
+          title: Studyid
+        displayName:
+          type: string
+          title: Displayname
+        shortDisplayName:
+          type: string
+          title: Shortdisplayname
+        description:
+          type: string
+          title: Description
+        sourceType:
+          type: string
+          title: Sourcetype
+        relevance:
+          type: number
+          title: Relevance
+        canSubset:
+          type: boolean
+          title: Cansubset
+        canExportRows:
+          type: boolean
+          title: Canexportrows
+      type: object
+      required:
+      - datasetId
+      - studyId
+      - displayName
+      - shortDisplayName
+      - description
+      - sourceType
+      - relevance
+      - canSubset
+      - canExportRows
+      title: EdaStudySummaryResponse
+      description: One study as the tab's picker lists it.
+    EdaSubFilter:
+      properties:
+        variableId:
+          type: string
+          title: Variableid
+        stringSet:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Stringset
+      type: object
+      required:
+      - variableId
+      - stringSet
+      title: EdaSubFilter
+      description: A multiFilter child. The parent's entity applies and the set is a string set.
+    EdaSubsetPreviewPart:
+      properties:
+        datasetId:
+          type: string
+          title: Datasetid
+        analysisId:
+          type: string
+          title: Analysisid
+        entityCounts:
+          items:
+            $ref: '#/components/schemas/EdaEntityCount'
+          type: array
+          title: Entitycounts
+        distribution:
+          anyOf:
+          - $ref: '#/components/schemas/EdaDistributionSeries'
+          - type: 'null'
+        distributionNote:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Distributionnote
+      type: object
+      required:
+      - datasetId
+      - analysisId
+      - entityCounts
+      - distribution
+      - distributionNote
+      title: EdaSubsetPreviewPart
+      description: What the current filters select, with one variable's shape.
+    EdaUnbindAction:
+      properties:
+        action:
+          type: string
+          const: unbind
+          title: Action
+      type: object
+      required:
+      - action
+      title: EdaUnbindAction
+      description: 'Clear the thread''s binding. The upstream analysis is kept.
+
+
+        Unbinding an unbound thread answers 200 with a null analysis; the only
+
+        404 in the handler is the ownership check.'
+    EdaVariableResponse:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+        displayName:
+          type: string
+          title: Displayname
+        variableType:
+          type: string
+          title: Variabletype
+        filterType:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filtertype
+        dataShape:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Datashape
+        isMultiValued:
+          type: boolean
+          title: Ismultivalued
+        vocabulary:
+          items:
+            type: string
+          type: array
+          title: Vocabulary
+        vocabularyTotal:
+          type: integer
+          title: Vocabularytotal
+        vocabularyNote:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Vocabularynote
+        rangeMin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rangemin
+        rangeMax:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rangemax
+        dateMin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Datemin
+        dateMax:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Datemax
+        subFilterVariableIds:
+          items:
+            type: string
+          type: array
+          title: Subfiltervariableids
+        hideFrom:
+          items:
+            type: string
+          type: array
+          title: Hidefrom
+      type: object
+      required:
+      - entityId
+      - variableId
+      - displayName
+      - variableType
+      - filterType
+      - dataShape
+      - isMultiValued
+      - vocabulary
+      - vocabularyTotal
+      - vocabularyNote
+      - rangeMin
+      - rangeMax
+      - dateMin
+      - dateMax
+      - subFilterVariableIds
+      - hideFrom
+      title: EdaVariableResponse
+      description: One filterable variable, with the exact filter type it takes.
+    EdaVariableSpec:
+      properties:
+        entityId:
+          type: string
+          title: Entityid
+        variableId:
+          type: string
+          title: Variableid
+      type: object
+      required:
+      - entityId
+      - variableId
+      title: EdaVariableSpec
+    EdaVizPart:
+      properties:
+        datasetId:
+          type: string
+          title: Datasetid
+        analysisId:
+          type: string
+          title: Analysisid
+        chart:
+          type: string
+          enum:
+          - volcano
+          - histogram
+          - boxplot
+          - bar
+          - scatter
+          title: Chart
+        effectSizeLabel:
+          type: string
+          title: Effectsizelabel
+        effectSizeThreshold:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Effectsizethreshold
+        significanceThreshold:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Significancethreshold
+        effectDirection:
+          anyOf:
+          - type: string
+            enum:
+            - upOnly
+            - downOnly
+            - upAndDown
+          - type: 'null'
+          title: Effectdirection
+        totalPoints:
+          type: integer
+          minimum: 0.0
+          title: Totalpoints
+        retainedPoints:
+          type: integer
+          minimum: 0.0
+          title: Retainedpoints
+        points:
+          items:
+            $ref: '#/components/schemas/EdaVolcanoPoint'
+          type: array
+          title: Points
+      type: object
+      required:
+      - datasetId
+      - analysisId
+      - chart
+      - effectSizeLabel
+      - effectSizeThreshold
+      - significanceThreshold
+      - effectDirection
+      - totalPoints
+      - retainedPoints
+      - points
+      title: EdaVizPart
+      description: Server-computed plot data, sized for one chart.
+    EdaVizPointResponse:
+      properties:
+        pointId:
+          type: string
+          title: Pointid
+        effectSize:
+          type: number
+          title: Effectsize
+        pValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pvalue
+        adjustedPValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Adjustedpvalue
+        retained:
+          type: boolean
+          title: Retained
+      type: object
+      required:
+      - pointId
+      - effectSize
+      - pValue
+      - adjustedPValue
+      - retained
+      title: EdaVizPointResponse
+      description: One gene on the volcano. A point may carry no adjusted p-value.
+    EdaVizRequest:
+      properties:
+        datasetId:
+          type: string
+          title: Datasetid
+        chart:
+          type: string
+          const: volcano
+          title: Chart
+        effectSizeThreshold:
+          type: number
+          title: Effectsizethreshold
+          default: 1.0
+        significanceThreshold:
+          type: number
+          title: Significancethreshold
+          default: 0.05
+        effectDirection:
+          type: string
+          enum:
+          - upOnly
+          - downOnly
+          - upAndDown
+          title: Effectdirection
+          default: upAndDown
+      type: object
+      required:
+      - datasetId
+      - chart
+      title: EdaVizRequest
+      description: The volcano the bound analysis's compute already produced.
+    EdaVizResponse:
+      properties:
+        chart:
+          type: string
+          const: volcano
+          title: Chart
+        effectSizeLabel:
+          type: string
+          title: Effectsizelabel
+        effectSizeThreshold:
+          type: number
+          title: Effectsizethreshold
+        significanceThreshold:
+          type: number
+          title: Significancethreshold
+        effectDirection:
+          type: string
+          enum:
+          - upOnly
+          - downOnly
+          - upAndDown
+          title: Effectdirection
+        totalPoints:
+          type: integer
+          title: Totalpoints
+        retainedPoints:
+          type: integer
+          title: Retainedpoints
+        points:
+          items:
+            $ref: '#/components/schemas/EdaVizPointResponse'
+          type: array
+          title: Points
+      type: object
+      required:
+      - chart
+      - effectSizeLabel
+      - effectSizeThreshold
+      - significanceThreshold
+      - effectDirection
+      - totalPoints
+      - retainedPoints
+      - points
+      title: EdaVizResponse
+    EdaVolcanoPoint:
+      properties:
+        pointId:
+          type: string
+          title: Pointid
+        effectSize:
+          type: number
+          title: Effectsize
+        pValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pvalue
+        adjustedPValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Adjustedpvalue
+        retained:
+          type: boolean
+          title: Retained
+      type: object
+      required:
+      - pointId
+      - effectSize
+      - pValue
+      - adjustedPValue
+      - retained
+      title: EdaVolcanoPoint
+      description: One gene on the volcano. A point may carry no p-value.
     EnrichmentCompareRequest:
       properties:
         experimentIds:
@@ -10280,7 +11767,7 @@ components:
       properties:
         database:
           $ref: '#/components/schemas/SubsystemStatus'
-        embedding_model:
+        embedding_backend:
           $ref: '#/components/schemas/SubsystemStatus'
         piguard:
           $ref: '#/components/schemas/SubsystemStatus'
@@ -12029,6 +13516,18 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ConversationTitlePayload'
           - type: 'null'
+        edaAnalysisState:
+          anyOf:
+          - $ref: '#/components/schemas/EdaAnalysisState'
+          - type: 'null'
+        edaSubsetPreview:
+          anyOf:
+          - $ref: '#/components/schemas/EdaSubsetPreviewPart'
+          - type: 'null'
+        edaViz:
+          anyOf:
+          - $ref: '#/components/schemas/EdaVizPart'
+          - type: 'null'
         enrichmentResults:
           anyOf:
           - $ref: '#/components/schemas/EnrichmentResultsChunk'
@@ -12096,6 +13595,10 @@ components:
         taskProgress:
           anyOf:
           - $ref: '#/components/schemas/TaskProgress'
+          - type: 'null'
+        toolSummary:
+          anyOf:
+          - $ref: '#/components/schemas/ToolSummaryPayload'
           - type: 'null'
         turnFailed:
           anyOf:
@@ -13086,6 +14589,30 @@ components:
       - errorText
       title: ToolOutputErrorPart
       description: Tool part in output-error state.
+    ToolSummaryPayload:
+      properties:
+        toolCallId:
+          type: string
+          title: Toolcallid
+        summary:
+          type: string
+          title: Summary
+        status:
+          type: string
+          enum:
+          - ok
+          - empty
+          - warn
+          title: Status
+          default: ok
+      type: object
+      required:
+      - toolCallId
+      - summary
+      title: ToolSummaryPayload
+      description: 'Payload for the tool-summary chunk. The tool call id names the call the
+
+        line describes, so a reducer patches that call''s part and appends nothing.'
     TreeOptimizationResultResponse:
       properties:
         bestTrial:
@@ -13589,6 +15116,28 @@ components:
       - uniqueCount
       - sampleUniqueGenes
       title: VariantResult
+    VolcanoThresholds:
+      properties:
+        effectSizeThreshold:
+          type: number
+          title: Effectsizethreshold
+        significanceThreshold:
+          type: number
+          title: Significancethreshold
+        effectDirection:
+          type: string
+          enum:
+          - upOnly
+          - downOnly
+          - upAndDown
+          title: Effectdirection
+          default: upAndDown
+      type: object
+      required:
+      - effectSizeThreshold
+      - significanceThreshold
+      title: VolcanoThresholds
+      description: The volcano cut both surfaces and the export share.
     WDKDatasetParser:
       properties:
         name:
@@ -13913,7 +15462,9 @@ components:
       - INVALID_PARAMETERS
       - WDK_ERROR
       - WDK_LOGIN_REQUIRED
+      - WDK_IDENTITY_MISMATCH
       - STRATEGY_NOT_FOUND
+      - STRATEGY_AST_CORRUPT
       - INVALID_STRATEGY
       - STEP_NOT_FOUND
       - INCOMPATIBLE_STEPS
@@ -13924,6 +15475,8 @@ components:
       - CONVERSATION_NOT_FOUND
       - ASSISTANT_NOT_FOUND
       - ASSISTANT_MISMATCH
+      - EDA_NO_OPEN_ANALYSIS
+      - EDA_COMPUTE_NOT_RUN
       - SPECIALIST_PRECONDITION_FAILED
       - SESSION_CONFLICT
       title: ErrorCode

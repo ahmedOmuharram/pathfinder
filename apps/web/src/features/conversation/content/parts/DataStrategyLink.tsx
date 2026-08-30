@@ -1,19 +1,21 @@
 import type { StrategyLink } from "@pathfinder/shared";
 
+import { Figure } from "@/lib/components/thread/Figure";
+
 export function DataStrategyLink({ data }: { data: StrategyLink }) {
+  const name = data.title ?? `Strategy ${data.strategyId}`;
   return (
-    <div
-      data-testid="data-strategy-link"
-      className="my-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
-    >
-      <a
-        href={data.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-medium text-primary underline-offset-2 hover:underline"
-      >
-        {data.title ?? `Strategy ${data.strategyId}`}
-      </a>
-    </div>
+    <Figure testId="data-strategy-link" title="Strategy" caption={name}>
+      <div className="text-sm">
+        <a
+          href={data.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-primary underline-offset-2 hover:underline"
+        >
+          {name}
+        </a>
+      </div>
+    </Figure>
   );
 }

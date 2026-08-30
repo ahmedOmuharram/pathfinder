@@ -28,10 +28,35 @@ beforeEach(() => {
 });
 
 describe("DataEdaViz volcano", () => {
-  it("names the plot and draws the volcano", () => {
+  it("names the plot in the figure title and draws the volcano", () => {
     render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
-    expect(screen.getByTestId("data-eda-viz")).toHaveTextContent("log2(Fold Change)");
+    const title = screen.getByText("log2(Fold Change)");
+    expect(title.tagName).toBe("FIGCAPTION");
     expect(screen.getByTestId("eda-viz-volcano")).toHaveAttribute("role", "img");
+  });
+
+  it("captions the figure with the compute's retained count", () => {
+    render(
+      <DataEdaViz
+        data={{ ...EDA_VOLCANO_VIZ_FIXTURE, totalPoints: 5511, retainedPoints: 1543 }}
+      />,
+    );
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "1,543 of 5,511 genes retained",
+    );
+  });
+
+  it("separates itself with a hairline, never with a card", () => {
+    render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
+    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
+      "my-6",
+      "border-t",
+      "border-border/60",
+      "pt-4",
+    ]);
+    expect(screen.getByTestId("data-eda-viz").className).not.toMatch(
+      /\bborder\b|\brounded-md\b|\bbg-card\b/,
+    );
   });
 
   it("reports the client selection and the compute's own retained count", () => {

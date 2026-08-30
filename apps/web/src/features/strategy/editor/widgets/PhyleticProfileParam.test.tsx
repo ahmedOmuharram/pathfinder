@@ -11,6 +11,7 @@ import {
   claimsPhyleticParams,
   resolveTerms,
   seedTriStates,
+  triStateColor,
 } from "./phyleticProfileLogic";
 import { PhyleticProfileParam } from "./PhyleticProfileParam";
 import type { WDKVocabTerm } from "@pathfinder/shared";
@@ -114,6 +115,14 @@ function FormValueReader({ form, name }: { form: ParamForm; name: string }) {
   const value = useStore(form.store, (s) => s.values[name]);
   return <output data-testid={`form-${name}`}>{String(value ?? "")}</output>;
 }
+
+describe("triStateColor", () => {
+  it("names the status tokens, not palette shades", () => {
+    expect(triStateColor("include")).toBe("text-success");
+    expect(triStateColor("exclude")).toBe("text-destructive");
+    expect(triStateColor("unconstrained")).toBe("text-muted-foreground");
+  });
+});
 
 describe("buildPhyleticTree", () => {
   it("builds correct hierarchy from term/indent map vocabs", () => {
@@ -472,6 +481,31 @@ describe("reopening a step whose lists name a term the tree does not carry", () 
 
     expect(screen.getByTestId("phyletic-unread").textContent).toContain(
       "All Organisms",
+    );
+  });
+
+  it("paints the unread notice from the warning token", () => {
+    render(
+      <TestForm defaultValues={stored}>
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
+      </TestForm>,
+    );
+
+    const notice = screen.getByTestId("phyletic-unread");
+    expect(notice).toHaveClass("text-warning");
+    expect(notice.className).not.toContain("amber");
+  });
+
+  it("paints the include and exclude legend marks from the status tokens", () => {
+    render(
+      <TestForm defaultValues={stored}>
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
+      </TestForm>,
+    );
+
+    expect(screen.getByText(String.fromCodePoint(0x2713))).toHaveClass("text-success");
+    expect(screen.getByText(String.fromCodePoint(0x2717))).toHaveClass(
+      "text-destructive",
     );
   });
 

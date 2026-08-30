@@ -6,33 +6,29 @@ import { render, screen, within } from "@testing-library/react";
 
 import { DataMemoryRetrieved } from "./DataMemoryRetrieved";
 
-describe("DataMemoryRetrieved", () => {
-  it("renders one row per memory with its kind badge + name and a count header", () => {
-    render(
-      <DataMemoryRetrieved
-        data={{
-          memories: [
-            {
-              key: "m1",
-              kind: "gene_set",
-              name: "Erythrocytic genes",
-              summary: "150 genes from PlasmoDB",
-              score: 0.92,
-            },
-            {
-              key: "m2",
-              kind: "strategy",
-              name: "Kinome sweep",
-              summary: "prior strategy",
-              score: 0.7,
-            },
-          ],
-        }}
-      />,
-    );
-    const card = screen.getByTestId("data-memory-retrieved");
-    expect(card).toHaveTextContent("Recalled memories (2)");
+const MEMORIES = {
+  memories: [
+    {
+      key: "m1",
+      kind: "gene_set",
+      name: "Erythrocytic genes",
+      summary: "150 genes from PlasmoDB",
+      score: 0.92,
+    },
+    {
+      key: "m2",
+      kind: "strategy",
+      name: "Kinome sweep",
+      summary: "prior strategy",
+      score: 0.7,
+    },
+  ],
+};
 
+describe("DataMemoryRetrieved", () => {
+  it("renders one row per memory with its kind badge and name", () => {
+    render(<DataMemoryRetrieved data={MEMORIES} />);
+    const card = screen.getByTestId("data-memory-retrieved");
     const rows = within(card).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent("gene_set");
@@ -41,8 +37,27 @@ describe("DataMemoryRetrieved", () => {
     expect(rows[1]).toHaveTextContent("Kinome sweep");
   });
 
+  it("titles the figure and captions it with the count", () => {
+    render(<DataMemoryRetrieved data={MEMORIES} />);
+    expect(screen.getByText("Recalled memories").tagName).toBe("FIGCAPTION");
+    expect(screen.getByTestId("figure-caption").textContent).toBe("2 memories");
+  });
+
   it("renders nothing (returns null) when there are no memories", () => {
     const { container } = render(<DataMemoryRetrieved data={{ memories: [] }} />);
-    expect(container).toBeEmptyDOMElement();
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("separates itself with a hairline, never with a card", () => {
+    render(<DataMemoryRetrieved data={MEMORIES} />);
+    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
+      "my-6",
+      "border-t",
+      "border-border/60",
+      "pt-4",
+    ]);
+    expect(screen.getByTestId("data-memory-retrieved").className).not.toMatch(
+      /\bborder\b|\brounded-md\b|\bbg-card\b/,
+    );
   });
 });

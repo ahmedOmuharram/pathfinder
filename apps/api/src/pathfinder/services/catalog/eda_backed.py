@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 
+from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONArray
+from pydantic import ValidationError as PydanticValidationError
+from pydantic import model_validator
+
 from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm, WDKVocabulary
+from pathfinder.integrations.eda.models import EdaNewAnalysis
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
+from pathfinder.platform.errors import ValidationError
 from pathfinder.services.catalog.searches import get_raw_searches
 
 EDA_ANALYSIS_SPEC_PARAM = "eda_analysis_spec"
@@ -114,6 +122,76 @@ def eda_backed_guidance(search: EdaBackedSearch) -> str:
         )
     lines.append("create_eda_step builds the step from the open analysis.")
     return " ".join(lines)
+
+
+class EdaStepRequest(CamelModel):
+    """The two WDK parameters that carry an EDA subset into a step."""
+
+    eda_dataset_id: str
+    eda_analysis_spec: str
+
+    @model_validator(mode="after")
+    def _spec_names_the_same_dataset(self) -> EdaStepRequest:
+        if not self.eda_analysis_spec:
+            return self
+        spec = EdaNewAnalysis.model_validate_json(self.eda_analysis_spec)
+        if spec.study_id == self.eda_dataset_id:
+            return self
+        msg = (
+            f"The analysis spec names {spec.study_id!r} and the step names "
+            f"{self.eda_dataset_id!r}. Both values are a dataset id, not a "
+            f"study id."
+        )
+        raise ValueError(msg)
+
+    def wdk_parameters(self) -> dict[str, str]:
+        """The step's ``parameters`` map, ready for ``WDKSearchConfig``."""
+        return {
+            EDA_DATASET_ID_PARAM: self.eda_dataset_id,
+            EDA_ANALYSIS_SPEC_PARAM: self.eda_analysis_spec,
+        }
+
+
+_EMPTY_COMPUTE_SPEC = (
+    f"{EDA_ANALYSIS_SPEC_PARAM} is empty, and this search exports the genes a "
+    f"computation ranks, so the empty spec selects nothing."
+)
+
+
+def _spec_refusals(search: EdaBackedSearch, parameters: Mapping[str, str]) -> list[str]:
+    """Every reason these two values are not an EDA analysis on this dataset."""
+    spec = parameters.get(EDA_ANALYSIS_SPEC_PARAM, "")
+    if not spec.strip():
+        return [_EMPTY_COMPUTE_SPEC] if search.is_compute_backed else []
+    try:
+        EdaStepRequest(
+            eda_dataset_id=parameters.get(EDA_DATASET_ID_PARAM, ""),
+            eda_analysis_spec=spec,
+        )
+    except PydanticValidationError as exc:
+        return [error["msg"] for error in exc.errors()]
+    return []
+
+
+def check_eda_parameters(search: WDKSearch, parameters: Mapping[str, str]) -> None:
+    """Refuse a proposed analysis spec before WDK builds a step from it.
+
+    The detail is the guidance, so a tool retry carries the route to the EDA
+    tools that write the document.
+    """
+    described = eda_backed_search(search)
+    if described is None:
+        return
+    refusals = _spec_refusals(described, parameters)
+    if not refusals:
+        return
+    messages: JSONArray = list(refusals)
+    rows: JSONArray = [{"param": EDA_ANALYSIS_SPEC_PARAM, "messages": messages}]
+    raise ValidationError(
+        title="eda_analysis_spec is written by PathFinder, not proposed",
+        detail=eda_backed_guidance(described),
+        errors=rows,
+    )
 
 
 UPLOAD_SENTINEL_PREFIX = "Upload a"

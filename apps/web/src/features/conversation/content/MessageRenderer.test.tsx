@@ -6,25 +6,14 @@ import { render, screen } from "@testing-library/react";
 
 import { DataPartRenderer } from "./DataPartRenderer";
 import { dataPartRenderers } from "./dataPartRegistry";
-import { selectAssistantErrorDetail, toolUIState } from "./MessageRenderer";
+import type { ReasoningMessagePartProps } from "@assistant-ui/react";
+
+import { ReasoningPart, selectAssistantErrorDetail } from "./MessageRenderer";
 import { USER_QUESTION_ANSWERS_PART_TYPE } from "../rail/consultActions";
 
 // Test the DataPartRenderer dispatch directly since MessageRenderer
 // requires the full assistant-ui runtime provider tree which is
 // integration-tested via ChatThread.test.tsx.
-
-describe("toolUIState", () => {
-  it("marks a tool waiting on the user as approval-requested, not running", () => {
-    expect(toolUIState("requires-action", undefined)).toBe("approval-requested");
-  });
-
-  it("maps the remaining assistant-ui statuses to tool card states", () => {
-    expect(toolUIState("running", undefined)).toBe("input-available");
-    expect(toolUIState("incomplete", undefined)).toBe("output-error");
-    expect(toolUIState("complete", undefined)).toBe("input-streaming");
-    expect(toolUIState("complete", { ok: true })).toBe("output-available");
-  });
-});
 
 describe("selectAssistantErrorDetail", () => {
   const failed = { type: "incomplete", reason: "error", error: "boom" };
@@ -43,7 +32,7 @@ describe("selectAssistantErrorDetail", () => {
         status: failed,
         content: [{ type: "text" }, { type: "data-turn-failed" }],
       }),
-    ).toBeNull();
+    ).toBe(null);
   });
 
   it("also recognises the generic data part shape", () => {
@@ -52,7 +41,7 @@ describe("selectAssistantErrorDetail", () => {
         status: failed,
         content: [{ type: "data", name: "turn-failed" }],
       }),
-    ).toBeNull();
+    ).toBe(null);
   });
 
   it("says nothing for a turn the user stopped", () => {
@@ -61,13 +50,13 @@ describe("selectAssistantErrorDetail", () => {
         status: { type: "incomplete", reason: "cancelled" },
         content: [],
       }),
-    ).toBeNull();
+    ).toBe(null);
   });
 
   it("says nothing for a turn that finished", () => {
     expect(
       selectAssistantErrorDetail({ status: { type: "complete" }, content: [] }),
-    ).toBeNull();
+    ).toBe(null);
   });
 });
 
@@ -95,6 +84,7 @@ describe("DataPartRenderer dispatch", () => {
       <DataPartRenderer
         kind="data-sub-agent-call"
         data={{
+          toolCallId: "sa_1",
           subAgent: "frame_problem",
           phase: "frame",
           state: "started",
@@ -125,7 +115,7 @@ describe("DataPartRenderer dispatch", () => {
         data={{ taskId: "t1", status: "success" }}
       />,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(container.innerHTML).toBe("");
   });
 
   it("dispatches data-strategy-link to the correct component", () => {
@@ -156,5 +146,33 @@ describe("DataPartRenderer dispatch", () => {
       />,
     );
     expect(screen.getByTestId("data-gene-set")).toBeInTheDocument();
+  });
+});
+
+describe("ReasoningPart", () => {
+  const settled = (text: string): ReasoningMessagePartProps => ({
+    type: "reasoning",
+    text,
+    status: { type: "complete" },
+  });
+
+  it("renders nothing for a reasoning part that settled with no text", () => {
+    const { container } = render(<ReasoningPart {...settled("")} />);
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("renders the disclosure once there is reasoning text", () => {
+    render(<ReasoningPart {...settled("weighing the filter")} />);
+    expect(screen.getByRole("button")).toBeInTheDocument();
+  });
+
+  it("keeps the disclosure while an empty part is still streaming", () => {
+    const streaming: ReasoningMessagePartProps = {
+      type: "reasoning",
+      text: "",
+      status: { type: "running" },
+    };
+    const { container } = render(<ReasoningPart {...streaming} />);
+    expect(container.innerHTML).not.toBe("");
   });
 });

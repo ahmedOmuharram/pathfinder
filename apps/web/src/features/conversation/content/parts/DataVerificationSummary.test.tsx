@@ -6,6 +6,45 @@ import { render, screen } from "@testing-library/react";
 
 import { DataVerificationSummary } from "./DataVerificationSummary";
 
+describe("DataVerificationSummary figure", () => {
+  it("captions the figure with the checks that passed out of the total", () => {
+    render(
+      <DataVerificationSummary
+        data={{
+          passed: false,
+          summary: "One check failed",
+          checks: [
+            { name: "Gene count", passed: true },
+            { name: "No duplicates", passed: true },
+            { name: "Controls recovered", passed: false },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "2 of 3 checks passed",
+    );
+    expect(screen.getByText("Verification").tagName).toBe("FIGCAPTION");
+  });
+
+  it("separates itself with a hairline, never with a card", () => {
+    render(
+      <DataVerificationSummary
+        data={{ passed: true, summary: "All checks passed", checks: [] }}
+      />,
+    );
+    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
+      "my-6",
+      "border-t",
+      "border-border/60",
+      "pt-4",
+    ]);
+    expect(screen.getByTestId("data-verification-summary").className).not.toMatch(
+      /\bborder\b|\brounded-md\b/,
+    );
+  });
+});
+
 describe("DataVerificationSummary", () => {
   it("renders passed summary with checks", () => {
     render(

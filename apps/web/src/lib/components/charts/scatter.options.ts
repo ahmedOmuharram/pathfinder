@@ -1,5 +1,6 @@
 import type { ChartTokens } from "./chartTheme";
 import type { EdaAxisLabel, EdaScatterSeries } from "./types";
+import { UNRESOLVED_SERIES_COLOR } from "./unresolved";
 
 export type ScatterPoint = [number, number, string];
 
@@ -18,7 +19,7 @@ export interface BuildScatterOptionArgs {
 }
 
 export function buildScatterOption(args: BuildScatterOptionArgs): ScatterOptionModel {
-  const fallbackColor = args.tokens.series[0] ?? "hsl(215 70% 50%)";
+  const fallbackColor = args.tokens.series[0] ?? UNRESOLVED_SERIES_COLOR;
   let droppedPointCount = 0;
 
   const series = args.series.map((entry, index) => {

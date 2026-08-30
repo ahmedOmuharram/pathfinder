@@ -51,7 +51,7 @@ export function FilterFacetedPicker({
   const parsed = OntologySchema.safeParse(ontology);
   if (!parsed.success) {
     return (
-      <p className="text-xs text-amber-600">
+      <p className="text-xs text-warning">
         Ontology metadata is in an unexpected shape. Use Edit JSON to inspect.
       </p>
     );

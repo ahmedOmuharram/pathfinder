@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import cast
 
+from assistant_core.graph.tool_summary import count_noun, with_summary
 from assistant_core.platform.logging import get_logger
 from assistant_core.platform.types import JSONArray, JSONObject
 from pydantic_ai import RunContext
@@ -100,7 +101,7 @@ def _build_outcome_payload(outcome: BuildOutcome, graph: StrategyGraph) -> JSONO
     }
     if outcome.failed_steps:
         payload["hint"] = (
-            "Some steps failed to push to WDK. Local AST is intact — use "
+            "Some steps failed to push to WDK. Local AST is intact - use "
             "update_leaf_params to fix the failed step's parameters, or "
             "delete_step / replace_subtree to restructure. The build will "
             "retry on next mutation."
@@ -128,13 +129,13 @@ async def build_strategy(
     from `get_strategy`), so a replacement is always something you chose
     rather than something that happened.
 
-    The ENTIRE strategy is passed as a single `root` argument — a recursive
+    The ENTIRE strategy is passed as a single `root` argument - a recursive
     StrategyStepNode where every combine has its inputs nested inside it.
     Do NOT put `primaryInput`, `secondaryInput`, `searchName`, or
-    `parameters` at the top level of the tool args — they ONLY exist
+    `parameters` at the top level of the tool args - they ONLY exist
     inside `root` (and inside nodes within `root`).
 
-    Example — INTERSECT(UNION(A, B), C) where A, B, C are leaf searches:
+    Example - INTERSECT(UNION(A, B), C) where A, B, C are leaf searches:
 
         build_strategy(
             root={
@@ -157,9 +158,7 @@ async def build_strategy(
     session = deps.strategy_session
     graph = get_graph(session, graph_id)
     if graph is None:
-        return ToolReturn(
-            return_value=cast("JSONObject", graph_not_found(graph_id)),
-        )
+        return _no_graph(ctx, graph_id)
 
     current = _current_revision(graph)
     if current and base_revision != current:
@@ -188,7 +187,40 @@ async def build_strategy(
                 title=graph.name,
             ),
         )
-    return ToolReturn(return_value=payload, metadata=metadata)
+    genes = outcome.root_count or 0
+    return with_summary(
+        payload,
+        f"{len(graph.steps)} steps, {genes:,} genes",
+        ctx=ctx,
+        status="ok" if genes else "empty",
+        extra=metadata,
+    )
+
+
+def _refused(
+    ctx: RunContext[AgentDeps],
+    payload: ToolErrorPayload,
+    summary: str,
+) -> ToolReturn[JSONObject]:
+    """An error payload the model reads, with the line that names the refusal."""
+    return with_summary(
+        cast("JSONObject", payload.model_dump(by_alias=True, mode="json")),
+        summary,
+        ctx=ctx,
+        status="warn",
+    )
+
+
+def _no_graph(
+    ctx: RunContext[AgentDeps],
+    graph_id: str | None,
+) -> ToolReturn[JSONObject]:
+    """The call named a graph the session does not hold."""
+    return _refused(
+        ctx,
+        graph_not_found(graph_id),
+        "No strategy graph on this thread",
+    )
 
 
 def _current_revision(graph: StrategyGraph) -> str:
@@ -220,9 +252,7 @@ async def apply_operations(
     session = deps.strategy_session
     graph = get_graph(session, graph_id)
     if graph is None:
-        return ToolReturn(
-            return_value=cast("JSONObject", graph_not_found(graph_id)),
-        )
+        return _no_graph(ctx, graph_id)
 
     if not operations:
         msg = (
@@ -261,9 +291,11 @@ async def apply_operations(
         "droppedStepIds": cast("JSONArray", list(result.dropped_step_ids)),
         "revision": _current_revision(graph),
     }
-    return ToolReturn(
-        return_value=payload,
-        metadata=[graph_snapshot_chunk(session, graph)],
+    return with_summary(
+        payload,
+        f"{len(operations)} operations applied, {len(graph.steps)} steps",
+        ctx=ctx,
+        extra=[graph_snapshot_chunk(session, graph)],
     )
 
 
@@ -273,12 +305,12 @@ async def update_leaf_params(
     parameters: dict[str, ParamValue],
     *,
     graph_id: str | None = None,
-) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
-    """Update a leaf step's parameters — a partial patch.
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
+    """Update a leaf step's parameters - a partial patch.
 
     Only the params you pass are changed; the step's other params are kept, so
     you can update one param without re-supplying the whole search config. Each
-    value MUST be wrapped in its typed shape — see the ``valueFormat`` field
+    value MUST be wrapped in its typed shape - see the ``valueFormat`` field
     from ``get_search_overview`` for the exact template per param. Example:
     ``{"organism": {"type": "multi-pick-vocabulary", "values": ["Pf3D7"]}}``.
     """
@@ -286,7 +318,7 @@ async def update_leaf_params(
     session = deps.strategy_session
     resolved = get_graph_and_step(session, graph_id, step_id)
     if isinstance(resolved, ToolErrorPayload):
-        return resolved
+        return _step_not_found(ctx, resolved, step_id)
     graph, step = resolved
 
     if step.kind is not StepKind.SEARCH:
@@ -317,9 +349,25 @@ async def update_leaf_params(
         deps=deps.to_strategy_context(),
         op=UpdateStepParamsOp(step_id=step_id, parameters=dict(canonical)),
     )
-    return ToolReturn(
-        return_value=step_ok_response(session, graph, step),
-        metadata=[graph_snapshot_chunk(session, graph)],
+    return with_summary(
+        step_ok_response(session, graph, step),
+        f"{step_id}: {count_noun(len(parameters), 'parameter')} updated",
+        ctx=ctx,
+        extra=[graph_snapshot_chunk(session, graph)],
+    )
+
+
+def _step_not_found(
+    ctx: RunContext[AgentDeps],
+    payload: ToolErrorPayload,
+    step_id: str,
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
+    """The edit named a step the graph does not hold."""
+    return with_summary(
+        payload,
+        f"No step {step_id} in the strategy",
+        ctx=ctx,
+        status="warn",
     )
 
 
@@ -330,13 +378,13 @@ async def update_combine_operator(
     colocation_params: ColocationParams | None = None,
     *,
     graph_id: str | None = None,
-) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
     """Update a combine step's operator (and colocation params if COLOCATE)."""
     deps = ctx.deps
     session = deps.strategy_session
     resolved = get_graph_and_step(session, graph_id, step_id)
     if isinstance(resolved, ToolErrorPayload):
-        return resolved
+        return _step_not_found(ctx, resolved, step_id)
     graph, step = resolved
 
     if step.kind is not StepKind.COMBINE:
@@ -361,9 +409,11 @@ async def update_combine_operator(
             colocation_params=colocation_params,
         ),
     )
-    return ToolReturn(
-        return_value=step_ok_response(session, graph, step),
-        metadata=[graph_snapshot_chunk(session, graph)],
+    return with_summary(
+        step_ok_response(session, graph, step),
+        f"{step_id} now {operator.value}",
+        ctx=ctx,
+        extra=[graph_snapshot_chunk(session, graph)],
     )
 
 
@@ -373,22 +423,24 @@ async def update_step_metadata(
     display_name: str,
     *,
     graph_id: str | None = None,
-) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
-    """Update a step's display name. Local-only — no WDK call."""
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
+    """Update a step's display name. Local-only - no WDK call."""
     deps = ctx.deps
     session = deps.strategy_session
     resolved = get_graph_and_step(session, graph_id, step_id)
     if isinstance(resolved, ToolErrorPayload):
-        return resolved
+        return _step_not_found(ctx, resolved, step_id)
     graph, step = resolved
 
     await apply_and_commit(
         deps=deps.to_strategy_context(),
         op=UpdateStepMetaOp(step_id=step_id, display_name=display_name),
     )
-    return ToolReturn(
-        return_value=step_ok_response(session, graph, step),
-        metadata=[graph_snapshot_chunk(session, graph)],
+    return with_summary(
+        step_ok_response(session, graph, step),
+        f"{step_id} renamed to {display_name}",
+        ctx=ctx,
+        extra=[graph_snapshot_chunk(session, graph)],
     )
 
 
@@ -398,7 +450,7 @@ async def delete_step(
     *,
     resolution: DeleteResolution = DeleteResolution.COLLAPSE_COMBINE,
     graph_id: str | None = None,
-) -> ToolReturn[JSONObject] | ToolErrorPayload:
+) -> ToolReturn[JSONObject]:
     """Delete a step and re-wire the tree to preserve a single root.
 
     ``resolution`` selects the disambiguation policy. Defaults to
@@ -409,7 +461,7 @@ async def delete_step(
     session = deps.strategy_session
     graph = get_graph(session, graph_id)
     if graph is None:
-        return graph_not_found(graph_id)
+        return _no_graph(ctx, graph_id)
     if step_id not in graph.steps:
         msg = (
             f"VALIDATION_ERROR: Step {step_id!r} not found. Valid step "
@@ -426,9 +478,11 @@ async def delete_step(
         "deleted": cast("JSONArray", result.dropped_step_ids),
         "graphId": graph.id,
     }
-    return ToolReturn(
-        return_value=with_full_graph(session, graph, response),
-        metadata=[graph_snapshot_chunk(session, graph)],
+    return with_summary(
+        with_full_graph(session, graph, response),
+        f"Deleted {step_id}, {len(graph.steps)} steps left",
+        ctx=ctx,
+        extra=[graph_snapshot_chunk(session, graph)],
     )
 
 
@@ -438,13 +492,13 @@ async def replace_subtree(
     new_subtree: StrategyStepNode,
     *,
     graph_id: str | None = None,
-) -> ToolReturn[JSONObject] | ToolErrorPayload:
+) -> ToolReturn[JSONObject]:
     """Replace the subtree rooted at ``step_id`` with a new tree."""
     deps = ctx.deps
     session = deps.strategy_session
     graph = get_graph(session, graph_id)
     if graph is None:
-        return graph_not_found(graph_id)
+        return _no_graph(ctx, graph_id)
     if step_id not in graph.steps:
         msg = (
             f"VALIDATION_ERROR: Step {step_id!r} not found. Valid step "
@@ -472,9 +526,11 @@ async def replace_subtree(
                 title=graph.name,
             ),
         )
-    return ToolReturn(
-        return_value=with_full_graph(session, graph, payload),
-        metadata=metadata,
+    return with_summary(
+        with_full_graph(session, graph, payload),
+        f"Replaced {step_id}, {len(graph.steps)} steps",
+        ctx=ctx,
+        extra=metadata,
     )
 
 
@@ -485,13 +541,13 @@ async def insert_saved_strategy(
     *,
     operator: CombineOp = CombineOp.INTERSECT,
     graph_id: str | None = None,
-) -> ToolReturn[JSONObject] | ToolErrorPayload:
+) -> ToolReturn[JSONObject]:
     """Insert a saved WDK strategy as a new combine input next to ``target_step_id``."""
     deps = ctx.deps
     session = deps.strategy_session
     graph = get_graph(session, graph_id)
     if graph is None:
-        return graph_not_found(graph_id)
+        return _no_graph(ctx, graph_id)
     if target_step_id not in graph.steps:
         msg = (
             f"VALIDATION_ERROR: Step {target_step_id!r} not found. Valid "
@@ -500,9 +556,17 @@ async def insert_saved_strategy(
         raise ModelRetry(msg)
 
     if deps.conversation_id is None or deps.db_session_factory is None:
-        return tool_error(
-            ErrorCode.INTERNAL_ERROR,
-            "insert_saved_strategy requires a persistent conversation context",
+        return with_summary(
+            cast(
+                "JSONObject",
+                tool_error(
+                    ErrorCode.INTERNAL_ERROR,
+                    "insert_saved_strategy requires a persistent conversation context",
+                ).model_dump(by_alias=True, mode="json"),
+            ),
+            "This thread cannot insert a saved strategy",
+            ctx=ctx,
+            status="warn",
         )
 
     result = await insert_saved_into_conversation(
@@ -523,7 +587,9 @@ async def insert_saved_strategy(
         "wdkStrategyId": result.wdk_strategy_id,
         "graphId": graph.id,
     }
-    return ToolReturn(
-        return_value=with_full_graph(session, graph, payload),
-        metadata=[graph_snapshot_chunk(session, graph)],
+    return with_summary(
+        with_full_graph(session, graph, payload),
+        f"Inserted saved strategy {saved_wdk_strategy_id} at {target_step_id}",
+        ctx=ctx,
+        extra=[graph_snapshot_chunk(session, graph)],
     )

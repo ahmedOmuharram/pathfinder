@@ -12,6 +12,7 @@ and values; none has a fix yet.
 - [Stopping during build persists a half-built strategy; editor shows a raw 422](stop-during-build-leaves-half-persisted-strategy.md) - recordType "" and no WDK ids on disk; every count "..."; step-counts 422 MISSING_RECORD_TYPE
 - [get_live_strategy_state quotes stale ancestor counts after an editor edit](live-state-quotes-stale-ancestor-counts-after-editor-edit.md) - UI shows 7, Lead says 15; the "live" read is the last persisted count
 - [Verification launches an unrequested enrichment task and its result is lost on resume](verification-durable-task-result-lost-on-resume.md) - phase card stays "started", ledger shows the previous turn's verdict, reply has no verification
+- [A durable task's completion replays the Lead node from its start](durable-resume-replays-the-lead-node.md) - measured 2026-08-30 on the febrile DESeq prompt: second analysis, three compute jobs, `create_eda_step` finds no computation, no step, no `done`; fix = durable tools become deferred tools (CallDeferred + DeferredToolResults turn), retiring `Command(resume=...)`
 - [Branching from an earlier message copies the latest strategy, not the one at that message](branch-copies-latest-strategy-not-strategy-at-branch-point.md) - transcript says 3 steps, panel shows 4
 - [A branch replays the parent's message ids, so Revert in a branch 404s silently](branch-keeps-parent-message-ids-so-revert-404s.md) - fork.py mints new Message ids but leaves the chunks' ids alone; the dialog shows no error
 - [Revert succeeds on the server but the client keeps the reverted turns until reload](revert-does-not-truncate-client-thread.md) - two contradictory answers on one screen
@@ -106,9 +107,6 @@ be assumed.
 
 - [Two api integration tests fail under machine load](two-api-integration-tests-fail-under-machine-load.md) - a wall-clock bound at `assert 1.242 < 1.2` and a teardown that truncates a conversation an in-flight turn is still writing events for; both pass in a quiet session
 
-## Initiatives
-
-
 ## EDA (found during batches 1-3, 2026-08-28)
 
 - [The generic and the per-dataset EDA subset searches count different genes for the same filter](generic-and-per-dataset-eda-subset-searches-disagree.md) - 5556 through GenesByEdaSubset on a real strategy push, 5602 through the per-dataset search a day earlier, same one-filter spec; not reconciled
@@ -116,7 +114,6 @@ be assumed.
 - [The Playwright no-first-nth gate is red on 16 escapes](no-first-nth-gate-is-red-on-16-escapes.md) - six older specs; the EDA specs contribute none; fix with specific locators and put the script in CI
 - [generate:types in mock mode injects the dev-login route](generate-types-in-mock-mode-injects-the-dev-login-route.md) - 8 generated files differ when the api container is on the e2e overlay; the generator should refuse a spec that carries `/api/v1/dev/login`
 - [The web dev container runs Turbopack despite the `--webpack` rule](web-dev-server-runs-turbopack-despite-the-webpack-rule.md) - the script, the Dockerfile and two documents disagree; measure SSE once and align them
-- [The chart color tokens have no dark-mode values](chart-tokens-have-no-dark-mode-values.md) - `.dark` overrides shadows only; `--chart-3` fails the lightness band and three slots are under 3:1 on light; a palette decision that repaints every chart consumer
 - [The frontend weak-assertion gate is red on 106 offenders outside its baseline](weak-assertion-gate-is-red-on-106-offenders.md) - a ratchet that is red on the trunk cannot ratchet; 99 remain after the chat-path sweep; fix them or re-baseline and put the script in CI
 - [The EDA permissions cache is keyed by site alone, so one account's authorization answers every later account in that process](eda-permissions-cache-is-shared-by-every-account.md) - measured `same_object=True` across the service account and the dev user; `clear_study_caches` has no production caller, and `resolve_dataset` reads the same map
 

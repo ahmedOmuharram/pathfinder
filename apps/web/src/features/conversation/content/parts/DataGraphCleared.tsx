@@ -1,20 +1,18 @@
 import type { GraphCleared } from "@pathfinder/shared";
-import { Trash2 } from "lucide-react";
+
+import { Figure } from "@/lib/components/thread/Figure";
+
+const CLEARED = "Strategy cleared";
 
 export function DataGraphCleared({ data }: { data: GraphCleared }) {
+  const reason = data.reason ?? "";
   return (
-    <div
-      data-testid="data-graph-cleared"
-      className="my-1 inline-flex items-center gap-1.5 self-start rounded-md border border-border bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground"
+    <Figure
+      testId="data-graph-cleared"
+      title={null}
+      caption={reason.length > 0 ? `${CLEARED} - ${reason}` : CLEARED}
     >
-      <Trash2 className="size-3" aria-hidden />
-      <span className="font-medium text-foreground">Strategy cleared</span>
-      {data.reason !== null && data.reason !== undefined && data.reason !== "" && (
-        <>
-          <span aria-hidden>·</span>
-          <span>{data.reason}</span>
-        </>
-      )}
-    </div>
+      {null}
+    </Figure>
   );
 }

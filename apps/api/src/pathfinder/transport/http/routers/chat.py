@@ -9,16 +9,20 @@ from pathfinder.ai.conversation.assistant_routing import resolve_turn_assistant
 from pathfinder.ai.conversation.dispatcher import dispatch
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.assistants.registry import get_assistant_registry
-from pathfinder.transport.http.deps import DBSession, QuotaCheckedUser
+from pathfinder.services.wdk_identity import require_session_matches_wdk_identity
+from pathfinder.transport.http.deps import CurrentUser, DBSession, QuotaCheckedUser
 
 router = APIRouter(tags=["chat"])
 
 
-async def resolve_chat_assistant(body: ChatRequestBody) -> AssistantSpec:
+async def resolve_chat_assistant(
+    body: ChatRequestBody,
+    user_id: CurrentUser,
+) -> AssistantSpec:
     """Name the turn's assistant and enforce the identity it requires.
 
     The gate runs before dispatch, so the deferred chat_turn job carries the
-    user's own registered token and the worker builds strategies as that user.
+    user's own registered token, and that token names the session's own user.
     An assistant that declares no requirement is served without one.
     """
     spec = await resolve_turn_assistant(
@@ -28,6 +32,7 @@ async def resolve_chat_assistant(body: ChatRequestBody) -> AssistantSpec:
     )
     if spec.identity_gate is not None:
         await spec.identity_gate()
+        await require_session_matches_wdk_identity(user_id)
     return spec
 
 

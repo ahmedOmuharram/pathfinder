@@ -257,4 +257,23 @@ describe("DatasetParam — default id list", () => {
     );
     expect(screen.getByRole("tab", { name: /default/i })).toBeTruthy();
   });
+
+  it("paints the unrecognized-value notice from the warning token", () => {
+    render(
+      <WidgetTestForm name="test_dataset" defaultValue="not-a-dataset-config">
+        {(field) => (
+          <DatasetParam
+            spec={makeSpec()}
+            name="test_dataset"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
+      </WidgetTestForm>,
+    );
+    const notice = screen.getByText(/not a recognized DatasetConfig/);
+    expect(notice).toHaveClass("text-warning");
+    expect(notice.className).not.toContain("amber");
+  });
 });

@@ -1,10 +1,7 @@
-/**
- * Per-site brand colors extracted from VEuPathDB's official CSS.
- *
- * Each entry maps a site ID to its primary brand hex color (used for
- * headings/nav on the original VEuPathDB sites).
- */
+import { contrast, hslToRgb, relativeLuminance, type Rgb } from "@/lib/color/contrast";
+import { hslTriple } from "@/lib/color/hsl";
 
+/** Each site's primary brand hex color, from VEuPathDB's official CSS. */
 const SITE_COLORS: Record<string, string> = {
   veupathdb: "#2e537b",
   plasmodb: "#634697",
@@ -59,72 +56,80 @@ function getSiteHslParts(siteId: string): [number, number, number] {
   return hexToHsl(hex);
 }
 
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  const sN = s / 100;
-  const lN = l / 100;
-  const c = (1 - Math.abs(2 * lN - 1)) * sN;
-  const hp = h / 60;
-  const x = c * (1 - Math.abs((hp % 2) - 1));
-  const [r1, g1, b1] =
-    hp < 1
-      ? [c, x, 0]
-      : hp < 2
-        ? [x, c, 0]
-        : hp < 3
-          ? [0, c, x]
-          : hp < 4
-            ? [0, x, c]
-            : hp < 5
-              ? [x, 0, c]
-              : [c, 0, x];
-  const m = lN - c / 2;
-  return [r1 + m, g1 + m, b1 + m];
+/** The tinted surfaces and the button text a brand color is painted against. */
+interface Ground {
+  readonly foreground: readonly [number, number, number];
+  readonly secondary: readonly [number, number];
+  readonly accent: readonly [number, number];
+  readonly muted: readonly [number, number];
 }
 
-function relativeLuminance(h: number, s: number, l: number): number {
-  const channel = (v: number): number =>
-    v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  const [r, g, b] = hslToRgb(h, s, l);
-  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-}
+/** Saturation and lightness for the tinted surfaces; the hue is the brand's. */
+const LIGHT_GROUND: Ground = {
+  foreground: [0, 0, 100],
+  secondary: [25, 95],
+  accent: [25, 93],
+  muted: [20, 96],
+};
 
-function whiteTextContrast(h: number, s: number, l: number): number {
-  return 1.05 / (relativeLuminance(h, s, l) + 0.05);
-}
+const DARK_GROUND: Ground = {
+  foreground: [215, 28, 9],
+  secondary: [22, 16],
+  accent: [22, 18],
+  muted: [20, 15],
+};
+
+/** WCAG AA for normal text, with a small margin. */
+const AA_WITH_MARGIN = 4.6;
+
+/** Above this luminance a foreground reads as light, so the fill must darken. */
+const LIGHT_FOREGROUND_LUMINANCE = 0.1791;
 
 /**
- * Lowers a brand color's lightness until white foreground text meets the
- * WCAG AA 4.5:1 ratio (small margin). The raw VEuPathDB brand colors sit at
- * ~45–50% lightness — too light for the white `primary-foreground` text on
- * primary buttons. Same hue/saturation, just dark enough to be legible.
+ * Moves a brand color's lightness until its foreground text is legible on it.
+ * A light foreground pushes the fill darker, a dark foreground pushes it
+ * lighter. Hue and saturation are untouched, so the brand survives.
  */
-function clampLightnessForWhiteText(h: number, s: number, l: number): number {
+function clampLightnessForForeground(
+  h: number,
+  s: number,
+  l: number,
+  foreground: Rgb,
+): number {
+  const step = relativeLuminance(foreground) > LIGHT_FOREGROUND_LUMINANCE ? -1 : 1;
   let out = l;
-  while (out > 0 && whiteTextContrast(h, s, out) < 4.6) {
-    out -= 1;
+  while (
+    out > 0 &&
+    out < 100 &&
+    contrast(foreground, hslToRgb(h, s, out)) < AA_WITH_MARGIN
+  ) {
+    out += step;
   }
   return out;
 }
 
+function currentGround(): Ground {
+  return document.documentElement.getAttribute("data-theme") === "dark"
+    ? DARK_GROUND
+    : LIGHT_GROUND;
+}
+
 /**
  * Applies the site's brand palette to CSS custom properties on the document
- * root. Derives a coherent secondary/accent from the primary hue so every
- * theme token (primary, secondary, accent, muted, ring) tracks the site
+ * root, against the ground the document is on. Derives a coherent
+ * secondary/accent from the primary hue so every theme token tracks the site
  * brand instead of falling back to the default neutral.
  */
 export function applySiteTheme(siteId: string): void {
   const [h, s, l] = getSiteHslParts(siteId);
-  const primary = `${h} ${s}% ${clampLightnessForWhiteText(h, s, l)}%`;
-  // Tinted backgrounds: same hue, low saturation, near-white. The 95/93
-  // lightness pair matches the default theme's secondary/accent split so
-  // contrast against `secondary-foreground` (dark text) stays AA-compliant.
-  const secondary = `${h} 25% 95%`;
-  const accent = `${h} 25% 93%`;
-  const muted = `${h} 20% 96%`;
+  const ground = currentGround();
+  const foreground = hslToRgb(...ground.foreground);
+  const primary = hslTriple(h, s, clampLightnessForForeground(h, s, l, foreground));
   const root = document.documentElement;
   root.style.setProperty("--primary", primary);
+  root.style.setProperty("--primary-foreground", hslTriple(...ground.foreground));
   root.style.setProperty("--ring", primary);
-  root.style.setProperty("--secondary", secondary);
-  root.style.setProperty("--accent", accent);
-  root.style.setProperty("--muted", muted);
+  root.style.setProperty("--secondary", hslTriple(h, ...ground.secondary));
+  root.style.setProperty("--accent", hslTriple(h, ...ground.accent));
+  root.style.setProperty("--muted", hslTriple(h, ...ground.muted));
 }

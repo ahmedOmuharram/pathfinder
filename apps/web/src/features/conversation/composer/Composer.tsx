@@ -20,7 +20,7 @@ import { beginStrategy } from "@pathfinder/shared/generated/hooks/useBeginStrate
 import { toUserMessage } from "@/lib/api/errors";
 import { getAuthHeaders } from "@/lib/api/http";
 import { strategyQueryOptions } from "@/lib/api/strategy";
-import { handleWdkLoginRequired } from "@/state/useAuthGateStore";
+import { handleWdkAuthRefusal } from "@/state/useAuthGateStore";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { QuotaExhaustedBanner, useQuotaExhausted } from "./QuotaExhaustedBanner";
@@ -124,7 +124,8 @@ export function Composer({ conversationId }: { conversationId: string }) {
     try {
       await beginStrategy(conversationId, { siteId });
     } catch (err) {
-      if (!handleWdkLoginRequired(err)) {
+      const retry = (): void => void runCommand(command, values);
+      if (!handleWdkAuthRefusal(err, retry)) {
         toast.error(toUserMessage(err, "Failed to start conversation"));
       }
       return;

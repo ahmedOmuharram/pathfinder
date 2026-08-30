@@ -6,6 +6,7 @@ Each function takes ``RunContext[AgentDeps]`` and mirrors the original
 
 from __future__ import annotations
 
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 from pydantic_ai import RunContext
@@ -29,12 +30,32 @@ from pathfinder.platform.tool_errors import ToolErrorPayload
 
 
 def _step_updated_return(
-    session: StrategySession, graph: StrategyGraph, step: StrategyStep
-) -> ToolReturn[StepOkResponse]:
+    ctx: RunContext[AgentDeps],
+    session: StrategySession,
+    graph: StrategyGraph,
+    step: StrategyStep,
+    summary: str,
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
     """Wrap an attachment-mutation success in a ToolReturn with one snapshot."""
-    return ToolReturn(
-        return_value=step_ok_response(session, graph, step),
-        metadata=[graph_snapshot_chunk(session, graph)],
+    return with_summary(
+        step_ok_response(session, graph, step),
+        summary,
+        ctx=ctx,
+        extra=[graph_snapshot_chunk(session, graph)],
+    )
+
+
+def _step_missing(
+    ctx: RunContext[AgentDeps],
+    payload: ToolErrorPayload,
+    step_id: str,
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
+    """The attachment named a step the graph does not hold."""
+    return with_summary(
+        payload,
+        f"No step {step_id} in the strategy",
+        ctx=ctx,
+        status="warn",
     )
 
 
@@ -46,7 +67,7 @@ async def add_step_filter(
     *,
     disabled: bool = False,
     graph_id: str | None = None,
-) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
     """Attach or update a WDK filter on a step.
 
     Filters narrow a step's result set without changing its search.
@@ -64,14 +85,16 @@ async def add_step_filter(
 
     result = get_graph_and_step(session, graph_id, step_id)
     if isinstance(result, ToolErrorPayload):
-        return result
+        return _step_missing(ctx, result, step_id)
     graph, step = result
 
     existing = [f for f in step.filters if f.name != filter_name]
     existing.append(StepFilter(name=filter_name, value=value, disabled=disabled))
     step.filters = existing
 
-    return _step_updated_return(session, graph, step)
+    return _step_updated_return(
+        ctx, session, graph, step, f"{filter_name} added to {step_id}"
+    )
 
 
 async def add_step_analysis(
@@ -81,7 +104,7 @@ async def add_step_analysis(
     parameters: JSONObject | None = None,
     custom_name: str | None = None,
     graph_id: str | None = None,
-) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
     """Attach an analysis configuration to a step.
 
     Analyses run server-side computations on a step's result set
@@ -100,7 +123,7 @@ async def add_step_analysis(
 
     result = get_graph_and_step(session, graph_id, step_id)
     if isinstance(result, ToolErrorPayload):
-        return result
+        return _step_missing(ctx, result, step_id)
     graph, step = result
 
     step.analyses.append(
@@ -111,7 +134,9 @@ async def add_step_analysis(
         )
     )
 
-    return _step_updated_return(session, graph, step)
+    return _step_updated_return(
+        ctx, session, graph, step, f"{analysis_type} added to {step_id}"
+    )
 
 
 async def add_step_report(
@@ -120,7 +145,7 @@ async def add_step_report(
     report_name: str = "standard",
     config: JSONObject | None = None,
     graph_id: str | None = None,
-) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse | ToolErrorPayload]:
     """Attach a report configuration to a step.
 
     Reports control how step results are formatted for download or
@@ -137,9 +162,11 @@ async def add_step_report(
 
     result = get_graph_and_step(session, graph_id, step_id)
     if isinstance(result, ToolErrorPayload):
-        return result
+        return _step_missing(ctx, result, step_id)
     graph, step = result
 
     step.reports.append(StepReport(report_name=report_name, config=config or {}))
 
-    return _step_updated_return(session, graph, step)
+    return _step_updated_return(
+        ctx, session, graph, step, f"{report_name} report added to {step_id}"
+    )

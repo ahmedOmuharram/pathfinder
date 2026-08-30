@@ -11,7 +11,10 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
+from assistant_core.graph.tool_summary import summary_chunks, with_summary
 from assistant_core.platform.logging import get_logger
+from assistant_core.platform.pydantic_base import CamelModel
+from pydantic import ConfigDict, Field
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -19,7 +22,7 @@ from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.stream_events import enrichment_results_event
-from pathfinder.ai.tools.durable import durable_tool
+from pathfinder.ai.tools.durable import DurableOutcome, durable_tool
 from pathfinder.ai.tools.standalone._stream_parts import gene_set_chunk
 from pathfinder.ai.tools.standalone._workbench_models import (
     GeneSetCreatedResponse,
@@ -84,8 +87,8 @@ async def create_workbench_gene_set(
         name=gs.name,
         gene_count=len(gs.gene_ids),
     )
-    return ToolReturn(
-        return_value=GeneSetCreatedResponse(
+    return with_summary(
+        GeneSetCreatedResponse(
             gene_set_created=GeneSetCreatedSummary(
                 id=gs.id,
                 name=gs.name,
@@ -95,7 +98,9 @@ async def create_workbench_gene_set(
             ),
             message=f"Gene set '{gs.name}' with {len(gs.gene_ids)} genes has been created in the Workbench.",
         ),
-        metadata=[
+        f"{gs.name}: {len(gs.gene_ids):,} genes",
+        ctx=ctx,
+        extra=[
             gene_set_chunk(
                 gene_set_id=gs.id,
                 name=gs.name,
@@ -115,30 +120,51 @@ EnrichmentType = Literal[
 ]
 
 
+class _EnrichmentOutcome(CamelModel):
+    """What a finished enrichment run reports about its terms."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    gene_set_id: str = ""
+    gene_set_name: str = ""
+    gene_count: int = 0
+    total_significant_terms: int = 0
+    analysis_types_run: list[str] = Field(default_factory=list)
+    enrichment_results: list[dict[str, object]] = Field(default_factory=list)
+    downloads: dict[str, str | int] | None = None
+
+
 def _enrichment_chunks_from_result(
     resumed: Any,
     task_id: UUID,
+    tool_call_id: str | None,
 ) -> list[BaseChunk]:
-    if not isinstance(resumed, dict):
+    outcome = DurableOutcome.model_validate(resumed)
+    if not outcome.succeeded:
         return []
-    result = resumed.get("result") if resumed.get("status") == "success" else None
-    if not isinstance(result, dict):
-        return []
-    results = result.get("enrichmentResults")
-    if not isinstance(results, list):
-        return []
-    downloads_raw = result.get("downloads")
-    downloads = downloads_raw if isinstance(downloads_raw, dict) else None
-    return [
-        enrichment_results_event(
-            task_id=task_id,
-            gene_set_id=str(result.get("geneSetId") or ""),
-            gene_set_name=str(result.get("geneSetName") or ""),
-            gene_count=int(result.get("geneCount") or 0),
-            results=results,
-            downloads=downloads,
+    enrichment = _EnrichmentOutcome.model_validate(outcome.result)
+    terms = enrichment.total_significant_terms
+    chunks: list[BaseChunk] = []
+    if enrichment.enrichment_results:
+        chunks.append(
+            enrichment_results_event(
+                task_id=task_id,
+                gene_set_id=enrichment.gene_set_id,
+                gene_set_name=enrichment.gene_set_name,
+                gene_count=enrichment.gene_count,
+                results=enrichment.enrichment_results,
+                downloads=enrichment.downloads,
+            ),
+        )
+    chunks.extend(
+        summary_chunks(
+            tool_call_id,
+            f"{terms} enriched terms across "
+            f"{len(enrichment.analysis_types_run)} analyses",
+            status="ok" if terms else "empty",
         ),
-    ]
+    )
+    return chunks
 
 
 @durable_tool(
@@ -176,7 +202,7 @@ async def run_gene_set_enrichment(
 
 async def list_workbench_gene_sets(
     ctx: RunContext[AgentDeps],
-) -> GeneSetListResponse:
+) -> ToolReturn[GeneSetListResponse]:
     """List all gene sets currently in the user's Workbench.
 
     Returns a summary of each gene set including name, gene count,
@@ -189,17 +215,21 @@ async def list_workbench_gene_sets(
         sets = await store.alist_for_user(deps.user_id, site_id=deps.site_id)
     else:
         sets = await store.alist_all(site_id=deps.site_id)
-    return GeneSetListResponse(
-        gene_sets=[
-            GeneSetListItem(
-                id=gs.id,
-                name=gs.name,
-                gene_count=len(gs.gene_ids),
-                source=gs.source,
-                search_name=gs.search_name,
-                has_wdk_step=gs.wdk_step_id is not None,
-            )
-            for gs in sets
-        ],
-        total_sets=len(sets),
+    return with_summary(
+        GeneSetListResponse(
+            gene_sets=[
+                GeneSetListItem(
+                    id=gs.id,
+                    name=gs.name,
+                    gene_count=len(gs.gene_ids),
+                    source=gs.source,
+                    search_name=gs.search_name,
+                    has_wdk_step=gs.wdk_step_id is not None,
+                )
+                for gs in sets
+            ],
+            total_sets=len(sets),
+        ),
+        f"{len(sets)} gene sets",
+        ctx=ctx,
     )

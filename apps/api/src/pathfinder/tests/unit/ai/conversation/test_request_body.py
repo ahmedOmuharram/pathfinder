@@ -96,6 +96,39 @@ def test_a_rehydrated_assistant_message_with_turn_facts_is_accepted() -> None:
     assert body.messages[0].role == "assistant"
 
 
+def test_a_tool_part_carrying_its_own_summary_is_accepted() -> None:
+    """A conforming reducer folds `data-tool-summary` onto the call's part; the
+    strict part union forbids the two fields on resend, so they parse away."""
+    body = ChatRequestBody.model_validate(
+        _body(
+            messages=[
+                {
+                    "id": "m1",
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool-search_eda_studies",
+                            "toolCallId": "c1",
+                            "state": "output-available",
+                            "input": {},
+                            "output": {"studies": 3},
+                            "summary": "3 studies matched heat shock",
+                            "summaryStatus": "ok",
+                        }
+                    ],
+                },
+                {
+                    "id": "m2",
+                    "role": "user",
+                    "parts": [{"type": "text", "text": "open the first one"}],
+                },
+            ]
+        )
+    )
+
+    assert len(body.messages) == 2
+
+
 def test_an_oversized_site_id_is_refused() -> None:
     with pytest.raises(ValidationError):
         ChatRequestBody.model_validate(_body(siteId="s" * 51))

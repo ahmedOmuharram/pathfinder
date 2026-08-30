@@ -61,7 +61,7 @@ class TestListNotes:
         ctx = _run_ctx(conv_id=conv_id, db_session_factory=db_session_factory)
         await sc_tools.note(ctx, title="T1", summary="S1", body="B1")
         await sc_tools.note(ctx, title="T2", summary="S2", body="B2", tags=["alpha"])
-        result = await sc_tools.list_notes(ctx)
+        result = (await sc_tools.list_notes(ctx)).return_value
         assert result["totalNotes"] == 2
         matches = result["matches"]
         assert isinstance(matches, list)
@@ -79,7 +79,7 @@ class TestListNotes:
         ctx = _run_ctx(conv_id=conv_id, db_session_factory=db_session_factory)
         await sc_tools.note(ctx, title="T1", summary="S", body="B", tags=["alpha"])
         await sc_tools.note(ctx, title="T2", summary="S", body="B", tags=["beta"])
-        result = await sc_tools.list_notes(ctx, tag="alpha")
+        result = (await sc_tools.list_notes(ctx, tag="alpha")).return_value
         matches = result["matches"]
         assert isinstance(matches, list)
         assert [r["title"] for r in matches] == ["T1"]
@@ -94,7 +94,7 @@ class TestListNotes:
         ctx = _run_ctx(conv_id=conv_id, db_session_factory=db_session_factory)
         await sc_tools.note(ctx, title="T1", summary="S", body="B")
         await sc_tools.note(ctx, title="T2", summary="S", body="B", pinned=True)
-        result = await sc_tools.list_notes(ctx, pinned=True)
+        result = (await sc_tools.list_notes(ctx, pinned=True)).return_value
         matches = result["matches"]
         assert isinstance(matches, list)
         assert [r["title"] for r in matches] == ["T2"]
@@ -107,7 +107,7 @@ class TestListNotes:
     ) -> None:
         del db_session
         ctx = _run_ctx(conv_id=conv_id, db_session_factory=db_session_factory)
-        result = await sc_tools.list_notes(ctx)
+        result = (await sc_tools.list_notes(ctx)).return_value
         assert result["totalNotes"] == 0
         assert result["matches"] == []
         assert "No notes saved" in str(result["summary"])
@@ -134,7 +134,9 @@ class TestSearchNotes:
             summary="lost specificity",
             body="irrelevant",
         )
-        result = await sc_tools.search_notes(ctx, query="gametocyte threshold")
+        result = (
+            await sc_tools.search_notes(ctx, query="gametocyte threshold")
+        ).return_value
         matches = result["matches"]
         assert isinstance(matches, list)
         titles = [r["title"] for r in matches]
@@ -151,7 +153,7 @@ class TestSearchNotes:
     ) -> None:
         del db_session
         ctx = _run_ctx(conv_id=conv_id, db_session_factory=db_session_factory)
-        result = await sc_tools.search_notes(ctx, query="anything")
+        result = (await sc_tools.search_notes(ctx, query="anything")).return_value
         assert result["totalNotes"] == 0
         assert result["matches"] == []
         assert "No notes saved" in str(result["summary"])
@@ -167,7 +169,7 @@ class TestSearchNotes:
         await sc_tools.note(
             ctx, title="unrelated", summary="s", body="nothing matches here"
         )
-        result = await sc_tools.search_notes(ctx, query="zqzqzq")
+        result = (await sc_tools.search_notes(ctx, query="zqzqzq")).return_value
         assert result["totalNotes"] == 1
         assert result["matches"] == []
         summary = str(result["summary"])
@@ -188,7 +190,7 @@ class TestReadNote:
         assert isinstance(created.return_value, dict)
         nid = created.return_value["id"]
         assert isinstance(nid, str)
-        full = await sc_tools.read_note(ctx, note_id=nid)
+        full = (await sc_tools.read_note(ctx, note_id=nid)).return_value
         assert full["body"] == "FULL BODY"
         assert full["bodyTokens"] == len("FULL BODY") // 4
 

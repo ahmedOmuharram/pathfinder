@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { APIError } from "./http";
-import { isProblemDetail, toUserMessage, wdkLoginRequiredDetail } from "./errors";
+import { isProblemDetail, toUserMessage, wdkAuthRefusal } from "./errors";
 
 describe("lib/api/errors", () => {
   it("detects FastAPI-style problem detail objects", () => {
@@ -46,24 +46,48 @@ const LOGIN_REQUIRED_BODY = {
   code: "WDK_LOGIN_REQUIRED",
 };
 
-describe("wdkLoginRequiredDetail", () => {
-  it("returns the server detail for a 401 APIError carrying the code", () => {
+const IDENTITY_MISMATCH_BODY = {
+  type: "about:blank",
+  title: "VEuPathDB account changed",
+  status: 401,
+  detail:
+    "Signed in to VEuPathDB as a different account than this PathFinder session. Sign in again.",
+  code: "WDK_IDENTITY_MISMATCH",
+};
+
+describe("wdkAuthRefusal", () => {
+  it("names the code and detail for a 401 APIError that wants a login", () => {
     const err = new APIError(LOGIN_REQUIRED_BODY.detail, {
       status: 401,
       statusText: "Unauthorized",
       url: "http://localhost:3000/api/v1/conversations/c1/begin",
       data: LOGIN_REQUIRED_BODY,
     });
-    expect(wdkLoginRequiredDetail(err)).toBe(
-      "Sign in to VEuPathDB to use searches, strategies and gene sets.",
-    );
+    expect(wdkAuthRefusal(err)).toEqual({
+      code: "WDK_LOGIN_REQUIRED",
+      detail: "Sign in to VEuPathDB to use searches, strategies and gene sets.",
+    });
   });
 
-  it("returns the server detail when the chat transport rethrows the body as text", () => {
+  it("names the code and detail for a 401 that reports a second account", () => {
+    const err = new APIError(IDENTITY_MISMATCH_BODY.detail, {
+      status: 401,
+      statusText: "Unauthorized",
+      url: "http://localhost:3000/api/v1/eda/viz",
+      data: IDENTITY_MISMATCH_BODY,
+    });
+    expect(wdkAuthRefusal(err)).toEqual({
+      code: "WDK_IDENTITY_MISMATCH",
+      detail: IDENTITY_MISMATCH_BODY.detail,
+    });
+  });
+
+  it("reads the body when the chat transport rethrows it as text", () => {
     const err = new Error(JSON.stringify(LOGIN_REQUIRED_BODY));
-    expect(wdkLoginRequiredDetail(err)).toBe(
-      "Sign in to VEuPathDB to use searches, strategies and gene sets.",
-    );
+    expect(wdkAuthRefusal(err)).toEqual({
+      code: "WDK_LOGIN_REQUIRED",
+      detail: "Sign in to VEuPathDB to use searches, strategies and gene sets.",
+    });
   });
 
   it("ignores a 401 that carries another code", () => {
@@ -73,7 +97,7 @@ describe("wdkLoginRequiredDetail", () => {
       url: "/x",
       data: { title: "Unauthorized", status: 401, detail: "no", code: "UNAUTHORIZED" },
     });
-    expect(wdkLoginRequiredDetail(err)).toBeNull();
+    expect(wdkAuthRefusal(err)).toBeNull();
   });
 
   it("ignores non-401 errors, plain text errors and non-errors", () => {
@@ -83,9 +107,9 @@ describe("wdkLoginRequiredDetail", () => {
       url: "/x",
       data: LOGIN_REQUIRED_BODY,
     });
-    expect(wdkLoginRequiredDetail(wrongStatus)).toBeNull();
-    expect(wdkLoginRequiredDetail(new Error("Failed to fetch"))).toBeNull();
-    expect(wdkLoginRequiredDetail(null)).toBeNull();
-    expect(wdkLoginRequiredDetail("WDK_LOGIN_REQUIRED")).toBeNull();
+    expect(wdkAuthRefusal(wrongStatus)).toBeNull();
+    expect(wdkAuthRefusal(new Error("Failed to fetch"))).toBeNull();
+    expect(wdkAuthRefusal(null)).toBeNull();
+    expect(wdkAuthRefusal("WDK_LOGIN_REQUIRED")).toBeNull();
   });
 });

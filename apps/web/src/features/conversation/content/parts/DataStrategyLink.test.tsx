@@ -25,10 +25,45 @@ describe("DataStrategyLink", () => {
     );
   });
 
-  it("renders fallback text when no title", () => {
+  it("titles the figure Strategy and captions it with the strategy name", () => {
+    render(
+      <DataStrategyLink
+        data={{
+          strategyId: "s1",
+          url: "https://plasmodb.org/plasmo/app/workspace/strategies/s1",
+          title: "My Strategy",
+        }}
+      />,
+    );
+    expect(screen.getByText("Strategy").tagName).toBe("FIGCAPTION");
+    expect(screen.getByTestId("figure-caption").textContent).toBe("My Strategy");
+  });
+
+  it("names the strategy by its id when the wire carries no title", () => {
     render(
       <DataStrategyLink data={{ strategyId: "s2", url: "https://plasmodb.org/s2" }} />,
     );
-    expect(screen.getByText("Strategy s2")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Strategy s2" })).toHaveAttribute(
+      "href",
+      "https://plasmodb.org/s2",
+    );
+    expect(screen.getByTestId("figure-caption").textContent).toBe("Strategy s2");
+  });
+
+  it("separates itself with a hairline, never with a card", () => {
+    render(
+      <DataStrategyLink
+        data={{ strategyId: "s1", url: "https://plasmodb.org/s1", title: "Test" }}
+      />,
+    );
+    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
+      "my-6",
+      "border-t",
+      "border-border/60",
+      "pt-4",
+    ]);
+    expect(screen.getByTestId("data-strategy-link").className).not.toMatch(
+      /\bborder\b|\brounded-md\b|\bbg-card\b/,
+    );
   });
 });

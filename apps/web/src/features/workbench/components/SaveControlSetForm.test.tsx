@@ -60,6 +60,27 @@ describe("SaveControlSetForm", () => {
     });
   });
 
+  it("confirms the save with the success token", async () => {
+    mockCreateControlSet.mockResolvedValue({ id: "cs-new", name: "Test" });
+    render(
+      <SaveControlSetForm
+        siteId="PlasmoDB"
+        positiveIds={["PF3D7_0100100"]}
+        negativeIds={[]}
+      />,
+    );
+    fireEvent.click(screen.getByText(/Save as Control Set/));
+    fireEvent.change(screen.getByPlaceholderText("Control set name"), {
+      target: { value: "My controls" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+
+    const confirmation = await screen.findByText("Control set saved!");
+    expect(confirmation).toHaveClass("text-success");
+    expect(confirmation.className).not.toContain("green-");
+    expect(confirmation.className).not.toContain("dark:");
+  });
+
   it("collapses form on cancel", () => {
     render(
       <SaveControlSetForm

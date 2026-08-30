@@ -248,10 +248,27 @@ describe("StepContributionPanel", () => {
     const neutralBadge = screen.getByText("neutral");
     const harmfulBadge = screen.getByText("harmful");
 
-    expect(essentialBadge.className).toContain("green");
-    expect(helpfulBadge.className).toContain("blue");
-    expect(neutralBadge.className).toContain("gray");
-    expect(harmfulBadge.className).toContain("red");
+    expect(essentialBadge).toHaveClass("bg-success/15", "text-success");
+    expect(helpfulBadge).toHaveClass("bg-primary/15", "text-primary");
+    expect(neutralBadge).toHaveClass("bg-muted", "text-muted-foreground");
+    expect(harmfulBadge).toHaveClass("bg-destructive/15", "text-destructive");
+    for (const badge of [essentialBadge, helpfulBadge, neutralBadge, harmfulBadge]) {
+      expect(badge.className).not.toContain("dark:");
+    }
+  });
+
+  it("marks the recommended operator with the success token", () => {
+    storeState["lastExperiment"] = makeExperiment(
+      makeStepAnalysis({
+        operatorComparisons: [makeOperatorComparison()],
+      }),
+    );
+    storeState["lastExperimentSetId"] = "set-1";
+
+    render(<StepContributionPanel />);
+    const mark = screen.getByText("*");
+    expect(mark).toHaveClass("text-success");
+    expect(mark.className).not.toContain("green-");
   });
 
   it("renders operator comparison table when available", () => {

@@ -38,7 +38,9 @@ async def test_replay_returns_events_past_cursor(
     del patch_app_db_engine, db_cleaner
     conv_id, turn_id = await _seed_conversation()
     writer = ChatEventWriter(conversation_id=conv_id, turn_id=turn_id)
-    id1 = await writer.write({"type": "text-start", "id": "a"})
+    cursor = await writer.write({"type": "start"})
+    held = await writer.write({"type": "text-start", "id": "a"})
+    assert held == cursor
     id2 = await writer.write({"type": "text-delta", "id": "a", "delta": "x"})
     id3 = await writer.write({"type": "text-end", "id": "a"})
 
@@ -47,15 +49,15 @@ async def test_replay_returns_events_past_cursor(
     async def consume() -> None:
         async for event_id, chunk in replay_and_tail(
             conversation_id=conv_id,
-            after=id1,
+            after=cursor,
         ):
             collected.append((event_id, chunk))
             if event_id >= id3:
                 break
 
     await asyncio.wait_for(consume(), timeout=5)
-    assert [e[0] for e in collected] == [id2, id3]
-    assert collected[0][1]["type"] == "text-delta"
+    assert [e[0] for e in collected] == [id2 - 1, id2, id3]
+    assert [e[1]["type"] for e in collected] == ["text-start", "text-delta", "text-end"]
 
 
 @pytest.mark.asyncio

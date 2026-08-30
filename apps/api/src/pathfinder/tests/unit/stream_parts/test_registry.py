@@ -45,6 +45,7 @@ PINNED_SCHEMA_NAMES = frozenset(
         "conversation_title",
         "lead_usage",
         "strategy_revision",
+        "tool_summary",
     }
 )
 
@@ -61,6 +62,7 @@ PINNED_CORE_KINDS = frozenset(
         "data-sub-agent-call",
         "data-sub-agent-step",
         "data-conversation-title",
+        "data-tool-summary",
     }
 )
 

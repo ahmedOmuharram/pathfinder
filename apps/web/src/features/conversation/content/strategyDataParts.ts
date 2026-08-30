@@ -7,6 +7,7 @@ import { DataStrategyLink } from "./parts/DataStrategyLink";
 import { DataStrategyMeta } from "./parts/DataStrategyMeta";
 import { DataVariantComparison } from "./parts/DataVariantComparison";
 import { DataVerificationSummary } from "./parts/DataVerificationSummary";
+import { noRender } from "./coreDataParts";
 import type { DataPartComponentMap } from "./dataPartComponentMap";
 
 /** Parts of the strategy product: graph, strategy, gene sets, experiments. */
@@ -23,7 +24,7 @@ export type StrategyDataPartKind =
   | "data-verification-summary";
 
 export const strategyDataPartComponents: DataPartComponentMap<StrategyDataPartKind> = {
-  "data-ledger-update": () => null,
+  "data-ledger-update": noRender,
   "data-enrichment-results": DataEnrichmentResults,
   "data-strategy-link": DataStrategyLink,
   "data-strategy-meta": DataStrategyMeta,

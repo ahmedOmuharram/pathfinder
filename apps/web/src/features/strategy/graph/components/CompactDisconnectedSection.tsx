@@ -37,16 +37,16 @@ export function CompactDisconnectedSection({
   return (
     <section
       data-testid="compact-strategy-orphans"
-      className="rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-2"
+      className="rounded-md border border-dashed border-warning/40 bg-warning/10 p-2"
     >
-      <header className="mb-1 flex items-center justify-between gap-2 px-1 text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-400">
+      <header className="mb-1 flex items-center justify-between gap-2 px-1 text-[10px] uppercase tracking-wide text-warning">
         <span>{orphans.length} disconnected</span>
         <Button
           type="button"
           size="xs"
           variant="ghost"
           onClick={handleClear}
-          className="h-5 gap-1 px-1.5 text-[10px] text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+          className="h-5 gap-1 px-1.5 text-[10px] text-warning hover:text-warning"
         >
           <Trash2 className="size-3" aria-hidden /> Remove all
         </Button>

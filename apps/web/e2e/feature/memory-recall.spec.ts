@@ -88,7 +88,7 @@ test.describe("Recalled memories", () => {
 
     const card = page.getByTestId("data-memory-retrieved");
     await expect(card).toBeVisible({ timeout: 20_000 });
-    await expect(card).toContainText("Recalled memories (2)");
+    await expect(page.getByTestId("figure-caption")).toContainText("2 memories");
     await expect(card).toContainText("strategy");
     await expect(card).toContainText("P. falciparum kinome sweep");
     await expect(card).toContainText("gene_set");

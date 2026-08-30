@@ -14,7 +14,12 @@ import {
   type StreamState,
   type TextPart,
 } from "./message.ts";
-import { type ToolTracker, applyToolChunk, toolChunkKinds } from "./reduceTool.ts";
+import {
+  type ToolTracker,
+  applyToolChunk,
+  applyToolSummary,
+  toolChunkKinds,
+} from "./reduceTool.ts";
 
 /** Every chunk kind the reducer answers to. Section 5.1 is the whole list. */
 export const HANDLED_CHUNK_KINDS: ReadonlySet<string> = new Set([
@@ -183,6 +188,7 @@ function appendSourceDocument(turn: TurnAccumulator, chunk: ProtocolChunk): void
 
 function applyChunk(turn: TurnAccumulator, chunk: ProtocolChunk): void {
   if (isDataChunk(chunk)) {
+    if (applyToolSummary(turn.tools, turn.parts, chunk)) return;
     applyDataChunk(turn, chunk);
     return;
   }

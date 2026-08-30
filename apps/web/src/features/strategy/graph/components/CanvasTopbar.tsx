@@ -257,7 +257,7 @@ function SyncStatusPill({ state, onRetry }: SyncStatusPillProps) {
   if (state === "paused") {
     return (
       <span
-        className="inline-flex items-center gap-1 text-amber-600"
+        className="inline-flex items-center gap-1 text-warning"
         data-testid="canvas-topbar-sync-state"
         data-sync-state="paused"
       >

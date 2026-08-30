@@ -1,5 +1,22 @@
-import { type ProtocolChunk, readString, readValue } from "./chunks.ts";
-import { type MessagePart, type ToolPart } from "./message.ts";
+import {
+  type ProtocolChunk,
+  fieldString,
+  readRecord,
+  readString,
+  readValue,
+} from "./chunks.ts";
+import {
+  type MessagePart,
+  type ToolPart,
+  type ToolPartIdentity,
+  type ToolSummaryStatus,
+  isToolPart,
+} from "./message.ts";
+
+/** The kind section 6.3 defines. It patches a call and appends no part. */
+export const TOOL_SUMMARY_KIND = "data-tool-summary";
+
+const TOOL_SUMMARY_STATUSES: readonly ToolSummaryStatus[] = ["ok", "empty", "warn"];
 
 export const toolChunkKinds = [
   "tool-input-start",
@@ -20,18 +37,21 @@ interface ToolTrack {
   input: unknown;
   inputText: string;
   approvalId: string | undefined;
+  summary: string | undefined;
+  summaryStatus: ToolSummaryStatus | undefined;
 }
 
 export type ToolTracker = Map<string, ToolTrack>;
 
-function identity(
-  track: ToolTrack,
-  toolCallId: string,
-): {
-  type: `tool-${string}`;
-  toolCallId: string;
-} {
-  return { type: `tool-${track.toolName}`, toolCallId };
+/**
+ * The fields every state of the call shares. The summary rides here so a line
+ * written before the output survives the write that carries the output.
+ */
+function identity(track: ToolTrack, toolCallId: string): ToolPartIdentity {
+  const shared: ToolPartIdentity = { type: `tool-${track.toolName}`, toolCallId };
+  if (track.summary !== undefined) shared.summary = track.summary;
+  if (track.summaryStatus !== undefined) shared.summaryStatus = track.summaryStatus;
+  return shared;
 }
 
 function openTrack(
@@ -48,6 +68,8 @@ function openTrack(
     input: undefined,
     inputText: "",
     approvalId: undefined,
+    summary: undefined,
+    summaryStatus: undefined,
   };
   tracker.set(toolCallId, track);
   parts.push({
@@ -174,6 +196,36 @@ function dispatch(
     default:
       return;
   }
+}
+
+/**
+ * Apply a summary chunk. Reports whether the chunk was one.
+ *
+ * This reducer folds the line onto the call's part; the AI SDK's reducer leaves
+ * it beside the part. `buildTrace` reads both shapes, which is what makes the
+ * two agree.
+ */
+export function applyToolSummary(
+  tracker: ToolTracker,
+  parts: MessagePart[],
+  chunk: ProtocolChunk,
+): boolean {
+  if (chunk.type !== TOOL_SUMMARY_KIND) return false;
+  const data = readRecord(chunk, "data");
+  if (data === undefined) return true;
+  const toolCallId = fieldString(data, "toolCallId");
+  const summary = fieldString(data, "summary");
+  if (toolCallId === undefined || summary === undefined) return true;
+  const track = tracker.get(toolCallId);
+  if (track === undefined) return true;
+  const raw = fieldString(data, "status");
+  track.summary = summary;
+  track.summaryStatus = TOOL_SUMMARY_STATUSES.find((known) => known === raw) ?? "ok";
+  const part = parts[track.index];
+  if (part === undefined || !isToolPart(part)) return true;
+  part.summary = track.summary;
+  part.summaryStatus = track.summaryStatus;
+  return true;
 }
 
 /** Apply a tool chunk. Reports whether the chunk was one. */

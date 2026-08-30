@@ -1,10 +1,10 @@
 ---
 type: Decision
 title: A WDK-backed feature requires a registered VEuPathDB login
-description: Every route that reads or writes a user's WDK resources refuses a request that names no registered VEuPathDB user, with 401 WDK_LOGIN_REQUIRED; guest minting is deleted; the application's service token serves user-independent reads only; a shared guest or service identity for anonymous users was rejected.
+description: Every route that reads or writes a user's WDK resources refuses a request that names no registered VEuPathDB user, with 401 WDK_LOGIN_REQUIRED, and refuses one whose token names another account, with 401 WDK_IDENTITY_MISMATCH; guest minting is deleted; the application's service token serves user-independent reads only; a shared guest or service identity for anonymous users was rejected.
 tags: [security, auth, veupathdb, wdk, guests, transport]
 generated: { by: claude-code/opus-5, at: 2026-08-19T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-19T00:00:00Z }
+verified: { by: claude-code/opus-5, at: 2026-08-30T00:00:00Z }
 status: stable
 ---
 
@@ -60,6 +60,20 @@ missing token, a token that does not verify, and a token whose `is_guest` claim
 is true are all the same refusal. An unreadable JWKS stays **503** naming the
 identity provider, because the credential was never examined.
 
+**One PathFinder session acts as one VEuPathDB account.** The `pathfinder-auth`
+cookie and the `Authorization` cookie are independent, so a second VEuPathDB
+sign-in in another tab leaves a session whose two credentials name two accounts.
+The gate resolves the token to its internal user through
+`services/wdk_identity.py::require_session_matches_wdk_identity` and refuses a
+request whose token names another user with 401
+`ErrorCode.WDK_IDENTITY_MISMATCH`, title "VEuPathDB account changed". A token
+that resolves to nobody is a WDK outage, not a second account, and the session
+keeps its own identity. `POST /api/v1/veupathdb/auth/refresh` relinks: it
+resolves the token's account on every call, and mints a new internal token when
+that account is not the cookie's, instead of returning early on any cookie that
+decodes. The web client treats the new code like the login refusal, except that
+it calls the refresh once and retries first.
+
 **The service account is the application, never a user.** `VEUPATHDB_AUTH_TOKEN`
 is the fallback in `integrations/veupathdb/_http.py`, and it may serve only
 user-independent reads: record types, searches, parameter metadata and
@@ -113,3 +127,7 @@ and settings, list and delete their own gene sets, read and annotate their own
 experiments, and purge their own data. Chat, searches, strategies, step counts,
 gene-set creation and enrichment, experiment runs and results, and the eval
 routes answer 401 `WDK_LOGIN_REQUIRED` until they sign in.
+
+A user who signs in to VEuPathDB as a second account sees those same routes
+answer 401 `WDK_IDENTITY_MISMATCH` until the session is relinked, instead of
+writing analyses and strategies under an account the session cannot read back.

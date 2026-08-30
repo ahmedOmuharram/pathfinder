@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.platform.types import JSONObject
 from pydantic import JsonValue
 from pydantic_ai import RunContext
@@ -24,7 +25,11 @@ from pathfinder.domain.eda import (
     walk_entities,
 )
 from pathfinder.services.eda import EdaFilter, EdaStudyDetail
-from pathfinder.services.eda.authoring import SubsetRejectedError, preview_subset
+from pathfinder.services.eda.authoring import (
+    SubsetPreview,
+    SubsetRejectedError,
+    preview_subset,
+)
 from pathfinder.services.eda.binding import (
     ConversationAnalysisView,
     apply_filters,
@@ -120,9 +125,11 @@ async def open_eda_analysis(
             gene_problem=gene.error, can_export=state.can_export_rows
         ),
     )
-    return ToolReturn(
-        return_value=opened,
-        metadata=[eda_analysis_state_chunk(state)],
+    return with_summary(
+        opened,
+        f"Opened {state.display_name} on {dataset_id}",
+        ctx=ctx,
+        extra=[eda_analysis_state_chunk(state)],
     )
 
 
@@ -259,7 +266,7 @@ async def set_eda_filters(
     *,
     dataset_id: str,
     filters: list[EdaFilter] | None = None,
-) -> EdaFiltersResult | ToolReturn[EdaFiltersResult]:
+) -> ToolReturn[EdaFiltersResult]:
     """Set the whole subset of the open EDA analysis, in two calls.
 
     Call this ONCE with no ``filters`` to receive ``decide``, the FILTER SHEET:
@@ -311,11 +318,16 @@ async def set_eda_filters(
     bound = await _bound_or_retry(ctx, dataset_id)
     if filters is None:
         _entry, study = await _study(site_id, dataset_id)
-        return EdaFiltersResult(
-            analysis_id=bound.analysis_id,
-            dataset_id=dataset_id,
-            decide=_sheet_for(ctx, study, dataset_id),
-            guidance=_SHEET_GUIDANCE,
+        sheet = _sheet_for(ctx, study, dataset_id)
+        return with_summary(
+            EdaFiltersResult(
+                analysis_id=bound.analysis_id,
+                dataset_id=dataset_id,
+                decide=sheet,
+                guidance=_SHEET_GUIDANCE,
+            ),
+            f"{len(sheet)} filter slots to fill",
+            ctx=ctx,
         )
     try:
         state = await apply_filters(
@@ -331,8 +343,8 @@ async def set_eda_filters(
             f"request the sheet again."
         )
         raise ModelRetry(msg) from exc
-    return ToolReturn(
-        return_value=EdaFiltersResult(
+    return with_summary(
+        EdaFiltersResult(
             applied=True,
             analysis_id=bound.analysis_id,
             dataset_id=dataset_id,
@@ -340,7 +352,9 @@ async def set_eda_filters(
             filter_summaries=state.filter_summaries,
             guidance=_APPLIED_GUIDANCE,
         ),
-        metadata=[eda_analysis_state_chunk(state)],
+        f"{state.num_filters} filters: {'; '.join(state.filter_summaries)}",
+        ctx=ctx,
+        extra=[eda_analysis_state_chunk(state)],
     )
 
 
@@ -450,7 +464,21 @@ async def preview_eda_subset(
         variable_display_name=result.variable_display_name,
         is_multi_valued=result.is_multi_valued,
     )
-    return ToolReturn(return_value=result, metadata=[chunk])
+    return with_summary(
+        result,
+        entity_count_clause(preview),
+        ctx=ctx,
+        status="ok" if preview.count else "empty",
+        extra=[chunk],
+    )
+
+
+def entity_count_clause(preview: SubsetPreview) -> str:
+    """One clause per entity a preview carries: kept of total, then the name."""
+    return (
+        f"{preview.count:,} of {preview.unfiltered_count:,} "
+        f"{preview.entity_display_name}"
+    )
 
 
 def _preview_guidance(

@@ -143,6 +143,23 @@ describe("EnsemblePanel", () => {
     expect(screen.getByText("G3").closest("tr")).toHaveTextContent("50.0%");
   });
 
+  it("marks a gene present in the positives with the success token", async () => {
+    storeState["geneSets"] = [makeGeneSet("s1", ["G1"]), makeGeneSet("s2", ["G1"])];
+    storeState["selectedSetIds"] = ["s1", "s2"];
+
+    mockRequestJson.mockResolvedValueOnce([
+      { geneId: "G1", frequency: 1.0, count: 2, total: 2, inPositives: true },
+    ]);
+
+    render(<EnsemblePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /compute/i }));
+
+    const yes = await screen.findByText("Yes");
+    expect(yes).toHaveClass("text-success");
+    expect(yes.className).not.toContain("green-");
+    expect(yes.className).not.toContain("dark:");
+  });
+
   it("sends correct request body to the API", async () => {
     storeState["geneSets"] = [
       makeGeneSet("s1", ["G1"]),

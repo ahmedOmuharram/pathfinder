@@ -76,20 +76,22 @@ export function CompareModal({ open, onClose, setA, setB }: CompareModalProps) {
             {
               title: `Only in ${setA.name}`,
               genes: comparison.onlyA,
-              color: "text-blue-500",
+              dot: "bg-[hsl(var(--chart-1))]",
             },
-            { title: "Shared", genes: comparison.shared, color: "text-green-500" },
+            {
+              title: "Shared",
+              genes: comparison.shared,
+              dot: "bg-[hsl(var(--chart-2))]",
+            },
             {
               title: `Only in ${setB.name}`,
               genes: comparison.onlyB,
-              color: "text-orange-500",
+              dot: "bg-[hsl(var(--chart-3))]",
             },
           ].map((col) => (
             <div key={col.title} className="flex flex-col">
               <h4 className="mb-2 text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${col.color.replace("text-", "bg-")}`}
-                />
+                <span className={`inline-block h-2 w-2 rounded-full ${col.dot}`} />
                 {col.title}
                 <span className="ml-auto text-[10px] font-normal">
                   {col.genes.length}

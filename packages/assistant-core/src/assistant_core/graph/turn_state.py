@@ -76,6 +76,10 @@ class UserQuestionAnswer(CamelModel):
     """The user's answer to one ``ConsultQuestion``: chosen option label(s)
     and/or a free-text note. ``chosen_labels`` is empty for free_text."""
 
+    # It is a tool return value, and a tool return reaches the wire through a
+    # serializer that names no aliases, so the model names them itself.
+    model_config = ConfigDict(serialize_by_alias=True)
+
     question_id: str
     prompt: str
     chosen_labels: list[str] = Field(default_factory=list)

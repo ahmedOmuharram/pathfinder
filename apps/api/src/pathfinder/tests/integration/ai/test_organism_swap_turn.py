@@ -373,14 +373,17 @@ def _frame_that_swaps_the_organism(monkeypatch: pytest.MonkeyPatch) -> list[str]
     async def _fake(**kwargs: Any) -> FrameResult:
         agent_deps: AgentDeps = kwargs["agent_deps"]
         ctx = MagicMock()
+        ctx.tool_call_id = "call_1"
         ctx.deps = agent_deps
-        first = await set_criterion(
-            ctx,
-            criterion_id="step_expr",
-            text="expression profile",
-            search_name="GenesByProfile",
-            params={"organism": [_PV], "profileset": _DERISI},
-        )
+        first = (
+            await set_criterion(
+                ctx,
+                criterion_id="step_expr",
+                text="expression profile",
+                search_name="GenesByProfile",
+                params={"organism": [_PV], "profileset": _DERISI},
+            )
+        ).return_value
         rounds.extend(entry.name for entry in first.redecide)
         await set_criterion(
             ctx,

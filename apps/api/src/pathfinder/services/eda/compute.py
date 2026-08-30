@@ -13,6 +13,8 @@ from pathfinder.integrations.eda.errors import EdaError
 from pathfinder.integrations.eda.factory import get_eda_client
 from pathfinder.integrations.eda.models import (
     EdaAnalysisDetail,
+    EdaComputation,
+    EdaComputationDescriptor,
     EdaComputeJob,
     EdaDifferentialExpressionConfig,
     EdaFilter,
@@ -21,6 +23,8 @@ from pathfinder.integrations.eda.models import (
     VolcanoStatsRow,
 )
 from pathfinder.platform.errors import AppError, ErrorCode
+from pathfinder.services.eda.authoring import apply_computation
+from pathfinder.services.eda.binding import read_analysis
 from pathfinder.services.eda.catalog import resolve_dataset
 
 _CONFLICT = 409
@@ -252,6 +256,51 @@ async def submit_compute(
         config=config,
         filters=filters,
         autostart=True,
+    )
+
+
+def _records(
+    analysis: EdaAnalysisDetail,
+    computation: EdaComputationDescriptor,
+) -> bool:
+    """Whether the analysis already carries exactly this compute."""
+    computations = analysis.descriptor.computations
+    return len(computations) == 1 and computations[0].descriptor == computation
+
+
+async def run_analysis_compute(
+    site_id: str,
+    *,
+    analysis_id: str,
+    dataset_id: str,
+    computation: EdaComputationDescriptor,
+) -> EdaComputeJob:
+    """Record this compute on the analysis, then start the job that answers it.
+
+    The analysis document is the SSOT every volcano reads, so a compute it
+    does not carry is written there before any job starts, and a
+    configuration the study rejects starts none. The identical call repeated
+    is the status poll, and a poll writes nothing. The analysis holds one
+    computation, so the analysis id names it.
+    """
+    entry = await resolve_dataset(site_id, dataset_id)
+    analysis = await read_analysis(site_id, analysis_id=analysis_id)
+    if not _records(analysis, computation):
+        analysis = await apply_computation(
+            site_id,
+            analysis_id=analysis_id,
+            dataset_id=dataset_id,
+            computation=EdaComputation(
+                computation_id=analysis_id,
+                descriptor=computation,
+            ),
+        )
+    return await submit_compute(
+        site_id,
+        compute_name=computation.type,
+        study_id=entry.study_id,
+        config=computation.configuration,
+        filters=analysis.descriptor.subset.descriptor,
     )
 
 

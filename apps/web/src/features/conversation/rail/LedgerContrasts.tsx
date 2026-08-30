@@ -28,11 +28,11 @@ export function LedgerContrasts({ contrasts }: { contrasts: LedgerContrastPayloa
           <div key={c.criterionId} className="text-[11px] leading-snug">
             <span className="font-mono text-muted-foreground">{c.criterionId}</span>
             <span className="mx-1 text-muted-foreground">·</span>
-            <span className={incomplete ? "text-amber-600" : "text-foreground"}>
+            <span className={incomplete ? "text-warning" : "text-foreground"}>
               {c.summary}
             </span>
             {incomplete && (
-              <span className="ml-1 text-[10px] text-amber-600/80">(incomplete)</span>
+              <span className="ml-1 text-[10px] text-warning">(incomplete)</span>
             )}
           </div>
         );

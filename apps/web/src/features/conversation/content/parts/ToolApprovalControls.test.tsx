@@ -6,6 +6,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 
+import { useSettingsStore } from "@/state/useSettingsStore";
+
 import {
   ChatHelpersProvider,
   type ChatHelpers,
@@ -16,6 +18,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 beforeEach(() => {
   vi.mocked(toast.error).mockClear();
+  useSettingsStore.setState({ showRawToolCalls: false, showTokenUsage: true });
 });
 
 function assistantMessage(parts: UIMessage["parts"]): UIMessage {
@@ -139,25 +142,36 @@ describe("findToolApproval", () => {
         input: {},
       },
     ];
-    expect(findToolApproval([assistantMessage(parts)], "call-1")).toBeNull();
+    expect(findToolApproval([assistantMessage(parts)], "call-1")).toBe(null);
     expect(
       findToolApproval([assistantMessage([pendingPart("tool-delete_step")])], "call-2"),
-    ).toBeNull();
+    ).toBe(null);
   });
 });
 
 describe("ToolApprovalControls", () => {
-  it("renders the humanized tool name, the input and both buttons while pending", async () => {
+  it("asks the question in one card that names the tool", () => {
     renderControls([pendingPart("tool-delete_step")]);
-    expect(screen.getByTestId("tool-approval-controls")).toBeInTheDocument();
-    expect(screen.getByText(/Delete step/)).toBeInTheDocument();
+    expect(screen.getByTestId("approval-card-title")).toHaveTextContent(
+      "Delete step needs your approval before it runs.",
+    );
     expect(screen.getByTestId("tool-approval-approve")).toBeInTheDocument();
     expect(screen.getByTestId("tool-approval-deny")).toBeInTheDocument();
-    const rendered = await screen.findAllByText(
-      (_content, element) =>
-        element?.tagName === "CODE" && element.textContent.includes("step-7"),
-    );
-    expect(rendered.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the call's input out of the card while the dev flag is off", () => {
+    useSettingsStore.setState({ showRawToolCalls: false });
+    const { container } = renderControls([pendingPart("tool-delete_step")]);
+    expect(screen.getByTestId("approval-card")).toBeInTheDocument();
+    expect(container.textContent).not.toContain("step-7");
+    expect(container.textContent).not.toContain("stepId");
+  });
+
+  it("shows the call's input in the card while the dev flag is on", () => {
+    useSettingsStore.setState({ showRawToolCalls: true });
+    const { container } = renderControls([pendingPart("tool-delete_step")]);
+    expect(container.textContent).toContain("stepId");
+    expect(container.textContent).toContain("step-7");
   });
 
   it("approves with the approval id from the part", () => {

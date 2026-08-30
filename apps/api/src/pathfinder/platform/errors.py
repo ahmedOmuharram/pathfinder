@@ -24,6 +24,7 @@ class ErrorCode(StrEnum):
     INVALID_PARAMETERS = "INVALID_PARAMETERS"
     WDK_ERROR = "WDK_ERROR"
     WDK_LOGIN_REQUIRED = "WDK_LOGIN_REQUIRED"
+    WDK_IDENTITY_MISMATCH = "WDK_IDENTITY_MISMATCH"
 
     # Strategy
     STRATEGY_NOT_FOUND = "STRATEGY_NOT_FOUND"
@@ -208,6 +209,25 @@ class WDKLoginRequiredError(AppError):
             title="VEuPathDB login required",
             status=401,
             detail="Sign in to VEuPathDB to use searches, strategies and gene sets.",
+        )
+
+
+class WDKIdentityMismatchError(AppError):
+    """The VEuPathDB token names another account than the session does.
+
+    The two credentials are independent, so a second sign-in would otherwise
+    write analyses and strategies under an account the session cannot read.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            code=ErrorCode.WDK_IDENTITY_MISMATCH,
+            title="VEuPathDB account changed",
+            status=401,
+            detail=(
+                "Signed in to VEuPathDB as a different account than this "
+                "PathFinder session. Sign in again."
+            ),
         )
 
 

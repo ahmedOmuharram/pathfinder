@@ -185,14 +185,16 @@ def test_a_step_request_refuses_a_spec_naming_another_dataset() -> None:
         )
     )
     with pytest.raises(ValidationError) as excinfo:
-        authoring.EdaStepRequest(eda_dataset_id="DS_eeca6a5476", eda_analysis_spec=spec)
+        eda_backed.EdaStepRequest(
+            eda_dataset_id="DS_eeca6a5476", eda_analysis_spec=spec
+        )
     message = str(excinfo.value)
     assert "DS_eeca6a5476" in message
     assert "DS_53f554ec6a" in message
 
 
 def test_a_step_request_accepts_the_empty_spec() -> None:
-    request = authoring.EdaStepRequest(
+    request = eda_backed.EdaStepRequest(
         eda_dataset_id="DS_53f554ec6a", eda_analysis_spec=""
     )
     assert request.eda_analysis_spec == ""

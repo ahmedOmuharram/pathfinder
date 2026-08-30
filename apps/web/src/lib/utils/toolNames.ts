@@ -27,6 +27,8 @@ const TOOL_LABELS: Record<string, string> = {
   run_control_tests_on_step: "Run control tests",
   optimize_search_parameters: "Optimize parameters",
   run_gene_set_enrichment: "Gene-set enrichment",
+  // The name the enrichment task itself puts on the wire.
+  geneset_enrichment: "Gene set enrichment",
   // Scratchpad / memory
   note: "Save note",
   update_note: "Update note",

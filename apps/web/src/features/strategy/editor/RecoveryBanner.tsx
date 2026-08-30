@@ -10,7 +10,7 @@ interface RecoveryBannerProps {
 export function RecoveryBanner({ onRestore, onDismiss }: RecoveryBannerProps) {
   return (
     <div
-      className="flex items-center justify-between gap-2 border-b border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900"
+      className="flex items-center justify-between gap-2 border-b border-warning/40 bg-warning/10 px-4 py-2 text-xs text-warning"
       data-testid="step-editor-recovery-banner"
     >
       <span>Restore unsaved changes from last session?</span>

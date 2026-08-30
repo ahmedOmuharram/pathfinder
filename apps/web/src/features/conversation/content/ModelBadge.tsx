@@ -8,6 +8,8 @@ import { ProviderIcon } from "@/lib/components/ProviderIcon";
 import { PROVIDER_LABELS, parseModelString } from "@/lib/models/providerMeta";
 import { formatUsage } from "@/lib/utils/usageFormat";
 
+import { useThreadDevMode } from "../thread/useThreadDevMode";
+
 function isLeadUsagePart(part: { type: string; name?: string }): boolean {
   return (
     part.type === "data-lead-usage" ||
@@ -31,7 +33,8 @@ export function selectLeadUsage(m: MessageState | undefined): string | null {
 
 export function ModelBadge(): ReactElement | null {
   const raw = useAuiState((s) => selectLeadUsage(s.message));
-  if (raw === null) return null;
+  const { showUsage } = useThreadDevMode();
+  if (raw === null || !showUsage) return null;
   const [modelId = "", tokensRaw = "0", costUsd = "0"] = raw.split("\t");
   if (modelId === "") return null;
   const tokens = Number(tokensRaw);
@@ -48,13 +51,13 @@ export function ModelBadge(): ReactElement | null {
       <span className="font-medium text-foreground">{label}</span>
       {model !== "" && (
         <>
-          <span aria-hidden>·</span>
+          <span aria-hidden>-</span>
           <span className="font-mono">{model}</span>
         </>
       )}
       {tokens > 0 && (
         <>
-          <span aria-hidden>·</span>
+          <span aria-hidden>-</span>
           <span className="font-mono tabular-nums">{formatUsage(tokens, costUsd)}</span>
         </>
       )}

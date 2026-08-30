@@ -97,6 +97,7 @@ def _ctx(
     session.graph = graph
     session.sync_state = WDKSyncState(wdk_step_ids={"step_a": 100}, wdk_strategy_id=555)
     ctx = MagicMock()
+    ctx.tool_call_id = "call_1"
     ctx.deps = AgentDeps(
         site_id="plasmodb",
         strategy_session=session,

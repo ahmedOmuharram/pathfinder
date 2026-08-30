@@ -61,7 +61,7 @@ export function CombineNode(props: StepNodeProps) {
             data-testid={`rf-handle-${step.id}-primary`}
             isConnectable={showPrimaryInputHandle}
             style={{ top: "30%" }}
-            className={`z-10 h-3 w-3 border-2 border-white ${
+            className={`z-10 h-3 w-3 border-2 border-card ${
               showPrimaryInputHandle
                 ? "bg-foreground"
                 : "pointer-events-none bg-foreground opacity-0"
@@ -74,7 +74,7 @@ export function CombineNode(props: StepNodeProps) {
             data-testid={`rf-handle-${step.id}-secondary`}
             isConnectable={showSecondaryInputHandle}
             style={{ top: "70%" }}
-            className={`z-10 h-3 w-3 border-2 border-white ${
+            className={`z-10 h-3 w-3 border-2 border-card ${
               showSecondaryInputHandle
                 ? "bg-muted-foreground"
                 : "pointer-events-none bg-muted-foreground opacity-0"

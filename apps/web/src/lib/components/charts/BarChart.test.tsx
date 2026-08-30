@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 
@@ -16,7 +16,11 @@ vi.mock("./echartsRegistry", () => ({
 }));
 
 import { BarChart } from "./BarChart";
-import { CHART_TOKEN_FALLBACKS } from "./chartTheme";
+import {
+  applyDistinctChartTokens,
+  clearDistinctChartTokens,
+  DISTINCT_CHART_TOKENS,
+} from "./__fixtures__/chartTokens";
 
 const flush = () => new Promise<void>((resolve) => queueMicrotask(resolve));
 
@@ -46,6 +50,9 @@ async function optionFor(node: ReactElement): Promise<BarOption> {
   await flush();
   return setOption.mock.calls[0]?.[0] as BarOption;
 }
+
+beforeEach(applyDistinctChartTokens);
+afterEach(clearDistinctChartTokens);
 
 describe("BarChart", () => {
   it("aligns both series to the unioned categories", async () => {
@@ -78,8 +85,8 @@ describe("BarChart", () => {
     );
     expect(option.series.map((s) => s.barCategoryGap)).toEqual(["30%", "30%"]);
     expect(option.series.map((s) => s.itemStyle.color)).toEqual([
-      CHART_TOKEN_FALLBACKS.series[0],
-      CHART_TOKEN_FALLBACKS.series[1],
+      DISTINCT_CHART_TOKENS.series[0],
+      DISTINCT_CHART_TOKENS.series[1],
     ]);
   });
 

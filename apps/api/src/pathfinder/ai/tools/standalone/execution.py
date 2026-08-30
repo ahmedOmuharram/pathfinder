@@ -4,7 +4,9 @@ Provides:
 - ``get_estimated_size`` -- get result count for a built step
 """
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._result_models import EstimatedSizeResult
@@ -17,7 +19,7 @@ async def get_estimated_size(
     ctx: RunContext[AgentDeps],
     wdk_step_id: int,
     wdk_strategy_id: int | None = None,
-) -> EstimatedSizeResult | ToolErrorPayload:
+) -> ToolReturn[EstimatedSizeResult | ToolErrorPayload]:
     """Get the result count for a built step.
 
     The step must already be built in WDK (via auto-build or import).
@@ -35,5 +37,15 @@ async def get_estimated_size(
         message = str(e)
         if wdk_strategy_id is None:
             message = f"{message} (try providing wdk_strategy_id)"
-        return tool_error(ErrorCode.WDK_ERROR, message)
-    return EstimatedSizeResult(step_id=result.step_id, count=result.count)
+        return with_summary(
+            tool_error(ErrorCode.WDK_ERROR, message),
+            f"Step {wdk_step_id} has no readable size",
+            ctx=ctx,
+            status="warn",
+        )
+    return with_summary(
+        EstimatedSizeResult(step_id=result.step_id, count=result.count),
+        f"Step {wdk_step_id}: {result.count:,} records",
+        ctx=ctx,
+        status="ok" if result.count else "empty",
+    )

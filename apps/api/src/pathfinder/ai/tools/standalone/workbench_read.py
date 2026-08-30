@@ -4,7 +4,9 @@ Each tool reads the experiment that the chat is associated with. A chat without
 an experiment gets an error result, not empty data.
 """
 
+from assistant_core.graph.tool_summary import with_summary
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._workbench_models import (
@@ -22,6 +24,21 @@ from pathfinder.ai.tools.standalone._workbench_models import (
 from pathfinder.services.experiment.store import get_experiment_store
 from pathfinder.services.experiment.types import Experiment
 
+type WorkbenchRead[T] = ToolReturn[T | WorkbenchError]
+
+
+def _unavailable[T](
+    ctx: RunContext[AgentDeps],
+    error: str,
+) -> WorkbenchRead[T]:
+    """The read has nothing to report, and the error says why."""
+    return with_summary(
+        WorkbenchError(error=error),
+        error,
+        ctx=ctx,
+        status="warn",
+    )
+
 
 async def _get_experiment(ctx: RunContext[AgentDeps]) -> Experiment | None:
     experiment_id = ctx.deps.experiment_id
@@ -33,118 +50,152 @@ async def _get_experiment(ctx: RunContext[AgentDeps]) -> Experiment | None:
 
 async def get_evaluation_summary(
     ctx: RunContext[AgentDeps],
-) -> EvaluationSummaryResult | WorkbenchError:
+) -> WorkbenchRead[EvaluationSummaryResult]:
     """Classification metrics, confusion counts, and sample gene IDs."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Conversation has no associated experiment")
+        return _unavailable(ctx, "Conversation has no associated experiment")
     if not exp.metrics:
-        return WorkbenchError(error="Experiment has no evaluation metrics yet")
+        return _unavailable(ctx, "Experiment has no evaluation metrics yet")
 
-    return EvaluationSummaryResult(
-        metrics=exp.metrics,
-        classification_counts=ClassificationCounts(
-            true_positives=len(exp.true_positive_genes),
-            false_positives=len(exp.false_positive_genes),
-            false_negatives=len(exp.false_negative_genes),
-            true_negatives=len(exp.true_negative_genes),
+    counts = ClassificationCounts(
+        true_positives=len(exp.true_positive_genes),
+        false_positives=len(exp.false_positive_genes),
+        false_negatives=len(exp.false_negative_genes),
+        true_negatives=len(exp.true_negative_genes),
+    )
+    classified = (
+        counts.true_positives
+        + counts.false_positives
+        + counts.false_negatives
+        + counts.true_negatives
+    )
+    return with_summary(
+        EvaluationSummaryResult(
+            metrics=exp.metrics,
+            classification_counts=counts,
+            sample_gene_ids=SampleGeneIds(
+                true_positives=[g.id for g in exp.true_positive_genes[:5]],
+                false_positives=[g.id for g in exp.false_positive_genes[:5]],
+                false_negatives=[g.id for g in exp.false_negative_genes[:5]],
+                true_negatives=[g.id for g in exp.true_negative_genes[:5]],
+            ),
+            status=exp.status,
         ),
-        sample_gene_ids=SampleGeneIds(
-            true_positives=[g.id for g in exp.true_positive_genes[:5]],
-            false_positives=[g.id for g in exp.false_positive_genes[:5]],
-            false_negatives=[g.id for g in exp.false_negative_genes[:5]],
-            true_negatives=[g.id for g in exp.true_negative_genes[:5]],
-        ),
-        status=exp.status,
+        f"{classified} classified genes",
+        ctx=ctx,
+        status="ok" if classified else "empty",
     )
 
 
 async def get_enrichment_results(
     ctx: RunContext[AgentDeps],
-) -> EnrichmentResultsResponse | WorkbenchError:
+) -> WorkbenchRead[EnrichmentResultsResponse]:
     """GO term, pathway, and word enrichment for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Conversation has no associated experiment")
+        return _unavailable(ctx, "Conversation has no associated experiment")
     if not exp.enrichment_results:
-        return WorkbenchError(
-            error="No enrichment results available for this experiment"
-        )
+        return _unavailable(ctx, "No enrichment results available for this experiment")
 
-    return EnrichmentResultsResponse(
-        enrichment_results=exp.enrichment_results,
-        count=len(exp.enrichment_results),
+    return with_summary(
+        EnrichmentResultsResponse(
+            enrichment_results=exp.enrichment_results,
+            count=len(exp.enrichment_results),
+        ),
+        f"{len(exp.enrichment_results)} enrichment analyses",
+        ctx=ctx,
     )
 
 
 async def get_confidence_scores(
     ctx: RunContext[AgentDeps],
-) -> ConfidenceScoresResult | WorkbenchError:
+) -> WorkbenchRead[ConfidenceScoresResult]:
     """Cross-validation confidence scores for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Conversation has no associated experiment")
+        return _unavailable(ctx, "Conversation has no associated experiment")
     if not exp.cross_validation:
-        return WorkbenchError(
-            error="No cross-validation results available for this experiment"
+        return _unavailable(
+            ctx, "No cross-validation results available for this experiment"
         )
 
-    return ConfidenceScoresResult(cross_validation=exp.cross_validation)
+    return with_summary(
+        ConfidenceScoresResult(cross_validation=exp.cross_validation),
+        f"{len(exp.cross_validation.folds)} cross-validation folds",
+        ctx=ctx,
+    )
 
 
 async def get_step_contributions(
     ctx: RunContext[AgentDeps],
-) -> StepContributionsResult | WorkbenchError:
+) -> WorkbenchRead[StepContributionsResult]:
     """Per-step recall/FPR deltas and verdict for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Conversation has no associated experiment")
+        return _unavailable(ctx, "Conversation has no associated experiment")
     if not exp.step_analysis:
-        return WorkbenchError(error="No step analysis available for this experiment")
+        return _unavailable(ctx, "No step analysis available for this experiment")
 
-    return StepContributionsResult(
-        step_contributions=exp.step_analysis.step_contributions,
-        count=len(exp.step_analysis.step_contributions),
+    contributions = exp.step_analysis.step_contributions
+    return with_summary(
+        StepContributionsResult(
+            step_contributions=contributions,
+            count=len(contributions),
+        ),
+        f"{len(contributions)} step contributions",
+        ctx=ctx,
+        status="ok" if contributions else "empty",
     )
 
 
 async def get_experiment_config(
     ctx: RunContext[AgentDeps],
-) -> ExperimentConfigResult | WorkbenchError:
+) -> WorkbenchRead[ExperimentConfigResult]:
     """Experiment configuration, status, and WDK strategy/step IDs."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Conversation has no associated experiment")
+        return _unavailable(ctx, "Conversation has no associated experiment")
 
-    return ExperimentConfigResult(
-        config=exp.config,
-        status=exp.status,
-        wdk_strategy_id=exp.wdk_strategy_id,
-        wdk_step_id=exp.wdk_step_id,
-        notes=exp.notes,
-        created_at=exp.created_at,
-        completed_at=exp.completed_at,
+    return with_summary(
+        ExperimentConfigResult(
+            config=exp.config,
+            status=exp.status,
+            wdk_strategy_id=exp.wdk_strategy_id,
+            wdk_step_id=exp.wdk_step_id,
+            notes=exp.notes,
+            created_at=exp.created_at,
+            completed_at=exp.completed_at,
+        ),
+        f"Experiment is {exp.status}",
+        ctx=ctx,
     )
 
 
 async def get_ensemble_analysis(
     ctx: RunContext[AgentDeps],
-) -> EnsembleAnalysisResult | WorkbenchError:
+) -> WorkbenchRead[EnsembleAnalysisResult]:
     """Full ensemble step analysis for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Conversation has no associated experiment")
+        return _unavailable(ctx, "Conversation has no associated experiment")
     if not exp.step_analysis:
-        return WorkbenchError(error="No step analysis available for this experiment")
+        return _unavailable(ctx, "No step analysis available for this experiment")
 
-    return EnsembleAnalysisResult(step_analysis=exp.step_analysis)
+    evaluations = exp.step_analysis.step_evaluations
+    return with_summary(
+        EnsembleAnalysisResult(step_analysis=exp.step_analysis),
+        f"{len(evaluations)} steps evaluated",
+        ctx=ctx,
+        status="ok" if evaluations else "empty",
+    )
 
 
 async def get_result_gene_lists(
     ctx: RunContext[AgentDeps],
     classification: str,
     limit: int = 50,
-) -> GeneListResult | WorkbenchError:
+) -> WorkbenchRead[GeneListResult]:
     """Gene IDs for a classification category (tp/fp/fn/tn).
 
     Args:
@@ -153,14 +204,15 @@ async def get_result_gene_lists(
     """
     valid: set[str] = {"tp", "fp", "fn", "tn"}
     if classification not in valid:
-        return WorkbenchError(
-            error=f"Invalid classification '{classification}'. "
-            f"Must be one of: {', '.join(sorted(valid))}"
+        return _unavailable(
+            ctx,
+            f"Invalid classification '{classification}'. "
+            f"Must be one of: {', '.join(sorted(valid))}",
         )
 
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Conversation has no associated experiment")
+        return _unavailable(ctx, "Conversation has no associated experiment")
 
     gene_list = {
         "tp": exp.true_positive_genes,
@@ -172,9 +224,14 @@ async def get_result_gene_lists(
     capped = min(limit, 200)
     selected = gene_list[:capped]
 
-    return GeneListResult(
-        classification=classification,
-        genes=selected,
-        returned=len(selected),
-        total=len(gene_list),
+    return with_summary(
+        GeneListResult(
+            classification=classification,
+            genes=selected,
+            returned=len(selected),
+            total=len(gene_list),
+        ),
+        f"{len(selected)} of {len(gene_list)} {classification} genes",
+        ctx=ctx,
+        status="ok" if selected else "empty",
     )

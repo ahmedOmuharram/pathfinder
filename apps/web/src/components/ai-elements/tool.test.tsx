@@ -22,7 +22,7 @@ describe("ToolOutput", () => {
     // should still be colorized as JSON, not dumped into the readable <pre>.
     const clipped = '{"name": "inspect_search", "allowed_values": [{"value": "a"';
     const { container } = render(<ToolOutput output={clipped} errorText={undefined} />);
-    expect(container.querySelector("pre.font-sans")).toBeNull();
+    expect(container.querySelector("pre.font-sans")).toBe(null);
   });
 
   it("shows errorText under an Error heading", () => {
@@ -33,6 +33,6 @@ describe("ToolOutput", () => {
 
   it("renders nothing when there is neither output nor error", () => {
     const { container } = render(<ToolOutput output={null} errorText={undefined} />);
-    expect(container).toBeEmptyDOMElement();
+    expect(container.innerHTML).toBe("");
   });
 });

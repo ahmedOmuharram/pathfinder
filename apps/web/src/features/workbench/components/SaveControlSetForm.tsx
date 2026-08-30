@@ -79,11 +79,7 @@ export function SaveControlSetForm({
   }
 
   if (success) {
-    return (
-      <p className="text-xs text-green-600 dark:text-green-400 animate-chip-in">
-        Control set saved!
-      </p>
-    );
+    return <p className="text-xs text-success animate-chip-in">Control set saved!</p>;
   }
 
   return (

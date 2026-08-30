@@ -22,7 +22,7 @@ function AlertDialogOverlay({
   return (
     <AlertDialogPrimitive.Overlay
       ref={ref}
-      className={cn("fixed inset-0 z-50 bg-black/80 animate-fade-in", className)}
+      className={cn("fixed inset-0 z-50 bg-foreground/50 animate-fade-in", className)}
       {...props}
     />
   );

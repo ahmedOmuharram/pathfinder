@@ -1,6 +1,6 @@
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 
-import { wdkLoginRequiredDetail } from "@/lib/api/errors";
+import { wdkAuthRefusal } from "@/lib/api/errors";
 import { APIError } from "@/lib/api/http";
 import {
   listModelsQueryKey,
@@ -12,6 +12,8 @@ export interface QueryErrorNotice {
   message: string;
   queryKey: readonly unknown[];
   error: unknown;
+  /** Run the query again, for a handler that repaired what refused it. */
+  retry: () => void;
 }
 
 type NoticeHandler = (notice: QueryErrorNotice) => void;
@@ -36,11 +38,14 @@ function makeQueryClient(): QueryClient {
     queryCache: new QueryCache({
       onError: (error, query) => {
         if (isSilent(query.meta)) return;
-        // A missing VEuPathDB login is the one 401 the user can act on.
-        const loginRequired = wdkLoginRequiredDetail(error) !== null;
-        if (!loginRequired && error instanceof APIError && error.status === 401) return;
+        // A refusal about the VEuPathDB account is the one 401 the user can act on.
+        const actionable = wdkAuthRefusal(error) !== null;
+        if (!actionable && error instanceof APIError && error.status === 401) return;
         const message = extractMessage(error, "Request failed");
-        handler?.({ message, queryKey: query.queryKey, error });
+        const retry = (): void => {
+          void query.fetch().catch(() => {});
+        };
+        handler?.({ message, queryKey: query.queryKey, error, retry });
       },
     }),
     defaultOptions: {

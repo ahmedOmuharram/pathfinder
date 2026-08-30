@@ -192,14 +192,14 @@ export function PhyleticProfileParam({ specs, form }: PhyleticProfileParamProps)
           unconstrained
         </span>
         <span>
-          <span className="text-green-500 font-bold">{"\u2713"}</span> include
+          <span className="text-success font-bold">{"\u2713"}</span> include
         </span>
         <span>
-          <span className="text-red-500 font-bold">{"\u2717"}</span> exclude
+          <span className="text-destructive font-bold">{"\u2717"}</span> exclude
         </span>
       </div>
       {seeded.unread.length > 0 && (
-        <p data-testid="phyletic-unread" className="text-xs text-amber-500">
+        <p data-testid="phyletic-unread" className="text-xs text-warning">
           Stored terms this tree cannot show: {seeded.unread.join(", ")}. They are not
           selected below; the next change rewrites the lists from the tree.
         </p>

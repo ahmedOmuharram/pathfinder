@@ -37,7 +37,7 @@ export function CategoricalPicker({
       </div>
 
       {oversized && (
-        <p className="text-xs text-amber-500">
+        <p className="text-xs text-warning">
           <AlertTriangle className="mr-1 inline h-3 w-3" />
           This parameter has {vocab.length} values. Showing first{" "}
           {MAX_CATEGORICAL_CHOICES}.

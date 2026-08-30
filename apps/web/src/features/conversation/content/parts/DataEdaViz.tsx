@@ -5,6 +5,7 @@ import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import type { EdaViz } from "@pathfinder/shared";
 
 import { Button } from "@/components/ui/button";
+import { Figure } from "@/lib/components/thread/Figure";
 import { ScatterChart } from "@/lib/components/charts/ScatterChart";
 import { VolcanoChart } from "@/lib/components/charts/VolcanoChart";
 import type {
@@ -27,28 +28,30 @@ export function DataEdaViz({ data }: { data: EdaViz }) {
   const height = expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
 
   return (
-    <div
-      data-testid="data-eda-viz"
-      className="my-2 rounded-md border border-border bg-card p-3"
+    <Figure
+      testId="data-eda-viz"
+      title={data.effectSizeLabel}
+      caption={`${data.retainedPoints.toLocaleString()} of ${data.totalPoints.toLocaleString()} genes retained`}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium">{data.effectSizeLabel}</span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={expanded ? "Collapse plot" : "Expand plot"}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? (
-            <ChevronsDownUp className="size-3.5" aria-hidden />
-          ) : (
-            <ChevronsUpDown className="size-3.5" aria-hidden />
-          )}
-        </Button>
+      <div>
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={expanded ? "Collapse plot" : "Expand plot"}
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? (
+              <ChevronsDownUp className="size-3.5" aria-hidden />
+            ) : (
+              <ChevronsUpDown className="size-3.5" aria-hidden />
+            )}
+          </Button>
+        </div>
+        <VizBody data={data} height={height} thresholds={thresholds} />
       </div>
-      <VizBody data={data} height={height} thresholds={thresholds} />
-    </div>
+    </Figure>
   );
 }
 

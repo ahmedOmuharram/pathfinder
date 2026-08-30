@@ -5585,7 +5585,7 @@
                     "veupathdb-auth"
                 ],
                 "summary": "Refresh Internal Auth",
-                "description": "Re-derive the internal auth token from a live VEuPathDB session.\n\nUse this when the internal token is absent or expired but the VEuPathDB\ncookie is still valid.",
+                "description": "Re-derive the internal auth token from a live VEuPathDB session.\n\nUse this when the internal token is absent or expired, and to relink a\nsession whose VEuPathDB cookie now names another account.",
                 "operationId": "refresh_internal_auth_api_v1_veupathdb_auth_refresh_post",
                 "parameters": [
                     {
@@ -21529,6 +21529,16 @@
                             }
                         ]
                     },
+                    "toolSummary": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolSummaryPayload"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
                     "turnFailed": {
                         "anyOf": [
                             {
@@ -23141,6 +23151,35 @@
                 "title": "ToolOutputErrorPart",
                 "description": "Tool part in output-error state."
             },
+            "ToolSummaryPayload": {
+                "properties": {
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "title": "Summary"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "empty",
+                            "warn"
+                        ],
+                        "title": "Status",
+                        "default": "ok"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "toolCallId",
+                    "summary"
+                ],
+                "title": "ToolSummaryPayload",
+                "description": "Payload for the tool-summary chunk. The tool call id names the call the\nline describes, so a reducer patches that call's part and appends nothing."
+            },
             "TreeOptimizationResultResponse": {
                 "properties": {
                     "bestTrial": {
@@ -24426,6 +24465,7 @@
                     "INVALID_PARAMETERS",
                     "WDK_ERROR",
                     "WDK_LOGIN_REQUIRED",
+                    "WDK_IDENTITY_MISMATCH",
                     "STRATEGY_NOT_FOUND",
                     "STRATEGY_AST_CORRUPT",
                     "INVALID_STRATEGY",

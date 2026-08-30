@@ -36,8 +36,13 @@ def _declares(kind: str) -> dict[str, Any]:
     return {"org.veupathdb.assistant/streamPart": {"kind": kind, "version": 1}}
 
 
-def _ctx() -> RunContext[None]:
-    return RunContext[None](deps=None, model=TestModel(), usage=RunUsage())
+def _ctx(tool_call_id: str | None = None) -> RunContext[None]:
+    return RunContext[None](
+        deps=None,
+        model=TestModel(),
+        usage=RunUsage(),
+        tool_call_id=tool_call_id,
+    )
 
 
 @dataclass
@@ -94,8 +99,11 @@ class _RefreshingSource(_Source):
         )
 
 
-async def _call(toolset: UntrustedOutputToolset[None]) -> Any:
-    ctx = _ctx()
+async def _call(
+    toolset: UntrustedOutputToolset[None],
+    tool_call_id: str | None = None,
+) -> Any:
+    ctx = _ctx(tool_call_id)
     tool = (await toolset.get_tools(ctx))["read_thing"]
     return await toolset.call_tool("read_thing", {}, ctx, tool)
 
@@ -169,6 +177,58 @@ async def test_a_tool_that_declares_nothing_returns_its_result_unchanged() -> No
     toolset = UntrustedOutputToolset(_Source(result="plain text"), part_namespace="eda")
 
     assert await _call(toolset) == "plain text"
+
+
+async def test_a_named_call_carries_one_line_saying_the_source_answered() -> None:
+    toolset = UntrustedOutputToolset(_Source(result="plain text"), part_namespace="eda")
+
+    result = await _call(toolset, "call_1")
+
+    assert isinstance(result, ToolReturn)
+    assert result.return_value == "plain text"
+    assert [(chunk.type, chunk.data) for chunk in result.metadata] == [
+        (
+            "data-tool-summary",
+            {"toolCallId": "call_1", "summary": "read_thing returned", "status": "ok"},
+        ),
+    ]
+
+
+async def test_the_declared_part_reaches_the_reader_before_the_line_about_it() -> None:
+    toolset = UntrustedOutputToolset(_declaring_source(), part_namespace="eda")
+
+    result = await _call(toolset, "call_1")
+
+    assert isinstance(result, ToolReturn)
+    assert [chunk.type for chunk in result.metadata] == [KIND, "data-tool-summary"]
+
+
+async def test_a_refused_payload_still_says_that_the_source_answered() -> None:
+    toolset = UntrustedOutputToolset(
+        _declaring_source(result={"variable": "sex"}),
+        part_namespace="eda",
+        record_violation=lambda violation: None,
+    )
+
+    result = await _call(toolset, "call_1")
+
+    assert isinstance(result, ToolReturn)
+    assert result.return_value == {"variable": "sex"}
+    assert [chunk.type for chunk in result.metadata] == ["data-tool-summary"]
+
+
+async def test_a_fenced_result_carries_no_line_of_its_own() -> None:
+    async def fence(text: str) -> ScanVerdict:
+        del text
+        return ScanVerdict(text="[removed]")
+
+    toolset = UntrustedOutputToolset(
+        _declaring_source(),
+        part_namespace="eda",
+        scan=fence,
+    )
+
+    assert await _call(toolset, "call_1") == "[removed]"
 
 
 @pytest.mark.parametrize(

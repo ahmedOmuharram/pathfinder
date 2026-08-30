@@ -27,7 +27,7 @@ export function formatCost(cost: number): string {
   return costFmt.format(cost);
 }
 
-/** "12.3K · $0.004" — compact tokens and cost for a usage chip. */
+/** "12.3K, $0.004" - compact tokens and cost for a usage chip. */
 export function formatUsage(tokens: number, costUsd: number | string): string {
-  return `${formatTokens(tokens)} · ${formatCost(Number(costUsd))}`;
+  return `${formatTokens(tokens)}, ${formatCost(Number(costUsd))}`;
 }

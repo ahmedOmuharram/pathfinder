@@ -7,9 +7,11 @@ plus list and pull from existing control sets / saved gene sets / strategies.
 
 from __future__ import annotations
 
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.standalone._id_arguments import parse_id_argument
@@ -36,7 +38,7 @@ async def build_control_set(
     positive_ids: list[str],
     negative_ids: list[str] | None = None,
     record_type: str = "transcript",
-) -> BuiltControlSet:
+) -> ToolReturn[BuiltControlSet]:
     """Validate gene IDs against WDK and save them as a reusable control set
     for scored experiments. Pass the positive controls (genes that SHOULD be
     found) and optional negative controls (genes that should NOT). IDs that
@@ -72,13 +74,17 @@ async def build_control_set(
         )
         await session.commit()
 
-    return BuiltControlSet(
-        control_set_id=created.id,
-        name=created.name,
-        positive_count=len(pos.valid_ids),
-        negative_count=len(neg.valid_ids),
-        unresolved_positive=pos.unresolved_ids,
-        unresolved_negative=neg.unresolved_ids,
+    return with_summary(
+        BuiltControlSet(
+            control_set_id=created.id,
+            name=created.name,
+            positive_count=len(pos.valid_ids),
+            negative_count=len(neg.valid_ids),
+            unresolved_positive=pos.unresolved_ids,
+            unresolved_negative=neg.unresolved_ids,
+        ),
+        f"{created.name}: {len(pos.valid_ids)} positive, {len(neg.valid_ids)} negative",
+        ctx=ctx,
     )
 
 
@@ -91,7 +97,7 @@ class ControlSetSummary(CamelModel):
 
 async def list_control_sets(
     ctx: RunContext[LeadDeps],
-) -> list[ControlSetSummary]:
+) -> ToolReturn[list[ControlSetSummary]]:
     """List the user's saved control sets for this site, so you can offer them
     as the scoring basis instead of asking for new IDs."""
     runtime = ctx.deps.runtime
@@ -99,29 +105,39 @@ async def list_control_sets(
         sets = await ControlSetService(session).list_for_site(
             site_id=runtime.site_id, user_id=runtime.user_id, tags=None
         )
-    return [
-        ControlSetSummary(
-            control_set_id=cs.id,
-            name=cs.name,
-            positive_count=len(cs.positive_ids),
-            negative_count=len(cs.negative_ids),
-        )
-        for cs in sets
-    ]
+    return with_summary(
+        [
+            ControlSetSummary(
+                control_set_id=cs.id,
+                name=cs.name,
+                positive_count=len(cs.positive_ids),
+                negative_count=len(cs.negative_ids),
+            )
+            for cs in sets
+        ],
+        f"{len(sets)} control sets",
+        ctx=ctx,
+    )
 
 
 async def import_control_ids_from_gene_set(
     ctx: RunContext[LeadDeps],
     gene_set_id: str,
-) -> list[str]:
+) -> ToolReturn[list[str]]:
     """Return the gene IDs of a saved workbench gene set, to use as controls."""
-    return await control_ids_from_saved_gene_set(ctx.deps.runtime.user_id, gene_set_id)
+    ids = await control_ids_from_saved_gene_set(ctx.deps.runtime.user_id, gene_set_id)
+    return with_summary(
+        ids,
+        f"{len(ids)} ids from gene set {gene_set_id}",
+        ctx=ctx,
+        status="ok" if ids else "empty",
+    )
 
 
 async def import_control_ids_from_strategy(
     ctx: RunContext[LeadDeps],
     strategy_id: str,
-) -> list[str]:
+) -> ToolReturn[list[str]]:
     """Return the result gene IDs of another strategy (a conversation id), to
     use as positive or negative controls."""
     runtime = ctx.deps.runtime
@@ -138,4 +154,9 @@ async def import_control_ids_from_strategy(
     if result.error:
         msg = f"Could not import from strategy {strategy_id}: {result.error}"
         raise ModelRetry(msg)
-    return result.gene_ids
+    return with_summary(
+        result.gene_ids,
+        f"{len(result.gene_ids)} ids from strategy {strategy_id}",
+        ctx=ctx,
+        status="ok" if result.gene_ids else "empty",
+    )

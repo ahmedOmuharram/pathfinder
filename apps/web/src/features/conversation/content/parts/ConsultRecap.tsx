@@ -23,9 +23,9 @@ export function ConsultRecapView({ recap }: { recap: ConsultRecap }) {
           return (
             <li key={q.id} className="leading-snug">
               <span className="font-medium text-foreground">{q.prompt}</span>
-              <span className="mx-1 text-muted-foreground">→</span>
+              <span className="mx-1 text-muted-foreground">-&gt;</span>
               <span className="text-foreground">
-                {chosen !== undefined && chosen !== "" ? chosen : "—"}
+                {chosen !== undefined && chosen !== "" ? chosen : "-"}
               </span>
               {a !== undefined && a.note !== "" && a.chosenLabels.length > 0 && (
                 <span className="text-muted-foreground"> ({a.note})</span>

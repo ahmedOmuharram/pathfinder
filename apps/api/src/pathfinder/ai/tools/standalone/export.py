@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.platform.types import JSONObject
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
@@ -75,15 +76,15 @@ async def export_gene_set(
     fmt: Literal["csv", "txt"] = "txt" if output_format == "txt" else "csv"
     result = await svc.export_gene_set(gs, fmt)
     media_type = "text/csv" if output_format == "csv" else "text/plain"
-    return ToolReturn(
-        return_value=ExportResultResponse(
+    return with_summary(
+        ExportResultResponse(
             download_url=result.url,
             filename=result.filename,
             format=output_format,
             item_count=len(gs.gene_ids),
             expires_in_seconds=result.expires_in_seconds,
         ),
-        metadata=[
-            FileChunk(url=result.url, media_type=media_type),
-        ],
+        f"{output_format.upper()} export ready",
+        ctx=ctx,
+        extra=[FileChunk(url=result.url, media_type=media_type)],
     )

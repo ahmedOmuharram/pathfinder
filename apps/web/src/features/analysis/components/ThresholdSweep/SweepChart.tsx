@@ -10,7 +10,7 @@ import {
   Legend,
 } from "recharts";
 import type { ThresholdSweepPoint } from "@/lib/api/analysis";
-import { CHART_COLORS } from "@/lib/utils/chartTheme";
+import { readChartRoleColors } from "@/lib/utils/chartTheme";
 import { fmtNum, truncateLabel } from "./types";
 
 export function SweepChart({
@@ -26,6 +26,7 @@ export function SweepChart({
   formatValue: (v: number | string) => string;
   isStreaming: boolean;
 }) {
+  const chartColors = readChartRoleColors();
   const chartData = points.map((p) => ({
     label:
       sweepType === "categorical"
@@ -95,7 +96,7 @@ export function SweepChart({
             type="monotone"
             dataKey="sensitivity"
             name="Sensitivity"
-            stroke={CHART_COLORS.primary}
+            stroke={chartColors.primary}
             strokeWidth={2}
             dot={{ r: 2.5 }}
             activeDot={{ r: 4 }}
@@ -104,7 +105,7 @@ export function SweepChart({
             type="monotone"
             dataKey="specificity"
             name="Specificity"
-            stroke={CHART_COLORS.destructive}
+            stroke={chartColors.destructive}
             strokeWidth={2}
             dot={{ r: 2.5 }}
             activeDot={{ r: 4 }}

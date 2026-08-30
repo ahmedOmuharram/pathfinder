@@ -43,6 +43,7 @@ export function DataPartRenderer({
     .with("data-turn-stopped", (k) => renderKind(k, data))
     .with("data-turn-failed", (k) => renderKind(k, data))
     .with("data-lead-usage", (k) => renderKind(k, data))
+    .with("data-tool-summary", (k) => renderKind(k, data))
     .with("data-eda.analysis-state", (k) => renderKind(k, data))
     .with("data-eda.subset-preview", (k) => renderKind(k, data))
     .with("data-eda.viz", (k) => renderKind(k, data))

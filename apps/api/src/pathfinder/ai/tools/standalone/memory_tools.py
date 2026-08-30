@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from assistant_core.graph.tool_summary import with_summary
 from assistant_core.memory.retrieval import rerank_by_hybrid_score
 from assistant_core.memory.schemas import MemoryKind, MemoryValue
 from assistant_core.memory.store import MemoryStore, StoredMemory
+from pydantic_ai.messages import ToolReturn
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -18,7 +20,7 @@ async def search_memory(
     query: str,
     kind: MemoryKind | None = None,
     top_k: int = 5,
-) -> list[dict[str, object]]:
+) -> ToolReturn[list[dict[str, object]]]:
     """Search the user's cross-thread memory semantically.
 
     Use this when the user references prior work, asks "what did we do before",
@@ -31,7 +33,12 @@ async def search_memory(
     store_raw = ctx.deps.memory_store
     user_id = ctx.deps.user_id
     if store_raw is None or user_id is None:
-        return []
+        return with_summary(
+            [],
+            f"0 memories for {query}",
+            ctx=ctx,
+            status="empty",
+        )
     mem_store = MemoryStore(store=store_raw)
     kinds: tuple[str, ...] = (kind,) if kind is not None else PRODUCT_MEMORY_KINDS
     per_kind = max(1, top_k) if len(kinds) == 1 else max(1, top_k // len(kinds))
@@ -46,7 +53,13 @@ async def search_memory(
         )
         all_hits.extend(hits)
     reranked = rerank_by_hybrid_score(all_hits)
-    return [stored.value.model_dump(mode="json") for stored in reranked[:top_k]]
+    found = [stored.value.model_dump(mode="json") for stored in reranked[:top_k]]
+    return with_summary(
+        found,
+        f"{len(found)} memories for {query}",
+        ctx=ctx,
+        status="ok" if found else "empty",
+    )
 
 
 async def remember(
@@ -56,7 +69,7 @@ async def remember(
     summary: str,
     content: dict[str, object],
     tags: list[str] | None = None,
-) -> str:
+) -> ToolReturn[str]:
     """Store an explicit memory for this user.
 
     Use for biological facts the user has taught you or preferences they've
@@ -65,7 +78,12 @@ async def remember(
     store_raw = ctx.deps.memory_store
     user_id = ctx.deps.user_id
     if store_raw is None or user_id is None:
-        return "memory store unavailable"
+        return with_summary(
+            "memory store unavailable",
+            "Memory is unavailable on this thread",
+            ctx=ctx,
+            status="warn",
+        )
     mem_store = MemoryStore(store=store_raw)
     value = MemoryValue(
         kind=kind,
@@ -76,4 +94,8 @@ async def remember(
         content=content,
         created_at=datetime.now(UTC),
     )
-    return await mem_store.put(user_id=user_id, value=value)
+    return with_summary(
+        await mem_store.put(user_id=user_id, value=value),
+        f"Remembered {name} as {kind}",
+        ctx=ctx,
+    )

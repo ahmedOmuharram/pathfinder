@@ -14,6 +14,7 @@ from assistant_core.graph.stream_events import (
     LeadUsagePayload,
     SubAgentCallPayload,
     SubAgentStepPayload,
+    ToolSummaryPayload,
     TurnFailedPayload,
     TurnStatusPayload,
     TurnStoppedPayload,
@@ -36,6 +37,7 @@ def register_core_stream_parts(registry: StreamPartRegistry) -> None:
     registry.register("data-sub-agent-call", SubAgentCallPayload)
     registry.register("data-sub-agent-step", SubAgentStepPayload)
     registry.register("data-conversation-title", ConversationTitlePayload)
+    registry.register("data-tool-summary", ToolSummaryPayload)
     registry.register_schema_only("consult_question", ConsultQuestion)
     registry.register_schema_only("user_question_answer", UserQuestionAnswer)
 

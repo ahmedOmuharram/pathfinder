@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CHART_TOKEN_FALLBACKS } from "./chartTheme";
+import { DISTINCT_CHART_TOKENS } from "./__fixtures__/chartTokens";
 import { buildVolcanoOption, volcanoPointY } from "./volcano.options";
 import { VOLCANO_POINT_SAMPLE } from "@/lib/eda/volcanoSelection";
 
@@ -13,7 +13,7 @@ const args = {
   },
   significanceField: "adjustedPValue" as const,
   effectSizeLabel: "log2(Fold Change)",
-  tokens: CHART_TOKEN_FALLBACKS,
+  tokens: DISTINCT_CHART_TOKENS,
 };
 
 describe("volcanoPointY", () => {
@@ -58,8 +58,8 @@ describe("buildVolcanoOption", () => {
 
   it("colors up with the positive token and down with the negative token", () => {
     const option = buildVolcanoOption(args);
-    expect(option.series[1]?.itemStyle.color).toBe(CHART_TOKEN_FALLBACKS.positive);
-    expect(option.series[2]?.itemStyle.color).toBe(CHART_TOKEN_FALLBACKS.negative);
+    expect(option.series[1]?.itemStyle.color).toBe(DISTINCT_CHART_TOKENS.positive);
+    expect(option.series[2]?.itemStyle.color).toBe(DISTINCT_CHART_TOKENS.negative);
   });
 
   it("draws three threshold guides: two effect-size and one significance", () => {

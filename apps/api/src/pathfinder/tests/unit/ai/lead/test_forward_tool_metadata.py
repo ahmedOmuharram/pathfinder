@@ -1,40 +1,41 @@
-from __future__ import annotations
+"""An inner tool's metadata splits into the step's line and what the stream shows."""
 
-from typing import Any
+from __future__ import annotations
 
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk, TextStartChunk
 
-from pathfinder.ai.lead.sub_agent_stream import _forward_tool_metadata
-
-
-def _collect() -> tuple[list[dict[str, Any]], Any]:
-    captured: list[dict[str, Any]] = []
-
-    def writer(payload: dict[str, Any]) -> None:
-        captured.append(payload)
-
-    return captured, writer
+from pathfinder.ai.lead.sub_agent_stream import _read_tool_metadata
 
 
 def test_forwards_data_chunks() -> None:
-    captured, writer = _collect()
-    _forward_tool_metadata(
-        writer,
+    read = _read_tool_metadata(
         [DataChunk(type="data-plan-artifact", data={"planId": "p1"})],
     )
-    assert len(captured) == 1
-    assert captured[0]["chunk"]["type"] == "data-plan-artifact"
-    assert captured[0]["chunk"]["data"] == {"planId": "p1"}
+    assert len(read.forwarded) == 1
+    assert read.forwarded[0].type == "data-plan-artifact"
+    assert read.summary is None
 
 
 def test_drops_non_streamable_chunks() -> None:
-    captured, writer = _collect()
-    _forward_tool_metadata(writer, [TextStartChunk(id="x")])
-    assert captured == []
+    read = _read_tool_metadata([TextStartChunk(id="x")])
+    assert read.forwarded == []
 
 
 def test_ignores_non_list_metadata() -> None:
-    captured, writer = _collect()
-    _forward_tool_metadata(writer, None)
-    _forward_tool_metadata(writer, "not a list")
-    assert captured == []
+    assert _read_tool_metadata(None).forwarded == []
+    assert _read_tool_metadata("not a list").forwarded == []
+
+
+def test_a_tool_summary_is_lifted_and_never_forwarded() -> None:
+    """The inner call id names no part on the main stream, so the chunk stays out."""
+    read = _read_tool_metadata(
+        [
+            DataChunk(
+                type="data-tool-summary",
+                data={"toolCallId": "s1", "summary": "12 searches", "status": "ok"},
+            ),
+            DataChunk(type="data-graph-snapshot", data={"steps": []}),
+        ],
+    )
+    assert read.summary == "12 searches"
+    assert [chunk.type for chunk in read.forwarded] == ["data-graph-snapshot"]

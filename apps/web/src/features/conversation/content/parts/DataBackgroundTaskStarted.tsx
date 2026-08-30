@@ -9,12 +9,11 @@ import type {
 import { taskCompletedSchema } from "@pathfinder/shared/generated/zod/taskCompletedSchema";
 import { taskProgressSchema } from "@pathfinder/shared/generated/zod/taskProgressSchema";
 
+import { TaskRow, type TaskOutcome } from "@/lib/components/thread/TaskRow";
 import { useConversationId } from "@/lib/hooks/useConversationId";
 import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { useChatHelpersOptional } from "../../runtime/chatHelpersContext";
-import { DataTaskCompleted } from "./DataTaskCompleted";
-import { DataTaskProgress } from "./DataTaskProgress";
 
 interface MessageWithParts {
   readonly parts: readonly { readonly type: string; readonly data?: unknown }[];
@@ -75,27 +74,24 @@ export function DataBackgroundTaskStarted({ data }: { data: BackgroundTaskStarte
     retry: false,
   });
 
-  const minutes = Math.ceil(data.estimatedDurationSeconds / 60);
+  const row = (
+    <TaskRow
+      label={humanizeToolName(data.toolName)}
+      percent={completed === null ? (progress?.percent ?? null) : 1}
+      message={progress?.message ?? null}
+      estimatedSeconds={data.estimatedDurationSeconds}
+      outcome={outcomeOf(completed)}
+      error={completed?.error ?? null}
+    />
+  );
   return (
-    <div
-      data-testid="data-background-task-started"
-      className="my-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs"
-    >
-      <div className="flex items-center gap-2">
-        <span className="inline-block size-2 animate-pulse rounded-full bg-primary" />
-        <span className="font-medium">Background task started</span>
-      </div>
-      <div className="mt-1 text-muted-foreground">
-        <span className="font-medium text-foreground">
-          {humanizeToolName(data.toolName)}
-        </span>
-        <span className="mx-1">·</span>
-        <span>~{minutes} min</span>
-      </div>
-      {completed === null && progress !== null ? (
-        <DataTaskProgress data={progress} />
-      ) : null}
-      {completed !== null ? <DataTaskCompleted data={completed} /> : null}
+    <div data-testid="data-background-task-started">
+      {completed === null ? row : <div data-testid="data-task-completed">{row}</div>}
     </div>
   );
+}
+
+function outcomeOf(completed: TaskCompleted | null): TaskOutcome {
+  if (completed === null) return "running";
+  return completed.status === "success" ? "success" : "failure";
 }

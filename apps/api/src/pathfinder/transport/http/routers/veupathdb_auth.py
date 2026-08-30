@@ -2,6 +2,7 @@
 
 from typing import Annotated, TypedDict
 from urllib.parse import urlparse
+from uuid import UUID
 
 from assistant_core.platform.logging import get_logger
 from assistant_core.platform.pydantic_base import CamelModel
@@ -60,18 +61,17 @@ def _pick_redirect_url(candidate: str | None) -> str:
 
 async def _link_internal_user(
     session: AsyncSession, veupathdb_token: str, site_id: str
-) -> str | None:
-    """Mint the internal auth token for the VEuPathDB identity, or None."""
+) -> UUID | None:
+    """Name the internal user of the VEuPathDB identity, creating it if new."""
     email = await resolve_veupathdb_email(veupathdb_token, site_id)
     if not email:
         return None
-    internal_id = await get_or_create_user_id(session, email)
-    return create_user_token(internal_id)
+    return await get_or_create_user_id(session, email)
 
 
 def _build_success_response(
     veupathdb_token: str,
-    auth_token: str | None,
+    auth_token: str,
 ) -> JSONResponse:
     """Build a response that sets both auth cookies.
 
@@ -91,15 +91,14 @@ def _build_success_response(
         secure=secure_cookie,
         path="/",
     )
-    if auth_token:
-        resp.set_cookie(
-            key="pathfinder-auth",
-            value=auth_token,
-            httponly=True,
-            samesite="lax",
-            secure=secure_cookie,
-            path="/",
-        )
+    resp.set_cookie(
+        key="pathfinder-auth",
+        value=auth_token,
+        httponly=True,
+        samesite="lax",
+        secure=secure_cookie,
+        path="/",
+    )
     return resp
 
 
@@ -144,10 +143,10 @@ async def login_with_password(
         )
         raise UnauthorizedError(detail="Invalid email or password")
 
-    auth_token = await _link_internal_user(session, token, site_id)
-    if not auth_token:
+    internal_id = await _link_internal_user(session, token, site_id)
+    if internal_id is None:
         raise UnauthorizedError(detail="Invalid email or password")
-    return _build_success_response(token, auth_token)
+    return _build_success_response(token, create_user_token(internal_id))
 
 
 async def logout_of_veupathdb(veupathdb_token: str | None, site_id: str) -> bool:
@@ -192,12 +191,11 @@ async def refresh_internal_auth(
 ) -> JSONResponse:
     """Re-derive the internal auth token from a live VEuPathDB session.
 
-    Use this when the internal token is absent or expired but the VEuPathDB
-    cookie is still valid.
+    Use this when the internal token is absent or expired, and to relink a
+    session whose VEuPathDB cookie now names another account.
     """
     existing = request.cookies.get("pathfinder-auth")
-    if existing and decode_user_id(existing) is not None:
-        return JSONResponse({"success": True})
+    session_user_id = decode_user_id(existing) if existing else None
 
     veupathdb_token = (
         request.headers.get("X-VEUPATHDB-AUTH")
@@ -205,11 +203,17 @@ async def refresh_internal_auth(
         or request.cookies.get("Authorization")
     )
     if not veupathdb_token:
+        if session_user_id is not None:
+            return JSONResponse({"success": True})
         raise UnauthorizedError(detail="No VEuPathDB session")
 
-    auth_token = await _link_internal_user(session, veupathdb_token, site_id)
-    if not auth_token:
+    internal_id = await _link_internal_user(session, veupathdb_token, site_id)
+    if internal_id is None:
+        if session_user_id is not None:
+            return JSONResponse({"success": True})
         raise UnauthorizedError(detail="VEuPathDB session expired or invalid")
+    if internal_id == session_user_id:
+        return JSONResponse({"success": True})
 
     settings = get_settings()
     secure_cookie = settings.api_env != "development"
@@ -217,7 +221,7 @@ async def refresh_internal_auth(
     resp = JSONResponse({"success": True})
     resp.set_cookie(
         key="pathfinder-auth",
-        value=auth_token,
+        value=create_user_token(internal_id),
         httponly=True,
         samesite="lax",
         secure=secure_cookie,

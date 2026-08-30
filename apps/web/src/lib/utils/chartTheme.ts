@@ -1,16 +1,29 @@
-/**
- * Chart theme utilities – maps CSS custom properties (--chart-1 ... --chart-6)
- * to colour strings that Recharts / SVG props accept directly.
- */
+import { readChartTokens } from "@/lib/components/charts/chartTheme";
+import { UNRESOLVED_SERIES_COLOR } from "@/lib/components/charts/unresolved";
 
-/** Static HSL references that work in JSX without touching the DOM. */
-export const CHART_COLORS = {
-  positive: "hsl(var(--chart-positive))",
-  negative: "hsl(var(--chart-negative))",
-  primary: "hsl(var(--chart-1))",
-  secondary: "hsl(var(--chart-2))",
-  warning: "hsl(var(--chart-3))",
-  destructive: "hsl(var(--chart-4))",
-  purple: "hsl(var(--chart-5))",
-  cyan: "hsl(var(--chart-6))",
-} as const;
+/** Chart colors under the role names a Recharts chart reaches for. */
+export interface ChartRoleColors {
+  positive: string;
+  negative: string;
+  primary: string;
+  secondary: string;
+  warning: string;
+  destructive: string;
+  purple: string;
+  cyan: string;
+}
+
+export function readChartRoleColors(): ChartRoleColors {
+  const { series, positive, negative } = readChartTokens();
+  const at = (index: number): string => series[index] ?? UNRESOLVED_SERIES_COLOR;
+  return {
+    positive,
+    negative,
+    primary: at(0),
+    secondary: at(1),
+    warning: at(2),
+    destructive: at(3),
+    purple: at(4),
+    cyan: at(5),
+  };
+}

@@ -1,33 +1,32 @@
 import type { EnrichmentResult, EnrichmentResultsChunk } from "@pathfinder/shared";
 import { EnrichmentSection } from "@/features/analysis";
+import { Figure } from "@/lib/components/thread/Figure";
 
 export function DataEnrichmentResults({ data }: { data: EnrichmentResultsChunk }) {
   const results = data.results as unknown as EnrichmentResult[];
+  const csv = data.downloads?.["csv"];
   return (
-    <div
-      data-testid="data-enrichment-results"
-      className="my-2 rounded-md border border-border bg-card p-3"
+    <Figure
+      testId="data-enrichment-results"
+      title="Enrichment"
+      caption={`${results.length.toLocaleString()} terms, ${data.geneCount.toLocaleString()} genes analyzed`}
     >
-      <div className="mb-2 flex items-center justify-between text-xs">
-        <div>
-          <span className="font-medium">Enrichment</span>
-          <span className="mx-1 text-muted-foreground">·</span>
+      <div>
+        <div className="mb-2 flex items-center justify-between text-xs">
           <span className="text-muted-foreground">{data.geneSetName}</span>
-          <span className="mx-1 text-muted-foreground">·</span>
-          <span className="text-muted-foreground">{data.geneCount} genes</span>
+          {typeof csv === "string" ? (
+            <a
+              className="text-primary hover:underline"
+              href={csv}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Download CSV
+            </a>
+          ) : null}
         </div>
-        {data.downloads != null && typeof data.downloads["csv"] === "string" ? (
-          <a
-            className="text-primary hover:underline"
-            href={data.downloads["csv"]}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Download CSV
-          </a>
-        ) : null}
+        <EnrichmentSection results={results} />
       </div>
-      <EnrichmentSection results={results} />
-    </div>
+    </Figure>
   );
 }
