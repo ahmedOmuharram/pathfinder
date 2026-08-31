@@ -81,13 +81,13 @@ describe("ValidationBanner surfaces a WDK rejection", () => {
   it("stays silent for a healthy step", () => {
     render(<ValidationBanner step={step()} snapshot={snapshot()} />);
 
-    expect(screen.queryByTestId("validation-message")).toBeNull();
+    expect(screen.queryByTestId("validation-message")).toBe(null);
   });
 });
 
 describe("stepErrorMessage", () => {
   it("is null for a healthy step", () => {
-    expect(stepErrorMessage(snapshot())).toBeNull();
+    expect(stepErrorMessage(snapshot())).toBe(null);
   });
 
   it("prefers the WDK rejection", () => {

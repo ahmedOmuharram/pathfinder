@@ -16,6 +16,7 @@ from assistant_core.conversation.checkpointer import lifespan_checkpointer
 from assistant_core.conversation.event_stream import latest_turn_boundary
 from assistant_core.graph.turn_state import (
     PendingApproval,
+    PendingDurableCall,
     UserQuestionAnswer,
 )
 from assistant_core.mcp.admission import install_admitted_sources
@@ -30,7 +31,7 @@ from sqlalchemy import select
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.assistant_routing import resolve_turn_assistant
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.ai.conversation.turn_runner import run_turn
+from pathfinder.ai.conversation.turn_runner import TurnRequest, run_turn
 from pathfinder.ai.graph._llm_capture import capture_llm
 from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.devtools import inspector
@@ -320,6 +321,14 @@ async def _gate_from_checkpoint(
         config: RunnableConfig = {"configurable": {"thread_id": str(conversation_id)}}
         snapshot = await graph.aget_state(config)
     values = snapshot.values or {}
+    raw_durable = values.get("pending_durable_call")
+    if raw_durable:
+        parked = PendingDurableCall.model_validate(raw_durable)
+        return detect_gate(
+            pending_approval=None,
+            tool_args={},
+            durable_task=(str(parked.task_id), parked.durable_tool_name),
+        )
     raw_pending = values.get("pending_approval")
     if not raw_pending:
         return Gate(kind="none", message="turn complete")
@@ -412,8 +421,7 @@ async def _exec_one(
         store = await stack.enter_async_context(lifespan_memory_store(settings_url))
         graph = spec.build_graph(saver)
         await run_turn(
-            body=body,
-            user_id=DEV_USER_ID,
+            request=TurnRequest(body=body, user_id=DEV_USER_ID),
             spec=spec,
             compiled_graph=graph,
             memory_store=store,

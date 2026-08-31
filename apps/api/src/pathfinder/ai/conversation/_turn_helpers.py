@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID, uuid4
 
-from assistant_core.graph.stream_events import background_task_started_event
-from assistant_core.graph.turn_state import UserQuestionAnswer
+from assistant_core.graph.turn_state import DurableTaskResult, UserQuestionAnswer
 from assistant_core.platform.pydantic_base import CamelModel
 from assistant_core.spec import TurnStart
-from langgraph.types import Interrupt
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.ui.vercel_ai._utils import iter_tool_approval_responses
 from pydantic_ai.ui.vercel_ai.request_types import (
@@ -90,10 +87,12 @@ def build_turn_start(
     *,
     turn_message_id: UUID,
     turn_start_event_id: int,
+    durable_result: DurableTaskResult | None = None,
 ) -> TurnStart:
     """The turn's inputs, for the assistant's state factory to shape."""
-    resume = incoming.is_approval_resume
+    resume = incoming.is_approval_resume or durable_result is not None
     return TurnStart(
+        durable_result=durable_result,
         conversation_id=incoming.conversation_id,
         user_id=user_id,
         site_id=incoming.site_id,
@@ -123,50 +122,3 @@ def _extract_chunk(payload: object) -> dict[str, Any] | None:
     except ValidationError:
         return None
     return envelope.chunk
-
-
-_INTERRUPT_KEY: str = "__interrupt__"
-
-
-class _DurableInterruptPayload(BaseModel):
-    """Typed shape of the value passed to ``interrupt()`` by ``@durable_tool``."""
-
-    kind: Literal["durable_task"]
-    task_id: str
-    tool_name: str
-    estimated_duration_seconds: int
-
-
-def _iter_raw_interrupts(
-    payload: object,
-) -> list[tuple[Interrupt, _DurableInterruptPayload]]:
-    if not isinstance(payload, dict):
-        return []
-    raw_interrupts = payload.get(_INTERRUPT_KEY)
-    if not isinstance(raw_interrupts, tuple | list):
-        return []
-    parsed: list[tuple[Interrupt, _DurableInterruptPayload]] = []
-    for item in raw_interrupts:
-        if not isinstance(item, Interrupt):
-            continue
-        try:
-            durable = _DurableInterruptPayload.model_validate(
-                item.value,
-                strict=False,
-            )
-        except ValidationError:
-            continue
-        parsed.append((item, durable))
-    return parsed
-
-
-def _interrupt_chunks(payload: object) -> Iterator[dict[str, Any]]:
-    """Yield one ``data-background-task-started`` chunk per durable interrupt."""
-    raw = _iter_raw_interrupts(payload)
-    for _, durable in raw:
-        chunk = background_task_started_event(
-            task_id=UUID(durable.task_id),
-            tool_name=durable.tool_name,
-            estimated_duration_seconds=durable.estimated_duration_seconds,
-        )
-        yield chunk.model_dump(by_alias=True, mode="json", exclude_none=True)

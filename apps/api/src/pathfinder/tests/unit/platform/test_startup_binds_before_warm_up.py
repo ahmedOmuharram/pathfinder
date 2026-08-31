@@ -1,8 +1,9 @@
-"""Startup returns while the catalogs are still warming.
+"""Startup returns while the catalogs are still warming, and says so if it dies.
 
 uvicorn binds its socket only after lifespan startup returns, so anything the
 lifespan awaits is an outage window: the port is closed, compose dependents
-mis-start, and the proxy in front answers 502.
+mis-start, and the proxy in front answers 502. The spawned warm-up owns the
+readiness report, so its own death has to reach the same report.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pathfinder.jobs import app as jobs_app
 from pathfinder.jobs import logging_filters
 from pathfinder.platform import notify_dispatcher
 from pathfinder.platform.langfuse import prompts
-from pathfinder.platform.readiness import reset_readiness
+from pathfinder.platform.readiness import get_readiness, reset_readiness
 from pathfinder.services.export import sweeper
 
 
@@ -96,7 +97,7 @@ async def test_startup_returns_while_warm_up_still_runs(
 async def test_the_blocking_model_load_leaves_the_event_loop_free(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``warm_up_piguard`` holds the CPU for seconds, so it belongs on a thread."""
+    """``warm_up_scanner`` holds the CPU for seconds, so it belongs on a thread."""
     callers: list[str] = []
 
     def record_model() -> None:
@@ -106,7 +107,7 @@ async def test_the_blocking_model_load_leaves_the_event_loop_free(
         async def preload_all(self) -> None:
             return None
 
-    monkeypatch.setattr(main, "warm_up_piguard", record_model)
+    monkeypatch.setattr(main, "warm_up_scanner", record_model)
     monkeypatch.setattr(main, "get_discovery_service", _Discovery)
 
     await main._warm_up_subsystems()
@@ -114,3 +115,38 @@ async def test_the_blocking_model_load_leaves_the_event_loop_free(
 
     assert callers
     assert all(name != threading.main_thread().name for name in callers)
+
+
+async def test_a_warm_up_death_outside_its_handlers_fails_the_loading_subsystems(
+    isolated_lifespan: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A type no warm-up step catches still reaches ``/health/ready``."""
+    del isolated_lifespan
+    reset_readiness()
+    died = asyncio.Event()
+
+    async def exploding_warm_up() -> None:
+        msg = "catalog index divided by zero"
+        try:
+            raise ZeroDivisionError(msg)
+        finally:
+            died.set()
+
+    monkeypatch.setattr(main, "_warm_up_subsystems", exploding_warm_up)
+
+    app = FastAPI()
+    async with main.lifespan(app):
+        await died.wait()
+        await asyncio.sleep(0)
+        readiness = get_readiness()
+        assert readiness.embedding_backend.ready is False
+        assert (
+            readiness.embedding_backend.error
+            == "ZeroDivisionError: catalog index divided by zero"
+        )
+        assert (
+            readiness.piguard.error
+            == "ZeroDivisionError: catalog index divided by zero"
+        )
+
+    reset_readiness()

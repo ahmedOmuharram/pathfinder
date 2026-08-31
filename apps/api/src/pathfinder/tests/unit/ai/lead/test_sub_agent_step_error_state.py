@@ -17,7 +17,7 @@ from pydantic_ai.messages import (
 )
 
 from pathfinder.ai.capabilities.error_classification import build_error_directive
-from pathfinder.ai.lead.sub_agent_stream import _forward_inner_event
+from pathfinder.ai.lead.sub_agent_events import _forward_inner_event
 
 
 def _collect() -> tuple[list[dict[str, Any]], Any]:

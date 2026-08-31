@@ -81,13 +81,11 @@ test.describe("Gene Set Analysis Pipeline", () => {
     expect(setB.geneCount).toBe(setBCount);
 
     // ── Phase 4: Enrichment on a set ────────────────────────────
-    // Activate the original "Set A" — disambiguated from the derived
-    // "Set A ∩ Set B" set whose name also contains "Set A". The gene count
-    // was already verified against the API above.
+    // Activate the original "Set A". The card's name span carries the set
+    // name as its title, so the derived "Set A ∩ Set B" card does not match.
     await page
       .getByRole("button")
-      .filter({ has: page.getByText("Set A", { exact: true }) })
-      .first()
+      .filter({ has: page.locator('span[title="Set A"]') })
       .click();
     await expect(
       page.getByRole("heading", { name: "Set A", exact: true, level: 1 }),

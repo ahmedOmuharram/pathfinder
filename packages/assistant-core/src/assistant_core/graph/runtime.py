@@ -11,6 +11,7 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from pydantic import BaseModel, ConfigDict, Field, SkipValidation
 
 from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
+from assistant_core.graph.turn_state import DurableDeferral
 from assistant_core.memory.schemas import MemoryValue
 from assistant_core.platform.db import DBSessionFactory
 from assistant_core.platform.types import ReasoningEffort
@@ -32,9 +33,10 @@ class TurnContext:
 
 
 class GuardedDeps(Protocol):
-    """What a turn graph needs from an agent's deps to guard its tool calls."""
+    """What a turn graph needs from an agent's deps to drive one run."""
 
     tool_repetition_guard: ToolRepetitionGuard
+    durable_deferrals: dict[str, DurableDeferral]
 
 
 class AssistantDeps(BaseModel):
@@ -53,3 +55,5 @@ class AssistantDeps(BaseModel):
     tool_repetition_guard: ToolRepetitionGuard = Field(
         default_factory=ToolRepetitionGuard,
     )
+    # Durable calls this run handed to a worker, keyed by their tool call id.
+    durable_deferrals: dict[str, DurableDeferral] = Field(default_factory=dict)

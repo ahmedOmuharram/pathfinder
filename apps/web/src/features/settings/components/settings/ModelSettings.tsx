@@ -45,9 +45,8 @@ export function ModelSettings() {
     <div className="space-y-1">
       <div className="mb-3">
         <p className="text-xs text-muted-foreground">
-          The Lead orchestrates everything you see in chat. Each phase below runs as a
-          sub-agent the Lead delegates to. Pick a preset, or set a model + reasoning
-          effort per phase; leave a phase blank to use the default.
+          The assistant runs each stage below on its own model. Pick a preset, or set a
+          model + reasoning effort per stage; leave a stage blank to use the default.
         </p>
       </div>
 

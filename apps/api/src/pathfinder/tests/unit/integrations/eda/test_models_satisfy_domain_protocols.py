@@ -5,23 +5,26 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pathfinder.domain.eda import (
+from pathfinder.domain.eda import find_gene_entity, validate_filters
+from pathfinder.domain.eda_compute_config import (
     ComputeConfigFacts,
+    validate_compute_config,
+)
+from pathfinder.domain.eda_filter_checks import (
     DateSetFacts,
-    EntityFacts,
     FilterFacts,
     LongitudeBoundsFacts,
     MultiFilterFacts,
     NumberSetFacts,
     RangeBoundsFacts,
     StringSetFacts,
-    StudyFacts,
     SubFilterFacts,
+)
+from pathfinder.domain.eda_study import (
+    EntityFacts,
+    StudyFacts,
     ValueVariableFacts,
     VariableFacts,
-    find_gene_entity,
-    validate_compute_config,
-    validate_filters,
 )
 from pathfinder.integrations.eda.models import (
     EdaCategoryVariable,

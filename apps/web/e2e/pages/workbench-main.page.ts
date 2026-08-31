@@ -98,9 +98,30 @@ export class WorkbenchMainPage {
     // Wait for either SUCCESS (significant terms) or WDK error (HTTP 500).
     // WDK enrichment endpoints are externally operated and can return 500
     // due to server-side issues outside our control.
-    const success = this.page.getByText(/significant term/i).first();
-    const wdkError = this.page.getByText(/HTTP 500|Analysis failed/i).first();
-    await expect(success.or(wdkError)).toBeVisible({ timeout });
+    const success = this.page.getByText(/significant term/i);
+    await expect
+      .poll(async () => (await success.count()) + (await this.wdkErrorCount()), {
+        timeout,
+      })
+      .toBeGreaterThan(0);
+  }
+
+  /** How many WDK server-error messages the page shows. */
+  private async wdkErrorCount(): Promise<number> {
+    return this.page.getByText(/HTTP 500|Analysis failed/i).count();
+  }
+
+  /** The result tabs, one regular expression per analysis type. */
+  private static readonly RESULT_TAB_PATTERNS = [
+    /GO: Biological/i,
+    /GO: Molecular/i,
+    /GO: Cellular/i,
+    /Metabolic Pathway/i,
+    /Word Enrichment/i,
+  ];
+
+  private resultTab(pattern: RegExp) {
+    return this.page.getByRole("button").filter({ hasText: pattern });
   }
 
   /**
@@ -113,38 +134,33 @@ export class WorkbenchMainPage {
    */
   async expectEnrichmentResultsWithData() {
     // If WDK returned a server error, skip data verification — external issue.
-    const wdkError = this.page.getByText(/HTTP 500|Analysis failed/i).first();
-    if (await wdkError.isVisible().catch(() => false)) return;
+    if ((await this.wdkErrorCount()) > 0) return;
 
-    // Click the first result tab that shows a non-zero term count.
-    const tabs = this.page.getByRole("button").filter({
-      hasText:
-        /GO: Biological|GO: Molecular|GO: Cellular|Metabolic Pathway|Word Enrichment/i,
-    });
-    const tabCount = await tabs.count();
-    for (let i = 0; i < tabCount; i++) {
-      const text = (await tabs.nth(i).textContent()) ?? "";
-      const match = text.match(/(\d+)\s*$/);
-      const matchedNum = match?.[1];
-      if (matchedNum !== undefined && parseInt(matchedNum, 10) > 0) {
-        await tabs.nth(i).click();
+    // Open the first result tab whose label ends in a non-zero term count.
+    for (const pattern of WorkbenchMainPage.RESULT_TAB_PATTERNS) {
+      const tab = this.resultTab(pattern);
+      if ((await tab.count()) !== 1) continue;
+      const match = ((await tab.textContent()) ?? "").match(/(\d+)\s*$/);
+      const terms = match?.[1];
+      if (terms !== undefined && parseInt(terms, 10) > 0) {
+        await tab.click();
         break;
       }
     }
 
     // 1. "N significant term(s)" visible with a real number > 0
-    const summaryText = this.page.getByText(/\d+\s+significant term/i).first();
-    await expect(summaryText).toBeVisible({ timeout: 10_000 });
+    const summaryText = this.page.getByText(/\d+\s+significant term/i);
+    await expect(summaryText).not.toHaveCount(0, { timeout: 10_000 });
 
     // 2. Enrichment table has at least 1 data row
     const tableRows = this.page.locator("table tbody tr");
-    await expect(tableRows.first()).toBeVisible({ timeout: 10_000 });
+    await expect(tableRows).not.toHaveCount(0, { timeout: 10_000 });
 
     // 3. At least one cell contains a real p-value (exponential notation)
     const pValueCell = this.page.locator("table tbody td").filter({
       hasText: /\d\.\d{2}e[+-]\d+/,
     });
-    await expect(pValueCell.first()).toBeVisible({ timeout: 5_000 });
+    await expect(pValueCell).not.toHaveCount(0, { timeout: 5_000 });
   }
 
   /**
@@ -154,18 +170,25 @@ export class WorkbenchMainPage {
    * NOT the type selector chips ("GO:BP", "GO:MF", etc.) which are always visible.
    */
   async expectEnrichmentTypeTabs(options?: { skipOnWdkError?: boolean }) {
-    if (options?.skipOnWdkError !== false) {
-      const wdkError = this.page.getByText(/HTTP 500|Analysis failed/i).first();
-      if (await wdkError.isVisible().catch(() => false)) return;
+    if (options?.skipOnWdkError !== false && (await this.wdkErrorCount()) > 0) {
+      return;
     }
     // Result tabs use full labels from ENRICHMENT_ANALYSIS_LABELS:
     //   "GO: Biological Process", "GO: Molecular Function",
     //   "GO: Cellular Component", "Metabolic Pathway", "Word Enrichment"
-    const tabs = this.page.getByRole("button").filter({
-      hasText:
-        /GO: Biological|GO: Molecular|GO: Cellular|Metabolic Pathway|Word Enrichment/i,
-    });
-    await expect(tabs.first()).toBeVisible({ timeout: 10_000 });
+    await expect
+      .poll(
+        async () => {
+          const counts = await Promise.all(
+            WorkbenchMainPage.RESULT_TAB_PATTERNS.map((pattern) =>
+              this.resultTab(pattern).count(),
+            ),
+          );
+          return counts.reduce((total, count) => total + count, 0);
+        },
+        { timeout: 10_000 },
+      )
+      .toBeGreaterThan(0);
   }
 
   // ── Panel Content Assertions ───────────────────────────────────

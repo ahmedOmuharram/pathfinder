@@ -44,7 +44,7 @@ describe("EvalDataNotice", () => {
     await waitFor(() => {
       expect(mockedGet).toHaveBeenCalled();
     });
-    expect(screen.queryByText(/PathFinder improves by learning/i)).toBeNull();
+    expect(screen.queryByText(/PathFinder improves by learning/i)).toBe(null);
   });
 
   it("marks the notice seen on OK and keeps consent on", async () => {
@@ -82,7 +82,7 @@ describe("EvalDataNotice", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^OK$/ }));
 
     await waitFor(() => {
-      expect(screen.queryByText(/PathFinder improves by learning/i)).toBeNull();
+      expect(screen.queryByText(/PathFinder improves by learning/i)).toBe(null);
     });
   });
 
@@ -91,6 +91,6 @@ describe("EvalDataNotice", () => {
 
     render(<EvalDataNotice />);
 
-    expect(screen.queryByText(/PathFinder improves by learning/i)).toBeNull();
+    expect(screen.queryByText(/PathFinder improves by learning/i)).toBe(null);
   });
 });

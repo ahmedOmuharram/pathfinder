@@ -3,7 +3,8 @@
 The agent answers the user directly: its text and its tool calls stream to the
 client as the turn's message, and the turn's tokens and cost land on the
 state. A tool the agent must ask about parks on the state until the user
-answers. The graph names no phase, no role and no other agent.
+answers, and a durable tool parks there until the worker answers. The graph
+names no phase, no role and no other agent.
 """
 
 from __future__ import annotations
@@ -39,16 +40,23 @@ from assistant_core.cost import cost_for_run
 from assistant_core.graph.approvals import (
     approval_results,
     deferred_hint,
+    parked_durable_call,
     pending_approval,
     resume_history,
 )
+from assistant_core.graph.durable import durable_call_id, durable_tool_return
 from assistant_core.graph.emit import emit_chunk, emit_turn_usage
 from assistant_core.graph.runtime import GuardedDeps, TurnContext
 from assistant_core.graph.stream_events import turn_status_event
 from assistant_core.graph.thread_history import dump_thread_history, thread_history
 from assistant_core.graph.turn_agent import TurnAgentFactory
 from assistant_core.graph.turn_message import write_turn_message
-from assistant_core.graph.turn_state import PendingApproval, TurnState
+from assistant_core.graph.turn_state import (
+    DurableDeferral,
+    PendingApproval,
+    PendingDurableCall,
+    TurnState,
+)
 
 _AGENT_NODE = "agent"
 _FINALIZE_NODE = "finalize_turn"
@@ -68,6 +76,7 @@ class _RunCapture:
     provider_name: str | None = None
     provider_url: str | None = None
     pending_approval: PendingApproval | None = None
+    pending_durable_call: PendingDurableCall | None = None
     messages: list[ModelMessage] = field(default_factory=list)
 
     def cost_usd(self) -> Decimal:
@@ -95,6 +104,18 @@ def _turn_for(state: TurnState) -> _AgentTurn:
     A message that answers nothing supersedes the card: the deferred call is
     never made, so the turn is a fresh one over the thread's own messages.
     """
+    durable = state.answered_durable_call
+    result = state.durable_result
+    if durable is not None and result is not None:
+        return _AgentTurn(
+            history=resume_history(durable),
+            results=DeferredToolResults(
+                calls={
+                    durable_call_id(durable): durable_tool_return(durable, result),
+                },
+            ),
+            hint=deferred_hint(durable),
+        )
     approval = state.pending_approval
     if approval is not None:
         results = approval_results(approval, state.approval_responses)
@@ -113,6 +134,7 @@ def _turn_for(state: TurnState) -> _AgentTurn:
 def _absorb(
     event: AgentRunResultEvent[str | DeferredToolRequests],
     capture: _RunCapture,
+    deferrals: dict[str, DurableDeferral],
 ) -> None:
     result = event.result
     response = result.response
@@ -121,14 +143,24 @@ def _absorb(
     capture.provider_url = response.provider_url
     capture.messages = list(result.all_messages())
     output = result.output
-    if isinstance(output, DeferredToolRequests):
-        # One agent is one role, so the parked approval names the only node
-        # that can raise one.
-        capture.pending_approval = pending_approval(
-            output=output,
+    if not isinstance(output, DeferredToolRequests):
+        return
+    # One agent is one role, so a parked call names the only node that can
+    # raise one. A durable call outranks an approval: its task already runs.
+    deferred = [c for c in output.calls if c.tool_call_id in deferrals]
+    if deferred:
+        capture.pending_durable_call = parked_durable_call(
+            call=deferred[0],
             phase=_AGENT_NODE,
             messages=capture.messages,
+            deferral=deferrals[deferred[0].tool_call_id],
         )
+        return
+    capture.pending_approval = pending_approval(
+        output=output,
+        phase=_AGENT_NODE,
+        messages=capture.messages,
+    )
 
 
 def _advanced_history(state: TurnState, capture: _RunCapture) -> str:
@@ -177,7 +209,7 @@ async def _stream_answer[DepsT: GuardedDeps](
                 if cancel.is_set() and isinstance(event, PartStartEvent):
                     return
                 if isinstance(event, AgentRunResultEvent):
-                    _absorb(event, capture)
+                    _absorb(event, capture, deps.durable_deferrals)
                 yield event
                 if (
                     isinstance(event, FunctionToolResultEvent)
@@ -234,6 +266,7 @@ def single_agent_graph[
             "turn_total_tokens": total_tokens,
             "turn_total_cost_usd": total_cost,
             "pending_approval": capture.pending_approval,
+            "pending_durable_call": capture.pending_durable_call,
             "thread_messages_json": _advanced_history(state, capture),
         }
 

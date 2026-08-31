@@ -37,7 +37,7 @@ describe("findPendingConsult", () => {
   });
 
   it("returns null when there is no pending consult", () => {
-    expect(findPendingConsult(assistant([{ type: "text", text: "hi" }]))).toBeNull();
+    expect(findPendingConsult(assistant([{ type: "text", text: "hi" }]))).toBe(null);
   });
 });
 
@@ -78,6 +78,6 @@ describe("findConsultRecap", () => {
         input: { questions: [] },
       },
     ]);
-    expect(findConsultRecap(message)).toBeNull();
+    expect(findConsultRecap(message)).toBe(null);
   });
 });

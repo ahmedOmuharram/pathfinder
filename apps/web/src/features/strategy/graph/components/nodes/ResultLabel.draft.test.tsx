@@ -59,13 +59,13 @@ describe("ResultLabel draft state", () => {
   it("does not say Draft merely because the count has not arrived", () => {
     render(<ResultLabel step={step()} snapshot={snapshot({ estimatedSize: null })} />);
 
-    expect(screen.queryByTestId("step-draft-label")).toBeNull();
+    expect(screen.queryByTestId("step-draft-label")).toBe(null);
   });
 
   it("still shows a count once the step is built", () => {
     render(<ResultLabel step={step()} snapshot={snapshot({ estimatedSize: 412 })} />);
 
-    expect(screen.getByText(/412/)).toBeTruthy();
+    expect(screen.getByText(/412/)).toHaveTextContent("412");
   });
 
   it("a draft never shows a stale count", () => {
@@ -79,7 +79,7 @@ describe("ResultLabel draft state", () => {
       />,
     );
 
-    expect(screen.queryByText(/999/)).toBeNull();
-    expect(screen.getByTestId("step-draft-label")).toBeTruthy();
+    expect(screen.queryByText(/999/)).toBe(null);
+    expect(screen.getByTestId("step-draft-label")).toHaveTextContent("Draft");
   });
 });

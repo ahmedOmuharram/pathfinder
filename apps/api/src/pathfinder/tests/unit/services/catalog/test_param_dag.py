@@ -12,11 +12,13 @@ from pathfinder.domain.parameters.values import (
     SinglePickValue,
 )
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
-from pathfinder.services.catalog.param_dag import (
-    ResolvedParams,
+from pathfinder.services.catalog._param_binding import (
     _apply_override,
     _single_valid_value,
     param_value_for,
+)
+from pathfinder.services.catalog.param_dag import (
+    ResolvedParams,
     resolve_params_with_intent,
 )
 from pathfinder.services.catalog.param_formatting import (

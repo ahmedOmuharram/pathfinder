@@ -100,7 +100,7 @@ describe("an empty parameter list only means empty once it is known", () => {
   it("does not claim the search has no parameters while loading", () => {
     renderBody({ isLoading: true });
 
-    expect(screen.queryByText(EMPTY)).toBeNull();
+    expect(screen.queryByText(EMPTY)).toBe(null);
   });
 
   it("does not claim the search has no parameters before a fetch runs", () => {
@@ -108,7 +108,7 @@ describe("an empty parameter list only means empty once it is known", () => {
     // an absence of an answer, not an answer.
     renderBody({ isLoading: false, paramSpecsSettled: false });
 
-    expect(screen.queryByText(EMPTY)).toBeNull();
+    expect(screen.queryByText(EMPTY)).toBe(null);
   });
 
   it("says so when a completed fetch returned nothing", () => {

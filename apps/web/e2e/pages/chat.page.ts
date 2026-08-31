@@ -1,5 +1,7 @@
 import { type Locator, type Page, expect } from "@playwright/test";
 
+import { waitForConversationRoute } from "./navigation";
+
 export class ChatPage {
   readonly composer: Locator;
   readonly messageInput: Locator;
@@ -31,6 +33,24 @@ export class ChatPage {
 
   /** The strategy ID created by the last `newChat()` call. */
   lastStrategyId: string | null = null;
+
+  /** The sidebar row for one conversation. The same id also marks its
+   *  dismissed row and its subtree rows, so the testid names which one. */
+  private conversationRow(strategyId: string): Locator {
+    return this.page.locator(
+      `[data-testid="conversation-item"][data-conversation-id="${strategyId}"]`,
+    );
+  }
+
+  /** Open one conversation from the sidebar and wait for the router to put its
+   *  id in the URL. A send() before the URL moves posts into the previous
+   *  conversation. */
+  private async openConversationRow(strategyId: string) {
+    const conversationItem = this.conversationRow(strategyId);
+    await expect(conversationItem).toBeVisible({ timeout: 10_000 });
+    await conversationItem.click();
+    await waitForConversationRoute(this.page, strategyId);
+  }
 
   /** Start a fresh conversation so the test is isolated from prior state. */
   async newChat(siteId?: string) {
@@ -69,11 +89,7 @@ export class ChatPage {
     this.lastStrategyId = strategyId;
 
     await this.refreshConversationsButton.click();
-    const conversationItem = this.page
-      .locator(`[data-conversation-id="${strategyId}"]`)
-      .first();
-    await expect(conversationItem).toBeVisible({ timeout: 10_000 });
-    await conversationItem.click();
+    await this.openConversationRow(strategyId);
 
     await expect(this.composer).toBeVisible({ timeout: 10_000 });
     await expect(this.userMessages).toHaveCount(0, { timeout: 10_000 });
@@ -94,10 +110,6 @@ export class ChatPage {
 
   get assistantMessages(): Locator {
     return this.page.locator(".is-assistant");
-  }
-
-  assistantMessage(index: number): Locator {
-    return this.assistantMessages.nth(index);
   }
 
   get userMessages(): Locator {
@@ -122,30 +134,20 @@ export class ChatPage {
   }
 
   /**
-   * Assert that an assistant message matching `pattern` is visible.
+   * Assert that an assistant message matching `pattern` is on the thread.
    *
-   * By default this finds ANY assistant message containing the pattern
-   * (resilient to stale messages from prior conversations). Pass an
-   * explicit `index` to pin to a specific position.
+   * Any assistant message counts, so a stale message from a prior
+   * conversation does not decide the result.
    *
    * The reply lands when the worker finishes the turn, so the wait covers the
    * turn plus the time it spends queued behind another worker's turn. Measured
    * turns run 4 s to 16 s, and a queued one waits about as long again.
    */
-  async expectAssistantMessage(
-    pattern: RegExp,
-    options?: { index?: number; timeout?: number },
-  ) {
-    const timeout = options?.timeout ?? 90_000;
-    if (options?.index !== undefined) {
-      await expect(this.assistantMessage(options.index)).toContainText(pattern, {
-        timeout,
-      });
-    } else {
-      // Find any assistant message matching the pattern.
-      const matching = this.assistantMessages.filter({ hasText: pattern });
-      await expect(matching.first()).toBeVisible({ timeout });
-    }
+  async expectAssistantMessage(pattern: RegExp, options?: { timeout?: number }) {
+    const matching = this.assistantMessages.filter({ hasText: pattern });
+    await expect(matching).not.toHaveCount(0, {
+      timeout: options?.timeout ?? 90_000,
+    });
   }
 
   async expectAssistantMessageCount(count: number) {
@@ -161,26 +163,48 @@ export class ChatPage {
   }
 
   async expectVariantComparison() {
-    await expect(this.variantComparison.first()).toBeVisible({ timeout: 60_000 });
+    await expect(this.variantComparison).toBeVisible({ timeout: 60_000 });
   }
 
-  /** Answer every consult-carousel slide by picking the first option, advancing
-   *  with Next, and submitting on the last slide. */
+  /**
+   * Pick the opening option of the slide that is on screen now.
+   *
+   * The carousel animates the answered slide out while the next one comes in,
+   * so the attached slide can still be the one that is leaving. The read and
+   * the click retry together, and the advance button is enabled only once the
+   * current question holds an answer, so a click on a leaving slide is
+   * discarded and repeated on the slide that stays.
+   */
+  private async pickSlideOption(slide: Locator, advance: Locator) {
+    await expect(async () => {
+      const optionTestIds = await slide
+        .locator('[data-testid^="consult-option-"]')
+        .evaluateAll((els) => els.map((el) => el.getAttribute("data-testid") ?? ""));
+      const optionTestId = optionTestIds[0];
+      if (optionTestId === undefined || optionTestId === "") {
+        throw new Error("consult slide offers no option to pick");
+      }
+      await slide.getByTestId(optionTestId).click({ timeout: 2_000 });
+      await expect(advance).toBeEnabled({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+  }
+
+  /** Answer every consult-carousel slide by picking its opening option,
+   *  advancing with Next, and submitting on the last slide. */
   async answerConsultCarousel() {
     const carousel = this.page.getByTestId("consult-carousel");
     await expect(carousel).toBeVisible({ timeout: 60_000 });
-    // Loop until Submit appears (last slide), picking the first option each time.
+    const slide = carousel.getByTestId("consult-slide");
+    const submit = carousel.getByTestId("consult-submit");
+    // Loop until Submit appears (last slide), answering each question on the way.
     for (let guard = 0; guard < 10; guard++) {
-      const firstOption = carousel.locator('[data-testid^="consult-option-"]').first();
-      await expect(firstOption).toBeVisible({ timeout: 10_000 });
-      await firstOption.click();
-      const submit = carousel.getByTestId("consult-submit");
-      if (await submit.isVisible()) {
-        await expect(submit).toBeEnabled();
-        await submit.click();
-        return;
-      }
-      await carousel.getByTestId("consult-next").click();
+      await expect(slide).toHaveCount(1, { timeout: 10_000 });
+      // The last slide replaces Next with Submit.
+      const isLastSlide = (await submit.count()) > 0;
+      const advance = isLastSlide ? submit : carousel.getByTestId("consult-next");
+      await this.pickSlideOption(slide, advance);
+      await advance.click();
+      if (isLastSlide) return;
     }
     throw new Error("consult carousel did not reach a submit slide");
   }
@@ -200,7 +224,7 @@ export class ChatPage {
   }
 
   async expectScoredComparison() {
-    await expect(this.scoredComparison.first()).toBeVisible({ timeout: 60_000 });
+    await expect(this.scoredComparison).toBeVisible({ timeout: 60_000 });
   }
 
   /** The winner row inside the scored-comparison card. */
@@ -246,9 +270,12 @@ export class ChatPage {
   }
 
   async expectConversationTitleUpdated(pattern: RegExp) {
-    await expect(this.page.getByTestId("conversation-item").first()).toContainText(
-      pattern,
-      { timeout: 15_000 },
-    );
+    const strategyId = this.lastStrategyId;
+    if (strategyId === null) {
+      throw new Error("expectConversationTitleUpdated needs a newChat() first");
+    }
+    await expect(this.conversationRow(strategyId)).toContainText(pattern, {
+      timeout: 15_000,
+    });
   }
 }

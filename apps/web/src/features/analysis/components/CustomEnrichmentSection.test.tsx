@@ -56,7 +56,9 @@ describe("CustomEnrichmentSection", () => {
     await runWith(250, 5);
 
     await waitFor(() => {
-      expect(screen.getByText("Gene set size: 250 (5 in background)")).toBeTruthy();
+      expect(screen.getByText(/Gene set size:/)).toHaveTextContent(
+        "Gene set size: 250 (5 in background)",
+      );
     });
   });
 
@@ -64,7 +66,9 @@ describe("CustomEnrichmentSection", () => {
     await runWith(12, 12);
 
     await waitFor(() => {
-      expect(screen.getByText("Gene set size: 12 (12 in background)")).toBeTruthy();
+      expect(screen.getByText(/Gene set size:/)).toHaveTextContent(
+        "Gene set size: 12 (12 in background)",
+      );
     });
   });
 
@@ -72,7 +76,7 @@ describe("CustomEnrichmentSection", () => {
     await runWith(20, 20, null);
 
     await waitFor(() => {
-      expect(screen.getByText("Odds Ratio: Inf")).toBeTruthy();
+      expect(screen.getByText(/Odds Ratio:/)).toHaveTextContent("Odds Ratio: Inf");
     });
   });
 
@@ -80,7 +84,7 @@ describe("CustomEnrichmentSection", () => {
     await runWith(12, 12);
 
     await waitFor(() => {
-      expect(screen.getByText("Odds Ratio: 29.33")).toBeTruthy();
+      expect(screen.getByText(/Odds Ratio:/)).toHaveTextContent("Odds Ratio: 29.33");
     });
   });
 });

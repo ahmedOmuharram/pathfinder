@@ -133,9 +133,9 @@ def _attach_point(
 def _guidance(wdk_strategy_id: int | None, *, is_compute_backed: bool) -> str:
     kind = "the volcano's retained genes" if is_compute_backed else "the subset"
     strategy = (
-        f"It is WDK strategy {wdk_strategy_id}."
+        f"It is VEuPathDB strategy {wdk_strategy_id}."
         if wdk_strategy_id is not None
-        else "WDK has not accepted it yet."
+        else "VEuPathDB has not accepted it yet."
     )
     return (
         f"The step holds {kind} and behaves like any other step from now on: "
@@ -190,9 +190,8 @@ async def create_eda_step(
     binding = await bound_analysis(ctx)
     if binding is None:
         msg = (
-            "No EDA analysis is open on this conversation. Call "
-            "open_eda_analysis on the dataset you want, filter it with "
-            "set_eda_filters, then export it."
+            "No study is open on this conversation. Call open_eda_analysis on "
+            "the dataset you want, filter it with set_eda_filters, then export it."
         )
         raise ModelRetry(msg)
     _checked_thresholds(effect_size_threshold, significance_threshold)
@@ -265,7 +264,7 @@ async def create_eda_step(
         )
     return with_summary(
         created,
-        f"Step {node.id} added to strategy {wdk_strategy_id}",
+        f"Step {node.id} added to the strategy",
         ctx=ctx,
         extra=metadata,
     )

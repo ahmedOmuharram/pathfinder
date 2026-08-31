@@ -8,7 +8,7 @@
     "packages/assistant-client-ts"
   ],
   "scripts": {
-    "generate:types": "docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml exec api curl -s http://localhost:8000/openapi.json | python3 -m json.tool > packages/spec/openapi.json && yarn --cwd packages/shared-ts generate",
+    "generate:types": "cd apps/api && uv run python -m pathfinder.devtools.openapi generate && cd ../.. && yarn --cwd packages/shared-ts generate",
     "check:knowledge": "node scripts/check-knowledge.mjs",
     "check:wdk-rules": "node scripts/check-wdk-rules.mjs",
     "wdk:live": "cd apps/api && uv run pytest src/pathfinder/tests -m live_wdk -q",

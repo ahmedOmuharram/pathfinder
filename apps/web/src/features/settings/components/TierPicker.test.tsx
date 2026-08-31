@@ -23,9 +23,11 @@ const PRESETS: Record<string, TierPreset> = {
 describe("TierPicker", () => {
   it("renders a button per tier with readable labels", () => {
     render(<TierPicker presets={PRESETS} activeTier="default" onSelect={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Quality" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Default" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Fast" })).toBeTruthy();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Quality",
+      "Default",
+      "Fast",
+    ]);
   });
 
   it("marks only the active tier as pressed", () => {
@@ -49,7 +51,7 @@ describe("TierPicker", () => {
     render(
       <TierPicker presets={PRESETS} activeTier={CUSTOM_TIER} onSelect={vi.fn()} />,
     );
-    expect(screen.getByText(/don't match a preset/i)).toBeTruthy();
+    expect(screen.getByText(/don't match a preset/i)).toBeVisible();
     for (const tier of ["Quality", "Default", "Fast"]) {
       expect(
         screen.getByRole("button", { name: tier }).getAttribute("aria-pressed"),
@@ -72,6 +74,8 @@ describe("TierPicker", () => {
         onSelect={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "experimental" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "experimental" })).toHaveTextContent(
+      "experimental",
+    );
   });
 });

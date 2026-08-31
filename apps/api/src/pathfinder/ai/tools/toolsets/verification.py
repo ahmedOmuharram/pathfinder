@@ -1,6 +1,6 @@
 """Verification-phase toolset for testing, analyzing, and exporting results."""
 
-from pydantic_ai.tools import RunContext, Tool
+from pydantic_ai.tools import RunContext, Tool, ToolDefinition
 from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_ai.toolsets.function import FunctionToolset
 
@@ -25,7 +25,10 @@ from pathfinder.ai.tools.standalone.results import (
     get_download_url,
     get_sample_records,
 )
-from pathfinder.ai.tools.standalone.strategy_graph import get_strategy
+from pathfinder.ai.tools.standalone.strategy_graph import (
+    check_study_step,
+    get_strategy,
+)
 from pathfinder.ai.tools.standalone.think import think
 from pathfinder.ai.tools.standalone.workbench import (
     create_workbench_gene_set,
@@ -51,16 +54,14 @@ from pathfinder.ai.tools.toolsets._dynamic import (
 def _verification_enum_overrides(
     ctx: RunContext[AgentDeps],
 ) -> EnumOverrides:
-    """Constrain ``wdk_step_id`` args to steps actually built in WDK and
-    ``target_search_name`` to discovery's selected universe.
+    """Constrain ``wdk_step_id`` args to the steps that exist in WDK.
 
-    Verification tools take ``wdk_step_id: int`` (the WDK-side numeric
-    id assigned after a step is pushed) — only steps that have been
-    built can be queried, so the enum is restricted to ids visible in
+    A ``wdk_step_id`` is assigned when a step is pushed, so only pushed steps
+    can be queried and the enum holds the ids in
     ``strategy_session.sync_state.wdk_step_ids``.
     """
     overrides: EnumOverrides = {}
-    wdk_ids = live_wdk_step_ids(ctx.deps)
+    wdk_ids = live_wdk_step_ids(ctx.deps.strategy_session)
     if wdk_ids:
         for tool in (
             "get_estimated_size",
@@ -69,10 +70,20 @@ def _verification_enum_overrides(
             "run_control_tests_on_step",
         ):
             overrides[(tool, "wdk_step_id")] = list(wdk_ids)
-    selected = sorted(ctx.deps.agent_state.selected_search_names())
-    if selected:
-        overrides[("run_control_tests_on_search", "target_search_name")] = selected
     return overrides
+
+
+ENRICHMENT_TOOL = "run_gene_set_enrichment"
+
+
+def _warranted_by_the_delta(
+    ctx: RunContext[AgentDeps],
+    tool_def: ToolDefinition,
+) -> bool:
+    """Offer enrichment only on a turn whose delta earns its cost."""
+    if tool_def.name != ENRICHMENT_TOOL:
+        return True
+    return ctx.deps.verification_scope.warrants_enrichment()
 
 
 def build_toolset() -> AbstractToolset[AgentDeps]:
@@ -82,16 +93,16 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
     verification agent — no ``finish_*`` tool is exposed.
 
     Every ``@durable_tool`` is also registered with ``sequential=True``.
-    Durable tools suspend the graph via ``interrupt()`` on invocation; if
-    pydantic-ai were to run a durable peer in parallel with a sibling tool,
-    the sibling's ``ToolReturnPart`` would be orphaned when the interrupt
-    escapes ``_call_tools`` and cancels peers. Sequential execution on the
-    whole batch guarantees paired ``tool_call_id`` / ``tool_return_id`` in
-    every persisted message history.
+    A durable call ends the run deferred, and one parked call is checkpointed
+    per turn, so a batch that fires two of them would leave the second
+    unanswered.
 
     ``optimize_search_parameters`` carries ``requires_approval=True``: the SDK
     emits a ``ToolApprovalRequestChunk`` so the user confirms before a
     ~15-minute parameter sweep launches on the worker.
+
+    ``run_gene_set_enrichment`` is offered only when the turn's delta warrants
+    it, so an edit of one step is verified by its counts.
     """
     base: FunctionToolset[AgentDeps] = FunctionToolset(
         max_retries=3,
@@ -122,6 +133,7 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
             get_ensemble_analysis,
             get_result_gene_lists,
             get_strategy,
+            check_study_step,
             request_search_inspection,
             think,
             search_memory,
@@ -131,4 +143,4 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
     return DynamicEnumToolset(
         wrapped=base,
         build_overrides=_verification_enum_overrides,
-    )
+    ).filtered(_warranted_by_the_delta)

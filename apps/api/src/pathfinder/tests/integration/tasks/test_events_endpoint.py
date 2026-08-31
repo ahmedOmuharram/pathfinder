@@ -333,10 +333,8 @@ async def test_live_stream_emits_progress_and_terminal_when_batched(
     """Live SSE must yield trailing progress rows when the terminal flip
     lands in the same commit.
 
-    Earlier versions of this endpoint dual-channeled task-tagged
-    ``conversation_events`` rows alongside ``task_progress``; resume-graph
-    chunks now go to the main chat stream
-    (:func:`pathfinder.jobs.runner._resume_graph` via
+    The completion turn's chunks go to the main chat stream
+    (:func:`pathfinder.jobs.runner._run_completion_turn` via
     :class:`ChatEventWriter`), so this endpoint only carries
     ``data-task-progress`` + the terminal ``data-task-completed`` chunk.
     """

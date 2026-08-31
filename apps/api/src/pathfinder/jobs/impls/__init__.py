@@ -3,7 +3,7 @@
 The worker calls :func:`register_all_tools` from its ``amain`` entrypoint so
 that every durable tool's real body is in ``TOOL_REGISTRY`` before it starts
 pulling jobs off the queue. Agent-side wrappers simply submit the job and
-``interrupt()`` — the true work runs here on the worker.
+defer their call — the true work runs here on the worker.
 """
 
 from __future__ import annotations

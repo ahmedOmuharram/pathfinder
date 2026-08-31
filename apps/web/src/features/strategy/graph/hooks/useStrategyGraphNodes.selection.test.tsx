@@ -60,10 +60,10 @@ describe("useStrategyGraphNodes — selected step tracks the live strategy", () 
       { initialProps: { strategy: strategyWith("1") }, wrapper },
     );
     act(() => result.current.setSelectedStep(result.current.editableSteps[0]!));
-    expect(result.current.selectedStep).not.toBeNull();
+    expect(result.current.selectedStep).not.toBe(null);
 
     rerender({ strategy: { ...strategyWith("1"), steps: [] } });
-    expect(result.current.selectedStep).toBeNull();
+    expect(result.current.selectedStep).toBe(null);
   });
 
   it("deselects when set to null", () => {
@@ -78,6 +78,6 @@ describe("useStrategyGraphNodes — selected step tracks the live strategy", () 
     );
     act(() => result.current.setSelectedStep(result.current.editableSteps[0]!));
     act(() => result.current.setSelectedStep(null));
-    expect(result.current.selectedStep).toBeNull();
+    expect(result.current.selectedStep).toBe(null);
   });
 });

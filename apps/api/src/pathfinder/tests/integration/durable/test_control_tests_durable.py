@@ -22,6 +22,7 @@ from pathfinder.jobs.runner import run_durable_task
 from pathfinder.persistence.models import BackgroundTask, TaskProgress, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
+    NewBackgroundTask,
 )
 
 
@@ -180,18 +181,22 @@ async def test_run_durable_task_wiring_control_tests_end_to_end(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name="run_control_tests_on_step",
-        args={
-            "args": [],
-            "kwargs": {
-                "wdk_step_id": 42,
-                "positive_controls": ["a", "b"],
-                "negative_controls": [],
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name="run_control_tests_on_step",
+            args={
+                "args": [],
+                "kwargs": {
+                    "wdk_step_id": 42,
+                    "positive_controls": ["a", "b"],
+                    "negative_controls": [],
+                },
             },
-        },
-        estimated_duration_seconds=10,
+            tool_call_id="call_run_control_tests_on_step",
+            phase_overrides={},
+            estimated_duration_seconds=10,
+        ),
     )
 
     await run_durable_task(

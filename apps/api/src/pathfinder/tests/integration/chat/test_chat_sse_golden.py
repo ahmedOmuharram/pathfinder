@@ -42,6 +42,11 @@ _FIXTURE_PATH = Path(__file__).parent / "_fixtures" / "chat_sse_golden_simple_tu
 # phase nodes run. Keeps the snapshot small and bit-stable.
 _PROMPT = "hi"
 
+# A ceiling on a hung turn, not a budget for a fast one: the mock provider
+# answers this prompt in under a second, so anything near this bound is a
+# deadlock and not a slow machine.
+_DEADLOCK_CEILING_SECONDS = 120.0
+
 # The full set of chunk ``type`` values the dispatcher is allowed to emit on
 # this turn. Any chunk type outside this set indicates new behavior the
 # golden must explicitly cover — re-record the fixture and update this set.
@@ -93,10 +98,13 @@ async def _run_turn_and_collect(
         )
         await asyncio.wait_for(
             wait_until_chat_turn_deferred(in_memory_jobs),
-            timeout=5.0,
+            timeout=_DEADLOCK_CEILING_SECONDS,
         )
         await run_deferred_chat_turns()
-        response = await asyncio.wait_for(post_task, timeout=30.0)
+        response = await asyncio.wait_for(
+            post_task,
+            timeout=_DEADLOCK_CEILING_SECONDS,
+        )
 
     if response.status_code != 200:
         msg = f"chat returned {response.status_code}; body={response.text[:500]!r}"

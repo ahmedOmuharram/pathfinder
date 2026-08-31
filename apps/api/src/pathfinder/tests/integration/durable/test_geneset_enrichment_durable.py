@@ -18,6 +18,7 @@ from pathfinder.jobs.runner import run_durable_task
 from pathfinder.persistence.models import BackgroundTask, GeneSetRow, TaskProgress, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
+    NewBackgroundTask,
 )
 from pathfinder.services.gene_sets.types import GeneSet
 
@@ -208,14 +209,18 @@ async def test_run_durable_task_wiring_geneset_enrichment(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name="geneset_enrichment",
-        args={
-            "args": [],
-            "kwargs": {"gene_set_id": gs_id, "enrichment_types": ["word"]},
-        },
-        estimated_duration_seconds=120,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name="geneset_enrichment",
+            args={
+                "args": [],
+                "kwargs": {"gene_set_id": gs_id, "enrichment_types": ["word"]},
+            },
+            tool_call_id="call_geneset_enrichment",
+            phase_overrides={},
+            estimated_duration_seconds=120,
+        ),
     )
 
     await run_durable_task(

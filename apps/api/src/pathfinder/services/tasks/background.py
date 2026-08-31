@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathfinder.persistence.models import BackgroundTask
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
+    NewBackgroundTask,
 )
+from pathfinder.platform.context import phase_overrides_ctx
 
 _ACTIVE_TASK_STATUSES: frozenset[str] = frozenset({"pending", "running", "resuming"})
 
@@ -43,14 +45,23 @@ async def create_background_task(
     user_id: UUID,
     tool_name: str,
     args: dict[str, Any],
+    tool_call_id: str,
     estimated_duration_seconds: int,
 ) -> UUID:
-    """Create a ``background_tasks`` row and return its id."""
+    """Create a ``background_tasks`` row and return its id.
+
+    The row records the calling turn's per-phase picks, because the turn that
+    answers the task is opened after the request that made them is gone.
+    """
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     return await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name=tool_name,
-        args=args,
-        estimated_duration_seconds=estimated_duration_seconds,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name=tool_name,
+            args=args,
+            tool_call_id=tool_call_id,
+            estimated_duration_seconds=estimated_duration_seconds,
+            phase_overrides=phase_overrides_ctx.get().model_dump(mode="json"),
+        ),
     )

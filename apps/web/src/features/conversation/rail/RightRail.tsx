@@ -11,6 +11,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { useWindowSize } from "usehooks-ts";
 
 import type { Strategy } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,15 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
-import { useRightRailStore, type RightRailPanel } from "@/state/useRightRailStore";
+import {
+  lastSeenFor,
+  useLeftSidebarStore,
+  useRightRailStore,
+  type RightRailPanel,
+} from "@/state/useRightRailStore";
 
 import { computeRailActivity } from "./railActivity";
+import { RAIL_PANEL_WIDTH, shouldOverlayRailPanel } from "./railLayout";
 import { EdaPanel } from "./EdaPanel";
 import { LedgerPanel } from "./LedgerPanel";
 import { MemoriesPanel } from "./MemoriesPanel";
@@ -32,7 +39,6 @@ import { ScratchpadPanel } from "./ScratchpadPanel";
 import { StrategyPanel } from "./StrategyPanel";
 import { TasksPanel } from "./TasksPanel";
 
-const PANEL_WIDTH = 360;
 const PANEL_TRANSITION = { type: "spring", stiffness: 380, damping: 36 } as const;
 const ACTIVE_PILL = "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary";
 
@@ -53,16 +59,27 @@ const RAIL_ICONS: RailIconSpec[] = [
   { id: "tasks", icon: Timer, label: "Tasks" },
   { id: "memories", icon: Brain, label: "Memories" },
   { id: "scratchpad", icon: Notebook, label: "Scratchpad" },
-  { id: "ledger", icon: ScrollText, label: "Ledger" },
-  { id: "eda", icon: FlaskConical, label: "EDA" },
+  { id: "ledger", icon: ScrollText, label: "Progress" },
+  { id: "eda", icon: FlaskConical, label: "Studies" },
 ];
 
 export function RightRail({ conversationId, strategy, siteId }: RightRailProps) {
   const openPanel = useRightRailStore((s) => s.openPanel);
-  const lastSeen = useRightRailStore((s) => s.lastSeen);
+  const lastSeen = lastSeenFor(
+    useRightRailStore((s) => s.lastSeen),
+    conversationId,
+  );
   const togglePanel = useRightRailStore((s) => s.togglePanel);
   const autoOpenedConversation = useRightRailStore((s) => s.autoOpenedConversation);
   const autoOpen = useRightRailStore((s) => s.autoOpen);
+
+  const listExpanded = !useLeftSidebarStore((s) => s.collapsed);
+  const { width: viewportWidth } = useWindowSize();
+  const overlay = shouldOverlayRailPanel({
+    viewportWidth,
+    listExpanded,
+    panelOpen: openPanel != null,
+  });
 
   const strategyStepCount = strategy?.steps.length ?? 0;
   const chat = useChatHelpersOptional();
@@ -110,13 +127,19 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
         {openPanel != null && (
           <motion.div
             key="rail-panel"
+            data-testid="rail-panel"
+            data-overlay={overlay ? "true" : "false"}
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: PANEL_WIDTH, opacity: 1 }}
+            animate={{ width: RAIL_PANEL_WIDTH, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={PANEL_TRANSITION}
-            className="h-full shrink-0 overflow-hidden border-l border-border bg-background"
+            className={cn(
+              "h-full shrink-0 overflow-hidden border-l border-border bg-background",
+              overlay &&
+                "absolute right-11 top-0 bottom-0 z-30 shadow-[var(--shadow-float)]",
+            )}
           >
-            <div style={{ width: PANEL_WIDTH }} className="h-full">
+            <div style={{ width: RAIL_PANEL_WIDTH }} className="h-full">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={openPanel}
@@ -127,7 +150,11 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
                   className="h-full"
                 >
                   {openPanel === "strategy" && (
-                    <StrategyPanel strategy={strategy} siteId={siteId} />
+                    <StrategyPanel
+                      strategy={strategy}
+                      siteId={siteId}
+                      conversationId={conversationId}
+                    />
                   )}
                   {openPanel === "tasks" && (
                     <TasksPanel conversationId={conversationId} />
@@ -161,7 +188,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => togglePanel(id, markersFor(id))}
+                  onClick={() => togglePanel(conversationId, id, markersFor(id))}
                   aria-label={`${isOpen ? "Close" : "Open"} ${label}`}
                   aria-pressed={isOpen}
                   className={cn("relative", isOpen && ACTIVE_PILL)}

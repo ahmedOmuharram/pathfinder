@@ -15,6 +15,11 @@ from procrastinate.testing import InMemoryConnector
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.platform.security import create_user_token
 
+# A ceiling on a hung request, not a budget for a fast one: every hop is
+# in-process against the mock provider and settles in under a second, so a
+# wait near this bound is a deadlock and not a loaded machine.
+_DEADLOCK_CEILING_SECONDS = 120.0
+
 
 def _event_ids(body: str) -> list[int]:
     return [
@@ -102,12 +107,14 @@ async def test_post_chat_enqueues_runs_and_streams_until_done(
             client.post(
                 "/api/v1/chat",
                 json=_post_body(conv_id),
-                timeout=30.0,
+                timeout=_DEADLOCK_CEILING_SECONDS,
             ),
         )
-        await asyncio.wait_for(_wait_until_enqueued(in_memory_jobs), timeout=5.0)
+        await asyncio.wait_for(
+            _wait_until_enqueued(in_memory_jobs), timeout=_DEADLOCK_CEILING_SECONDS
+        )
         await _drain()
-        post_res = await asyncio.wait_for(post_task, timeout=30.0)
+        post_res = await asyncio.wait_for(post_task, timeout=_DEADLOCK_CEILING_SECONDS)
 
     assert post_res.status_code == 200
     body = post_res.text
@@ -147,12 +154,14 @@ async def test_post_chat_does_not_replay_prior_turn_events(
             client.post(
                 "/api/v1/chat",
                 json=_post_body(conv_id),
-                timeout=30.0,
+                timeout=_DEADLOCK_CEILING_SECONDS,
             ),
         )
-        await asyncio.wait_for(_wait_until_enqueued(in_memory_jobs), timeout=5.0)
+        await asyncio.wait_for(
+            _wait_until_enqueued(in_memory_jobs), timeout=_DEADLOCK_CEILING_SECONDS
+        )
         await _drain()
-        post_res = await asyncio.wait_for(post_task, timeout=30.0)
+        post_res = await asyncio.wait_for(post_task, timeout=_DEADLOCK_CEILING_SECONDS)
 
     assert post_res.status_code == 200
     ids = _event_ids(post_res.text)
@@ -185,18 +194,20 @@ async def test_events_endpoint_returns_204_when_turn_complete(
             client.post(
                 "/api/v1/chat",
                 json=_post_body(conv_id),
-                timeout=30.0,
+                timeout=_DEADLOCK_CEILING_SECONDS,
             ),
         )
-        await asyncio.wait_for(_wait_until_enqueued(in_memory_jobs), timeout=5.0)
+        await asyncio.wait_for(
+            _wait_until_enqueued(in_memory_jobs), timeout=_DEADLOCK_CEILING_SECONDS
+        )
         await _drain()
-        post_res = await asyncio.wait_for(post_task, timeout=30.0)
+        post_res = await asyncio.wait_for(post_task, timeout=_DEADLOCK_CEILING_SECONDS)
         assert post_res.status_code == 200
 
         get_res = await client.get(
             f"/api/v1/conversations/{conv_id}/events",
             params={"after": "0"},
-            timeout=5.0,
+            timeout=_DEADLOCK_CEILING_SECONDS,
         )
 
     assert get_res.status_code == 204
@@ -222,7 +233,7 @@ async def test_events_endpoint_returns_204_on_empty_conversation(
         res = await client.get(
             f"/api/v1/conversations/{conv_id}/events",
             params={"after": "0"},
-            timeout=5.0,
+            timeout=_DEADLOCK_CEILING_SECONDS,
         )
 
     assert res.status_code == 204
@@ -258,7 +269,7 @@ async def test_events_endpoint_streams_when_last_event_is_not_done(
         res = await client.get(
             f"/api/v1/conversations/{conv_id}/events",
             params={"after": "0"},
-            timeout=10.0,
+            timeout=_DEADLOCK_CEILING_SECONDS,
         )
         await finisher_task
 
@@ -290,24 +301,26 @@ async def test_two_concurrent_subscribers_consistent_204_when_complete(
             client.post(
                 "/api/v1/chat",
                 json=_post_body(conv_id),
-                timeout=30.0,
+                timeout=_DEADLOCK_CEILING_SECONDS,
             ),
         )
-        await asyncio.wait_for(_wait_until_enqueued(in_memory_jobs), timeout=5.0)
+        await asyncio.wait_for(
+            _wait_until_enqueued(in_memory_jobs), timeout=_DEADLOCK_CEILING_SECONDS
+        )
         await _drain()
-        post_res = await asyncio.wait_for(post_task, timeout=30.0)
+        post_res = await asyncio.wait_for(post_task, timeout=_DEADLOCK_CEILING_SECONDS)
         assert post_res.status_code == 200
 
         res_a, res_b = await asyncio.gather(
             client.get(
                 f"/api/v1/conversations/{conv_id}/events",
                 params={"after": "0"},
-                timeout=5.0,
+                timeout=_DEADLOCK_CEILING_SECONDS,
             ),
             client.get(
                 f"/api/v1/conversations/{conv_id}/events",
                 params={"after": "0"},
-                timeout=5.0,
+                timeout=_DEADLOCK_CEILING_SECONDS,
             ),
         )
 

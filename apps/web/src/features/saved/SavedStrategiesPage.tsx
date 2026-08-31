@@ -11,12 +11,13 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
+import { Bookmark, ExternalLink, MessageSquarePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { client } from "@/lib/api/client";
+import { startChatFromSavedStrategy } from "@/lib/api/conversations";
 import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
 import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
 import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
@@ -82,8 +83,7 @@ function SavedStrategiesPageInner({ siteId }: SavedStrategiesPageProps) {
           />
         </div>
         <p className="mt-1 pl-8 text-xs text-muted-foreground">
-          Reusable WDK strategies you can insert into any conversation as a collapsed
-          input.
+          Reusable strategies you can insert into any conversation as a collapsed input.
         </p>
       </header>
       <div className="min-h-0 flex-1 overflow-auto px-6 py-4">
@@ -164,6 +164,26 @@ function SavedRow({
     },
   });
 
+  const useInNewChat = useMutation({
+    mutationFn: () =>
+      startChatFromSavedStrategy({
+        siteId,
+        name: conv.name,
+        savedWdkStrategyId: conv.wdkStrategyId ?? 0,
+      }),
+    onSuccess: (conversationId) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["conversations", "list", siteId],
+      });
+      router.push(chatUrl(siteId, conversationId));
+    },
+    onError: (error) => {
+      toast.error("Could not open a new chat", {
+        description: toUserMessage(error),
+      });
+    },
+  });
+
   const open = (): void => {
     router.push(chatUrl(siteId, conv.id));
   };
@@ -195,6 +215,20 @@ function SavedRow({
         >
           {consumerCount} consumer{consumerCount === 1 ? "" : "s"}
         </span>
+      )}
+      {conv.wdkStrategyId != null && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="gap-1 text-xs"
+          onClick={() => useInNewChat.mutate()}
+          disabled={useInNewChat.isPending}
+          data-testid={`saved-strategy-use-${conv.id}`}
+        >
+          <MessageSquarePlus className="h-4 w-4" aria-hidden />
+          Use in new chat
+        </Button>
       )}
       {conv.wdkUrl != null && conv.wdkUrl !== "" && (
         <Button asChild variant="ghost" size="sm">

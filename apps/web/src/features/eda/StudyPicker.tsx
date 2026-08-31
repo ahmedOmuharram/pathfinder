@@ -45,7 +45,7 @@ export function StudyPicker({ siteId, conversationId }: StudyPickerProps) {
       <div className="flex items-center gap-2">
         <Input
           data-testid="eda-study-search"
-          aria-label="Search EDA studies"
+          aria-label="Find a study"
           placeholder="Search studies..."
           value={typed}
           onChange={(event) => setTyped(event.target.value)}

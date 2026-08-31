@@ -40,7 +40,7 @@ def test_the_toolset_carries_exactly_the_seven_contract_tools() -> None:
 
 
 def test_the_durable_tool_is_registered_sequential() -> None:
-    """A durable tool suspends the graph; a parallel sibling's return is orphaned."""
+    """One parked durable call is checkpointed per turn."""
     tools = _function_toolset(build_toolset()).tools
     assert tools["run_eda_compute"].sequential is True
 

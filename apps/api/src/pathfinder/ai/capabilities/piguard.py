@@ -100,8 +100,3 @@ class InvisibleTextScanner:
             ch for ch in text if unicodedata.category(ch) not in _INVISIBLE_CATEGORIES
         )
         return cleaned, False, 1.0
-
-
-def warm_up_piguard() -> None:
-    """Load the ONNX session and tokenizer at startup, so no request pays for it."""
-    PIGuardScanner(model_dir=resolve_model_dir())

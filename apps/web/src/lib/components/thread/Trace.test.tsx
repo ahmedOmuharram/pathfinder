@@ -95,6 +95,23 @@ describe("Trace", () => {
     expect(screen.getByTestId("turn-trace-summary")).toHaveTextContent("Working...");
   });
 
+  it("counts the steps of a run its turn stopped, and never says Working...", () => {
+    const rows = [
+      ...rowsOf(6),
+      row({ key: "call_7", toolCallId: "call_7", status: "stopped", summary: null }),
+    ];
+    const view = draw(
+      run({
+        groups: [group({ key: "sa_1", phase: "frame", state: "cancelled", rows })],
+      }),
+    );
+    expect(view.getByTestId("turn-trace-summary")).toHaveTextContent("7 steps");
+    expect(view.getByTestId("turn-trace-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("says Waiting for you while no call runs and one waits on the user", () => {
     const rows = [
       ...rowsOf(6),
@@ -183,7 +200,7 @@ describe("Trace", () => {
     );
     expect(
       view.getAllByTestId("trace-group-label").map((node) => node.textContent),
-    ).toEqual(["Lead", "Frame", "Build", "Lead"]);
+    ).toEqual(["Assistant", "Planning", "Building", "Assistant"]);
   });
 
   it("falls back to the raw phase when no label is registered", () => {
@@ -241,7 +258,7 @@ describe("Trace", () => {
   it("marks a sub-agent group with the data part testid it came from", () => {
     const view = draw(run({ groups: [group({ key: "sa_1", phase: "frame" })] }));
     const call = view.getByTestId("data-sub-agent-call");
-    expect(within(call).getByTestId("trace-group-label")).toHaveTextContent("Frame");
+    expect(within(call).getByTestId("trace-group-label")).toHaveTextContent("Planning");
   });
 
   it("puts the approval the run is waiting on after the last group", () => {

@@ -45,10 +45,10 @@ describe("findParent", () => {
   });
   test("returns null for root", () => {
     const steps = [step("a"), step("b"), step("c", "a", "b", "combine")];
-    expect(findParent(steps, "c")).toBeNull();
+    expect(findParent(steps, "c")).toBe(null);
   });
   test("returns null for unknown id", () => {
-    expect(findParent([step("a")], "missing")).toBeNull();
+    expect(findParent([step("a")], "missing")).toBe(null);
   });
 });
 

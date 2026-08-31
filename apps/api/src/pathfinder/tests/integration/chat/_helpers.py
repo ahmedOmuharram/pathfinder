@@ -123,14 +123,18 @@ def parse_sse_body(body: str) -> list[dict[str, Any]]:
     ``[DONE]`` payload (emitted for the AI SDK ``DoneChunk``) is rehydrated
     into ``{"type": "done"}`` so the chunk list keeps the original
     framing markers.
+
+    SSE delimits lines with ``\\n`` alone, so the split is on ``\\n`` alone:
+    ``str.splitlines`` also breaks on U+2028 and U+2029, which a payload
+    may carry.
     """
     chunks: list[dict[str, Any]] = []
-    for raw_block in body.split("\n\n"):
+    for raw_block in body.replace("\r\n", "\n").split("\n\n"):
         block = raw_block.strip("\n")
         if not block:
             continue
         data_line: str | None = None
-        for line in block.splitlines():
+        for line in block.split("\n"):
             if line.startswith("data:"):
                 data_line = line[len("data:") :].strip()
                 break

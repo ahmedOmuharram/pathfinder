@@ -3,33 +3,31 @@
 from __future__ import annotations
 
 from assistant_core.graph.tool_summary import with_summary
-from assistant_core.platform.types import JSONObject
-from pydantic import JsonValue
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.ai.tools.standalone._eda_guidance import (
+    APPLIED_GUIDANCE,
+    SHEET_GUIDANCE,
+    entity_count_clause,
+    opened_guidance,
+    preview_guidance,
+)
 from pathfinder.ai.tools.standalone._eda_models import (
     EdaAnalysisOpened,
-    EdaFilterSheetEntry,
     EdaFiltersResult,
     EdaSubsetPreviewResult,
 )
+from pathfinder.ai.tools.standalone._eda_sheet import sheet_for
 from pathfinder.ai.tools.standalone._eda_stream_parts import (
     eda_analysis_state_chunk,
     eda_subset_preview_chunk,
 )
-from pathfinder.domain.eda import (
-    find_gene_entity,
-    walk_entities,
-)
+from pathfinder.domain.eda import find_gene_entity
 from pathfinder.services.eda import EdaFilter, EdaStudyDetail
-from pathfinder.services.eda.authoring import (
-    SubsetPreview,
-    SubsetRejectedError,
-    preview_subset,
-)
+from pathfinder.services.eda.authoring import SubsetRejectedError, preview_subset
 from pathfinder.services.eda.binding import (
     ConversationAnalysisView,
     apply_filters,
@@ -43,23 +41,9 @@ from pathfinder.services.eda.catalog import (
 )
 from pathfinder.services.eda.description import (
     EdaPermissionFacts,
-    EdaVariableOut,
-    children_of,
-    entity_facts,
     permission_facts,
     variable_at,
-    variable_facts,
-    variable_out,
-    with_time_part,
 )
-
-_RE_SHEET_NOTE = (
-    "vocabulary shown in the first sheet for this study; ask "
-    "preview_eda_subset for this variable's distribution to see the values "
-    "the current subset holds"
-)
-
-_LONGITUDE_EXAMPLE = (-180.0, 180.0)
 
 
 async def _study(
@@ -121,35 +105,16 @@ async def open_eda_analysis(
         study_display_name=state.study_display_name,
         gene_entity_id=gene.entity_id,
         can_export_rows=state.can_export_rows,
-        guidance=_opened_guidance(
+        guidance=opened_guidance(
             gene_problem=gene.error, can_export=state.can_export_rows
         ),
     )
     return with_summary(
         opened,
-        f"Opened {state.display_name} on {dataset_id}",
+        f"Opened {state.display_name}",
         ctx=ctx,
         extra=[eda_analysis_state_chunk(state)],
     )
-
-
-def _opened_guidance(*, gene_problem: str | None, can_export: bool) -> str:
-    """What to do next, and what this study cannot do."""
-    lines = [
-        "Call set_eda_filters with no filters to read the filter sheet, then "
-        "again with the whole filter array.",
-    ]
-    if gene_problem is not None:
-        lines.append(
-            f"{gene_problem} This analysis cannot export rows into a strategy "
-            f"step; report the counts and the distributions instead."
-        )
-    elif not can_export:
-        lines.append(
-            "This account cannot export this study's rows, so the analysis "
-            "cannot export rows into a strategy step."
-        )
-    return " ".join(lines)
 
 
 async def bound_analysis(
@@ -159,106 +124,6 @@ async def bound_analysis(
     return await bound_conversation_analysis(
         conversation_id=ctx.deps.state.conversation_id
     )
-
-
-def _example(entry: EdaVariableOut, *, first_values: dict[str, str]) -> JSONObject:
-    """One complete filter object for this variable, built from what it declares."""
-    example: JSONObject = {
-        "entityId": entry.entity_id,
-        "variableId": entry.variable_id,
-        "type": entry.filter_type,
-    }
-    strings: list[JsonValue] = list(entry.vocabulary[:1])
-    match entry.filter_type:
-        case "stringSet":
-            example["stringSet"] = strings
-        case "numberSet":
-            numbers: list[JsonValue] = [float(v) for v in entry.vocabulary[:1]]
-            example["numberSet"] = numbers
-        case "dateSet":
-            dates: list[JsonValue] = [with_time_part(v) for v in entry.vocabulary[:1]]
-            example["dateSet"] = dates
-        case "numberRange":
-            example["min"] = entry.range_min
-            example["max"] = entry.range_max
-        case "dateRange":
-            example["min"] = entry.date_min
-            example["max"] = entry.date_max
-        case "longitudeRange":
-            example["left"], example["right"] = _LONGITUDE_EXAMPLE
-        case _:
-            sub_filters: list[JsonValue] = [
-                _sub_filter_example(child, first_values)
-                for child in entry.sub_filter_variable_ids[:2]
-            ]
-            example["operation"] = "union"
-            example["subFilters"] = sub_filters
-    return example
-
-
-def _sub_filter_example(variable_id: str, first_values: dict[str, str]) -> JSONObject:
-    """One sub-filter, with a value the child variable really carries."""
-    value = first_values.get(variable_id)
-    members: list[JsonValue] = [] if value is None else [value]
-    return {"variableId": variable_id, "stringSet": members}
-
-
-def _sheet_entries(study: EdaStudyDetail) -> list[EdaFilterSheetEntry]:
-    """Every filterable variable of the study, with an example to copy."""
-    described: list[tuple[str, EdaVariableOut]] = []
-    first_values: dict[str, str] = {}
-    for entity in walk_entities(study.root_entity):
-        entity_name = entity_facts(entity).display_name
-        for variable in entity.variables:
-            facts = variable_facts(variable)
-            if facts.vocabulary:
-                first_values[facts.id] = facts.vocabulary[0]
-            out = variable_out(
-                entity_id=entity.id,
-                facts=facts,
-                sub_filter_variable_ids=children_of(entity, variable.id),
-            )
-            if out is not None:
-                described.append((entity_name, out))
-    return [
-        EdaFilterSheetEntry(
-            **out.model_dump(),
-            entity_display_name=entity_name,
-            example=_example(out, first_values=first_values),
-        )
-        for entity_name, out in described
-    ]
-
-
-def _sheet_for(
-    ctx: RunContext[LeadDeps],
-    study: EdaStudyDetail,
-    dataset_id: str,
-) -> list[EdaFilterSheetEntry]:
-    """The sheet for one study, without repeating a vocabulary."""
-    entries = _sheet_entries(study)
-    domain = ctx.deps.state.domain
-    if not domain.was_eda_sheet_shown(dataset_id):
-        domain.mark_eda_sheet_shown(dataset_id)
-        return entries
-    return [
-        entry.model_copy(update={"vocabulary": [], "vocabulary_note": _RE_SHEET_NOTE})
-        if entry.vocabulary_total
-        else entry
-        for entry in entries
-    ]
-
-
-_SHEET_GUIDANCE = (
-    "Copy the entityId, the variableId and the type from one entry, and send "
-    "the whole array back in filters. The array replaces the subset, so "
-    "include every filter that should apply. Then call preview_eda_subset."
-)
-
-_APPLIED_GUIDANCE = (
-    "Call preview_eda_subset before you state any count. The filters can "
-    "select nothing, and the service reports that as a plain zero."
-)
 
 
 async def set_eda_filters(
@@ -318,15 +183,15 @@ async def set_eda_filters(
     bound = await _bound_or_retry(ctx, dataset_id)
     if filters is None:
         _entry, study = await _study(site_id, dataset_id)
-        sheet = _sheet_for(ctx, study, dataset_id)
+        sheet = sheet_for(ctx.deps.state.domain, study, dataset_id)
         return with_summary(
             EdaFiltersResult(
                 analysis_id=bound.analysis_id,
                 dataset_id=dataset_id,
                 decide=sheet,
-                guidance=_SHEET_GUIDANCE,
+                guidance=SHEET_GUIDANCE,
             ),
-            f"{len(sheet)} filter slots to fill",
+            f"{len(sheet)} filters to choose from",
             ctx=ctx,
         )
     try:
@@ -350,7 +215,7 @@ async def set_eda_filters(
             dataset_id=dataset_id,
             num_filters=state.num_filters,
             filter_summaries=state.filter_summaries,
-            guidance=_APPLIED_GUIDANCE,
+            guidance=APPLIED_GUIDANCE,
         ),
         f"{state.num_filters} filters: {'; '.join(state.filter_summaries)}",
         ctx=ctx,
@@ -366,8 +231,8 @@ async def _bound_or_retry(
     bound = await bound_analysis(ctx)
     if bound is None:
         msg = (
-            f"This conversation has no open EDA analysis. Call "
-            f"open_eda_analysis on dataset {dataset_id!r} first."
+            f"This conversation has no study open. Call open_eda_analysis on "
+            f"dataset {dataset_id!r} first."
         )
         raise ModelRetry(msg)
     if bound.dataset_id != dataset_id:
@@ -412,8 +277,8 @@ async def preview_eda_subset(
     bound = await bound_analysis(ctx)
     if bound is None:
         msg = (
-            "This conversation has no open EDA analysis, so there is no subset "
-            "to count. Call open_eda_analysis first."
+            "This conversation has no study open, so there is no subset to "
+            "count. Call open_eda_analysis first."
         )
         raise ModelRetry(msg)
     analysis = await read_analysis(site_id, analysis_id=bound.analysis_id)
@@ -447,7 +312,7 @@ async def preview_eda_subset(
         num_var_values=0 if statistics is None else statistics.num_var_values,
         num_missing_cases=0 if statistics is None else statistics.num_missing_cases,
         distribution_note=preview.distribution_note,
-        guidance=_preview_guidance(
+        guidance=preview_guidance(
             preview_count=preview.count,
             unfiltered_count=preview.unfiltered_count,
             entity_display_name=preview.entity_display_name,
@@ -471,46 +336,3 @@ async def preview_eda_subset(
         status="ok" if preview.count else "empty",
         extra=[chunk],
     )
-
-
-def entity_count_clause(preview: SubsetPreview) -> str:
-    """One clause per entity a preview carries: kept of total, then the name."""
-    return (
-        f"{preview.count:,} of {preview.unfiltered_count:,} "
-        f"{preview.entity_display_name}"
-    )
-
-
-def _preview_guidance(
-    *,
-    preview_count: int,
-    unfiltered_count: int,
-    entity_display_name: str,
-    has_filters: bool,
-    is_multi_valued: bool,
-    num_missing_cases: int,
-) -> str:
-    """What this count means, and what it does not mean."""
-    lines: list[str] = []
-    if preview_count == 0:
-        lines.append(
-            f"This subset selects no records on {entity_display_name}. Name the "
-            f"filter that emptied it and offer one way to widen it."
-        )
-    elif preview_count == unfiltered_count and has_filters:
-        lines.append(
-            "The subset is the whole entity, so these filters narrow nothing "
-            "here. They may still narrow another entity."
-        )
-    if is_multi_valued:
-        lines.append(
-            "This variable holds several values per record, so the histogram's "
-            "values sum above the record count. State which denominator any "
-            "percentage uses."
-        )
-    if num_missing_cases:
-        lines.append(
-            f"{num_missing_cases} records on this entity have no value for that "
-            f"variable."
-        )
-    return " ".join(lines)

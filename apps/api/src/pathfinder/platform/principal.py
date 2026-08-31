@@ -12,6 +12,7 @@ CredentialKind = Literal[
     "pathfinder-cookie",
     "pathfinder-bearer",
     "veupathdb-bearer",
+    "dev-login",
 ]
 
 SERVICE_AUTH_HEADER = "X-PathFinder-Service-Token"

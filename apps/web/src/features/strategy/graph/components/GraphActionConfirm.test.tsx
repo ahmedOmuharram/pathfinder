@@ -42,11 +42,11 @@ describe("GraphActionConfirm", () => {
         onConfirm={() => {}}
       />,
     );
-    expect(screen.getByText("Choice A")).toBeTruthy();
-    expect(screen.getByText("Choice B")).toBeTruthy();
-    expect(screen.getByText(/Will delete 1/)).toBeTruthy();
-    expect(screen.getByText(/Will delete 2/)).toBeTruthy();
-    expect(screen.getByText(/Will delete 0/)).toBeTruthy();
+    expect(screen.getByText("Choice A")).toBeVisible();
+    expect(screen.getByText("Choice B")).toBeVisible();
+    expect(
+      screen.getAllByText(/Will delete \d+/).map((el) => el.textContent.trim()),
+    ).toEqual(["Will delete 1", "Will delete 2", "Will delete 0"]);
   });
 
   it("preselects the default choice", () => {

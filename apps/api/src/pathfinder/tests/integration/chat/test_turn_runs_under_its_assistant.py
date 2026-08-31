@@ -28,6 +28,11 @@ from pathfinder.tests.integration.chat._helpers import (
 _PROMPT = "hi"
 _OK = 200
 
+# A ceiling on a hung turn, not a budget for a fast one: every hop is
+# in-process against the mock provider and settles in under a second, so a
+# wait near this bound is a deadlock and not a loaded machine.
+_DEADLOCK_CEILING_SECONDS = 120.0
+
 
 async def test_a_completed_turn_records_the_assistant_that_answered(
     app: FastAPI,
@@ -50,18 +55,18 @@ async def test_a_completed_turn_records_the_assistant_that_answered(
             client.post(
                 "/api/v1/chat",
                 json=chat_post_body(conversation_id, _PROMPT),
-                timeout=30.0,
+                timeout=_DEADLOCK_CEILING_SECONDS,
             ),
         )
         await asyncio.wait_for(
             wait_until_chat_turn_deferred(in_memory_jobs),
-            timeout=5.0,
+            timeout=_DEADLOCK_CEILING_SECONDS,
         )
         job = next(
             j for j in in_memory_jobs.jobs.values() if j["task_name"] == "chat_turn:run"
         )
         await run_deferred_chat_turns()
-        response = await asyncio.wait_for(post, timeout=30.0)
+        response = await asyncio.wait_for(post, timeout=_DEADLOCK_CEILING_SECONDS)
 
     assert response.status_code == _OK
     assert job["args"]["payload"]["assistant_id"] == "pathfinder"

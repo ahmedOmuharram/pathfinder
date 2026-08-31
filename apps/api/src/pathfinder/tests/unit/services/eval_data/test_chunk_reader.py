@@ -12,7 +12,7 @@ from pydantic_ai.ui.vercel_ai.response_types import TextDeltaChunk
 
 from pathfinder.ai.graph.state import PhaseDisposition, VerificationDigest
 from pathfinder.ai.graph.stream_events import ledger_update_event
-from pathfinder.ai.lead.ledger import VerificationSection
+from pathfinder.ai.lead.ledger_sections import VerificationSection
 from pathfinder.services.eval_data.chunk_reader import (
     LoggedChunk,
     read_turns,
@@ -24,11 +24,16 @@ def _log(*chunks: JSONObject) -> list[LoggedChunk]:
     return [LoggedChunk.model_validate({"chunk": chunk}) for chunk in chunks]
 
 
-def _user(text: str) -> JSONObject:
+def _user(
+    text: str, message_id: str = "00000000-0000-0000-0000-000000000001"
+) -> JSONObject:
     return user_message_chunk(
-        message_id="00000000-0000-0000-0000-000000000001",
+        message_id=message_id,
         parts=[{"type": "text", "text": text}],
     )
+
+
+_SECOND_ID = "00000000-0000-0000-0000-000000000002"
 
 
 def _delta(text: str) -> JSONObject:
@@ -74,7 +79,11 @@ def test_text_deltas_after_a_request_become_its_reply() -> None:
 
 def test_a_second_request_opens_a_second_turn() -> None:
     turns = read_turns(
-        _log(_user("find kinases"), _delta("done"), _user("now narrow it")),
+        _log(
+            _user("find kinases"),
+            _delta("done"),
+            _user("now narrow it", _SECOND_ID),
+        ),
     )
 
     assert [t.request for t in turns] == ["find kinases", "now narrow it"]
@@ -132,3 +141,26 @@ def test_the_verdict_reason_is_redacted() -> None:
 
     assert verdict is not None
     assert verdict.reason == "ok [redacted-email]"
+
+
+def test_a_repeated_envelope_id_does_not_open_a_second_turn() -> None:
+    """The log keeps the first envelope of an id, exactly as the reducer does."""
+    turns = read_turns(
+        _log(
+            _user("find kinases"),
+            _delta("Built "),
+            _user("find kinases"),
+            _delta("it."),
+        ),
+    )
+
+    assert [t.request for t in turns] == ["find kinases"]
+    assert [t.reply for t in turns] == ["Built it."]
+
+
+def test_an_envelope_with_no_id_still_opens_a_turn() -> None:
+    turns = read_turns(
+        _log({"type": "user-message", "message": {"role": "user", "parts": []}}),
+    )
+
+    assert [t.request for t in turns] == [""]

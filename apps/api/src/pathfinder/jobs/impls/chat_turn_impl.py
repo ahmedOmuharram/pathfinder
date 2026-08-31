@@ -9,7 +9,7 @@ from assistant_core.memory.lifespan import lifespan_memory_store
 from assistant_core.platform.logging import get_logger
 
 from pathfinder.ai.conversation.assistant_routing import resolve_assistant
-from pathfinder.ai.conversation.turn_runner import run_turn
+from pathfinder.ai.conversation.turn_runner import TurnRequest, run_turn
 from pathfinder.ai.graph._llm_capture import capture_llm
 from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.jobs.auth_context import (
@@ -58,8 +58,7 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
         )
         with capture:
             await run_turn(
-                body=body,
-                user_id=parsed.user_id,
+                request=TurnRequest(body=body, user_id=parsed.user_id),
                 spec=spec,
                 compiled_graph=graph,
                 memory_store=store,

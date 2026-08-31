@@ -10,14 +10,18 @@ from pathfinder.ai.conversation.dispatcher import dispatch
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.services.wdk_identity import require_session_matches_wdk_identity
-from pathfinder.transport.http.deps import CurrentUser, DBSession, QuotaCheckedUser
+from pathfinder.transport.http.deps import (
+    CurrentPrincipal,
+    DBSession,
+    QuotaCheckedUser,
+)
 
 router = APIRouter(tags=["chat"])
 
 
 async def resolve_chat_assistant(
     body: ChatRequestBody,
-    user_id: CurrentUser,
+    principal: CurrentPrincipal,
 ) -> AssistantSpec:
     """Name the turn's assistant and enforce the identity it requires.
 
@@ -32,7 +36,7 @@ async def resolve_chat_assistant(
     )
     if spec.identity_gate is not None:
         await spec.identity_gate()
-        await require_session_matches_wdk_identity(user_id)
+        await require_session_matches_wdk_identity(principal)
     return spec
 
 

@@ -39,9 +39,14 @@ export class WorkbenchSidebarPage {
     return this.page.getByRole("button", { name }).locator("..");
   }
 
-  /** Activate a gene set by clicking its name. */
+  /** Activate a gene set by clicking its name.
+   *  The card's name span carries the set name as its title, so a derived set
+   *  whose name contains this one does not match. */
   async activateSet(name: string) {
-    await this.page.getByRole("button").filter({ hasText: name }).first().click();
+    await this.page
+      .getByRole("button")
+      .filter({ has: this.page.locator(`span[title="${name}"]`) })
+      .click();
   }
 
   /** Select a gene set checkbox. */
@@ -89,10 +94,17 @@ export class WorkbenchSidebarPage {
     await expect(card.getByText(count.toLocaleString(), { exact: true })).toBeVisible();
   }
 
-  /** Verify the compose bar shows expected result count before creating. */
+  /** Verify the compose bar shows expected result count before creating.
+   *  The main panel names its own gene count, so the read is scoped to the
+   *  sidebar that owns the compose zone. */
   async expectComposeResultCount(count: number) {
+    const composeSidebar = this.page
+      .getByRole("complementary")
+      .filter({ has: this.page.getByText("Compose", { exact: true }) });
     await expect(
-      this.page.getByText(new RegExp(`${count.toLocaleString()}\\s+gene`, "i")),
+      composeSidebar.getByText(
+        new RegExp(`^${count.toLocaleString()}\\s+genes?$`, "i"),
+      ),
     ).toBeVisible({ timeout: 10_000 });
   }
 

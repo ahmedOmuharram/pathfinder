@@ -214,7 +214,7 @@ may simply be a date in the wrong format. `DateParam` is safe here -
 
 - class: HARD
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/StringParam.java#L171-L203
-- anchor: apps/api/src/pathfinder/services/catalog/param_dag.py:is_number
+- anchor: apps/api/src/pathfinder/services/catalog/_param_binding.py:is_number
 - status: PARTIAL by apps/api/src/pathfinder/tests/unit/services/catalog/test_numeric_default_binding.py
 
 `StringParam.validateValue` parses the value as a double when `isNumber` is set,
@@ -289,6 +289,21 @@ against `GenesByOrthologPattern`: a full context echoes `profile_pattern`,
 `profile_pattern: "hsap=1T"` and `organism: "[]"` at
 `level: DISPLAYABLE, isValid: true` - the level does not distinguish the two.
 
+**The comparison is per kind, because only some kinds have a canonical wire
+form.** A vocabulary is compared as its selection. A filter is compared as its
+clause set - each clause by field, `isRange`, `includeUnknown` and its values as
+a set - because WDK stores the stable value as the caller wrote it and echoes it
+back verbatim, while `FilterValue.to_wire` re-emits only the five keys
+`wdk-client` declares, in its own order. Confirmed on plasmodb.org on 2026-08-30
+against `GenesByNgsSnps.variation_sample_meta`: a context binding every other
+parameter validates at `SEMANTIC` with `isValid: true` and echoes
+`{"filters": [{"value": ["Thailand", "Cambodia"], "includeUnknown": false, "isRange": false, "type": "string", "field": "VAR_8e68b3e5", "fieldDisplayName": "Country"}]}`
+unchanged, which is not the string PathFinder would have sent for the same
+filter. An `input-step` is excluded from the report entirely: its value is a
+handle WDK issued and the caller wired
+([WDK-PARAM-009](#wdk-param-009---input-step-and-input-dataset-values-are-bare-ids-wdk-issued-and-a-dataset-is-bound-to-its-owner)),
+so it is structural rather than a value anyone chose.
+
 ### WDK-PARAM-009 - `input-step` and `input-dataset` values are bare ids WDK issued, and a dataset is bound to its owner
 
 - class: HARD
@@ -321,7 +336,7 @@ conformance column is worth exactly as much as its worst entry.
 
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/param/ParamFormatter.java#L42-L61
-- anchor: apps/api/src/pathfinder/services/catalog/param_dag.py:_scalar_default
+- anchor: apps/api/src/pathfinder/services/catalog/_param_binding.py:_scalar_default
 - status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/parameters/test_hidden_fill_is_reported.py::TestItAgreesWithTheFill::test_the_report_matches_what_the_fill_added
 `ParamFormatter.getBaseJson` writes the key from
 `_param.getExternalStableValue(spec.get().get(_param.getName()))` - **the value this
@@ -390,6 +405,14 @@ with no guarantee attached at any layer. A client may use it as a starting point
 form. A client that treats it as a value known to work is reading a promise the platform
 does not make, and
 [WDK-SITE-003](site-model-params.md) is what that costs on a real search.
+
+How far that was measured is a ruling of its own. The nightly sweep binds every
+required parameter from its own published default and reads the count; on
+plasmodb.org on 2026-08-22, of the 237 transcript searches carrying a hidden
+required default, 19 answered 200 and exactly one of those returned zero rows,
+while 158 were refused at `RUNNABLE` naming only *visible* parameters and 58
+answered 500. The 219 the visible refusal blocks stay unmeasured on purpose:
+[the sweep stops at published defaults](../../decisions/hidden-default-sweep-stops-at-published-defaults.md).
 
 ### WDK-PARAM-011 - `isVisible: false` is presentation only; a hidden parameter is still required, still validated, and still default-filled
 
@@ -576,7 +599,7 @@ readable from that document, and five of the 325 return 500.
 
 - class: SILENT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/AbstractEnumParam.java#L401-L455
-- anchor: apps/api/src/pathfinder/domain/parameters/values.py:coerce_context_values
+- anchor: apps/api/src/pathfinder/domain/parameters/value_codec.py:coerce_context_values
 - status: ENFORCED by apps/api/src/pathfinder/tests/unit/ai/tools/test_get_parameter_options.py::TestADependentReadNeedsItsParent::test_an_unbound_parent_does_not_return_a_term_list
 
 Validation of an enum value is set membership against the vocabulary generated
@@ -673,3 +696,35 @@ for a value you did not send. And the container named in the last message is the
 **query** full name, which is neither the search's url segment nor its full
 name: a third naming vocabulary, alongside the two in
 [WDK-SEARCH-002](searches-and-answers.md).
+
+### WDK-VOCAB-007 - A flat vocabulary's third element is the parent term, and the reference client types it as `null`
+
+- class: CONTRACT
+- upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/query/param/EnumParamVocabInstance.java#L160-L174
+- anchor: apps/api/src/pathfinder/domain/parameters/wdk_vocab.py:WDKVocabTerm
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/parameters/test_vocabulary_parent_term.py::TestTheThirdElementIsTheParentTerm::test_the_live_parameter_parses
+
+`EnumParamVocabInstance.getFullVocab` writes `term`, `_termDisplayMap.get(term)`
+and `_termParentMap.get(term)`, and its own javadoc calls the row a
+`(term, displayName, parentTerm)` tuple. `EnumParamFormatter.getVocabularyObject`
+copies all three columns after asserting the row has exactly three. **The third
+element is the parent term.** It is `null` only for an entry at the top of the
+vocabulary.
+
+The reference client says otherwise. At the pinned sha `wdk-client` declares
+`type VocabParent = string` and then does not use it, typing the row as
+[`[VocabTerm, VocabDisplay, null][]`](https://github.com/VEuPathDB/web-monorepo/blob/63d1705463d553c0ac19ee577c1b09666597b903/packages/libs/wdk-client/src/Utils/WdkModel.ts#L104-L110).
+That is the client being wrong about WDK in a way WDK's own source cannot be, so
+the Java wins.
+
+Live on plasmodb.org and toxodb.org on 2026-08-30, `GenesByOrthologPattern`
+carries `phyletic_term_map` and `phyletic_indent_map` as 903-row flat
+vocabularies whose parents are populated: `["BACT","Bacteria",null]`,
+`["FIRM","Firmicutes","BACT"]`, `["bant","Bacillus anthracis","FIRM"]`. Three
+rows on each site have a null parent, and on both sites the indent map's depth
+equals the parent's depth plus one for all 903 entries, so the parent column and
+the site's own indent convention agree exactly.
+
+A client that requires the third element to be null cannot read a nested
+vocabulary at all: it fails the whole search document, not the one parameter, so
+the search reads as one the site does not have.

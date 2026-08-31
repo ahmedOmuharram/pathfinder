@@ -23,7 +23,7 @@ function row(patch: Partial<TraceRowView>): TraceRowView {
 }
 
 function label(name: string): string {
-  return name === "preview_eda_subset" ? "Preview eda subset" : name;
+  return name === "preview_eda_subset" ? "Preview samples" : name;
 }
 
 const GLYPHS: readonly (readonly [TraceRowStatus, string])[] = [
@@ -34,13 +34,14 @@ const GLYPHS: readonly (readonly [TraceRowStatus, string])[] = [
   ["error", "text-destructive"],
   ["denied", "text-muted-foreground"],
   ["awaiting-approval", "text-warning"],
+  ["stopped", "text-muted-foreground"],
 ];
 
 describe("TraceRow", () => {
   it.each(GLYPHS)("draws the %s status with its own glyph class", (status, css) => {
     render(<TraceRow row={row({ status })} showRaw={false} nameFor={label} />);
     expect(screen.getByTestId("trace-row-status")).toHaveClass(css);
-    expect(screen.getByTestId("trace-row")).toHaveTextContent("Preview eda subset");
+    expect(screen.getByTestId("trace-row")).toHaveTextContent("Preview samples");
   });
 
   it("gives every status a glyph of its own", () => {
@@ -52,10 +53,29 @@ describe("TraceRow", () => {
     expect(new Set(seen).size).toBe(GLYPHS.length);
   });
 
+  it("draws a call its turn left open with a still glyph", () => {
+    render(
+      <TraceRow row={row({ status: "stopped" })} showRaw={false} nameFor={label} />,
+    );
+    expect(screen.getByTestId("trace-row-status")).not.toHaveClass("animate-spin");
+  });
+
+  it("reads the word its turn left the call with, when the call wrote none", () => {
+    render(
+      <TraceRow
+        row={row({ status: "stopped", summary: null })}
+        showRaw={false}
+        nameFor={label}
+        stoppedLabel="Stopped"
+      />,
+    );
+    expect(screen.getByTestId("trace-row-summary")).toHaveTextContent("Stopped");
+  });
+
   it("reads the verb and the tool's own summary", () => {
     render(<TraceRow row={row({})} showRaw={false} nameFor={label} />);
     const line = screen.getByTestId("trace-row");
-    expect(line).toHaveTextContent("Preview eda subset");
+    expect(line).toHaveTextContent("Preview samples");
     expect(within(line).getByTestId("trace-row-summary")).toHaveTextContent(
       "6 of 12 Sample",
     );
@@ -69,7 +89,7 @@ describe("TraceRow", () => {
   it("draws no summary element for a line that came through empty", () => {
     render(<TraceRow row={row({ summary: "" })} showRaw={false} nameFor={label} />);
     expect(screen.queryAllByTestId("trace-row-summary")).toHaveLength(0);
-    expect(screen.getByTestId("trace-row")).toHaveTextContent("Preview eda subset");
+    expect(screen.getByTestId("trace-row")).toHaveTextContent("Preview samples");
   });
 
   it("reads the error text in place of the summary when the call failed", () => {

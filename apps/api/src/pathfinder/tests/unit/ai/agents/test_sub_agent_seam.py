@@ -55,6 +55,7 @@ FRAME_TOOL_NAMES = SCRATCHPAD_TOOL_NAMES | {
     "get_record_types",
     "get_search_overview",
     "get_strategy",
+    "list_saved_strategies",
     "list_searches",
     "list_transforms",
     "literature_search",
@@ -76,7 +77,6 @@ EXECUTION_TOOL_NAMES = SCRATCHPAD_TOOL_NAMES | {
     "add_step_report",
     "apply_operations",
     "build_strategy",
-    "clear_strategy",
     "delete_step",
     "get_strategy",
     "insert_saved_strategy",
@@ -92,6 +92,7 @@ EXECUTION_TOOL_NAMES = SCRATCHPAD_TOOL_NAMES | {
 }
 
 VERIFICATION_TOOL_NAMES = SCRATCHPAD_TOOL_NAMES | {
+    "check_study_step",
     "create_workbench_gene_set",
     "export_gene_set",
     "get_confidence_scores",

@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: A WDK-backed feature requires a registered VEuPathDB login
-description: Every route that reads or writes a user's WDK resources refuses a request that names no registered VEuPathDB user, with 401 WDK_LOGIN_REQUIRED, and refuses one whose token names another account, with 401 WDK_IDENTITY_MISMATCH; guest minting is deleted; the application's service token serves user-independent reads only; a shared guest or service identity for anonymous users was rejected.
+description: Every route that reads or writes a user's WDK resources refuses a request that names no registered VEuPathDB user, with 401 WDK_LOGIN_REQUIRED, and refuses one whose token names another account, with 401 WDK_IDENTITY_MISMATCH, except a dev-login session, which is synthetic and acts as its token; guest minting is deleted; the application's service token serves user-independent reads only; a shared guest or service identity for anonymous users was rejected.
 tags: [security, auth, veupathdb, wdk, guests, transport]
 generated: { by: claude-code/opus-5, at: 2026-08-19T00:00:00Z }
 verified: { by: claude-code/opus-5, at: 2026-08-30T00:00:00Z }
@@ -73,6 +73,21 @@ resolves the token's account on every call, and mints a new internal token when
 that account is not the cookie's, instead of returning early on any cookie that
 decodes. The web client treats the new code like the login refusal, except that
 it calls the refresh once and retries first.
+
+**One exemption: the dev-login session.** The identity match applies to a
+session minted from a VEuPathDB identity. `POST /api/v1/dev/login` mints a
+synthetic user with no VEuPathDB account, and it mounts only under the mock
+overlay, so its session acts as whatever token the request carries. The route
+marks its JWT, `platform/security.py::decode_session_token` reads the mark, and
+the `Principal` carries `credential="dev-login"` beside `veupathdb-bearer`;
+`require_session_matches_wdk_identity` returns early for that credential. The
+login refusal is unchanged: a dev-login session still needs a registered,
+non-guest token to reach a WDK account. Production cannot mint the credential,
+and `tests/unit/transport/test_dev_login_is_test_only.py` pins both halves: the
+app built without the overlay carries no dev-login route, and the dev router is
+the only caller of `create_dev_login_token`. Without this, every Playwright
+worker signs in as `worker-N` and shares one registered VEuPathDB test account,
+so the gate answers 401 `WDK_IDENTITY_MISMATCH` on every WDK-backed route.
 
 **The service account is the application, never a user.** `VEUPATHDB_AUTH_TOKEN`
 is the fallback in `integrations/veupathdb/_http.py`, and it may serve only

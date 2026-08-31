@@ -7,10 +7,7 @@ from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.toolsets.prepared import PreparedToolset
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.tools.standalone.conversation import (
-    clear_strategy,
-    rename_strategy,
-)
+from pathfinder.ai.tools.standalone.conversation import rename_strategy
 from pathfinder.ai.tools.standalone.escape_hatch import (
     request_search_inspection,
 )
@@ -18,17 +15,19 @@ from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.strategy import (
     apply_operations,
     build_strategy,
+)
+from pathfinder.ai.tools.standalone.strategy_attach import (
+    add_step_analysis,
+    add_step_filter,
+    add_step_report,
+)
+from pathfinder.ai.tools.standalone.strategy_edits import (
     delete_step,
     insert_saved_strategy,
     replace_subtree,
     update_combine_operator,
     update_leaf_params,
     update_step_metadata,
-)
-from pathfinder.ai.tools.standalone.strategy_attach import (
-    add_step_analysis,
-    add_step_filter,
-    add_step_report,
 )
 from pathfinder.ai.tools.standalone.strategy_graph import get_strategy
 from pathfinder.ai.tools.standalone.think import think
@@ -116,7 +115,6 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
             add_step_analysis,
             add_step_report,
             rename_strategy,
-            Tool(clear_strategy, requires_approval=True, max_retries=3),
             get_strategy,
             request_search_inspection,
             think,

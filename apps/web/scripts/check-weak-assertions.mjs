@@ -13,8 +13,17 @@
  *   toHaveBeenCalled*, toContain*, toHaveProperty, toHaveTextContent,
  *   toBeVisible/Hidden, toHaveValue, toHaveAttribute, toHaveClass,
  *   toBeChecked, toBeDisabled, toBeEnabled, toBeFocused, toBeInTheDocument,
- *   toBeGreater/Less*, toBeCloseTo, toBeOneOf, toContainText, toHaveURL,
- *   toHaveTitle, toHaveCount, rejects/resolves chains.
+ *   toBeEmptyDOMElement, toBeGreater/Less*, toBeCloseTo, toBeOneOf,
+ *   toContainText, toHaveURL, toHaveTitle, toHaveCount, rejects/resolves
+ *   chains.
+ *
+ * A throwing query is itself a value assertion. `getBy*` and `getAllBy*`
+ * throw when nothing matches, so `expect(screen.getByText("3.48"))` already
+ * pins "3.48" and the matcher after it may be weak. The rule needs the
+ * query's first argument to be a string or regex literal: a variable pins
+ * whatever the test computed, which is not a value the file states.
+ * `queryBy*` returns null and `findBy*` returns a promise, so neither
+ * asserts anything on its own and both stay weak.
  *
  * Ratchet baseline: existing offenders in apps/web/scripts/.weak-baseline.txt
  * are ignored. Only NEW offenders fail. Trim the baseline as tests get fixed.
@@ -75,6 +84,7 @@ const STRONG_MATCHERS = new Set([
   "toBeEnabled",
   "toBeFocused",
   "toBeInTheDocument",
+  "toBeEmptyDOMElement",
   "toBeGreaterThan",
   "toBeGreaterThanOrEqual",
   "toBeLessThan",
@@ -102,6 +112,29 @@ function* walkFiles(dir) {
   }
 }
 
+const THROWING_QUERY = /^get(All)?By[A-Z]/;
+
+function calleeName(node) {
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.escapedText?.toString() ?? "";
+  }
+  if (ts.isIdentifier(node)) return node.escapedText?.toString() ?? "";
+  return "";
+}
+
+/**
+ * True for `screen.getByText("x")`, `within(row).getAllByRole(/x/)` and the
+ * destructured `getByTestId("x")`: a query that throws on absence, given a
+ * literal to look for.
+ */
+function isThrowingQueryOnALiteral(node) {
+  if (node === undefined || !ts.isCallExpression(node)) return false;
+  if (!THROWING_QUERY.test(calleeName(node.expression))) return false;
+  const first = node.arguments[0];
+  if (first === undefined) return false;
+  return ts.isStringLiteralLike(first) || ts.isRegularExpressionLiteral(first);
+}
+
 /** Pull the matcher name off an `expect(x).chain.<matcher>(...)` call. */
 function classifyExpectCall(expr) {
   // expr: CallExpression at the tail of an expect chain
@@ -110,6 +143,7 @@ function classifyExpectCall(expr) {
   let sawStrong = false;
   let sawWeak = false;
   let chainDepth = 0;
+  let expectCall = null;
 
   while (ts.isPropertyAccessExpression(node) || ts.isCallExpression(node)) {
     if (ts.isPropertyAccessExpression(node)) {
@@ -123,6 +157,7 @@ function classifyExpectCall(expr) {
       }
       node = node.expression;
     } else if (ts.isCallExpression(node)) {
+      expectCall = node;
       node = node.expression;
       chainDepth++;
       if (chainDepth > 50) break;
@@ -134,6 +169,9 @@ function classifyExpectCall(expr) {
     (node.escapedText !== "expect" && node.escapedText !== "expectAsync")
   ) {
     return null;
+  }
+  if (expectCall !== null && isThrowingQueryOnALiteral(expectCall.arguments[0])) {
+    sawStrong = true;
   }
   return { sawStrong, sawWeak, lastMatcher };
 }
@@ -202,8 +240,8 @@ function classifyTest(testNode) {
   return null;
 }
 
-function scanFile(filePath) {
-  const source = fs.readFileSync(filePath, "utf8");
+/** Classify every test in one source text. Exported so the checker has tests. */
+export function scanSource(source, filePath = "test.tsx") {
   const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
   const offenders = [];
   for (const t of findTestFunctions(sf)) {
@@ -219,6 +257,10 @@ function scanFile(filePath) {
     }
   }
   return offenders;
+}
+
+function scanFile(filePath) {
+  return scanSource(fs.readFileSync(filePath, "utf8"), filePath);
 }
 
 function loadBaseline() {
@@ -289,4 +331,5 @@ function main() {
   return 0;
 }
 
-process.exit(main());
+const invokedDirectly = process.argv[1]?.endsWith("check-weak-assertions.mjs");
+if (invokedDirectly) process.exit(main());

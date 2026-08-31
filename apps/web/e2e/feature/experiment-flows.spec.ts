@@ -21,8 +21,8 @@ test.describe("Experiment chat flows", () => {
     await chatPage.send("Please compare two search variants for me.");
     await chatPage.expectVariantComparison();
     // The card names each labelled variant.
-    await expect(chatPage.variantComparison.first()).toContainText(/kinase/i);
-    await expect(chatPage.variantComparison.first()).toContainText(/phosphatase/i);
+    await expect(chatPage.variantComparison).toContainText(/kinase/i);
+    await expect(chatPage.variantComparison).toContainText(/phosphatase/i);
     await chatPage.expectIdle();
   });
 

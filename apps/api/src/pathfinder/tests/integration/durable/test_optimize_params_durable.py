@@ -17,6 +17,7 @@ from pathfinder.jobs.runner import run_durable_task
 from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
+    NewBackgroundTask,
 )
 
 
@@ -130,11 +131,15 @@ async def test_run_durable_task_wiring_optimize(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name="optimize_search_parameters",
-        args={"args": [], "kwargs": target_kwargs},
-        estimated_duration_seconds=900,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name="optimize_search_parameters",
+            args={"args": [], "kwargs": target_kwargs},
+            tool_call_id="call_optimize_search_parameters",
+            phase_overrides={},
+            estimated_duration_seconds=900,
+        ),
     )
 
     await run_durable_task(

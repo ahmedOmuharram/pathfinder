@@ -29,7 +29,9 @@ from assistant_core.conversation.serde import (
     build_checkpoint_serde,
 )
 from assistant_core.graph.turn_state import (
+    DurableTaskResult,
     PendingApproval,
+    PendingDurableCall,
     SubAgentApprovalCall,
     SubAgentApprovalPending,
     TurnState,
@@ -86,6 +88,20 @@ _SAMPLES: dict[type, object] = {
             role="answer",
             approvals=[SubAgentApprovalCall(tool_call_id="call_wipe", tool_name="w")],
         ),
+    ),
+    PendingDurableCall: PendingDurableCall(
+        phase="answer",
+        tool_call_id="call_compute",
+        tool_name="run_compute",
+        tool_args={"method": "DESeq"},
+        prior_messages_json='[{"kind":"request","parts":[]}]',
+        task_id=UUID("0c6100d2-0000-4000-8000-000000000001"),
+        durable_tool_name="run_compute",
+    ),
+    DurableTaskResult: DurableTaskResult(
+        task_id=UUID("0c6100d2-0000-4000-8000-000000000001"),
+        status="success",
+        result={"genesTested": 5511},
     ),
     SubAgentApprovalPending: SubAgentApprovalPending(role="answer"),
     SubAgentApprovalCall: SubAgentApprovalCall(

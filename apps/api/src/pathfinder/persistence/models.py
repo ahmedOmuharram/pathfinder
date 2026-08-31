@@ -242,6 +242,67 @@ class ConversationStrategyView(BaseModel):
 ABSENT_STRATEGY = ConversationStrategyView()
 
 
+class StrategyRevision(Base):
+    """One persisted state of a thread's strategy, in the order it was written.
+
+    Fork and revert read a thread's strategy as it stood at a chosen message,
+    so every write of ``conversation_strategies`` appends a row here. The row
+    outlives the message it names, which is why ``message_id`` carries no
+    foreign key.
+    """
+
+    __tablename__ = "strategy_revisions"
+    __table_args__ = (
+        Index(
+            "ix_strategy_revisions_conversation_created",
+            "conversation_id",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    conversation_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    record_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    strategy_ast: Mapped[JSONObject] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+    step_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    wdk_strategy_id: Mapped[int | None] = mapped_column(nullable=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    message_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class StrategyRevisionView(BaseModel):
+    """Read shape of one strategy revision."""
+
+    model_config = ConfigDict(frozen=True, from_attributes=True, extra="forbid")
+
+    id: int
+    conversation_id: UUID
+    revision: str
+    record_type: str | None = None
+    strategy_ast: JSONObject = Field(default_factory=dict)
+    step_count: int = 0
+    wdk_strategy_id: int | None = None
+    name: str | None = None
+    message_id: UUID | None = None
+    created_at: datetime
+
+
 class ConversationAnalysis(Base):
     """The EDA analysis one chat thread has open.
 
@@ -326,8 +387,19 @@ class BackgroundTask(Base):
         nullable=False,
     )
     tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    # The pydantic-ai call this task answers. Null for a row written before
+    # a durable tool became a deferred tool.
+    tool_call_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     args: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    # The per-phase model and reasoning picks the deferring request carried, so
+    # the turn that answers this task runs under the same ones.
+    phase_overrides: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     estimated_duration_seconds: Mapped[int] = mapped_column(

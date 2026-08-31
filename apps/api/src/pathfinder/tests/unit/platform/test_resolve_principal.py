@@ -12,6 +12,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import UnauthorizedError
 from pathfinder.platform.security import (
+    create_dev_login_token,
     create_user_token,
     decode_user_id,
     resolve_principal,
@@ -53,6 +54,24 @@ async def test_a_pathfinder_bearer_wins_over_the_cookie() -> None:
 
     assert principal.user_id == bearer_user
     assert principal.credential == "pathfinder-bearer"
+
+
+async def test_a_dev_login_cookie_names_the_dev_login_credential() -> None:
+    user_id = uuid4()
+
+    principal = await resolve_principal(cookie_token=create_dev_login_token(user_id))
+
+    assert principal.user_id == user_id
+    assert principal.credential == "dev-login"
+
+
+async def test_a_dev_login_bearer_names_the_dev_login_credential() -> None:
+    user_id = uuid4()
+
+    principal = await resolve_principal(bearer=_bearer(create_dev_login_token(user_id)))
+
+    assert principal.user_id == user_id
+    assert principal.credential == "dev-login"
 
 
 async def test_no_credential_is_unauthorized() -> None:

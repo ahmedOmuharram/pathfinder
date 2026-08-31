@@ -11,6 +11,7 @@ from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai.toolsets.wrapper import WrapperToolset
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.domain.strategy.session import StrategySession
 
 EnumOverrides = dict[tuple[str, str], list[Any]]
 EnumOverrideBuilder = Callable[[RunContext[AgentDepsT]], EnumOverrides]
@@ -104,7 +105,8 @@ class ValidatingEnumToolset(WrapperToolset[AgentDepsT]):
             if t_name != name or not allowed:
                 continue
             value = tool_args.get(arg)
-            if isinstance(value, str) and value not in allowed:
+            # An empty string states no value, which the tool itself answers.
+            if isinstance(value, str) and value and value not in allowed:
                 retry_message = (
                     f"{arg}={value!r} is not a known value for {name}. "
                     f"Choose one of: {', '.join(sorted(allowed))}. "
@@ -121,10 +123,10 @@ def live_step_ids(deps: AgentDeps) -> list[str]:
     return sorted(graph.steps.keys())
 
 
-def live_wdk_step_ids(deps: AgentDeps) -> list[int]:
+def live_wdk_step_ids(session: StrategySession) -> list[int]:
     # ``wdk_step_id`` is only assigned after the step has been pushed to
     # WDK and built — local-only steps are excluded.
-    sync_state = deps.strategy_session.sync_state
+    sync_state = session.sync_state
     if sync_state is None:
         return []
     mapping = sync_state.wdk_step_ids

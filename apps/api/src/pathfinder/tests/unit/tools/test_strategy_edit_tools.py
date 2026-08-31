@@ -11,8 +11,8 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.tools.standalone import strategy as strategy_module
-from pathfinder.ai.tools.standalone.strategy import (
+from pathfinder.ai.tools.standalone import strategy_edits as strategy_module
+from pathfinder.ai.tools.standalone.strategy_edits import (
     delete_step,
     insert_saved_strategy,
     replace_subtree,

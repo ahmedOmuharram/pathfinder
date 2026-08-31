@@ -36,7 +36,7 @@ describe("draftSlice — setLastFailedOperation", () => {
     const api = useStrategyStore.getState();
     api.setLastFailedOperation({ op: DELETE_OP });
     api.setLastFailedOperation(null);
-    expect(useStrategyStore.getState().lastFailedOperation).toBeNull();
+    expect(useStrategyStore.getState().lastFailedOperation).toBe(null);
   });
 
   it("does not disturb lifecycle or history state", () => {
@@ -62,7 +62,7 @@ describe("draftSlice — clear", () => {
     useStrategyStore.getState().clear();
 
     const state = useStrategyStore.getState();
-    expect(state.lastFailedOperation).toBeNull();
+    expect(state.lastFailedOperation).toBe(null);
     expect(state.stepLifecycleById).toEqual({});
     expect(state.undoStack).toEqual([]);
     expect(state.redoStack).toEqual([]);

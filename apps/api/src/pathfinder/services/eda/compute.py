@@ -45,7 +45,7 @@ class NoComputationError(AppError):
     def __init__(self, detail: str) -> None:
         super().__init__(
             code=ErrorCode.EDA_COMPUTE_NOT_RUN,
-            title="No EDA compute",
+            title="No comparison has run",
             status=_CONFLICT,
             detail=detail,
         )
@@ -356,8 +356,8 @@ async def bound_volcano(
     """
     if not analysis.descriptor.computations:
         msg = (
-            f"Analysis {analysis.analysis_id} carries no compute, so it has no "
-            f"volcano to plot. Run the differential expression first."
+            f"Analysis {analysis.analysis_id} has no comparison yet; run the "
+            f"differential expression first."
         )
         raise NoComputationError(msg)
     computation = analysis.descriptor.computations[0]

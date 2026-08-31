@@ -19,6 +19,13 @@ async function createGeneSet(
   await sidebar.expectSetGeneCount(name, geneIds.length);
 }
 
+/** The ensemble chip for one gene set, named by the set it toggles. */
+function ensembleChip(page: Page, setName: string) {
+  return page
+    .getByTestId("ensemble-set-chip")
+    .and(page.getByRole("button", { name: setName, exact: true }));
+}
+
 test.describe("Workbench Ensemble Scoring Flow", () => {
   test("score genes across two sets and mark a positive control", async ({
     page,
@@ -48,12 +55,13 @@ test.describe("Workbench Ensemble Scoring Flow", () => {
     await workbenchMainPage.expectPanelExpanded("Ensemble Scoring");
 
     // Select both gene sets.
-    const chips = page.getByTestId("ensemble-set-chip");
-    await expect(chips).toHaveCount(2);
-    await chips.nth(0).click();
-    await chips.nth(1).click();
-    await expect(chips.nth(0)).toHaveAttribute("aria-pressed", "true");
-    await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("ensemble-set-chip")).toHaveCount(2);
+    const chipA = ensembleChip(page, "Ensemble A");
+    const chipB = ensembleChip(page, "Ensemble B");
+    await chipA.click();
+    await chipB.click();
+    await expect(chipA).toHaveAttribute("aria-pressed", "true");
+    await expect(chipB).toHaveAttribute("aria-pressed", "true");
 
     // Add the shared gene as a positive control via the autocomplete.
     const controls = page.getByTestId("gene-chip-input");
@@ -128,15 +136,14 @@ test.describe("Workbench Ensemble Scoring Flow", () => {
     await workbenchMainPage.expectPanelExpanded("Ensemble Scoring");
 
     const computeBtn = page.getByRole("button", { name: /^compute$/i });
-    const chips = page.getByTestId("ensemble-set-chip");
 
     // No selection → disabled; one selection → still disabled.
     await expect(computeBtn).toBeDisabled();
-    await chips.nth(0).click();
+    await ensembleChip(page, "Gate A").click();
     await expect(computeBtn).toBeDisabled();
 
     // Two selections → enabled.
-    await chips.nth(1).click();
+    await ensembleChip(page, "Gate B").click();
     await expect(computeBtn).toBeEnabled();
   });
 });

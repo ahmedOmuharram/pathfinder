@@ -226,6 +226,10 @@ jobs:
         working-directory: apps/api
         run: uv run lint-imports
 
+      - name: Check for dead code
+        working-directory: apps/api
+        run: uv run vulture
+
       - name: Check file sizes
         working-directory: apps/api
         run: uv run python scripts/check_max_lines.py
@@ -283,6 +287,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-api
 
+      # Opt-in tiers are deselected by addopts, so only a collect with addopts
+      # cleared reports a tier that no longer imports.
+      - name: Collect every tier, opt-in ones included
+        working-directory: apps/api
+        env:
+          API_ENV: test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
+          API_SECRET_KEY: test-secret-key-xxxxx-xxxxx-xxxxx
+          PATHFINDER_CHAT_PROVIDER: mock
+        run: uv run pytest --override-ini "addopts=" --collect-only -q
+
       - name: Run tests
         working-directory: apps/api
         env:
@@ -317,6 +332,20 @@ jobs:
         working-directory: apps/web
         run: yarn check:boundaries
 
+      # Both ratchets are green on the trunk, so a red line here names a test
+      # added without a value assertion or an index-based locator.
+      - name: Check test assertion strength
+        working-directory: apps/web
+        run: yarn check:weak-assertions
+
+      - name: Check the checker
+        working-directory: apps/web
+        run: node --test scripts/check-weak-assertions.test.mjs
+
+      - name: Check for index-based Playwright locators
+        working-directory: apps/web
+        run: yarn check:strict-mode
+
   check-shared-ts:
     name: Check shared TS types
     runs-on: ubuntu-latest
@@ -329,6 +358,10 @@ jobs:
       - name: Check generated types are up to date
         working-directory: packages/shared-ts
         run: yarn check:generated
+
+      - name: Check formatting
+        working-directory: packages/shared-ts
+        run: yarn format:check
 
   test-web:
     name: Test Web

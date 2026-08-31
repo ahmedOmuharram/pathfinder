@@ -42,10 +42,11 @@ async def refresh_live_strategy_state(
 def _record_the_spec_the_turn_started_from(state: PipelineState) -> None:
     """Keep the entry spec an edit's dispositions are checked against.
 
-    An approval-resume continues the turn that already recorded one, so it
-    keeps that record rather than the spec the suspended pass had reached.
+    A turn that resumes a parked call continues the turn that already
+    recorded one, so it keeps that record rather than the spec the suspended
+    pass had reached.
     """
-    if state.pending_approval is not None:
+    if state.resumes_parked_call:
         return
     entry_spec = state.domain.operational_spec
     state.domain.spec_before_turn = (

@@ -24,9 +24,9 @@ import pytest
 
 from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
+from pathfinder.services.catalog._param_binding import _apply_override
 from pathfinder.services.catalog.param_dag import (
     ResolvedParams,
-    _apply_override,
     resolve_params_with_intent,
 )
 from pathfinder.services.catalog.param_formatting import ParameterInfo

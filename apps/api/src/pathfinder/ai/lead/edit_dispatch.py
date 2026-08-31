@@ -13,6 +13,12 @@ from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.deltas import EditDelta
+from pathfinder.ai.lead.dispatch_context import (
+    agent_deps_for,
+    defer_dispatch,
+    dispatch_call_id,
+    refuse_and_restore,
+)
 from pathfinder.ai.lead.edit_messages import (
     changed_revision_message,
     edit_bound_nothing_message,
@@ -20,13 +26,7 @@ from pathfinder.ai.lead.edit_messages import (
     no_strategy_to_edit_message,
     unsupported_edit_message,
 )
-from pathfinder.ai.lead.sub_agent_dispatch import (
-    agent_deps_for,
-    defer_to_user,
-    dispatch_call_id,
-    refuse_and_restore,
-    run_frame,
-)
+from pathfinder.ai.lead.sub_agent_dispatch import run_frame
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
@@ -216,5 +216,5 @@ async def edit_strategy(ctx: RunContext[LeadDeps], reason: str) -> EditDelta:
         reason=reason,
     )
     if isinstance(result, SubAgentApprovalWait):
-        defer_to_user(ctx.deps, tool_call_id, result)
+        defer_dispatch(ctx.deps, tool_call_id, result)
     return result

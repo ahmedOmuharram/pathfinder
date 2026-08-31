@@ -8,7 +8,7 @@ buried in a parameter dict the UI never renders.
 
 from __future__ import annotations
 
-from pathfinder.ai.lead.ledger import FrameSection
+from pathfinder.ai.lead.ledger_sections import FrameSection
 from pathfinder.domain.parameters.values import MultiPickValue, SinglePickValue
 from pathfinder.domain.strategy.operational_spec import Criterion, OperationalSpec
 

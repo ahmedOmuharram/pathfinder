@@ -11,7 +11,7 @@ from typing import Literal
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, computed_field
 
-from pathfinder.domain.parameters.values import to_wire
+from pathfinder.domain.parameters.value_codec import to_wire
 from pathfinder.domain.strategy.operational_spec import Criterion, OperationalSpec
 
 __all__ = ["CriterionChange", "CriterionDisposition", "SpecDiff", "diff_specs"]
@@ -54,6 +54,10 @@ class SpecDiff(CamelModel):
 
     def _count(self, disposition: CriterionDisposition) -> int:
         return sum(1 for c in self.changes if c.disposition == disposition)
+
+    def touched_count(self) -> int:
+        """Criteria this turn added, changed or dropped."""
+        return sum(1 for c in self.changes if c.disposition != "kept")
 
     def dropped_ids(self) -> list[str]:
         return [c.criterion_id for c in self.changes if c.disposition == "dropped"]

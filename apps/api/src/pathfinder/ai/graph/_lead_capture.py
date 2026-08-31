@@ -16,7 +16,7 @@ from uuid import UUID
 from assistant_core.cost import cost_for_run
 from assistant_core.graph.emit import emit_chunk, emit_turn_usage
 from assistant_core.graph.stream_events import lead_usage_event
-from assistant_core.graph.turn_state import PendingApproval
+from assistant_core.graph.turn_state import PendingApproval, PendingDurableCall
 from assistant_core.platform.logging import get_logger
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.ui.vercel_ai.response_types import (
@@ -54,7 +54,8 @@ class _LeadRunCapture:
     sub_agent_usage_by_call: dict[str, tuple[int, str]] = field(default_factory=dict)
     lead_model: str = ""
     pending_approval: PendingApproval | None = None
-    approval_consumed: bool = False
+    pending_durable_call: PendingDurableCall | None = None
+    parked_call_answered: bool = False
     prose_already_streamed: bool = False
 
     @property

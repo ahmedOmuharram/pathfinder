@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from pathfinder.integrations.eda.client import EdaClient
+from pathfinder.integrations.eda.models import EdaStudiesResponse, EdaStudyOverview
 from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.services.eda import catalog
 
@@ -145,6 +146,85 @@ async def test_a_dataset_whose_study_is_unlisted_reads_its_detail_again(
     assert entry.study_id == "STUDY_53f554ec6a"
     assert detail.id == "STUDY_53f554ec6a"
     assert calls.count("/eda/studies/STUDY_53f554ec6a") == 2
+
+
+_RESTRICTED = "restricted-token"
+_SERVICE = "service-token"
+
+
+def _per_account(seen: list[str]) -> httpx.MockTransport:
+    """The service account reads the whole fixture; the second account reads none."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        token = request.headers["Cookie"].removeprefix("Authorization=")
+        seen.append(token)
+        if token == _SERVICE:
+            return httpx.Response(200, json=_permissions())
+        return httpx.Response(200, json={"perDataset": {}})
+
+    return httpx.MockTransport(handler)
+
+
+async def test_a_second_account_is_not_served_the_first_account_s_datasets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The permissions answer is the caller's, so a second token reads its own."""
+    seen: list[str] = []
+    client = EdaClient(base_url="https://plasmodb.org/eda")
+    client.install_transport(_per_account(seen))
+    monkeypatch.setattr(catalog, "get_eda_client", lambda _site: client)
+
+    veupathdb_auth_token_ctx.set(_SERVICE)
+    entry = await catalog.resolve_dataset("plasmodb", "DS_53f554ec6a")
+    veupathdb_auth_token_ctx.set(_RESTRICTED)
+    with pytest.raises(catalog.UnknownEdaDatasetError):
+        await catalog.resolve_dataset("plasmodb", "DS_53f554ec6a")
+    await client.close()
+
+    assert entry.study_id == "STUDY_53f554ec6a"
+    assert seen == [_SERVICE, _RESTRICTED]
+
+
+async def test_two_accounts_in_one_process_hold_two_permission_maps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The second account's browse is empty while the first account's is not."""
+    seen: list[str] = []
+    client = EdaClient(base_url="https://plasmodb.org/eda")
+    client.install_transport(_per_account(seen))
+    monkeypatch.setattr(catalog, "get_eda_client", lambda _site: client)
+    monkeypatch.setattr(catalog, "list_studies", _fixture_studies)
+
+    veupathdb_auth_token_ctx.set(_SERVICE)
+    service_cards = await catalog.browse_studies("plasmodb", limit=100)
+    veupathdb_auth_token_ctx.set(_RESTRICTED)
+    restricted_cards = await catalog.browse_studies("plasmodb", limit=100)
+    await client.close()
+
+    assert len(service_cards) > 0
+    assert restricted_cards == []
+
+
+async def test_one_account_asking_twice_still_reads_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+    client = EdaClient(base_url="https://plasmodb.org/eda")
+    client.install_transport(_per_account(seen))
+    monkeypatch.setattr(catalog, "get_eda_client", lambda _site: client)
+
+    veupathdb_auth_token_ctx.set(_SERVICE)
+    await catalog.resolve_dataset("plasmodb", "DS_53f554ec6a")
+    await catalog.resolve_dataset("plasmodb", "DS_16bc228c8e")
+    await client.close()
+
+    assert seen == [_SERVICE]
+
+
+async def _fixture_studies(site_id: str) -> list[EdaStudyOverview]:
+    del site_id
+    raw = json.loads((FIXTURES / "studies_list.json").read_text())
+    return EdaStudiesResponse.model_validate(raw).studies
 
 
 async def test_clearing_the_cache_forces_a_refetch(

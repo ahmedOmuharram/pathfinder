@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import ForbiddenError
-from pathfinder.platform.security import create_user_token
+from pathfinder.platform.security import create_dev_login_token
 from pathfinder.services.users import get_or_create_user_id
 from pathfinder.transport.http.deps import DBSession
 
@@ -21,6 +21,8 @@ async def dev_login(session: DBSession, user_id: str | None = None) -> JSONRespo
     """Create a test user and return a valid auth token.
 
     Only available when ``PATHFINDER_CHAT_PROVIDER=mock`` in the test profile.
+    The session is a synthetic user with no VEuPathDB account, so it acts as
+    whatever VEuPathDB token the request carries.
 
     Pass ``?user_id=worker-0`` to create isolated users per Playwright
     worker so parallel tests don't share data.
@@ -30,7 +32,7 @@ async def dev_login(session: DBSession, user_id: str | None = None) -> JSONRespo
 
     external_id = f"e2e-{user_id}@test.local" if user_id else "e2e@test.local"
     internal_id = await get_or_create_user_id(session, external_id)
-    auth_token = create_user_token(internal_id)
+    auth_token = create_dev_login_token(internal_id)
 
     resp = JSONResponse({"authToken": auth_token, "userId": str(internal_id)})
     resp.set_cookie(

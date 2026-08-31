@@ -38,7 +38,7 @@ export function AdvancedSettings() {
 
   return (
     <div className="space-y-5">
-      <SettingsField label="Delete from WDK on sidebar delete">
+      <SettingsField label="Also delete on VEuPathDB">
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
           <input
             data-testid="delete-from-wdk-checkbox"

@@ -18,8 +18,22 @@ uv run ruff format --check src/
 uv run mypy --strict src/pathfinder/
 uv run pyright src/pathfinder/
 uv run lint-imports
+uv run vulture
+uv run pytest --override-ini "addopts=" --collect-only -q
 uv run pytest src/pathfinder/tests/ -q
 ```
+
+The collect runs with `addopts` cleared, so it reaches the tiers the default
+run deselects. An opt-in tier is invisible to every other command here, and a
+tier nobody imports rots into an import error that looks like coverage. The
+collect is the only line that reports it.
+
+`vulture` reads `[tool.vulture]` in `apps/api/pyproject.toml` at
+`min_confidence` 80, so it reports unreachable code, unused imports and unused
+variables and never an unused function. It must run through `uv run` in the
+project environment: an older interpreter on `PATH` reports every PEP 758, PEP
+695 and `match` file as a syntax error and silently inspects the rest. See
+[the pinning decision](../decisions/the-dead-code-checker-is-a-pinned-dependency.md).
 
 `pyright` is not redundant with `mypy`: it catches variance and invariance errors mypy misses. `lint-imports` enforces the six layering contracts and is the gate that keeps Domain pure. `ruff format --check` is not redundant with `ruff check` either: the two rule sets do not overlap, and formatting drift is invisible to the linter.
 
@@ -66,6 +80,22 @@ uv run python -m pathfinder.devtools.evals run --out summary.json  # run them
 ```
 
 The corpus lives in `apps/api/src/pathfinder/evals/corpus/`, one JSON file per case, each carrying its own provenance as data. A case arrives one of two ways: promoted from the staging queue by `pathfinder.devtools.evals promote`, or written from a cataloged failure in `backlog/`. No case names a user; see [the linkage decision](../decisions/a-staged-eval-case-carries-its-user-until-promotion.md).
+
+**A case is a thread, not a prompt.** `turns` is a list driven in order on one
+conversation id, so a case can pin a state a first message cannot reach: an
+edit is a second message over a strategy that already exists. `expected` may
+name `stepIdsUnchanged`, read from the persisted strategy's WDK step ids on
+both sides of the last turn, and `parameters`, which names per search the
+values that search must carry. Every case result also carries the four
+distances of [the harness decision](../decisions/the-eval-harness-is-pydantic-evals.md),
+on a pass as well as on a failure.
+
+**A building case needs a VEuPathDB login.** Only the model is mocked, so a
+case whose expectation names a structure pushes real steps to the site named in
+`siteId`. Without `WDK_DEV_EMAIL`/`WDK_DEV_PASSWORD` the run is
+unauthenticated, the catalog reads answer 403 and the case reports
+`builtStrategy: expected 'true', got 'false'`. The non-building cases need no
+credential.
 
 **A run under the deterministic provider tests the pipeline, not the model.** The mock is a script, so a green run says the routing, the materialisation, the persistence and the reported verdict still behave; it does not say a real model would have chosen that route. The corpus is provider-agnostic, so a real-model run is the same command with a different provider.
 
@@ -157,8 +187,29 @@ result.
 npx tsc --noEmit
 npx eslint src/
 node scripts/check-boundaries.mjs
+node scripts/check-weak-assertions.mjs
+node --test scripts/check-weak-assertions.test.mjs
+node scripts/check-no-first-nth.mjs
 npx vitest run
 ```
+
+The two ratchets are green on the trunk, so a red line names the test the
+change just added. `check-weak-assertions.mjs` fails a test whose only matchers
+pin nothing (`toBeTruthy`, `toBeNull`, `toBeUndefined`);
+`scripts/.weak-baseline.txt` suppresses 62 older offenders, and an entry leaves
+it when its test gains a value assertion. `check-no-first-nth.mjs` fails an
+index-based Playwright locator: `.first()` and `.nth()` hide a strict-mode
+collision instead of fixing it, so a spec names what it means to click.
+
+**A throwing query is a value assertion, and the checker knows it.** `getBy*`
+and `getAllBy*` throw when nothing matches, so `expect(screen.getByText("3.48"))`
+already pins `3.48` whatever matcher follows. The rule needs a string or regex
+literal as the query's first argument: a variable pins whatever the test
+computed, not a value the file states. `queryBy*` returns null and `findBy*`
+returns a promise, so both stay weak. That rule is what
+`check-weak-assertions.test.mjs` holds, which is why the checker has a checker.
+
+All three run in CI beside `check:boundaries`.
 
 # Mutation testing (`apps/web`)
 

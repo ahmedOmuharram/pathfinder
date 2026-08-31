@@ -6,8 +6,8 @@
  * Four tiers:
  * - Clear strategies (current site only)
  * - Clear site data (strategies + gene sets + Redis for current site)
- * - Clear ALL data (everything locally, WDK strategies dismissed to prevent re-sync)
- * - Clear ALL data + WDK (everything locally + delete from VEuPathDB, requires "delete my data")
+ * - Clear ALL data (everything locally, remote strategies dismissed to prevent re-sync)
+ * - Clear ALL data + VEuPathDB (everything locally + delete remotely, requires "delete my data")
  */
 
 import { useState } from "react";
@@ -113,7 +113,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
 
       <DangerAction
         label="Clear ALL data"
-        description="Delete everything locally. WDK strategies are kept but hidden from sync."
+        description="Delete everything locally. VEuPathDB strategies are kept but hidden from sync."
         loading={clearing === "all-local"}
         confirmed={confirmAction === "all-local"}
         onConfirm={() => setConfirmAction("all-local")}
@@ -128,7 +128,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-sm font-medium text-foreground">
-              Clear ALL data + WDK
+              Clear ALL data + VEuPathDB
             </div>
             <div className="text-xs text-muted-foreground">
               Delete everything locally <strong>and</strong> from VEuPathDB. This cannot
@@ -170,7 +170,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
               className="inline-flex items-center gap-1 rounded-md border border-destructive/30 px-2 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/5"
             >
               <Trash2 className="h-3 w-3" />
-              Clear ALL + WDK
+              Clear ALL + VEuPathDB
             </button>
           )}
         </div>
@@ -181,8 +181,8 @@ export function DataSettings({ siteId }: DataSettingsProps) {
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
               <div className="space-y-2">
                 <p className="text-xs font-medium text-destructive">
-                  This will permanently delete all strategies from VEuPathDB (WDK)
-                  across all sites.
+                  This will permanently delete all strategies from VEuPathDB across all
+                  sites.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Type{" "}

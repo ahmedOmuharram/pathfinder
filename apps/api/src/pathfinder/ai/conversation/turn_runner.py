@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any
@@ -18,6 +19,7 @@ from assistant_core.graph.stream_events import (
     turn_status_event,
     turn_stopped_event,
 )
+from assistant_core.graph.turn_state import DurableTaskResult
 from assistant_core.mcp.resolution import ResolvedToolSources
 from assistant_core.platform.db import async_session_factory
 from assistant_core.platform.logging import get_logger
@@ -35,29 +37,32 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 
 from pathfinder.ai.conversation._turn_helpers import (
     _extract_chunk,
-    _interrupt_chunks,
     build_turn_start,
     resolve_site_id,
 )
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
-from pathfinder.persistence.repositories import (
-    ChatTurnCancellationRepository,
-    ConversationRepository,
+from pathfinder.ai.conversation.turn_stop import (
+    latest_revision_id,
+    restore_pre_turn_strategy,
+    watch_for_cancel,
 )
+from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
+from pathfinder.platform.context import PhaseOverrides, attach_phase_overrides
 from pathfinder.platform.tool_sources import source_credential
-
-_CANCEL_POLL_INTERVAL_SECONDS = 1.0
 
 logger = get_logger(__name__)
 
 
+_TASK_STARTED = "data-background-task-started"
+
+
 @dataclass
 class _DriveResult:
-    saw_interrupt: bool = False
+    suspended: bool = False
     encountered_error: bool = False
     title_emitted: bool = False
     cancelled: bool = False
@@ -89,39 +94,22 @@ class _StreamConsumerCtx:
     result: _DriveResult
 
 
-async def _watch_for_cancel(
-    *,
-    conversation_id: UUID,
-    turn_id: UUID,
-    cancel_event: asyncio.Event,
-) -> None:
-    repo = ChatTurnCancellationRepository(session_factory=async_session_factory)
-    while not cancel_event.is_set():
-        try:
-            cancelled = await repo.is_cancelled(
-                conversation_id=conversation_id,
-                turn_id=turn_id,
-            )
-        except Exception:
-            logger.exception(
-                "Cancel watcher poll failed",
-                conversation_id=str(conversation_id),
-                turn_id=str(turn_id),
-            )
-            return
-        if cancelled:
-            cancel_event.set()
-            return
-        try:
-            await asyncio.sleep(_CANCEL_POLL_INTERVAL_SECONDS)
-        except asyncio.CancelledError:
-            return
+@dataclass(frozen=True)
+class TurnRequest:
+    """One turn's inputs: who asked, and what answer it carries.
+
+    ``durable_result`` marks the turn a worker opens to answer a durable call
+    the thread parked.
+    """
+
+    body: ChatRequestBody
+    user_id: UUID
+    durable_result: DurableTaskResult | None = None
 
 
 async def run_turn(
     *,
-    body: ChatRequestBody,
-    user_id: UUID,
+    request: TurnRequest,
     spec: AssistantSpec,
     compiled_graph: Any,
     memory_store: Any,
@@ -133,6 +121,7 @@ async def run_turn(
     The procrastinate worker that calls this coroutine is the owner; any client
     reattaches via the events SSE endpoint in a later task.
     """
+    body = request.body
     async with async_session_factory() as session:
         conversation = await ConversationRepository(session).get_by_id(
             body.conversation_id,
@@ -157,7 +146,7 @@ async def run_turn(
             TurnContextRequest(
                 conversation=conversation,
                 site_id=effective_site_id,
-                user_id=user_id,
+                user_id=request.user_id,
                 memory_store=memory_store,
                 cancel_event=asyncio.Event(),
                 phase_models=body.runtime_phase_models,
@@ -165,26 +154,33 @@ async def run_turn(
                 tool_sources=tool_sources,
             ),
         )
-        await _run_turn_with_context(
-            body=body,
-            user_id=user_id,
-            spec=spec,
-            compiled_graph=compiled_graph,
-            runtime_context=runtime_context,
-            writer=writer,
-        )
+        # Work this turn defers outlives the turn, so it reads the picks here.
+        with attach_phase_overrides(
+            PhaseOverrides(
+                models=body.runtime_phase_models,
+                reasoning=body.runtime_phase_reasoning,
+            ),
+        ):
+            await _run_turn_with_context(
+                request=dataclasses.replace(request, body=body),
+                spec=spec,
+                compiled_graph=compiled_graph,
+                runtime_context=runtime_context,
+                writer=writer,
+            )
 
 
 async def _run_turn_with_context(
     *,
-    body: ChatRequestBody,
-    user_id: UUID,
+    request: TurnRequest,
     spec: AssistantSpec,
     compiled_graph: Any,
     runtime_context: Any,
     writer: ChatWriter,
 ) -> None:
+    body = request.body
     turn_message_id = writer.turn_id
+    pre_turn_revision_id = await latest_revision_id(body.conversation_id)
     start_event_id = await writer.write(
         StartChunk(message_id=str(turn_message_id)).model_dump(
             by_alias=True,
@@ -210,9 +206,10 @@ async def _run_turn_with_context(
         spec.build_initial_state(
             build_turn_start(
                 body,
-                user_id,
+                request.user_id,
                 turn_message_id=writer.turn_id,
                 turn_start_event_id=start_event_id - 1,
+                durable_result=request.durable_result,
             ),
         ),
     )
@@ -233,10 +230,14 @@ async def _run_turn_with_context(
         "error"
         if result.encountered_error
         else "other"
-        if result.saw_interrupt or result.cancelled
+        if result.suspended or result.cancelled
         else "stop"
     )
     if result.cancelled:
+        await restore_pre_turn_strategy(
+            body.conversation_id,
+            pre_turn_revision_id=pre_turn_revision_id,
+        )
         await writer.write(
             turn_stopped_event().model_dump(
                 by_alias=True,
@@ -260,24 +261,19 @@ async def _run_turn_with_context(
 
 
 async def _consume_graph_stream(ctx: _StreamConsumerCtx) -> None:
-    async for mode, payload in ctx.compiled_graph.astream(
+    async for payload in ctx.compiled_graph.astream(
         ctx.graph_input,
         config=ctx.thread_config,
         context=ctx.runtime_context,
-        stream_mode=["custom", "updates"],
+        stream_mode="custom",
     ):
-        if mode == "custom":
-            await _handle_custom(
-                payload,
-                ctx.title_task,
-                ctx.body.conversation_id,
-                ctx.result,
-                ctx.writer,
-            )
-        elif mode == "updates":
-            for interrupt_chunk in _interrupt_chunks(payload):
-                ctx.result.saw_interrupt = True
-                await ctx.writer.write(interrupt_chunk)
+        await _handle_custom(
+            payload,
+            ctx.title_task,
+            ctx.body.conversation_id,
+            ctx.result,
+            ctx.writer,
+        )
 
 
 async def _drive_graph(
@@ -327,7 +323,7 @@ async def _drive_graph(
         consume_task.cancel()
 
     cancel_watcher = asyncio.create_task(
-        _watch_for_cancel(
+        watch_for_cancel(
             conversation_id=body.conversation_id,
             turn_id=turn_message_id,
             cancel_event=cancel_event,
@@ -339,6 +335,11 @@ async def _drive_graph(
     except asyncio.CancelledError:
         if cancel_event.is_set():
             result.cancelled = True
+            await write_tool_call_errors(
+                tracked,
+                open_calls.ids(),
+                "Stopped by the user.",
+            )
         else:
             raise
     except Exception as exc:
@@ -376,6 +377,8 @@ async def _handle_custom(
 ) -> None:
     chunk = _extract_chunk(payload)
     if chunk is not None:
+        if chunk.get("type") == _TASK_STARTED:
+            result.suspended = True
         await writer.write(chunk)
     if not result.title_emitted and title_task is not None and title_task.done():
         async for t in _emit_title(title_task, conversation_id):

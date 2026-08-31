@@ -516,7 +516,7 @@ describe("reopening a step whose lists name a term the tree does not carry", () 
       </TestForm>,
     );
 
-    expect(screen.queryByTestId("phyletic-unread")).toBeNull();
+    expect(screen.queryByTestId("phyletic-unread")).toBe(null);
   });
 });
 

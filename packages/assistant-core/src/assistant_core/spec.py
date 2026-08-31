@@ -26,7 +26,11 @@ from assistant_core.conversation.stream_parts.registry import (
     StreamPartRegistry,
 )
 from assistant_core.graph.runtime import TurnContext
-from assistant_core.graph.turn_state import TurnState, UserQuestionAnswer
+from assistant_core.graph.turn_state import (
+    DurableTaskResult,
+    TurnState,
+    UserQuestionAnswer,
+)
 from assistant_core.mcp.declaration import ToolSourceDeclarations
 from assistant_core.persistence.models import Conversation
 from assistant_core.platform.types import ReasoningEffort
@@ -50,6 +54,8 @@ class TurnStart(BaseModel):
     is_resume: bool = False
     user_message_id: UUID | None = None
     user_prompt: str = ""
+    # Set on the turn a worker opens to answer a durable call the thread parked.
+    durable_result: DurableTaskResult | None = None
     approval_responses: dict[str, ToolApprovalResponded] = Field(default_factory=dict)
     user_question_answers: dict[str, list[UserQuestionAnswer]] = Field(
         default_factory=dict,
@@ -71,6 +77,8 @@ class TurnStart(BaseModel):
             "approval_responses": dict(self.approval_responses),
             "user_question_answers": dict(self.user_question_answers),
             "retrieved_memories": [],
+            # Always written, so a later turn never reads the answer again.
+            "durable_result": self.durable_result,
         }
         if self.is_resume:
             return base

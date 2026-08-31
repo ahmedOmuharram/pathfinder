@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { APIError } from "./http";
-import { isProblemDetail, toUserMessage, wdkAuthRefusal } from "./errors";
+import { toUserMessage, wdkAuthRefusal } from "./errors";
 
 describe("lib/api/errors", () => {
-  it("detects FastAPI-style problem detail objects", () => {
-    expect(isProblemDetail({ title: "Bad Request", status: 400, detail: "nope" })).toBe(
-      true,
-    );
-    expect(isProblemDetail({ title: "x", status: "400", detail: "nope" })).toBe(false);
-    expect(isProblemDetail(null)).toBe(false);
+  it("reads the title when the problem body carries no detail", () => {
+    const err = new APIError("HTTP 404 Not Found", {
+      status: 404,
+      statusText: "Not Found",
+      url: "http://localhost:8000/api",
+      data: {
+        type: "/errors/NOT_FOUND",
+        title: "Target message not found",
+        status: 404,
+        code: "NOT_FOUND",
+      },
+    });
+    expect(toUserMessage(err, "Failed to revert")).toBe("Target message not found");
   });
 
   it("formats APIError messages using problem detail when present", () => {
@@ -97,7 +104,7 @@ describe("wdkAuthRefusal", () => {
       url: "/x",
       data: { title: "Unauthorized", status: 401, detail: "no", code: "UNAUTHORIZED" },
     });
-    expect(wdkAuthRefusal(err)).toBeNull();
+    expect(wdkAuthRefusal(err)).toBe(null);
   });
 
   it("ignores non-401 errors, plain text errors and non-errors", () => {
@@ -107,9 +114,33 @@ describe("wdkAuthRefusal", () => {
       url: "/x",
       data: LOGIN_REQUIRED_BODY,
     });
-    expect(wdkAuthRefusal(wrongStatus)).toBeNull();
-    expect(wdkAuthRefusal(new Error("Failed to fetch"))).toBeNull();
-    expect(wdkAuthRefusal(null)).toBeNull();
-    expect(wdkAuthRefusal("WDK_LOGIN_REQUIRED")).toBeNull();
+    expect(wdkAuthRefusal(wrongStatus)).toBe(null);
+    expect(wdkAuthRefusal(new Error("Failed to fetch"))).toBe(null);
+    expect(wdkAuthRefusal(null)).toBe(null);
+    expect(wdkAuthRefusal("WDK_LOGIN_REQUIRED")).toBe(null);
+  });
+});
+
+describe("a body the transport rethrows as text", () => {
+  it("reads the field message out of a chat 422 body", () => {
+    const body = {
+      type: "about:blank",
+      title: "Invalid plan",
+      status: 422,
+      code: "VALIDATION_ERROR",
+      errors: [{ path: "recordType", message: "Record type is required" }],
+    };
+    expect(toUserMessage(new Error(JSON.stringify(body)))).toBe(
+      "Record type is required",
+    );
+  });
+
+  it("reads the detail out of a FastAPI validation body", () => {
+    const body = { detail: [{ loc: ["body", "siteId"], msg: "field required" }] };
+    expect(toUserMessage(new Error(JSON.stringify(body)))).toBe("field required");
+  });
+
+  it("leaves a plain message alone", () => {
+    expect(toUserMessage(new Error("Failed to fetch"))).toBe("Failed to fetch");
   });
 });

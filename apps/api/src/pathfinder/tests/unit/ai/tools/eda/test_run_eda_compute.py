@@ -1,4 +1,4 @@
-"""run_eda_compute defers the work and suspends the graph."""
+"""run_eda_compute defers the work and ends the turn on the call."""
 
 from __future__ import annotations
 
@@ -7,8 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from langgraph.errors import GraphInterrupt
-from langgraph.types import Interrupt
+from pydantic_ai.exceptions import CallDeferred
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RunUsage
@@ -52,7 +51,13 @@ def lead_ctx() -> RunContext[LeadDeps]:
         cancel_event=asyncio.Event(),
     )
     deps = LeadDeps(state=state, intent=None, runtime=runtime, retrieved_memories=[])
-    return RunContext(deps=deps, model=TestModel(), usage=RunUsage(), messages=[])
+    return RunContext(
+        deps=deps,
+        model=TestModel(),
+        usage=RunUsage(),
+        messages=[],
+        tool_call_id="call_compute",
+    )
 
 
 class _Task:
@@ -72,10 +77,6 @@ class _App:
         return _Task(self._deferred)
 
 
-def _raise_interrupt(payload: Any) -> Any:
-    raise GraphInterrupt((Interrupt(value=payload),))
-
-
 @pytest.fixture
 def dispatch(
     monkeypatch: pytest.MonkeyPatch,
@@ -93,7 +94,7 @@ def dispatch(
 
     monkeypatch.setattr(durable, "create_background_task", create)
     monkeypatch.setattr(durable, "procrastinate_app", _App(deferred))
-    monkeypatch.setattr(durable, "interrupt", _raise_interrupt)
+    monkeypatch.setattr(durable, "get_stream_writer", lambda: lambda _payload: None)
     return created, deferred
 
 
@@ -103,7 +104,7 @@ async def test_calling_the_tool_creates_a_task_and_defers_a_job(
 ) -> None:
     created, deferred = dispatch
 
-    with pytest.raises(GraphInterrupt):
+    with pytest.raises(CallDeferred):
         await eda_compute.run_eda_compute(
             lead_ctx,
             identifier_variable=EdaVariableSpecIn(
@@ -125,6 +126,7 @@ async def test_calling_the_tool_creates_a_task_and_defers_a_job(
     assert [entry["tool_name"] for entry in created] == ["run_eda_compute"]
     assert created[0]["conversation_id"] == lead_ctx.deps.state.conversation_id
     assert created[0]["user_id"] == lead_ctx.deps.runtime.user_id
+    assert created[0]["tool_call_id"] == "call_compute"
     assert len(deferred) == 1
     assert deferred[0]["thread_id"] == str(lead_ctx.deps.state.conversation_id)
 
@@ -135,7 +137,7 @@ async def test_the_deferred_job_carries_the_arguments_the_impl_needs(
 ) -> None:
     created, _deferred = dispatch
 
-    with pytest.raises(GraphInterrupt):
+    with pytest.raises(CallDeferred):
         await eda_compute.run_eda_compute(
             lead_ctx,
             identifier_variable=EdaVariableSpecIn(
@@ -169,7 +171,7 @@ async def test_the_estimated_duration_is_declared(
 ) -> None:
     created, _deferred = dispatch
 
-    with pytest.raises(GraphInterrupt):
+    with pytest.raises(CallDeferred):
         await eda_compute.run_eda_compute(
             lead_ctx,
             identifier_variable=EdaVariableSpecIn(

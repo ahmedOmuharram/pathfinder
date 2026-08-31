@@ -568,8 +568,9 @@ describe("validateStepsForSave", () => {
         strategy: null,
       });
 
-      expect(result.errorsByStepId["s1"]).toBeUndefined();
-      expect(result.errorsByStepId["s2"]).toBeUndefined();
+      expect(result.hasErrors).toBe(false);
+      expect(result.errorsByStepId["s1"]).toBe(undefined);
+      expect(result.errorsByStepId["s2"]).toBe(undefined);
     });
   });
 

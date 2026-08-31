@@ -18,7 +18,7 @@ from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone import catalog as catalog_tools
 from pathfinder.domain.parameters.phyletic import PhyleticNode, PhyleticTree
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
-from pathfinder.mcp import server as mcp_server
+from pathfinder.mcp import _catalog_tools as mcp_catalog_tools
 from pathfinder.services.catalog import param_phyletic, public_strategy_search
 
 _UNREACHABLE = EmbeddingUnavailableError(batch_size=1, cause="no route to host")
@@ -54,13 +54,13 @@ async def test_the_mcp_tool_falls_back_to_lexical_ranking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        mcp_server.wdk, "get_strategy_api", lambda _site: _StrategyApi()
+        mcp_catalog_tools.wdk, "get_strategy_api", lambda _site: _StrategyApi()
     )
     monkeypatch.setattr(
         public_strategy_search, "rank_public_strategies_semantic", _refuse
     )
 
-    found = await mcp_server.search_example_plans("plasmodb", "vaccine", limit=3)
+    found = await mcp_catalog_tools.search_example_plans("plasmodb", "vaccine", limit=3)
 
     assert [row["name"] for row in found] == ["Vaccine antigens"]
 

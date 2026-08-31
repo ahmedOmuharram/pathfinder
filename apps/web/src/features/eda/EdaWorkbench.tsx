@@ -17,7 +17,7 @@ import { ComputeCell } from "./cells/ComputeCell";
 import { SubsetCell } from "./cells/SubsetCell";
 import { VizCell } from "./cells/VizCell";
 
-const READ_FAILED = "Could not read the EDA binding";
+const READ_FAILED = "Could not read the study";
 const CLOSE_FAILED = "Could not close the analysis";
 
 export interface EdaWorkbenchProps {

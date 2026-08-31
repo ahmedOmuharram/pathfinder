@@ -22,6 +22,7 @@ from pathfinder.ai.tools.standalone._stream_parts import (
     graph_cleared_chunk,
     strategy_meta_chunk,
 )
+from pathfinder.ai.tools.standalone._validation_helpers import get_graph
 from pathfinder.services.strategies.persist import (
     persist_strategy_ast_to_conversation,
 )
@@ -42,9 +43,13 @@ async def rename_strategy(
         graph_id: Graph ID to rename.
     """
     session = ctx.deps.strategy_session
-    graph = session.get_graph(graph_id)
+    graph = get_graph(session, graph_id)
     if not graph:
-        msg = f"NOT_FOUND: Graph not found (graphId={graph_id!r})."
+        msg = (
+            f"NOT_FOUND: No strategy has that id (graphId={graph_id!r}). "
+            "Pass the graph id, the VEuPathDB strategy id, or nothing at all "
+            "for the active strategy."
+        )
         raise ModelRetry(msg)
     if not _has_strategy(graph, session):
         msg = (
@@ -88,9 +93,13 @@ async def clear_strategy(
         confirm: Set true to confirm deleting all nodes in the graph.
     """
     session = ctx.deps.strategy_session
-    graph = session.get_graph(graph_id)
+    graph = get_graph(session, graph_id)
     if not graph:
-        msg = f"NOT_FOUND: Graph not found (graphId={graph_id!r})."
+        msg = (
+            f"NOT_FOUND: No strategy has that id (graphId={graph_id!r}). "
+            "Pass the graph id, the VEuPathDB strategy id, or nothing at all "
+            "for the active strategy."
+        )
         raise ModelRetry(msg)
     if not confirm:
         msg = (

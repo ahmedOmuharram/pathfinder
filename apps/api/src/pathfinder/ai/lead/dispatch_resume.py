@@ -6,7 +6,7 @@ the same dispatch again rather than a shorter version of it.
 
 from __future__ import annotations
 
-from assistant_core.graph.turn_state import PendingApproval
+from assistant_core.graph.turn_state import ParkedCall
 from pydantic import BaseModel, ConfigDict
 
 from pathfinder.ai.lead.deltas import (
@@ -40,6 +40,10 @@ class _FrameArgs(_ReasonArgs):
     expected_criteria: int = 3
 
 
+class _VerifyArgs(_ReasonArgs):
+    enrichment_requested: bool = False
+
+
 type SubAgentOutcome = (
     FrameResult | RecoveryDelta | VerificationDelta | EditDelta | SubAgentApprovalWait
 )
@@ -48,7 +52,7 @@ type SubAgentOutcome = (
 async def resume_sub_agent(
     *,
     deps: LeadDeps,
-    approval: PendingApproval,
+    approval: ParkedCall,
     resume: SubAgentResume,
 ) -> SubAgentOutcome:
     """Finish the dispatch the user answered, from its own arguments."""
@@ -56,10 +60,12 @@ async def resume_sub_agent(
     args = dict(approval.tool_args)
     match approval.tool_name:
         case "verify_strategy":
+            verify_args = _VerifyArgs.model_validate(args)
             return await run_verification(
                 deps=deps,
                 parent_tool_call_id=call_id,
-                reason=_ReasonArgs.model_validate(args).reason,
+                reason=verify_args.reason,
+                enrichment_requested=verify_args.enrichment_requested,
                 resume=resume,
             )
         case "recover_failed_steps":

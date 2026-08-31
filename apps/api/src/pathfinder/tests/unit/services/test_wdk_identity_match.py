@@ -14,6 +14,7 @@ import pytest
 from pathfinder.integrations.veupathdb.auth_login import VEuPathDBClaims
 from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.errors import ErrorCode, WDKIdentityMismatchError
+from pathfinder.platform.principal import CredentialKind, Principal
 from pathfinder.services import wdk_identity
 from pathfinder.transport.http.deps import require_registered_wdk_identity
 
@@ -33,6 +34,10 @@ def _clear_request_token() -> Generator[None]:
     reset = veupathdb_auth_token_ctx.set(None)
     yield
     veupathdb_auth_token_ctx.reset(reset)
+
+
+def _session(credential: CredentialKind = "pathfinder-cookie") -> Principal:
+    return Principal(user_id=SESSION_USER, credential=credential)
 
 
 def _claims(monkeypatch: pytest.MonkeyPatch, *, is_guest: bool) -> None:
@@ -65,7 +70,7 @@ class TestTheTokenMustNameTheSessionUser:
         veupathdb_auth_token_ctx.set(REGISTERED_TOKEN)
 
         with pytest.raises(WDKIdentityMismatchError) as raised:
-            await wdk_identity.require_session_matches_wdk_identity(SESSION_USER)
+            await wdk_identity.require_session_matches_wdk_identity(_session())
 
         assert raised.value.status == 401
         assert raised.value.code == ErrorCode.WDK_IDENTITY_MISMATCH
@@ -80,8 +85,7 @@ class TestTheTokenMustNameTheSessionUser:
         veupathdb_auth_token_ctx.set(REGISTERED_TOKEN)
 
         assert (
-            await wdk_identity.require_session_matches_wdk_identity(SESSION_USER)
-            is None
+            await wdk_identity.require_session_matches_wdk_identity(_session()) is None
         )
 
     @pytest.mark.asyncio
@@ -91,7 +95,7 @@ class TestTheTokenMustNameTheSessionUser:
         seen = _token_names(monkeypatch, OTHER_USER)
 
         with pytest.raises(wdk_identity.WDKLoginRequiredError):
-            await wdk_identity.require_session_matches_wdk_identity(SESSION_USER)
+            await wdk_identity.require_session_matches_wdk_identity(_session())
 
         assert seen == []
 
@@ -104,8 +108,49 @@ class TestTheTokenMustNameTheSessionUser:
         veupathdb_auth_token_ctx.set(REGISTERED_TOKEN)
 
         assert (
-            await wdk_identity.require_session_matches_wdk_identity(SESSION_USER)
+            await wdk_identity.require_session_matches_wdk_identity(_session()) is None
+        )
+
+
+class TestADevLoginSessionActsAsItsToken:
+    """The dev-login route mints a synthetic user with no VEuPathDB identity."""
+
+    @pytest.mark.asyncio
+    async def test_the_mismatch_gate_is_skipped(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen = _token_names(monkeypatch, OTHER_USER)
+        veupathdb_auth_token_ctx.set(REGISTERED_TOKEN)
+
+        assert (
+            await wdk_identity.require_session_matches_wdk_identity(
+                _session("dev-login")
+            )
             is None
+        )
+        assert seen == []
+
+    @pytest.mark.asyncio
+    async def test_the_route_gate_still_requires_a_registered_token(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _claims(monkeypatch, is_guest=True)
+        _token_names(monkeypatch, OTHER_USER)
+        veupathdb_auth_token_ctx.set("guest.veupathdb.token")
+
+        with pytest.raises(wdk_identity.WDKLoginRequiredError):
+            await require_registered_wdk_identity(_session("dev-login"))
+
+    @pytest.mark.asyncio
+    async def test_the_route_gate_passes_with_another_accounts_token(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _claims(monkeypatch, is_guest=False)
+        _token_names(monkeypatch, OTHER_USER)
+        veupathdb_auth_token_ctx.set(REGISTERED_TOKEN)
+
+        assert (
+            await require_registered_wdk_identity(_session("dev-login")) == SESSION_USER
         )
 
 
@@ -119,7 +164,7 @@ class TestTheRouteGateRunsBothChecks:
         veupathdb_auth_token_ctx.set("guest.veupathdb.token")
 
         with pytest.raises(wdk_identity.WDKLoginRequiredError):
-            await require_registered_wdk_identity(SESSION_USER)
+            await require_registered_wdk_identity(_session())
 
         assert seen == []
 
@@ -132,7 +177,7 @@ class TestTheRouteGateRunsBothChecks:
         veupathdb_auth_token_ctx.set(REGISTERED_TOKEN)
 
         with pytest.raises(WDKIdentityMismatchError):
-            await require_registered_wdk_identity(SESSION_USER)
+            await require_registered_wdk_identity(_session())
 
     @pytest.mark.asyncio
     async def test_a_registered_token_for_the_session_user_passes(
@@ -142,4 +187,4 @@ class TestTheRouteGateRunsBothChecks:
         _token_names(monkeypatch, SESSION_USER)
         veupathdb_auth_token_ctx.set(REGISTERED_TOKEN)
 
-        assert await require_registered_wdk_identity(SESSION_USER) == SESSION_USER
+        assert await require_registered_wdk_identity(_session()) == SESSION_USER

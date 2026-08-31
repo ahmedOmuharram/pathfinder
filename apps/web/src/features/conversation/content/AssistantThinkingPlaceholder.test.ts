@@ -57,7 +57,44 @@ describe("selectStatusLabel", () => {
   it("says nothing for a message that is no longer running", () => {
     expect(
       selectStatusLabel({ ...running("Queued"), status: { type: "complete" } }),
-    ).toBeNull();
-    expect(selectStatusLabel(undefined)).toBeNull();
+    ).toBe(null);
+    expect(selectStatusLabel(undefined)).toBe(null);
+  });
+});
+
+/**
+ * `build_strategy` runs no sub-agent, so it sends no status label of its own.
+ * The label follows the dispatch cards instead, which is what the trace draws.
+ */
+describe("selectStatusLabel follows the phase the trace shows", () => {
+  function dispatch(toolCallId: string, phase: string, state: string) {
+    return { type: "data-sub-agent-call", data: { toolCallId, phase, state } };
+  }
+
+  it("says Building while the build dispatch is open, not the last frame label", () => {
+    expect(
+      selectStatusLabel({
+        status: { type: "running" },
+        content: [
+          { type: "data-turn-status", data: { label: "Framing the strategy..." } },
+          dispatch("c1", "frame", "started"),
+          dispatch("c1", "frame", "completed"),
+          dispatch("c2", "build", "started"),
+        ],
+      }),
+    ).toBe("Building...");
+  });
+
+  it("returns to the reported label once every dispatch closed", () => {
+    expect(
+      selectStatusLabel({
+        status: { type: "running" },
+        content: [
+          { type: "data-turn-status", data: { label: "Thinking..." } },
+          dispatch("c2", "build", "started"),
+          dispatch("c2", "build", "completed"),
+        ],
+      }),
+    ).toBe("Thinking...");
   });
 });

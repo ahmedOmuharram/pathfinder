@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from pathfinder.domain.eda import VEUPATHDB_GENE_ID, validate_compute_config
+from pathfinder.domain.eda_compute_config import validate_compute_config
+from pathfinder.domain.eda_study import VEUPATHDB_GENE_ID
 
 from ._facts import Ent, Study, Var
 

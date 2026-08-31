@@ -38,6 +38,8 @@ TURN_FIELDS = {
     "turn_total_tokens",
     "turn_total_cost_usd",
     "pending_approval",
+    "pending_durable_call",
+    "durable_result",
     "approval_responses",
     "user_question_answers",
     "retrieved_memories",
@@ -55,6 +57,8 @@ DOMAIN_FIELDS = {
     "stale_build",
     "created_gene_set_ids",
     "sheeted_eda_datasets",
+    "requirements",
+    "original_request",
 }
 
 STRATEGY_RESOURCES = {
@@ -65,6 +69,7 @@ STRATEGY_RESOURCES = {
     "experiment_id",
     "ledger_summary",
     "service_outage",
+    "verification_scope",
 }
 
 
@@ -176,6 +181,7 @@ def test_assistant_deps_carries_no_strategy_resource() -> None:
         "cancel_event",
         "retrieved_memories",
         "tool_repetition_guard",
+        "durable_deferrals",
     }
 
 

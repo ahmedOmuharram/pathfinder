@@ -147,12 +147,12 @@ cp ollama_models.yaml.example ollama_models.yaml
 
 Each entry in `ollama_models.yaml` specifies:
 
-| Field          | Required | Description                                        |
-|----------------|----------|----------------------------------------------------|
-| `model`        | yes      | Ollama model name (e.g. `qwen3:8b`, `llama3`)     |
-| `name`         | no       | Display name in the UI (defaults to model name)    |
+| Field          | Required | Description                                            |
+| -------------- | -------- | ------------------------------------------------------ |
+| `model`        | yes      | Ollama model name (e.g. `qwen3:8b`, `llama3`)          |
+| `name`         | no       | Display name in the UI (defaults to model name)        |
 | `thinking`     | no       | Whether the model supports reasoning (default `false`) |
-| `context_size` | no       | Max context window in tokens (default `4096`)      |
+| `context_size` | no       | Max context window in tokens (default `4096`)          |
 
 Example:
 
@@ -220,10 +220,13 @@ DEFAULT_PROVIDER=anthropic
 DEFAULT_TIER=balanced
 EOF
 printf 'API_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> .env.test
-docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.e2e.yml up --build
+docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.e2e.yml up -d --build --wait api worker web
 ```
 
 This is the only Docker profile that enables `PATHFINDER_CHAT_PROVIDER=mock`.
+The e2e overlay builds the web container's `runner` target, so port 3000 serves
+the production build here as it does in CI: no development overlay over the
+controls a spec clicks, and no per-route compile to grow the server's heap.
 
 ### Observability
 
@@ -364,7 +367,8 @@ Open `apps/api/docs/_build/html/index.html` in a browser.
 ## OpenAPI + shared types
 
 - OpenAPI spec: `packages/spec/openapi.json`
-- Regenerate the spec and every generated TS artifact from the running API:
+- Regenerate the spec and every generated TS artifact from the application itself
+  (no container needs to be running, and a dev-only route is refused, not written):
 
 ```bash
 yarn generate:types
@@ -390,7 +394,6 @@ PathFinder is built around the idea that ambiguous or underspecified requests ar
 - **catalog grounding** (reduce hallucinated tool names/parameters)
 - **validation and error shaping** (turn tool failures into actionable, structured feedback)
 - **decomposition + delegation** (break complex goals into smaller strategy subproblems)
-
 
 ## Acknowledgements
 

@@ -13,13 +13,15 @@ from pathfinder.ai.agents.strategy_instructions import (
     pinned_frame_workspace,
 )
 from pathfinder.ai.agents.tool_vocabulary import SEARCH_LOOKUP_TOOLS
+from pathfinder.ai.agents.vocabulary import with_vocabulary
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.deltas import FrameResult
 from pathfinder.ai.scratchpad.toolset import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.frame import build_toolset
 
-_FRAME_INSTRUCTIONS = """\
+_FRAME_INSTRUCTIONS = with_vocabulary(
+    """\
 You are FRAME for a VEuPathDB gene-strategy builder. Turn the user's goal into a CONCRETE,
 REALIZABLE multi-step strategy spec in ONE bounded pass.
 
@@ -27,7 +29,17 @@ Procedure:
 1. Decompose the goal into its DISTINCT required properties - the conditions a gene must each
    satisfy. Use as few as the goal demands; resist inventing extra filters. ANDing many narrow
    filters tends to return zero genes, so keep the set tight.
-2. For EACH property, in this order:
+1b. When the request STARTS FROM, or refers to, a strategy the user already saved
+   ("my saved strategy 'X'", "the union I saved"), call `list_saved_strategies()`
+   FIRST and bind that property with
+   `set_criterion(criterion_id, text, role="seed", saved_strategy="<name from the
+   listing>")` - no `search_name`, no `params`. The saved strategy becomes that
+   criterion's input and the rest of the spec combines with it. If the listing holds
+   nothing that matches what the user named, do NOT drop the criterion and do NOT
+   build the remaining properties alone: set disposition="needs_user" and ask which
+   saved strategy they mean, listing the names the lookup returned. A strategy id is
+   not an answer you can consume; the name from the listing is.
+2. For EACH other property, in this order:
    a. `search_for_searches(query)` to find the real WDK search.
    b. `set_criterion(criterion_id, text, search_name, role)` with no `params`. That call
       returns the parameter sheet in `decide`: every visible parameter of that search
@@ -125,6 +137,13 @@ Never describe a defaulted value as what the user asked for. A default that cont
 request is a defect, not a disclosure: if the request states a value and the param still comes
 back defaulted, re-call `set_criterion` with that value in `params`.
 
+Assumed values: when you choose a value the criterion text does not state and that is not
+the sheet's default, declare it in `assumed` with the parameter name, the value and one
+sentence of reason. Each becomes a constraint the user reads and can override. A value the
+request states is not an assumption: "top 10 percent" states the minimum percentile 90. A half
+of a reference and comparison pair is never assumed - state the group the request names, or
+leave it null and ask.
+
 Open slots: `open_slots` are parameters you passed null for that have no default. Answer them
 from the request first (re-call with the value); only when the request genuinely does not
 determine it and the choice changes the science -- e.g. which of several mass-spec experiments
@@ -139,6 +158,7 @@ several comparable searches, choose the one whose required parameters resolve wi
 comparison. Do NOT build WDK steps - that is BUILD's job. The workspace below shows the spec you
 have assembled so far.
 """
+)
 
 FRAME_MODEL = "openai:gpt-5.6-luna"
 

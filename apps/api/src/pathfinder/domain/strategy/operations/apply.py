@@ -4,9 +4,6 @@ Steps are keyed by id and refer to each other by id, so one operation changes
 one step.
 """
 
-from dataclasses import dataclass, field
-
-from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.graph_model import (
     DuplicateStepIdError,
     StepKind,
@@ -14,14 +11,26 @@ from pathfinder.domain.strategy.graph_model import (
     flatten_tree,
     subtree_ids,
 )
+from pathfinder.domain.strategy.operations._delete import (
+    _apply_delete_edge,
+    _apply_delete_step,
+)
+from pathfinder.domain.strategy.operations._graph_edit import (
+    ApplyError,
+    ApplyResult,
+    _drop,
+    _reject_existing,
+    _require,
+    _set_input_slot,
+    _settle,
+    _step_from_node,
+)
 from pathfinder.domain.strategy.operations.types import (
     AddCombineOp,
     AddLeafOp,
     AddTransformOp,
     AttachIntoSlot,
     DeleteEdgeOp,
-    DeleteEdgeResolution,
-    DeleteResolution,
     DeleteStepOp,
     DuplicateStepOp,
     GraphOperation,
@@ -35,16 +44,6 @@ from pathfinder.domain.strategy.operations.types import (
 )
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph
-
-
-@dataclass
-class ApplyResult:
-    description: str
-    dropped_step_ids: list[str] = field(default_factory=list)
-
-
-class ApplyError(Exception):
-    """Raised when the graph rejects an operation."""
 
 
 def apply_operation(graph: StrategyGraph, op: GraphOperation) -> ApplyResult:
@@ -98,66 +97,6 @@ def _apply_field_update(graph: StrategyGraph, op: GraphOperation) -> ApplyResult
     raise ApplyError(msg)
 
 
-def _require(graph: StrategyGraph, step_id: str, label: str) -> StrategyStep:
-    step = graph.steps.get(step_id)
-    if step is None:
-        msg = f"{label} {step_id!r} not found"
-        raise ApplyError(msg)
-    return step
-
-
-def _reject_existing(graph: StrategyGraph, step_id: str, label: str) -> None:
-    if step_id in graph.steps:
-        msg = f"{label} {step_id!r} already exists"
-        raise ApplyError(msg)
-
-
-def _set_input_slot(parent: StrategyStep, slot: str, value: str | None) -> None:
-    if slot == "primary":
-        parent.primary_input_id = value
-    else:
-        parent.secondary_input_id = value
-
-
-def _drop(graph: StrategyGraph, step_ids: set[str]) -> None:
-    for step_id in step_ids:
-        graph.steps.pop(step_id, None)
-
-
-def _settle(graph: StrategyGraph, last_step_id: str | None = None) -> None:
-    graph.recompute_roots()
-    graph.last_step_id = (
-        last_step_id if last_step_id in graph.steps else graph.primary_root_id()
-    )
-
-
-def _step_from_node(node: StrategyStepNode, kind: StepKind) -> StrategyStep:
-    """Convert an incoming node into a keyed step.
-
-    Nesting on the node is dropped, because the wiring travels in the fields of
-    the operation itself.
-    """
-    return StrategyStep(
-        id=node.id,
-        kind=kind,
-        search_name=(
-            None
-            if kind is StepKind.COMBINE and node.search_name == COMBINE_SEARCH_NAME
-            else node.search_name
-        ),
-        parameters=dict(node.parameters),
-        display_name=node.display_name,
-        operator=node.operator,
-        colocation_params=node.colocation_params,
-        filters=list(node.filters),
-        analyses=list(node.analyses),
-        reports=list(node.reports),
-        wdk_weight=node.wdk_weight,
-        expanded_strategy_id=node.expanded_strategy_id,
-        expanded_name=node.expanded_name,
-    )
-
-
 def _apply_add_leaf(graph: StrategyGraph, op: AddLeafOp) -> ApplyResult:
     step = _step_from_node(op.step, StepKind.SEARCH)
     _reject_existing(graph, step.id, "step id")
@@ -200,224 +139,6 @@ def _apply_add_transform(graph: StrategyGraph, op: AddTransformOp) -> ApplyResul
     return ApplyResult(
         description=f"Inserted transform {transform.display_name or transform.id}"
     )
-
-
-def _apply_delete_step(graph: StrategyGraph, op: DeleteStepOp) -> ApplyResult:
-    target = _require(graph, op.step_id, "step")
-
-    if op.resolution == DeleteResolution.DELETE_STRATEGY:
-        dropped = sorted(graph.steps)
-        graph.steps.clear()
-        graph.roots.clear()
-        graph.last_step_id = None
-        return ApplyResult(description="Deleted strategy", dropped_step_ids=dropped)
-
-    parent_info = graph.find_parent(op.step_id)
-
-    if op.resolution == DeleteResolution.DELETE_SUBTREE:
-        return _delete_subtree(graph, target, parent_info)
-    if op.resolution == DeleteResolution.COLLAPSE_COMBINE:
-        return _collapse_combine(graph, target, parent_info)
-    if op.resolution == DeleteResolution.ORPHAN_SIBLING:
-        return _orphan_sibling(graph, target, parent_info)
-    if op.resolution == DeleteResolution.PROMOTE_PRIMARY:
-        return _promote_primary(graph, target, parent_info)
-
-    msg = f"unhandled resolution {op.resolution!r}"
-    raise ApplyError(msg)
-
-
-def _delete_subtree(
-    graph: StrategyGraph,
-    target: StrategyStep,
-    parent_info: tuple[StrategyStep, str] | None,
-) -> ApplyResult:
-    to_delete = set(subtree_ids(target.id, graph.steps))
-    if parent_info is not None:
-        parent, slot = parent_info
-        if parent.kind is StepKind.TRANSFORM:
-            # A transform needs an input, so it goes with the deleted subtree.
-            to_delete.add(parent.id)
-            grandparent_info = graph.find_parent(parent.id)
-            if grandparent_info is not None:
-                grandparent, gp_slot = grandparent_info
-                _set_input_slot(grandparent, gp_slot, None)
-        else:
-            _set_input_slot(parent, slot, None)
-    _drop(graph, to_delete)
-    _settle(graph)
-    return ApplyResult(
-        description=f"Deleted {target.id} and subtree",
-        dropped_step_ids=sorted(to_delete),
-    )
-
-
-def _collapse_combine(
-    graph: StrategyGraph,
-    target: StrategyStep,
-    parent_info: tuple[StrategyStep, str] | None,
-) -> ApplyResult:
-    if parent_info is None:
-        return _collapse_root_combine(graph, target)
-    parent, slot = parent_info
-    if parent.kind is StepKind.TRANSFORM:
-        return _collapse_through_transform_parent(graph, target, parent)
-    return _collapse_combine_parent(graph, target, parent, slot)
-
-
-def _collapse_root_combine(graph: StrategyGraph, target: StrategyStep) -> ApplyResult:
-    if target.kind is not StepKind.COMBINE:
-        msg = "collapse-combine on non-combine root"
-        raise ApplyError(msg)
-    secondary_id = target.secondary_input_id
-    to_delete = {target.id}
-    if secondary_id is not None:
-        to_delete |= set(subtree_ids(secondary_id, graph.steps))
-    primary_id = target.primary_input_id
-    _drop(graph, to_delete)
-    _settle(graph, primary_id)
-    return ApplyResult(
-        description=f"Collapsed combine {target.id}",
-        dropped_step_ids=sorted(to_delete),
-    )
-
-
-def _collapse_through_transform_parent(
-    graph: StrategyGraph,
-    target: StrategyStep,
-    parent: StrategyStep,
-) -> ApplyResult:
-    to_delete = set(subtree_ids(target.id, graph.steps)) | {parent.id}
-    grandparent_info = graph.find_parent(parent.id)
-    if grandparent_info is not None:
-        grandparent, gp_slot = grandparent_info
-        _set_input_slot(grandparent, gp_slot, None)
-    _drop(graph, to_delete)
-    _settle(graph)
-    return ApplyResult(
-        description=f"Collapsed via transform {target.id}",
-        dropped_step_ids=sorted(to_delete),
-    )
-
-
-def _collapse_combine_parent(
-    graph: StrategyGraph,
-    target: StrategyStep,
-    parent: StrategyStep,
-    slot: str,
-) -> ApplyResult:
-    sibling_id = (
-        parent.secondary_input_id if slot == "primary" else parent.primary_input_id
-    )
-    to_delete = set(subtree_ids(target.id, graph.steps)) | {parent.id}
-    grandparent_info = graph.find_parent(parent.id)
-    if grandparent_info is not None:
-        grandparent, gp_slot = grandparent_info
-        _set_input_slot(grandparent, gp_slot, sibling_id)
-    _drop(graph, to_delete)
-    _settle(graph)
-    return ApplyResult(
-        description=f"Collapsed combine {parent.id}",
-        dropped_step_ids=sorted(to_delete),
-    )
-
-
-def _demote_to_single_input(step: StrategyStep, slot: str) -> None:
-    """Clear an input slot and move the survivor up.
-
-    A secondary input without a primary input is not a valid shape, so the
-    remaining branch takes the primary slot.
-    """
-    _set_input_slot(step, slot, None)
-    if slot == "primary" and step.secondary_input_id is not None:
-        step.primary_input_id = step.secondary_input_id
-        step.secondary_input_id = None
-    step.operator = None
-    step.colocation_params = None
-    if step.primary_input_id is not None:
-        step.kind = StepKind.TRANSFORM if step.search_name else StepKind.COMBINE
-
-
-def _orphan_sibling(
-    graph: StrategyGraph,
-    target: StrategyStep,
-    parent_info: tuple[StrategyStep, str] | None,
-) -> ApplyResult:
-    """Delete this branch and detach the combine and its other input.
-
-    The survivors form their own component. WDK rejects a step that has inputs
-    but no strategy, so a detached component stays local.
-    """
-    if parent_info is None:
-        msg = "orphan-sibling requires a combine parent"
-        raise ApplyError(msg)
-
-    parent, slot = parent_info
-    to_delete = set(subtree_ids(target.id, graph.steps))
-    _drop(graph, to_delete)
-    _demote_to_single_input(parent, slot)
-
-    grandparent_info = graph.find_parent(parent.id)
-    if grandparent_info is not None:
-        grandparent, gp_slot = grandparent_info
-        _demote_to_single_input(grandparent, gp_slot)
-
-    _settle(graph)
-    return ApplyResult(
-        description=f"Deleted {target.id}, orphaned {parent.id}",
-        dropped_step_ids=sorted(to_delete),
-    )
-
-
-def _promote_primary(
-    graph: StrategyGraph,
-    target: StrategyStep,
-    parent_info: tuple[StrategyStep, str] | None,
-) -> ApplyResult:
-    if target.kind is not StepKind.COMBINE:
-        msg = "promote-primary on non-combine"
-        raise ApplyError(msg)
-    secondary_id = target.secondary_input_id
-    to_delete = {target.id}
-    if secondary_id is not None:
-        to_delete |= set(subtree_ids(secondary_id, graph.steps))
-    primary_id = target.primary_input_id
-    if parent_info is not None:
-        parent, slot = parent_info
-        _set_input_slot(parent, slot, primary_id)
-    _drop(graph, to_delete)
-    _settle(graph, primary_id)
-    return ApplyResult(
-        description=f"Promoted primary of {target.id}",
-        dropped_step_ids=sorted(to_delete),
-    )
-
-
-def _apply_delete_edge(graph: StrategyGraph, op: DeleteEdgeOp) -> ApplyResult:
-    target = _require(graph, op.target_id, "step")
-
-    if op.resolution == DeleteEdgeResolution.COLLAPSE:
-        return _apply_delete_step(
-            graph,
-            DeleteStepOp(
-                step_id=op.source_id,
-                resolution=DeleteResolution.COLLAPSE_COMBINE,
-            ),
-        )
-
-    wired = (
-        target.primary_input_id if op.slot == "primary" else target.secondary_input_id
-    )
-    if wired != op.source_id:
-        msg = (
-            f"{op.slot} input of {op.target_id!r} is not wired to {op.source_id!r}; "
-            f"the graph changed since this edge was drawn"
-        )
-        raise ApplyError(msg)
-
-    _demote_to_single_input(target, op.slot)
-    _settle(graph, op.target_id)
-    return ApplyResult(description=f"Detached edge {op.source_id} to {op.target_id}")
 
 
 def _apply_replace_subtree(graph: StrategyGraph, op: ReplaceSubtreeOp) -> ApplyResult:
@@ -544,3 +265,6 @@ def _apply_wire_input(graph: StrategyGraph, op: WireInputOp) -> ApplyResult:
     return ApplyResult(
         description=f"Wired {op.source_step_id} to {op.target_step_id}",
     )
+
+
+__all__ = ["ApplyError", "ApplyResult", "apply_operation"]

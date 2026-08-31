@@ -17,13 +17,15 @@ from pathfinder.ai.agents.strategy_instructions import (
     pinned_ledger,
 )
 from pathfinder.ai.agents.tool_vocabulary import SEARCH_LOOKUP_TOOLS
+from pathfinder.ai.agents.vocabulary import with_vocabulary
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.deltas import RecoveryDelta
 from pathfinder.ai.scratchpad.toolset import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.execution import build_toolset
 
-_EXECUTION_INSTRUCTIONS = """\
+_EXECUTION_INSTRUCTIONS = with_vocabulary(
+    """\
 You are the Execution Agent for PathFinder. You are invoked only when the \
 declarative build fails — your job is targeted recovery on specific failed \
 nodes, not re-authoring the whole strategy.
@@ -171,6 +173,7 @@ re-derived by re-syncing the strategy; do NOT emit counts or step results):
 You do NOT author user-facing prose. The Lead synthesizes the user's \
 voice from your typed delta + the resulting Ledger.
 """
+)
 
 EXECUTION_MODEL = "openai:gpt-5.6-luna"
 

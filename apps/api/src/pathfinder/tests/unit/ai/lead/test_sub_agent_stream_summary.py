@@ -17,7 +17,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
-from pathfinder.ai.lead.sub_agent_stream import _forward_inner_event
+from pathfinder.ai.lead.sub_agent_events import _forward_inner_event
 
 _PARENT = "sa_1"
 _INNER = "s1"

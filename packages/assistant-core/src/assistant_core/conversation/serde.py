@@ -16,7 +16,9 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 )
 
 from assistant_core.graph.turn_state import (
+    DurableTaskResult,
     PendingApproval,
+    PendingDurableCall,
     SubAgentApprovalCall,
     SubAgentApprovalPending,
     UserQuestionAnswer,
@@ -35,6 +37,8 @@ CORE_CHECKPOINT_TYPES: tuple[type, ...] = (
     ToolApprovalResponded,
     MemoryValue,
     PendingApproval,
+    PendingDurableCall,
+    DurableTaskResult,
     SubAgentApprovalPending,
     SubAgentApprovalCall,
     UserQuestionAnswer,

@@ -72,7 +72,7 @@ describe("counts come straight from the wire", () => {
   it("shows no placeholder when every step has a count", () => {
     render(<CompactStrategyView strategy={COUNTED} />);
 
-    expect(screen.queryByText("...")).toBeNull();
+    expect(screen.queryByText("...")).toBe(null);
   });
 
   it("lets a live count from the store win over the wire", () => {
@@ -90,8 +90,7 @@ describe("counts come straight from the wire", () => {
       ),
     } as Strategy;
     render(<CompactStrategyView strategy={noCount} />);
-    const row = screen.getByTestId("compact-step-row-step_x");
 
-    expect(within(row).getByText("...")).toBeTruthy();
+    expect(countIn("step_x")).toBe("...");
   });
 });

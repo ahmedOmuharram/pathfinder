@@ -62,11 +62,13 @@ def test_agent_deps_is_pydantic_and_lists_live_fields() -> None:
         "service_outage",
         "tool_repetition_guard",
         "experiment_id",
+        "verification_scope",
         "cancel_event",
         "memory_store",
         "retrieved_memories",
         "conversation_id",
         "db_session_factory",
+        "durable_deferrals",
     }
 
 

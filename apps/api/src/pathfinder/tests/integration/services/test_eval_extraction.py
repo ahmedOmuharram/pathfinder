@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.ai.graph.state import PhaseDisposition, VerificationDigest
 from pathfinder.ai.graph.stream_events import ledger_update_event
-from pathfinder.ai.lead.ledger import VerificationSection
+from pathfinder.ai.lead.ledger_sections import VerificationSection
 from pathfinder.evals.case import ExpectedOutcome
 from pathfinder.evals.store import load_case
 from pathfinder.persistence.models import ConversationStrategy, User

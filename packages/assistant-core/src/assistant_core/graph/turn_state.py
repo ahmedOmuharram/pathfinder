@@ -1,5 +1,5 @@
 """The turn state any assistant carries: the user's message, the turn's
-accounting, and the approval or consult question the turn is blocked on."""
+accounting, and the deferred call the turn parked for a user or a worker."""
 
 from __future__ import annotations
 
@@ -33,19 +33,62 @@ class SubAgentApprovalPending(CamelModel):
     messages_json: str = ""
 
 
-class PendingApproval(CamelModel):
+class ParkedCall(CamelModel):
+    """One deferred tool call a turn parked, with the history that resumes it.
+
+    A parked call is answered by the user, when it needs an approval, or by
+    the worker, when it is a durable task.
+    """
+
     phase: str
     tool_call_id: str
     tool_name: str
     tool_args: dict[str, JsonValue] = Field(default_factory=dict)
     prior_messages_json: str = ""
-    # Set when the approval belongs to a tool inside a sub-agent. The ids above
-    # then name the Lead's dispatch call, not the tool the user answers.
+    # Set when the parked call belongs to a tool inside a sub-agent. The ids
+    # above then name the dispatch call, not the tool that was parked.
     sub_agent: SubAgentApprovalPending | None = None
+
+
+class PendingApproval(ParkedCall):
     # The user message this approval was raised under. Answering the card
     # leaves it unchanged, so a later turn with a different id carries a typed
     # reply rather than an answer.
     user_message_id: UUID | None = None
+
+
+class PendingDurableCall(ParkedCall):
+    """A tool call handed to a worker. Its task's result answers it."""
+
+    task_id: UUID
+    # The name the durable tool registered under, which is not always the name
+    # the model called it by.
+    durable_tool_name: str
+
+
+class DurableDeferral(CamelModel):
+    """What a durable tool recorded on the deps when it deferred its work."""
+
+    task_id: UUID
+    tool_name: str
+    # Set when the durable call ran inside a sub-agent, so the completion turn
+    # re-enters that run rather than the dispatch that started it.
+    sub_agent: SubAgentApprovalPending | None = None
+
+
+class DurableTaskResult(CamelModel):
+    """The worker's answer to one durable call."""
+
+    task_id: UUID
+    status: Literal["success", "failed"]
+    result: dict[str, JsonValue] = Field(default_factory=dict)
+    error: str = ""
+
+    def as_tool_value(self) -> dict[str, JsonValue]:
+        """The value the tool would have returned."""
+        if self.status == "failed":
+            return {"status": "failed", "error": self.error}
+        return {"status": "success", "result": dict(self.result)}
 
 
 ConsultQuestionKind = Literal["single_choice", "multi_choice", "free_text"]
@@ -111,6 +154,9 @@ class TurnState(BaseModel):
     thread_messages_json: str = ""
 
     pending_approval: PendingApproval | None = None
+    pending_durable_call: PendingDurableCall | None = None
+    # Set only on the turn the worker starts to answer a durable call.
+    durable_result: DurableTaskResult | None = None
     approval_responses: dict[str, ToolApprovalResponded] = Field(
         default_factory=dict,
     )
@@ -118,3 +164,19 @@ class TurnState(BaseModel):
         default_factory=dict,
     )
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
+
+    @property
+    def answered_durable_call(self) -> PendingDurableCall | None:
+        """The parked durable call this turn carries the worker's answer for."""
+        parked = self.pending_durable_call
+        result = self.durable_result
+        if parked is None or result is None or result.task_id != parked.task_id:
+            return None
+        return parked
+
+    @property
+    def resumes_parked_call(self) -> bool:
+        """Whether this turn re-enters a run the thread parked."""
+        return (
+            self.pending_approval is not None or self.answered_durable_call is not None
+        )

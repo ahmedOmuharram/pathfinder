@@ -1,18 +1,31 @@
 """Turn-level helpers for the Lead node.
 
-Memory retrieval at turn start, and the Lead's half of the approval cycle:
-which deferred call the turn waits on, and what the user's answer means for
-the sub-agent run under it. The cycle's shared mechanics are the runtime's.
+Memory retrieval at turn start, and the Lead's half of the deferred-call
+cycle: which call the turn parked, and what the answer - the user's click or
+the worker's result - means for the sub-agent run under it. The cycle's shared
+mechanics are the runtime's.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from assistant_core.graph import approvals
-from assistant_core.graph.turn_state import PendingApproval
+from assistant_core.graph.durable import durable_call_id, durable_tool_return
+from assistant_core.graph.turn_state import (
+    ParkedCall,
+    PendingApproval,
+    PendingDurableCall,
+    SubAgentApprovalPending,
+)
+from assistant_core.memory.deadline import (
+    MemoryStoreTimeoutError,
+    memory_store_deadline,
+)
 from assistant_core.memory.retrieval import retrieve_relevant_memories
 from assistant_core.memory.store import MemoryStore, StoredMemory
+from assistant_core.platform.logging import get_logger
 from langgraph.runtime import Runtime
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import (
@@ -38,6 +51,8 @@ from pathfinder.ai.lead.memory_candidates import PRODUCT_MEMORY_KINDS
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
 from pathfinder.ai.lead.sub_agent_tools import WIRE_PHASE_BY_ROLE, LeadDeps
 
+logger = get_logger(__name__)
+
 _DENIED_BY_REPLY = "The user replied instead of answering the approval."
 
 
@@ -47,26 +62,35 @@ async def retrieve_memories(
 ) -> list[StoredMemory]:
     """Fresh-turn cross-thread retrieval.
 
-    Returns ``[]`` on an approval-resume turn: the turn's memories are
-    already persisted on ``state.retrieved_memories``, so the lead node
+    Returns ``[]`` on a turn that resumes a parked call: the turn's memories
+    are already persisted on ``state.retrieved_memories``, so the lead node
     preserves them rather than re-querying (and does not re-emit the
     recalled-memories chunk).
     """
-    if state.pending_approval is not None:
+    if state.resumes_parked_call:
         return []
     if runtime.context is None or runtime.context.memory_store is None:
         return []
     if not state.user_prompt.strip():
         return []
     mem_store = MemoryStore(store=runtime.context.memory_store)
-    return await retrieve_relevant_memories(
-        store=mem_store,
-        user_id=state.user_id,
-        query=state.user_prompt,
-        site_id=state.site_id,
-        kinds=PRODUCT_MEMORY_KINDS,
-        top_k=8,
-    )
+    try:
+        async with memory_store_deadline("memory retrieval"):
+            return await retrieve_relevant_memories(
+                store=mem_store,
+                user_id=state.user_id,
+                query=state.user_prompt,
+                site_id=state.site_id,
+                kinds=PRODUCT_MEMORY_KINDS,
+                top_k=8,
+            )
+    except MemoryStoreTimeoutError as exc:
+        logger.warning(
+            "memory retrieval timed out; the turn runs without memories",
+            conversation_id=str(state.conversation_id),
+            seconds=exc.seconds,
+        )
+        return []
 
 
 class ConcurrentSubAgentApprovalsError(RuntimeError):
@@ -117,13 +141,60 @@ def pending_approval(
     return own.model_copy(update={"user_message_id": user_message_id})
 
 
-@dataclass(frozen=True)
-class ApprovalResolution:
-    """What the user's answer produced: results the Lead resumes with, the
-    message to deliver with them, or a further approval to wait on."""
+class ConcurrentDurableCallsError(RuntimeError):
+    """One Lead response handed two durable calls to the worker."""
 
+    def __init__(self, tool_call_ids: list[str]) -> None:
+        super().__init__(
+            "Two durable calls deferred in one response "
+            f"({', '.join(tool_call_ids)}). One parked call is checkpointed "
+            "per turn, so the second would never be answered.",
+        )
+
+
+def pending_durable_call(
+    *,
+    output: DeferredToolRequests,
+    deps: LeadDeps,
+    messages: list[ModelMessage],
+) -> PendingDurableCall | None:
+    """The durable call a deferred Lead run waits on the worker for.
+
+    It outranks an approval in the same response: the task is already running,
+    and an unapproved Lead tool is re-collected by pydantic-ai on the next run.
+    """
+    deferred = [
+        call for call in output.calls if call.tool_call_id in deps.durable_deferrals
+    ]
+    if not deferred:
+        return None
+    if len(deferred) > 1:
+        raise ConcurrentDurableCallsError([c.tool_call_id for c in deferred])
+    call = deferred[0]
+    deferral = deps.durable_deferrals[call.tool_call_id]
+    phase = (
+        "lead"
+        if deferral.sub_agent is None
+        else WIRE_PHASE_BY_ROLE[deferral.sub_agent.role]
+    )
+    return approvals.parked_durable_call(
+        call=call,
+        phase=phase,
+        messages=messages,
+        deferral=deferral,
+    )
+
+
+@dataclass(frozen=True)
+class TurnResumption:
+    """What the Lead's run re-enters: the parked call it answers, the results
+    that answer it, the message to deliver with them, or a further call to
+    wait on."""
+
+    parked: ParkedCall | None = None
     results: DeferredToolResults | None = None
     still_pending: PendingApproval | None = None
+    still_durable: PendingDurableCall | None = None
     user_prompt: str | None = None
 
 
@@ -216,11 +287,93 @@ def _unanswered_inner(
     return dict.fromkeys(inner_ids, denial), typed
 
 
-async def resolve_pending_approval(
+def _reparked(
+    parked: PendingDurableCall,
+    *,
+    sub_agent: SubAgentApprovalPending,
+    task_id: UUID | None,
+    durable_tool_name: str | None,
+    user_message_id: UUID | None,
+) -> TurnResumption:
+    """Park the same dispatch again on the call the resumed sub-agent reached."""
+    fields = parked.model_dump(
+        exclude={"task_id", "durable_tool_name", "sub_agent"},
+    )
+    if task_id is not None and durable_tool_name is not None:
+        return TurnResumption(
+            still_durable=PendingDurableCall(
+                **fields,
+                task_id=task_id,
+                durable_tool_name=durable_tool_name,
+                sub_agent=sub_agent,
+            ),
+        )
+    return TurnResumption(
+        still_pending=PendingApproval(
+            **fields,
+            sub_agent=sub_agent,
+            user_message_id=user_message_id,
+        ),
+    )
+
+
+async def _resume_durable_call(
     *,
     state: PipelineState,
     deps: LeadDeps,
-) -> ApprovalResolution:
+) -> TurnResumption | None:
+    """Turn the worker's result into the results the Lead resumes with.
+
+    A durable call inside a sub-agent is answered inside that sub-agent
+    first; its finished delta then becomes the Lead's deferred tool result.
+    """
+    parked = state.answered_durable_call
+    result = state.durable_result
+    if parked is None or result is None:
+        return None
+    answered = durable_tool_return(parked, result)
+    sub_agent = parked.sub_agent
+    if sub_agent is None:
+        return TurnResumption(
+            parked=parked,
+            results=DeferredToolResults(calls={parked.tool_call_id: answered}),
+        )
+    inner_call_id = durable_call_id(parked)
+    outcome: SubAgentOutcome | ModelRetry
+    try:
+        outcome = await resume_sub_agent(
+            deps=deps,
+            approval=parked,
+            resume=SubAgentResume(
+                messages=ModelMessagesTypeAdapter.validate_json(
+                    sub_agent.messages_json
+                ),
+                results=DeferredToolResults(calls={inner_call_id: answered}),
+            ),
+        )
+    except ModelRetry as retry:
+        outcome = retry
+    if isinstance(outcome, SubAgentApprovalWait):
+        return _reparked(
+            parked,
+            sub_agent=outcome.pending,
+            task_id=None if outcome.durable is None else outcome.durable.task_id,
+            durable_tool_name=(
+                None if outcome.durable is None else outcome.durable.tool_name
+            ),
+            user_message_id=state.user_message_id,
+        )
+    return TurnResumption(
+        parked=parked,
+        results=DeferredToolResults(calls={parked.tool_call_id: outcome}),
+    )
+
+
+async def _resolve_pending_approval(
+    *,
+    state: PipelineState,
+    deps: LeadDeps,
+) -> TurnResumption:
     """Turn the user's approve/deny into the results the Lead resumes with.
 
     A sub-agent's approval is answered inside that sub-agent first; its
@@ -228,13 +381,16 @@ async def resolve_pending_approval(
     """
     approval = state.pending_approval
     if approval is None:
-        return ApprovalResolution()
+        return TurnResumption()
     sub_agent = approval.sub_agent
     if sub_agent is None:
         answers = _answers_for(state, [approval.tool_call_id])
         if not answers:
-            return ApprovalResolution()
-        return ApprovalResolution(results=DeferredToolResults(approvals=answers))
+            return TurnResumption(parked=approval)
+        return TurnResumption(
+            parked=approval,
+            results=DeferredToolResults(approvals=answers),
+        )
     inner_ids = [call.tool_call_id for call in sub_agent.approvals]
     answers = _answers_for(state, inner_ids)
     prompt: str | None = None
@@ -243,7 +399,7 @@ async def resolve_pending_approval(
     if not answers:
         # pydantic-ai re-executes a deferred call it is given no result for, so
         # a turn that resolves nothing keeps the card and runs no sub-agent.
-        return ApprovalResolution(still_pending=approval)
+        return TurnResumption(parked=approval, still_pending=approval)
     outcome: SubAgentOutcome | ModelRetry
     try:
         outcome = await resume_sub_agent(
@@ -264,7 +420,8 @@ async def resolve_pending_approval(
     if isinstance(outcome, SubAgentApprovalWait):
         # The typed reply is spent: it produced the denial this new approval
         # follows, so the next turn must not deliver it again.
-        return ApprovalResolution(
+        return TurnResumption(
+            parked=approval,
             still_pending=approval.model_copy(
                 update={
                     "sub_agent": outcome.pending,
@@ -272,10 +429,24 @@ async def resolve_pending_approval(
                 },
             ),
         )
-    return ApprovalResolution(
+    return TurnResumption(
+        parked=approval,
         results=DeferredToolResults(
             approvals=_sibling_answers(state, approval),
             calls={approval.tool_call_id: outcome},
         ),
         user_prompt=prompt,
     )
+
+
+async def resolve_turn_resumption(
+    *,
+    state: PipelineState,
+    deps: LeadDeps,
+) -> TurnResumption:
+    """What this turn re-enters: a worker's durable result, else a user's
+    answer to an approval, else nothing."""
+    durable = await _resume_durable_call(state=state, deps=deps)
+    if durable is not None:
+        return durable
+    return await _resolve_pending_approval(state=state, deps=deps)

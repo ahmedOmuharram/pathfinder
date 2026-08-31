@@ -117,8 +117,8 @@ panel and the renderers reach the tab through `@/state/eda`,
   `evaluateAll` instead.
 - A native `<select>` is driven with `locator.selectOption(value)`, never
   click plus option.
-- SSE needs the webpack dev server: run the web app with `next dev --webpack`.
-  Turbopack buffers the stream and every SSE assertion times out.
+- SSE travels through either dev bundler: `next dev` (Turbopack) keeps a
+  proxied stream's frame gaps, measured on Next 16.2.0.
 - `context.request` shares the page's cookies; the standalone `request` fixture
   does not.
 - Check the Playwright docs before changing a failing test. No guessing.
@@ -966,13 +966,13 @@ Three consequences to respect:
 
 ```
 PATHFINDER_CHAT_PROVIDER=mock
-web:    cd apps/web && npx next dev --webpack
+web:    cd apps/web && npx next dev
 api:    the api container or a host uvicorn
 worker: required - chat turns run on the chat_turn queue
 ```
 
-Turbopack buffers SSE, so `--webpack` is not optional. If chat hangs, check the
-worker first.
+A route entered cold pays its first compile, so warm it rather than lengthen
+the timeout. If chat hangs, check the worker first.
 
 ### Task B1: the shared EDA route fixtures
 

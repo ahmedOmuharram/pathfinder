@@ -14,7 +14,7 @@ from pathfinder.integrations.eda.models import (
 )
 from pathfinder.services.catalog.eda_backed import EdaStepRequest
 from pathfinder.services.eda.authoring import serialize_spec
-from pathfinder.services.eda.compute import NoComputationError
+from pathfinder.services.eda.compute import NoComputationError, VolcanoThresholds
 
 
 def _volcano(
@@ -60,8 +60,8 @@ def eda_step_request(
             raise ValueError(msg)
         if not descriptor.computations:
             msg = (
-                f"Analysis {analysis.analysis_id} carries no computation, so it "
-                f"has no volcano to threshold."
+                f"Analysis {analysis.analysis_id} has no comparison yet; run the "
+                f"differential expression first."
             )
             raise NoComputationError(msg)
         computation = descriptor.computations[0]
@@ -91,4 +91,26 @@ def eda_step_request(
     return EdaStepRequest(
         eda_dataset_id=dataset_id,
         eda_analysis_spec=serialize_spec(spec),
+    )
+
+
+def exported_thresholds(request: EdaStepRequest) -> VolcanoThresholds | None:
+    """The volcano cut a step's parameters carry, or None for a subset export.
+
+    The bridge plugin reads the first visualization of the first computation,
+    so this reads the same one.
+    """
+    spec = EdaNewAnalysis.model_validate_json(request.eda_analysis_spec)
+    volcanoes = [
+        visualization
+        for computation in spec.descriptor.computations
+        for visualization in computation.visualizations
+    ]
+    if not volcanoes:
+        return None
+    configuration = volcanoes[0].descriptor.configuration
+    return VolcanoThresholds(
+        effect_size_threshold=configuration.effect_size_threshold,
+        significance_threshold=configuration.significance_threshold,
+        effect_direction=configuration.effect_direction,
     )

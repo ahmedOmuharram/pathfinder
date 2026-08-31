@@ -2,19 +2,23 @@ from __future__ import annotations
 
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.intent import UserIntent
-from pathfinder.ai.lead.ledger import (
+from pathfinder.ai.lead.ledger import InvestigationLedger
+from pathfinder.ai.lead.ledger_sections import (
     BuildSection,
     ConstraintSection,
     FrameSection,
-    InvestigationLedger,
     RecoveryKind,
     VerificationSection,
+    assumption_constraints,
 )
+from pathfinder.domain.parameters.value_codec import to_wire
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
     StepPushFailure,
 )
 from pathfinder.domain.strategy.constraints import (
+    Constraint,
+    ConstraintSource,
     ground_constraints,
     merge_constraints,
     provisional_constraints,
@@ -72,25 +76,61 @@ def derive_ledger(
     )
 
 
+def _thread_requirements(
+    state: PipelineState, intent: UserIntent | None
+) -> list[Constraint]:
+    """Every requirement the thread has stated, this turn's included.
+
+    The accumulation is deduped on the dimension AND the value, so two
+    free-form requirements never collapse into one.
+    """
+    stated = list(state.domain.requirements)
+    seen = {(c.kind, c.requested_value) for c in stated}
+    for constraint in intent.explicit_constraints if intent else []:
+        key = (constraint.kind, constraint.requested_value)
+        if key not in seen:
+            seen.add(key)
+            stated.append(constraint)
+    return stated
+
+
 def _derive_constraint_section(
     state: PipelineState, intent: UserIntent | None
 ) -> ConstraintSection:
     spec = state.domain.operational_spec
     provisional = list(spec.constraints) if spec else []
-    explicit = intent.explicit_constraints if intent else []
-    merged = merge_constraints(provisional, explicit)
+    requirements = _thread_requirements(state, intent)
+    merged = merge_constraints(provisional, requirements)
+    kept = {(c.kind, c.requested_value) for c in merged}
+    merged.extend(
+        c.model_copy(update={"source": ConstraintSource.USER_EXPLICIT})
+        for c in requirements
+        if (c.kind, c.requested_value) not in kept
+    )
+    assumed = assumption_constraints(spec)
     if not merged:
-        return ConstraintSection()
+        return ConstraintSection(grounded=assumed)
     if spec is None:
         return ConstraintSection(grounded=provisional_constraints(merged))
     search_names = [c.search_name for c in spec.criteria if c.search_name]
     param_names: set[str] = {p for c in spec.criteria for p in c.resolved_params}
     param_names |= {s.param_name for c in spec.criteria for s in c.open_params}
     param_names |= {s.param_name for s in spec.open_slots}
+    param_values = {
+        name: to_wire(value)
+        for c in spec.criteria
+        for name, value in c.resolved_params.items()
+    }
     return ConstraintSection(
-        grounded=ground_constraints(
-            merged, search_names=search_names, param_names=param_names
-        )
+        grounded=[
+            *ground_constraints(
+                merged,
+                search_names=search_names,
+                param_names=param_names,
+                param_values=param_values,
+            ),
+            *assumed,
+        ]
     )
 
 

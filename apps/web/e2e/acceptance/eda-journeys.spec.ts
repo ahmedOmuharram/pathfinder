@@ -358,7 +358,7 @@ test.describe("EDA acceptance journeys", () => {
       "1 gene selected",
     );
 
-    await page.getByRole("button", { name: "Open in EDA tab" }).click();
+    await page.getByRole("button", { name: "Open study" }).click();
     // The first request to the EDA route compiles it on a dev server.
     await expect(page).toHaveURL(
       new RegExp(`/plasmodb/conversation/${conversationId}/eda$`),

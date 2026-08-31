@@ -11,6 +11,7 @@ import { sseDone, sseFrame, uiMessageStreamHeaders } from "../fixtures/sse";
 import type { BrowserContext } from "@playwright/test";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
+const SITE_ID = "veupathdb";
 const TASK_ID = "00000000-0000-0000-0000-sweep0000001";
 
 interface OpenStrategyResponse {
@@ -21,7 +22,7 @@ interface OpenStrategyResponse {
 
 async function openStrategy(context: BrowserContext): Promise<string> {
   const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
-    data: { siteId: "veupathdb" },
+    data: { siteId: SITE_ID },
     headers: { "X-Requested-With": "XMLHttpRequest" },
   });
   if (!resp.ok()) {
@@ -84,7 +85,7 @@ test.describe("Parameter Sweep", () => {
       });
     });
 
-    await page.goto(`/conversation/${strategyId}`);
+    await page.goto(`/${SITE_ID}/conversation/${strategyId}`);
     const composer = page.getByPlaceholder("Ask about strategies", {
       exact: false,
     });
@@ -105,7 +106,7 @@ test.describe("Parameter Sweep", () => {
     const started = page.getByTestId("data-background-task-started");
     await expect(started).toBeVisible({ timeout: 15_000 });
     await expect(started).toContainText(/optimize parameters/i);
-    await expect(page.getByTestId("data-task-progress").first()).toBeVisible({
+    await expect(started.getByTestId("data-task-progress")).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByTestId("data-task-completed")).toBeVisible({
@@ -143,7 +144,7 @@ test.describe("Parameter Sweep", () => {
       });
     });
 
-    await page.goto(`/conversation/${strategyId}`);
+    await page.goto(`/${SITE_ID}/conversation/${strategyId}`);
     const composer = page.getByPlaceholder("Ask about strategies", {
       exact: false,
     });

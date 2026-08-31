@@ -1,5 +1,7 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
+import { ROUTE_TIMEOUT_MS } from "./navigation";
+
 /**
  * Wall clock a build turn needs before the rail can list its steps.
  *
@@ -258,8 +260,9 @@ export class GraphPage {
 
   async openEdgeMenu(targetStepId: string) {
     const edge = this.primaryEdgeInto(targetStepId);
-    await expect(edge.first()).toBeAttached({ timeout: 10_000 });
-    await edge.first().click();
+    // A step has one primary input, so the hit area settles at one element.
+    await expect(edge).toHaveCount(1, { timeout: 10_000 });
+    await edge.click();
     await expect(this.edgeContextMenuOperatorGrid).toBeVisible({
       timeout: 5_000,
     });
@@ -292,14 +295,14 @@ export class GraphPage {
   async expectOnStrategyRoute(conversationId: string) {
     await expect(this.page).toHaveURL(
       new RegExp(`/conversation/${conversationId}/strategy(?:/|$)`),
-      { timeout: 10_000 },
+      { timeout: ROUTE_TIMEOUT_MS },
     );
   }
 
   async expectOnChatRoute(conversationId: string) {
     await expect(this.page).toHaveURL(
       new RegExp(`/conversation/${conversationId}(?:\\?.*)?$`),
-      { timeout: 10_000 },
+      { timeout: ROUTE_TIMEOUT_MS },
     );
   }
 

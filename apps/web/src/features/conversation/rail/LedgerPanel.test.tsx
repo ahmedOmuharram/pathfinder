@@ -44,8 +44,6 @@ function makeLedger(
     },
     verification: { complete: false, successful: false },
     constraints: { grounded: [], unmetCount: 0, blocking: false },
-    subAgentCallsThisTurn: 1,
-    subAgentCallsTotal: 3,
     ...overrides,
   };
 }
@@ -93,8 +91,8 @@ describe("LedgerPanel tab indicators", () => {
     setLedger(makeLedger());
     render(<LedgerPanel conversationId="c1" />);
 
-    expect(screen.getByLabelText("Frame has updates")).toBeInTheDocument();
-    expect(screen.getByLabelText("Build has updates")).toBeInTheDocument();
+    expect(screen.getByLabelText("Planning has updates")).toBeInTheDocument();
+    expect(screen.getByLabelText("Building has updates")).toBeInTheDocument();
     expect(screen.queryByLabelText("Summary has updates")).toBeNull();
   });
 
@@ -102,11 +100,21 @@ describe("LedgerPanel tab indicators", () => {
     setLedger(makeLedger());
     render(<LedgerPanel conversationId="c1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Frame/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Planning/ }));
     fireEvent.click(screen.getByRole("button", { name: /Summary/ }));
 
-    expect(screen.queryByLabelText("Frame has updates")).toBeNull();
-    expect(screen.getByLabelText("Build has updates")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Planning has updates")).toBeNull();
+    expect(screen.getByLabelText("Building has updates")).toBeInTheDocument();
+  });
+});
+
+describe("LedgerPanel summary", () => {
+  it("shows no sub-agent call count", () => {
+    setLedger(makeLedger());
+    render(<LedgerPanel conversationId="c1" />);
+
+    expect(screen.queryAllByText("Sub-agent calls")).toHaveLength(0);
+    expect(screen.queryAllByText("this turn")).toHaveLength(0);
   });
 });
 
@@ -115,7 +123,87 @@ describe("LedgerPanel keyboard access", () => {
     setLedger(makeLedger());
     render(<LedgerPanel conversationId="c1" />);
 
-    const body = screen.getByRole("region", { name: "Investigation Ledger detail" });
+    const body = screen.getByRole("region", { name: "Progress detail" });
     expect(body).toHaveAttribute("tabindex", "0");
+  });
+});
+
+const EMPTY_BUILD = {
+  pushedCount: 0,
+  failedCount: 0,
+  skippedCount: 0,
+  zeroResultSteps: [],
+  needsRecovery: false,
+  recoveryKind: "none" as const,
+  succeeded: false,
+  nodeResults: [],
+};
+
+describe("LedgerPanel raises no dot over an empty section", () => {
+  it("leaves Building and Checking unflagged while only Planning has content", () => {
+    setLedger(
+      makeLedger({
+        build: EMPTY_BUILD,
+        verification: { complete: false, successful: false },
+      }),
+    );
+    render(<LedgerPanel conversationId="c1" />);
+
+    expect(screen.getByLabelText("Planning has updates")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Building has updates")).toBeNull();
+    expect(screen.queryByLabelText("Checking has updates")).toBeNull();
+  });
+
+  it("flags Building once it pushed a step", () => {
+    setLedger(makeLedger());
+    render(<LedgerPanel conversationId="c1" />);
+    expect(screen.getByLabelText("Building has updates")).toBeInTheDocument();
+  });
+
+  it("leaves Planning unflagged before a plan exists", () => {
+    setLedger(
+      makeLedger({
+        userIntent: null,
+        frame: {
+          present: false,
+          criteriaCount: 0,
+          boundCount: 0,
+          openSlotCount: 0,
+          droppedCount: 0,
+          readyToBuild: false,
+          needsUser: false,
+          contrasts: [],
+          spec: null,
+        },
+        build: EMPTY_BUILD,
+      }),
+    );
+    render(<LedgerPanel conversationId="c1" />);
+    expect(screen.queryAllByLabelText(/has updates/)).toHaveLength(0);
+  });
+});
+
+describe("LedgerPanel says which stage is running", () => {
+  it("names the running stage before any stage reported", () => {
+    messagesRef.current = [
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "data-sub-agent-call",
+            data: { toolCallId: "c1", phase: "frame", state: "started" },
+          },
+        ],
+      },
+    ];
+    render(<LedgerPanel conversationId="c1" />);
+    expect(screen.getByText("Planning is running...")).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting for the first stage/)).toBeNull();
+  });
+
+  it("waits only when nothing is running", () => {
+    messagesRef.current = [];
+    render(<LedgerPanel conversationId="c1" />);
+    expect(screen.getByText(/Waiting for the first stage/)).toBeInTheDocument();
   });
 });

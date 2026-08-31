@@ -36,7 +36,7 @@ class EdaError(AppError):
     ) -> None:
         super().__init__(
             code=ErrorCode.EXTERNAL_SERVICE_ERROR,
-            title="EDA service error",
+            title="Study service error",
             status=status,
             detail=detail,
             errors=errors,

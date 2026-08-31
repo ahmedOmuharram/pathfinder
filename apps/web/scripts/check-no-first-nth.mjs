@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * Fail if any *.spec.ts file under e2e/ contains `.first(` / `.nth(` /
- * `.last(`. These calls hide strict-mode locator violations — fix by
- * using a more specific locator (getByRole+name, getByTestId, scoped
- * within(...), or a structural CSS attribute selector).
+ * Fail if any *.spec.ts file under e2e/, or any *.ts file under e2e/pages/,
+ * contains `.first(` / `.nth(` / `.last(`. These calls hide strict-mode
+ * locator violations — fix by using a more specific locator (getByRole+name,
+ * getByTestId, scoped within(...), or a structural CSS attribute selector).
+ * A page object hides them from every spec that calls it, so it is scanned
+ * the same way.
  *
  * Lines explicitly tagged with `// TODO(weak-strict-mode):` (on the
  * offending line, or the line directly above) are exempt. Add such a
@@ -16,8 +18,14 @@ import path from "node:path";
 
 const ROOT = path.resolve(process.cwd());
 const SCAN_ROOT = path.join(ROOT, "e2e");
+const PAGES_ROOT = path.join(SCAN_ROOT, "pages");
 const PATTERN = /\.(first|nth|last)\(/;
 const TODO_MARKER = "TODO(weak-strict-mode)";
+
+function isScanned(file) {
+  if (file.endsWith(".spec.ts")) return true;
+  return file.endsWith(".ts") && file.startsWith(`${PAGES_ROOT}${path.sep}`);
+}
 
 function* walk(dir) {
   if (!fs.existsSync(dir)) return;
@@ -25,7 +33,7 @@ function* walk(dir) {
     if (ent.name.startsWith(".") || ent.name === "node_modules") continue;
     const full = path.join(dir, ent.name);
     if (ent.isDirectory()) yield* walk(full);
-    else if (ent.name.endsWith(".spec.ts")) yield full;
+    else if (isScanned(full)) yield full;
   }
 }
 
@@ -36,6 +44,15 @@ function offendersInFile(file) {
     const line = lines[i];
     if (!PATTERN.test(line)) continue;
     if (line.includes(TODO_MARKER)) continue;
+    // A comment names the call, it does not make it.
+    const trimmed = line.trim();
+    if (
+      trimmed.startsWith("//") ||
+      trimmed.startsWith("*") ||
+      trimmed.startsWith("/*")
+    ) {
+      continue;
+    }
     // Allow a multi-line TODO(weak-strict-mode) comment block immediately
     // above the offending line: walk back through comment lines until we
     // hit code or a non-// line. Exempt if the comment block contains the
@@ -80,7 +97,7 @@ function main() {
   }
 
   console.log(
-    `\n${allOffenders.length} strict-mode escape(s) (\\.first|nth|last\\() found in *.spec.ts:\n`,
+    `\n${allOffenders.length} strict-mode escape(s) (\\.first|nth|last\\() found in e2e specs and page objects:\n`,
   );
   for (const o of allOffenders) {
     console.log(`  ${o.file}:${o.lineNumber}  ${o.text}`);

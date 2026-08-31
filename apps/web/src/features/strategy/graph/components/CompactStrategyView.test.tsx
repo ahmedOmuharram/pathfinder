@@ -103,14 +103,14 @@ describe("CompactStrategyView (vertical layout)", () => {
   it("names the operation on the combine row", () => {
     render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
     const row = screen.getByTestId("compact-step-row-step_c");
-    expect(within(row).getByText("Intersect")).toBeTruthy();
-    expect(within(row).getByText("42")).toBeTruthy();
+    expect(row).toHaveTextContent("Intersect");
+    expect(row).toHaveTextContent("42");
   });
 
   it("keeps the full expression on the combine row for hover", () => {
     render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
     const row = screen.getByTestId("compact-step-row-step_c");
-    expect(within(row).getByTitle("Search A ∩ Search B")).toBeTruthy();
+    expect(within(row).getByTitle("Search A ∩ Search B")).toBeVisible();
   });
 
   it("gives a combine and a leaf the same glyph column width", () => {
@@ -137,18 +137,18 @@ describe("CompactStrategyView (vertical layout)", () => {
   it("lists both inputs beneath the combine", () => {
     render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
     const children = screen.getByTestId("compact-children-step_c");
-    expect(within(children).getByText("Search A")).toBeTruthy();
-    expect(within(children).getByText("Search B")).toBeTruthy();
+    expect(children).toHaveTextContent("Search A");
+    expect(children).toHaveTextContent("Search B");
   });
 
   it("does not label a combine with placeholder operands", () => {
     render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
-    expect(screen.queryByText(/Combine \(A ∩ B\)/i)).toBeNull();
+    expect(screen.queryByText(/Combine \(A ∩ B\)/i)).toBe(null);
   });
 
   it("never surfaces the internal __combine__ sentinel", () => {
     render(<CompactStrategyView strategy={COMBINE_STRATEGY} />);
-    expect(screen.queryByText("__combine__")).toBeNull();
+    expect(screen.queryByText("__combine__")).toBe(null);
   });
 
   it("clicking the combine result row fires onStepClick with its id", () => {
@@ -249,31 +249,32 @@ describe("a strategy whose branches are themselves combines", () => {
 
   it("shows every step, including both sides of the nested branch", () => {
     render(<CompactStrategyView strategy={NESTED} />);
-    for (const id of [
-      "step_a",
-      "step_b",
-      "step_ab",
-      "step_c",
-      "step_d",
-      "step_cd",
-      "step_root",
-    ]) {
-      expect(screen.getByTestId(`compact-step-row-${id}`)).toBeTruthy();
-    }
+
+    expect(
+      screen.getAllByTestId(/^compact-step-row-/).map((r) => r.dataset["testid"]),
+    ).toEqual([
+      "compact-step-row-step_root",
+      "compact-step-row-step_ab",
+      "compact-step-row-step_a",
+      "compact-step-row-step_b",
+      "compact-step-row-step_cd",
+      "compact-step-row-step_c",
+      "compact-step-row-step_d",
+    ]);
   });
 
   it("indents both inputs of a combine beneath it", () => {
     render(<CompactStrategyView strategy={NESTED} />);
     const children = screen.getByTestId("compact-children-step_root");
-    expect(within(children).getByTestId("compact-step-row-step_ab")).toBeTruthy();
-    expect(within(children).getByTestId("compact-step-row-step_cd")).toBeTruthy();
+    expect(within(children).getByTestId("compact-step-row-step_ab")).toBeVisible();
+    expect(within(children).getByTestId("compact-step-row-step_cd")).toBeVisible();
   });
 
   it("nests a branch's own inputs one level deeper", () => {
     render(<CompactStrategyView strategy={NESTED} />);
     const children = screen.getByTestId("compact-children-step_cd");
-    expect(within(children).getByTestId("compact-step-row-step_c")).toBeTruthy();
-    expect(within(children).getByTestId("compact-step-row-step_d")).toBeTruthy();
+    expect(within(children).getByTestId("compact-step-row-step_c")).toBeVisible();
+    expect(within(children).getByTestId("compact-step-row-step_d")).toBeVisible();
   });
 
   it("puts the root first, before anything it contains", () => {
@@ -284,9 +285,9 @@ describe("a strategy whose branches are themselves combines", () => {
 
   it("keeps each combine's expression available on hover", () => {
     render(<CompactStrategyView strategy={NESTED} />);
-    expect(screen.getByTitle("A ∪ B")).toBeTruthy();
-    expect(screen.getByTitle("C ∪ D")).toBeTruthy();
-    expect(screen.getByTitle("(A ∪ B) ∩ (C ∪ D)")).toBeTruthy();
+    expect(screen.getByTitle("A ∪ B")).toBeVisible();
+    expect(screen.getByTitle("C ∪ D")).toBeVisible();
+    expect(screen.getByTitle("(A ∪ B) ∩ (C ∪ D)")).toBeVisible();
   });
 
   it("renders no step twice", () => {

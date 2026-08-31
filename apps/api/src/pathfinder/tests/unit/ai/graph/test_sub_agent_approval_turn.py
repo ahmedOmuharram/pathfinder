@@ -31,6 +31,7 @@ from pathfinder.ai.graph.lead_node import _drive_lead_stream
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead import sub_agent_stream, sub_agent_tools
+from pathfinder.ai.lead.intent import IntentClassification, UserIntent
 from pathfinder.ai.lead.lead_agent import build_lead_agent
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.toolsets import verification
@@ -220,7 +221,12 @@ def _deps(state: PipelineState) -> LeadDeps:
     )
     return LeadDeps(
         state=state,
-        intent=None,
+        # The dispatch tools reach the model only on a turn that asks to build.
+        intent=UserIntent(
+            raw_text=state.user_prompt,
+            classification=IntentClassification.EXTEND_STRATEGY,
+            inferred_goal="tune the fold change",
+        ),
         runtime=context,
         retrieved_memories=[],
     )
@@ -381,7 +387,7 @@ async def test_the_answer_finishes_the_sub_agent_and_the_lead_replies(
     second = await _drive(state=resumed_state, deps=resumed_deps, writer=writer)
 
     assert deleted_step_ids == ["s2"]
-    assert second.approval_consumed is True
+    assert second.parked_call_answered is True
     assert second.pending_approval is None
     assert second.response is not None
     assert second.response.prose == "scripted"

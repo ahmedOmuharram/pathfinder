@@ -1,8 +1,8 @@
 """Verification toolset registration assertions.
 
 ``optimize_search_parameters`` is a long-running durable tool exposed on the
-verification sub-agent. It must be registered ``sequential=True`` (durable
-tools suspend the graph via ``interrupt()`` and cannot share a tool batch)
+verification sub-agent. It must be registered ``sequential=True`` (one
+parked durable call is checkpointed per turn, so two cannot share a batch)
 and ``requires_approval=True`` (the SDK halts for user confirmation before a
 ~15-minute sweep runs). This test pins that contract.
 """
@@ -34,8 +34,8 @@ def test_optimize_search_parameters_registered_with_approval_and_sequential() ->
         "long-running, expensive sweep."
     )
     assert tool.sequential is True, (
-        "durable tools must run sequential=True so their interrupt() does not "
-        "orphan a sibling tool's return part."
+        "durable tools must run sequential=True so a batch never parks two "
+        "calls the worker must answer."
     )
 
 

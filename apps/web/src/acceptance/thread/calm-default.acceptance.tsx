@@ -40,11 +40,11 @@ const CALM = { showRaw: false, showUsage: true };
 /** The seven rows of the recorded turn, each with the label
  * `humanizeToolName` returns and the summary its own tool wrote. */
 const ROWS: readonly (readonly [string, string | null])[] = [
-  ["Search eda studies", "3 studies matched heat shock"],
-  ["Open eda analysis", "Opened Febrile samples on DS_e973eadd57"],
-  ["Search catalog", "12 searches"],
-  ["Set criterion", "c1 set to GenesByText"],
-  ["Preview eda subset", "6 of 12 Sample"],
+  ["Find studies", "3 studies matched heat shock"],
+  ["Open study", "Opened Febrile samples on DS_e973eadd57"],
+  ["Find searches", "12 searches"],
+  ["Choose a search", "c1 set to GenesByText"],
+  ["Preview samples", "6 of 12 Sample"],
   ["Run control tests", "8 of 10 positive controls recovered"],
   ["Optimize parameters", null],
 ];
@@ -90,20 +90,21 @@ describe.skipIf(traceModule === null)("the thread's calm default", () => {
     });
   });
 
-  it("labels the three groups Lead, Frame and Lead", () => {
+  it("labels the three groups Assistant, Planning and Assistant", () => {
     const view = renderTurn(RECORDED_CHUNKS, CALM);
     const labels = view.getAllByTestId("trace-group-label").map(trimmed);
-    expect(labels).toEqual(["Lead", "Frame", "Lead"]);
+    expect(labels).toEqual(["Assistant", "Planning", "Assistant"]);
   });
 
-  it("prints the frame group's usage as an ASCII comma pair", () => {
+  it("prints the planning group's usage as an ASCII comma pair", () => {
     const view = renderTurn(RECORDED_CHUNKS, CALM);
     const frame = view
       .getAllByTestId("trace-group")
       .find(
-        (group) => trimmed(within(group).getByTestId("trace-group-label")) === "Frame",
+        (group) =>
+          trimmed(within(group).getByTestId("trace-group-label")) === "Planning",
       );
-    if (frame === undefined) throw new Error("no group is labelled Frame");
+    if (frame === undefined) throw new Error("no group is labelled Planning");
     expect(trimmed(within(frame).getByTestId("trace-group-usage"))).toBe(
       "12.3K, $0.004",
     );

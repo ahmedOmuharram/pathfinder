@@ -82,7 +82,7 @@ function OpenEdaTab({
       className="h-7 shrink-0 px-2 text-xs"
       onClick={() => router.push(edaTabUrl(siteId, conversationId))}
     >
-      Open in EDA tab
+      Open study
     </Button>
   );
 }

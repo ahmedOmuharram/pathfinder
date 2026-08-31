@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -25,7 +26,7 @@ from pathfinder.integrations.embeddings.study_index import (
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import veupathdb_auth_token_ctx
-from pathfinder.platform.errors import NotFoundError
+from pathfinder.platform.errors import NotFoundError, WDKLoginRequiredError
 
 logger = get_logger(__name__)
 
@@ -58,18 +59,18 @@ class UnknownEdaDatasetError(NotFoundError):
             f"{len(known)} datasets are available; search for one by name "
             f"instead of guessing an id."
         )
-        super().__init__(title="EDA dataset not found", detail=self.guidance)
+        super().__init__(title="Study not found", detail=self.guidance)
 
 
-@dataclass
-class _SiteCaches:
-    """Per-site reads that are stable for a turn."""
+# The browsable catalog, which is the same for every account on a site.
+_studies: dict[str, list[EdaStudyOverview]] = {}
 
-    permissions: dict[str, EdaPermissionEntry] | None = None
-    studies: list[EdaStudyOverview] | None = None
+# Authorization maps, addressed by the site and the credential that read them.
+_permission_maps: dict[str, dict[str, EdaPermissionEntry]] = {}
 
-
-_caches: dict[str, _SiteCaches] = {}
+# A credential is one entry, and a long-lived process sees many. At the cap
+# the map is dropped whole and every account reads again.
+_PERMISSION_CACHE_MAX_ENTRIES = 512
 
 # Study details, addressed by the version their listing reports.
 _details: dict[str, EdaStudyDetail] = {}
@@ -80,20 +81,34 @@ _entity_totals: dict[str, int] = {}
 
 def clear_study_caches() -> None:
     """Drop every cached EDA read. A test must not inherit one."""
-    _caches.clear()
+    _studies.clear()
+    _permission_maps.clear()
     _details.clear()
     _entity_totals.clear()
 
 
-def _site_cache(site_id: str) -> _SiteCaches:
-    return _caches.setdefault(site_id, _SiteCaches())
+def _permissions_key(site_id: str) -> str:
+    """The site and the credential the call carries, as one address."""
+    token = veupathdb_auth_token_ctx.get()
+    if not token:
+        raise WDKLoginRequiredError
+    return f"{site_id}|{hashlib.sha256(token.encode()).hexdigest()}"
 
 
 async def _permissions(site_id: str) -> dict[str, EdaPermissionEntry]:
-    cache = _site_cache(site_id)
-    if cache.permissions is None:
-        cache.permissions = await get_eda_client(site_id).get_permissions()
-    return cache.permissions
+    """The authorization map for the account this call carries.
+
+    ``/permissions`` answers for the calling account, so the answer is never
+    reused for another credential.
+    """
+    key = _permissions_key(site_id)
+    cached = _permission_maps.get(key)
+    if cached is None:
+        cached = await get_eda_client(site_id).get_permissions()
+        if len(_permission_maps) >= _PERMISSION_CACHE_MAX_ENTRIES:
+            _permission_maps.clear()
+        _permission_maps[key] = cached
+    return cached
 
 
 async def resolve_dataset(site_id: str, dataset_id: str) -> EdaPermissionEntry:
@@ -129,10 +144,11 @@ class StudyCard:
 
 async def list_studies(site_id: str) -> list[EdaStudyOverview]:
     """The browsable catalog. It is not the study universe and not the resolver."""
-    cache = _site_cache(site_id)
-    if cache.studies is None:
-        cache.studies = await get_eda_client(site_id).list_studies()
-    return cache.studies
+    listed = _studies.get(site_id)
+    if listed is None:
+        listed = await get_eda_client(site_id).list_studies()
+        _studies[site_id] = listed
+    return listed
 
 
 async def preload_study_index() -> SyncReport | None:

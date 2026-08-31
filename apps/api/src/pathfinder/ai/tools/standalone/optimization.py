@@ -1,10 +1,11 @@
 """Standalone optimization tools for pydantic-ai agents.
 
 Provides:
+
 - ``optimize_search_parameters`` — optimise search parameters against control
   gene lists. Durable: the real work runs on the verification worker via
-  ``@durable_tool``; the graph suspends with ``interrupt()`` while trials run
-  and per-trial progress streams back through ``task_progress``.
+  ``@durable_tool``; the call is deferred while trials run and per-trial
+  progress streams back through ``task_progress``.
 """
 
 from __future__ import annotations
@@ -88,8 +89,8 @@ async def optimize_search_parameters(
     """Optimise search parameters against positive/negative control gene lists.
 
     Durable. Runs up to ``settings.budget`` trials on the verification
-    worker; each trial calls WDK. The graph suspends on ``interrupt()``
-    while the optimiser runs and resumes with the result dict (matching
+    worker; each trial calls WDK. The turn ends while the optimiser runs, and
+    you are called again with the result dict (matching
     :class:`OptimizationResult`'s ``model_dump(by_alias=True)`` shape).
 
     This is a long-running operation. Always confirm the plan with the user

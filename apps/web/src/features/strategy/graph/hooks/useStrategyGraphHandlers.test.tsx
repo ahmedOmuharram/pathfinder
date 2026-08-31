@@ -52,13 +52,13 @@ describe("useStrategyGraphHandlers — ortholog transform", () => {
   it("does nothing when no step is selected", () => {
     const { result } = setup([]);
     act(() => result.current.handleStartOrthologTransformFromSelection());
-    expect(result.current.orthologTargetId).toBeNull();
+    expect(result.current.orthologTargetId).toBe(null);
   });
 
   it("does nothing when several steps are selected", () => {
     const { result } = setup(["step_a", "step_b"]);
     act(() => result.current.handleStartOrthologTransformFromSelection());
-    expect(result.current.orthologTargetId).toBeNull();
+    expect(result.current.orthologTargetId).toBe(null);
   });
 
   it("is inert in compact mode", () => {
@@ -74,13 +74,13 @@ describe("useStrategyGraphHandlers — ortholog transform", () => {
       }),
     );
     act(() => result.current.handleStartOrthologTransformFromSelection());
-    expect(result.current.orthologTargetId).toBeNull();
+    expect(result.current.orthologTargetId).toBe(null);
   });
 
   it("closing clears the captured target", () => {
     const { result } = setup(["step_a"]);
     act(() => result.current.handleStartOrthologTransformFromSelection());
     act(() => result.current.setOrthologTargetId(null));
-    expect(result.current.orthologTargetId).toBeNull();
+    expect(result.current.orthologTargetId).toBe(null);
   });
 });

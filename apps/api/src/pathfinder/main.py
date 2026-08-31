@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import cast
+from typing import Any, cast
 from uuid import uuid4
 
 from assistant_core.conversation.checkpointer import lifespan_checkpointer
@@ -22,7 +22,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException
 
 from pathfinder import __version__
-from pathfinder.ai.capabilities.piguard import warm_up_piguard
+from pathfinder.ai.capabilities.security import warm_up_scanner
 from pathfinder.ai.orchestration.observability import (
     setup_observability,
     shutdown_observability,
@@ -107,7 +107,7 @@ async def _warm_up_subsystems() -> None:
     if get_settings().piguard_enabled:
         try:
             logger.info("[warm-up] Loading PIGuard ONNX model")
-            await asyncio.to_thread(warm_up_piguard)
+            await asyncio.to_thread(warm_up_scanner)
             readiness.mark_ready("piguard")
         except (AppError, OSError, RuntimeError) as e:
             logger.exception("[warm-up] PIGuard failed")
@@ -127,6 +127,17 @@ async def _warm_up_subsystems() -> None:
         await preload_study_index()
     except AppError, OSError, RuntimeError:
         logger.exception("[warm-up] EDA study index sync raised")
+
+
+def _report_warm_up_death(task: asyncio.Task[Any]) -> None:
+    """Fail every loading subsystem when the warm-up dies past its handlers."""
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is None:
+        return
+    logger.error("[warm-up] Warm-up task died", exc_info=error)
+    get_readiness().fail_loading(f"{type(error).__name__}: {error}")
 
 
 @asynccontextmanager
@@ -165,6 +176,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # uvicorn binds only after this handler yields, so the warm-up runs beside
     # the server and ``/health/ready`` reports which catalogs are still loading.
     warm_up = spawn(_warm_up_subsystems(), name="warm-up")
+    if warm_up is not None:
+        warm_up.add_done_callback(_report_warm_up_death)
 
     # The API process never runs a turn; it opens the checkpointer so the
     # tables exist before the worker writes them.

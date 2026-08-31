@@ -1,14 +1,27 @@
 "use client";
 
 import type { ReactElement } from "react";
+import type { TraceGroupState } from "@pathfinder/assistant-client";
 
-import { PHASE_LABELS } from "@/lib/models/phaseRoles";
+import { phaseLabel } from "@/lib/models/phaseRoles";
 import { formatUsage } from "@/lib/utils/usageFormat";
 
 import { TraceRow } from "./TraceRow";
 import type { TraceGroupView } from "./traceTypes";
 
 const LEAD = "lead";
+
+/** What a reader reads for a dispatch its turn never resolved. */
+function stateLabel(state: TraceGroupState): string | null {
+  if (state === "cancelled") return "Stopped";
+  if (state === "superseded") return "Not finished";
+  return null;
+}
+
+/** What a reader reads for a call the same turn left without a result. */
+function stoppedLabel(state: TraceGroupState): string {
+  return state === "cancelled" ? "Stopped" : "Not finished";
+}
 
 export interface TraceGroupProps {
   group: TraceGroupView;
@@ -17,10 +30,6 @@ export interface TraceGroupProps {
   showUsage: boolean;
   nameFor: (toolName: string) => string;
   labelFor?: (phase: string) => string;
-}
-
-function defaultLabel(phase: string): string {
-  return PHASE_LABELS[phase] ?? phase;
 }
 
 export function TraceGroup({
@@ -32,11 +41,18 @@ export function TraceGroup({
   labelFor,
 }: TraceGroupProps): ReactElement {
   const rows = group.rows.map((row) => (
-    <TraceRow key={row.key} row={row} showRaw={showRaw} nameFor={nameFor} />
+    <TraceRow
+      key={row.key}
+      row={row}
+      showRaw={showRaw}
+      nameFor={nameFor}
+      stoppedLabel={stoppedLabel(group.state)}
+    />
   ));
   if (bare) return <div>{rows}</div>;
-  const label = (labelFor ?? defaultLabel)(group.phase);
+  const label = (labelFor ?? phaseLabel)(group.phase);
   const usage = showUsage && group.tokens > 0;
+  const outcome = stateLabel(group.state);
   return (
     <div data-testid={group.key === LEAD ? undefined : "data-sub-agent-call"}>
       <div data-testid="trace-group" className="flex h-6 items-center gap-2">
@@ -46,6 +62,14 @@ export function TraceGroup({
         >
           {label}
         </span>
+        {outcome !== null && (
+          <span
+            data-testid="trace-group-state"
+            className="text-[11px] text-muted-foreground"
+          >
+            {outcome}
+          </span>
+        )}
         {usage && (
           <span
             data-testid="trace-group-usage"

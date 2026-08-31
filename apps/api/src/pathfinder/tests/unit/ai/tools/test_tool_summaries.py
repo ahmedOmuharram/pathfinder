@@ -35,6 +35,7 @@ from pathfinder.ai.lead.lead_agent import build_lead_agent
 from pathfinder.ai.tools import standalone
 from pathfinder.ai.tools.standalone import (
     catalog_discovery,
+    eda_analysis,
     eda_catalog,
     eda_compute,
     experiment,
@@ -129,6 +130,30 @@ def _every_implementation() -> list[tuple[str, Callable[..., Any]]]:
 def _module_tree(fn: Callable[..., Any]) -> ast.Module:
     source = Path(inspect.getsourcefile(fn) or "").read_text()
     return ast.parse(source)
+
+
+def _defs_for(
+    fn: Callable[..., Any],
+) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
+    """The definitions on the return path of one tool.
+
+    A tool's own module answers first. A helper it imports is on that path too,
+    so the module holding the helper contributes the names the tool's module
+    does not define.
+    """
+    defs = _defs(_module_tree(fn))
+    parsed: dict[str, ast.Module] = {}
+    for value in list(fn.__globals__.values()):
+        if not inspect.isfunction(value):
+            continue
+        path = inspect.getsourcefile(value)
+        if path is None or "/pathfinder/" not in path:
+            continue
+        if path not in parsed:
+            parsed[path] = ast.parse(Path(path).read_text())
+        for name, node in _defs(parsed[path]).items():
+            defs.setdefault(name, node)
+    return defs
 
 
 def _called_names(node: ast.AST) -> set[str]:
@@ -263,7 +288,7 @@ def test_every_registered_tool_emits_a_summary() -> None:
             continue
         target = _DELEGATES.get(name, name)
         source = registered[target] if target != name else fn
-        defs = _defs(_module_tree(source))
+        defs = _defs_for(source)
         if not _reaches_a_summary(target, defs, set(registered), {}):
             missing.append(f"{fn.__module__}.{name}")
     assert not missing, f"tools that write no summary: {sorted(missing)}"
@@ -461,10 +486,11 @@ class TestASilentZeroReportsEmpty:
         assert chunk.data["summary"] == "No strategy yet"
         assert chunk.data["status"] == "empty"
 
-    def test_get_live_strategy_state(self) -> None:
+    async def test_get_live_strategy_state(self) -> None:
         ctx = _ctx()
+        ctx.deps.runtime.site_id = "plasmodb"
         ctx.deps.runtime.strategy_session = StrategySession(site_id="plasmodb")
-        chunk = _summary_of(lead_agent.get_live_strategy_state(ctx))
+        chunk = _summary_of(await lead_agent.get_live_strategy_state(ctx))
         assert chunk.data["summary"] == "No strategy yet"
         assert chunk.data["status"] == "empty"
 
@@ -534,6 +560,39 @@ class TestThePinnedStrings:
         monkeypatch.setattr(eda_catalog, "search_studies", _three)
         returned = await eda_catalog.search_eda_studies(_ctx(), "heat shock")
         assert _summary_of(returned).data["summary"] == "3 studies matched heat shock"
+
+    async def test_open_eda_analysis(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The line names the analysis the researcher named, and nothing after it."""
+        name = "Febrile versus normal heat-shock expression"
+
+        async def _study(_site: str, _dataset: str) -> tuple[Any, Any]:
+            return SimpleNamespace(), SimpleNamespace()
+
+        async def _bind(_site: str, **_kwargs: Any) -> Any:
+            return SimpleNamespace(
+                analysis_id="a1",
+                study_id="STUDY_e973eadd57",
+                display_name=name,
+                study_display_name="Heat shock",
+                can_export_rows=True,
+            )
+
+        monkeypatch.setattr(eda_analysis, "_study", _study)
+        monkeypatch.setattr(eda_analysis, "bind_analysis", _bind)
+        monkeypatch.setattr(
+            eda_analysis,
+            "find_gene_entity",
+            lambda _study: SimpleNamespace(entity_id="ENT_g", error=None),
+        )
+        monkeypatch.setattr(
+            eda_analysis,
+            "eda_analysis_state_chunk",
+            lambda _state: DataChunk(type="data-eda.analysis-state", data={}),
+        )
+        ctx = _ctx()
+        ctx.deps.runtime.site_id = "plasmodb"
+        returned = await eda_analysis.open_eda_analysis(ctx, "DS_e973eadd57", name)
+        assert _summary_of(returned).data["summary"] == f"Opened {name}"
 
     def test_run_control_tests_on_step(self) -> None:
         chunks = experiment._control_test_chunks_from_result(

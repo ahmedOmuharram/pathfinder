@@ -13,7 +13,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from assistant_core.capabilities.repetition_guard import ToolRepetitionGuard
-from assistant_core.graph.turn_state import SubAgentApprovalPending
+from assistant_core.graph.turn_state import DurableDeferral, SubAgentApprovalPending
 from assistant_core.memory.schemas import MemoryValue
 from pydantic_ai.usage import RunUsage, UsageLimits
 
@@ -179,6 +179,10 @@ class LeadDeps:
     pending_sub_agent_approvals: dict[str, SubAgentApprovalPending] = field(
         default_factory=dict,
     )
+    # Durable calls this turn handed to a worker, keyed by the tool call the
+    # worker's result answers: the Lead's own call, or the dispatch that holds
+    # a suspended sub-agent run.
+    durable_deferrals: dict[str, DurableDeferral] = field(default_factory=dict)
     # A FRAME pass that claimed a ready spec over an empty draft is refused
     # once. The next one is reported to the Lead rather than retried again.
     empty_frame_reported: bool = False

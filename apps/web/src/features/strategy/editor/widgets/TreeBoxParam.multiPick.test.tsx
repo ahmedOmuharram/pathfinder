@@ -255,7 +255,7 @@ describe("TreeBoxParam — a value stored as a parent term", () => {
       </WidgetTestForm>,
     );
 
-    expect(screen.getByText("2 of 4 selected")).toBeTruthy();
+    expect(screen.getByText(/of 4 selected/)).toHaveTextContent("2 of 4 selected");
   });
 
   it("checks the parent and its leaves", () => {
@@ -359,7 +359,7 @@ describe("TreeBoxParam — a value stored as a parent term", () => {
 
     await user.click(screen.getByLabelText("Leaf 3"));
 
-    expect(screen.getByText("3 of 4 selected")).toBeTruthy();
+    expect(screen.getByText(/of 4 selected/)).toHaveTextContent("3 of 4 selected");
     expect(stateOf("Branch A")).toBe("checked");
   });
 
@@ -378,6 +378,6 @@ describe("TreeBoxParam — a value stored as a parent term", () => {
       </WidgetTestForm>,
     );
 
-    expect(screen.getByText("2 of 4 selected")).toBeTruthy();
+    expect(screen.getByText(/of 4 selected/)).toHaveTextContent("2 of 4 selected");
   });
 });

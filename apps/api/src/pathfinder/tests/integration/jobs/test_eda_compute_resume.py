@@ -1,4 +1,4 @@
-"""The graph suspends on run_eda_compute and resumes with the summary.
+"""run_eda_compute defers its call, and the completion turn carries the summary.
 
 One agent over the real turn graph, the real checkpointer and the real event
 writer. Only the model and the EDA wire are doubles: the tool, the decorator,
@@ -72,7 +72,7 @@ _DURABLE_TASK = f"durable:{_TOOL}"
 
 
 class _Resumed(BaseModel):
-    """What the runner hands back to the suspended tool call."""
+    """What the completion turn hands back to the parked tool call."""
 
     status: str
     result: dict[str, Any] | None = None

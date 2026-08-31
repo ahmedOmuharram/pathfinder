@@ -52,8 +52,6 @@ function ledgerMissing(paths: string[]): Record<string, unknown> {
     },
     verification: { digest: null, status: "pending" },
     constraints: { grounded: [], unmetCount: 0, blocking: false },
-    subAgentCallsThisTurn: 0,
-    subAgentCallsTotal: 0,
   };
   for (const path of paths) {
     const segments = path.split(".");
@@ -68,9 +66,9 @@ function ledgerMissing(paths: string[]): Record<string, unknown> {
 
 describe("normalizeLedgerPayload", () => {
   it("returns null for a payload that is not an object", () => {
-    expect(normalizeLedgerPayload(undefined)).toBeNull();
-    expect(normalizeLedgerPayload(null)).toBeNull();
-    expect(normalizeLedgerPayload("ledger")).toBeNull();
+    expect(normalizeLedgerPayload(undefined)).toBe(null);
+    expect(normalizeLedgerPayload(null)).toBe(null);
+    expect(normalizeLedgerPayload("ledger")).toBe(null);
   });
 
   it("fills contrasts when an older snapshot predates the field", () => {
@@ -109,7 +107,7 @@ describe("normalizeLedgerPayload", () => {
       ]),
     );
 
-    expect(result).not.toBeNull();
+    expect(result).not.toBe(null);
     expect(result?.frame.contrasts).toEqual([]);
     expect(result?.frame.spec?.criteria).toEqual([]);
     expect(result?.build.zeroResultSteps).toEqual([]);
@@ -122,7 +120,7 @@ describe("normalizeLedgerPayload", () => {
     // what to show, but it must not be handed a fabricated section.
     const result = normalizeLedgerPayload(ledgerMissing(["userIntent"]));
 
-    expect(result?.userIntent).toBeNull();
+    expect(result?.userIntent).toBe(null);
   });
 
   it("leaves populated lists untouched", () => {
@@ -148,7 +146,8 @@ describe("normalizeLedgerPayload", () => {
   it("tolerates a missing verification section", () => {
     const result = normalizeLedgerPayload(ledgerMissing(["verification"]));
 
-    expect(result).not.toBeNull();
+    expect(result).not.toHaveProperty("verification");
+    expect(result?.frame.contrasts).toEqual([]);
   });
 
   it("tolerates a missing build section", () => {

@@ -9,7 +9,7 @@ from pathfinder.domain.parameters.wdk_vocab import (
     WDKVocabNodeData,
     flatten_vocab,
 )
-from pathfinder.services.catalog.param_dag import (
+from pathfinder.services.catalog._param_binding import (
     _apply_override,
     _open_slot,
     _single_valid_value,

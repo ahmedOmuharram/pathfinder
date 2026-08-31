@@ -62,7 +62,7 @@ class NoOpenAnalysisError(AppError):
     def __init__(self, detail: str) -> None:
         super().__init__(
             code=ErrorCode.EDA_NO_OPEN_ANALYSIS,
-            title="No open EDA analysis",
+            title="No study is open",
             status=_CONFLICT,
             detail=detail,
         )
@@ -192,8 +192,8 @@ async def bound_or_conflict(*, conversation_id: UUID) -> ConversationAnalysisVie
     bound = await bound_conversation_analysis(conversation_id=conversation_id)
     if bound is None:
         msg = (
-            "This conversation has no open EDA analysis, so it has no subset "
-            "and no compute to act on. Open one first."
+            "This conversation has no study open, so it has no subset and no "
+            "comparison to act on. Open one first."
         )
         raise NoOpenAnalysisError(msg)
     return bound

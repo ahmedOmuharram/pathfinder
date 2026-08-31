@@ -25,6 +25,7 @@ import type { BrowserContext } from "@playwright/test";
 
 const TASK_ID = "00000000-0000-0000-0000-0000000000aa";
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
+const SITE_ID = "veupathdb";
 
 interface OpenStrategyResponse {
   conversationId?: string;
@@ -34,7 +35,7 @@ interface OpenStrategyResponse {
 
 async function openStrategy(context: BrowserContext): Promise<string> {
   const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
-    data: { siteId: "veupathdb" },
+    data: { siteId: SITE_ID },
     headers: { "X-Requested-With": "XMLHttpRequest" },
   });
   if (!resp.ok()) {
@@ -99,7 +100,7 @@ test.describe("Durable verification TaskCard", () => {
       });
     });
 
-    await page.goto(`/conversation/${strategyId}`);
+    await page.goto(`/${SITE_ID}/conversation/${strategyId}`);
     const composer = page.getByTestId("message-input");
     await expect(composer).toBeVisible({ timeout: 30_000 });
     const submit = page.getByRole("button", { name: /Send/i });
@@ -116,7 +117,7 @@ test.describe("Durable verification TaskCard", () => {
     await expect(started).toContainText("Run control tests");
 
     // Progress + success completion render as their own parts.
-    await expect(page.getByTestId("data-task-progress").first()).toBeVisible({
+    await expect(started.getByTestId("data-task-progress")).toBeVisible({
       timeout: 15_000,
     });
     const completed = page.getByTestId("data-task-completed");

@@ -9,8 +9,45 @@ from pathlib import Path
 
 import yaml
 from assistant_core.platform.types import JSONObject
+from fastapi.routing import APIRoute
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from pathfinder.main import create_app
+from pathfinder.transport.http.routers import dev
+
+
+class DevRouteInSpecError(RuntimeError):
+    """The spec names a route only the mock overlay mounts."""
+
+    def __init__(self, paths: list[str]) -> None:
+        self.paths = paths
+        message = (
+            f"The spec names dev-only route(s) {paths}. The published spec is the "
+            f"production contract, so nothing was written. Generate it from the "
+            f"application, not from whichever container is running."
+        )
+        super().__init__(message)
+
+
+class _SpecPaths(BaseModel):
+    """The path map of an OpenAPI document."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    paths: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+def _dev_only_paths() -> frozenset[str]:
+    """The paths the dev router mounts, read from the router itself."""
+    return frozenset(
+        route.path for route in dev.router.routes if isinstance(route, APIRoute)
+    )
+
+
+def _refuse_dev_routes(spec: JSONObject) -> None:
+    named = sorted(set(_SpecPaths.model_validate(spec).paths) & _dev_only_paths())
+    if named:
+        raise DevRouteInSpecError(named)
 
 
 def _repo_root() -> Path:
@@ -22,6 +59,7 @@ def _spec_with_stable_overrides() -> JSONObject:
     # The published spec is the production contract; dev routes never enter it.
     app = create_app(include_dev_routes=False)
     spec = app.openapi()
+    _refuse_dev_routes(spec)
 
     # Keep a stable OAS version string if FastAPI omits/changes it.
     spec.setdefault("openapi", "3.1.0")

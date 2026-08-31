@@ -177,7 +177,7 @@ describe("DataEdaAnalysisState chips and navigation", () => {
 
   it("opens the EDA tab for the conversation in the path", async () => {
     render(<DataEdaAnalysisState data={EDA_ANALYSIS_STATE_FIXTURE} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open in EDA tab" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open study" }));
     expect(pushMock).toHaveBeenCalledWith(edaTabUrl("plasmodb", "conv-1"));
   });
 });
@@ -190,7 +190,7 @@ describe("DataEdaAnalysisState off a conversation route", () => {
   it("has no open action when the path names no conversation", () => {
     route.pathname = "/plasmodb/workbench";
     render(<DataEdaAnalysisState data={EDA_ANALYSIS_STATE_FIXTURE} />);
-    expect(screen.queryByRole("button", { name: "Open in EDA tab" })).toBe(null);
+    expect(screen.queryByRole("button", { name: "Open study" })).toBe(null);
     expect(screen.getByTestId("data-eda-analysis-state")).toHaveTextContent(
       "Febrile samples",
     );

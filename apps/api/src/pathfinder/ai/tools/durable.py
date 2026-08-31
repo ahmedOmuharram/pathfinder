@@ -7,8 +7,9 @@ rows to ``task_progress`` and publishes a LISTEN/NOTIFY event on
 the UI message stream without polling.
 
 ``@durable_tool`` wraps an agent-side tool so calling it submits a
-Procrastinate job and then ``interrupt()``s the graph. The real work runs on
-the worker via the ``TOOL_REGISTRY`` mapping.
+Procrastinate job and defers the call. The run ends with the call unanswered,
+the turn closes, and the worker's completion opens a new turn that carries the
+result. The real work runs on the worker via the ``TOOL_REGISTRY`` mapping.
 """
 
 from __future__ import annotations
@@ -19,8 +20,14 @@ from functools import wraps
 from typing import Any, ParamSpec, Protocol, TypeVar, cast
 from uuid import UUID
 
+from assistant_core.graph.durable import (
+    ChunkBuilder,
+    DurableToolSpec,
+    register_durable_tool,
+)
+from assistant_core.graph.stream_events import background_task_started_event
+from assistant_core.graph.turn_state import DurableDeferral
 from langgraph.config import get_stream_writer
-from langgraph.types import interrupt
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -29,8 +36,8 @@ from pydantic import (
     TypeAdapter,
     model_validator,
 )
+from pydantic_ai.exceptions import CallDeferred
 from pydantic_ai.tools import RunContext
-from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
 
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.payloads import DurableTaskPayload
@@ -41,7 +48,7 @@ R = TypeVar("R")
 
 
 class DurableOutcome(BaseModel):
-    """The payload the worker resumes a durable tool with."""
+    """The payload a durable tool is answered with."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -59,9 +66,6 @@ class DurableOutcome(BaseModel):
         return self.status == "success"
 
 
-ChunkBuilder = Callable[[Any, UUID, str | None], list[BaseChunk]]
-
-
 class DurableIdentity(Protocol):
     """What a durable dispatch needs from an agent's deps."""
 
@@ -69,6 +73,8 @@ class DurableIdentity(Protocol):
     def conversation_id(self) -> UUID | None: ...
     @property
     def user_id(self) -> UUID | None: ...
+    @property
+    def durable_deferrals(self) -> dict[str, DurableDeferral]: ...
 
 
 def durable_tool(
@@ -82,29 +88,38 @@ def durable_tool(
 ]:
     """Mark an agent-side pydantic-ai tool as durable.
 
-    ``chunks_from_result`` lets a tool emit chat-visible SSE chunks built
-    from the resumed payload - runs at resume time inside the LangGraph
-    node, so chunks are persisted/replayed via the same writer as the
-    agent's own stream output.
+    ``chunks_from_result`` builds the chat-visible SSE chunks the tool's
+    result carries. It runs when the worker answers the call, on the turn
+    that delivers the answer.
     """
 
     def decorator(
         fn: Callable[P, Awaitable[R]],
     ) -> Callable[P, Awaitable[R]]:
+        register_durable_tool(
+            DurableToolSpec(
+                tool_name=tool_name,
+                estimated_duration_seconds=estimated_duration_seconds,
+                chunks_from_result=chunks_from_result,
+            ),
+        )
+
         @wraps(fn)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            ctx, tool_args = _parse_invocation(args, kwargs)
-            deps = _require_durable_deps(ctx.deps)
+            call = _parse_invocation(args, kwargs)
+            tool_args = call.tool_args
+            deps = _require_durable_deps(call.ctx.deps)
 
             task_id = await create_background_task(
                 conversation_id=deps.conversation_id,
                 user_id=deps.user_id,
                 tool_name=tool_name,
                 args=tool_args,
+                tool_call_id=call.tool_call_id,
                 estimated_duration_seconds=estimated_duration_seconds,
             )
-            # The worker resumes the graph on the conversation's checkpoint
-            # thread, so this job takes the same lock a chat turn takes.
+            # The worker opens the completion turn on the conversation's
+            # checkpoint thread, so this job takes the lock a chat turn takes.
             task = procrastinate_app.configure_task(
                 name=f"durable:{tool_name}",
                 queue="verification",
@@ -118,28 +133,21 @@ def durable_tool(
             await task.defer_async(
                 **dispatched_payload.model_dump(mode="json", by_alias=True),
             )
-
-            resumed = interrupt(
-                {
-                    "kind": "durable_task",
-                    "task_id": str(task_id),
-                    "tool_name": tool_name,
-                    "estimated_duration_seconds": estimated_duration_seconds,
-                }
+            call.ctx.deps.durable_deferrals[call.tool_call_id] = DurableDeferral(
+                task_id=task_id,
+                tool_name=tool_name,
             )
-            if chunks_from_result is not None:
-                writer = get_stream_writer()
-                for chunk in chunks_from_result(resumed, task_id, ctx.tool_call_id):
-                    writer(
-                        {
-                            "chunk": chunk.model_dump(
-                                by_alias=True,
-                                mode="json",
-                                exclude_none=True,
-                            ),
-                        },
-                    )
-            return cast("R", resumed)
+            writer = get_stream_writer()
+            writer(
+                {
+                    "chunk": background_task_started_event(
+                        task_id=task_id,
+                        tool_name=tool_name,
+                        estimated_duration_seconds=estimated_duration_seconds,
+                    ).model_dump(by_alias=True, mode="json", exclude_none=True),
+                },
+            )
+            raise CallDeferred
 
         return wrapper
 
@@ -164,19 +172,35 @@ def _require_durable_deps(deps: DurableIdentity) -> _DurableDeps:
     return _DurableDeps(conversation_id=deps.conversation_id, user_id=deps.user_id)
 
 
+@dataclass(frozen=True)
+class _Invocation:
+    """The call a durable tool hands to the worker."""
+
+    ctx: RunContext[DurableIdentity]
+    tool_call_id: str
+    tool_args: dict[str, Any]
+
+
 def _parse_invocation(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
-) -> tuple[RunContext[DurableIdentity], dict[str, Any]]:
+) -> _Invocation:
     if not args:
         msg = "durable_tool requires RunContext[DurableIdentity] as first argument"
         raise RuntimeError(msg)
     ctx = cast("RunContext[DurableIdentity]", args[0])
-    tool_args: dict[str, Any] = {
-        "args": [_to_jsonable(v) for v in args[1:]],
-        "kwargs": {k: _to_jsonable(v) for k, v in kwargs.items()},
-    }
-    return ctx, tool_args
+    tool_call_id = ctx.tool_call_id
+    if not tool_call_id:
+        msg = "durable_tool requires a tool_call_id to be answered on"
+        raise RuntimeError(msg)
+    return _Invocation(
+        ctx=ctx,
+        tool_call_id=tool_call_id,
+        tool_args={
+            "args": [_to_jsonable(v) for v in args[1:]],
+            "kwargs": {k: _to_jsonable(v) for k, v in kwargs.items()},
+        },
+    )
 
 
 _ANY_JSON: TypeAdapter[Any] = TypeAdapter(Any)

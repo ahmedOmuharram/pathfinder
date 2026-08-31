@@ -7,18 +7,13 @@ from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic_ai.exceptions import CallDeferred
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools import durable as durable_mod
 from pathfinder.ai.tools.durable import durable_tool
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.context import veupathdb_auth_token_ctx
-
-
-class _FakeInterruptError(Exception):
-    def __init__(self, payload: dict[str, Any]) -> None:
-        super().__init__("fake interrupt")
-        self.payload = payload
 
 
 class _FakeRepo:
@@ -31,6 +26,7 @@ async def _fake_create_background_task(
     user_id: UUID,
     tool_name: str,
     args: dict[str, Any],
+    tool_call_id: str,
     estimated_duration_seconds: int,
 ) -> UUID:
     _FakeRepo.created.append(
@@ -39,6 +35,7 @@ async def _fake_create_background_task(
             "user_id": user_id,
             "tool_name": tool_name,
             "args": args,
+            "tool_call_id": tool_call_id,
             "estimated_duration_seconds": estimated_duration_seconds,
         },
     )
@@ -62,10 +59,7 @@ class _FakeApp:
 class _RunCtx:
     def __init__(self, deps: AgentDeps) -> None:
         self.deps = deps
-
-
-def _raise_interrupt(payload: dict[str, Any]) -> Any:
-    raise _FakeInterruptError(payload)
+        self.tool_call_id = "call_stub"
 
 
 def _fresh_deps() -> AgentDeps:
@@ -81,7 +75,7 @@ def _fresh_deps() -> AgentDeps:
 def patch_durable_infra(monkeypatch: pytest.MonkeyPatch) -> None:
     _FakeRepo.created.clear()
     _FakeTask.deferred.clear()
-    monkeypatch.setattr(durable_mod, "interrupt", _raise_interrupt)
+    monkeypatch.setattr(durable_mod, "get_stream_writer", lambda: lambda _p: None)
     monkeypatch.setattr(
         durable_mod,
         "create_background_task",
@@ -102,7 +96,7 @@ async def test_durable_tool_forwards_token_from_ctxvar() -> None:
     token_value = "user-cookie-propagated"
     reset = veupathdb_auth_token_ctx.set(token_value)
     try:
-        with pytest.raises(_FakeInterruptError):
+        with pytest.raises(CallDeferred):
             await stub(_RunCtx(deps=_fresh_deps()))
     finally:
         veupathdb_auth_token_ctx.reset(reset)
@@ -122,7 +116,7 @@ async def test_durable_tool_forwards_none_when_ctxvar_unset() -> None:
         raise AssertionError(msg)
 
     assert veupathdb_auth_token_ctx.get() is None
-    with pytest.raises(_FakeInterruptError):
+    with pytest.raises(CallDeferred):
         await stub(_RunCtx(deps=_fresh_deps()))
 
     assert len(_FakeTask.deferred) == 1

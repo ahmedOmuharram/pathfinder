@@ -97,7 +97,7 @@ describe("conversationSnapshotOptions", () => {
     unsubscribe();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(client.getQueryData(options.queryKey)).toBeUndefined();
+    expect(client.getQueryData(options.queryKey)).toBe(undefined);
   });
 
   it("does not refetch while a single mount is open", () => {

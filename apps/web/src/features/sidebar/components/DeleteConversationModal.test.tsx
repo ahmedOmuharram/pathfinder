@@ -91,6 +91,6 @@ describe("DeleteConversationModal", () => {
         onConfirmDelete={vi.fn()}
       />,
     );
-    expect(screen.getByText(/can be restored|recently deleted/i)).toBeTruthy();
+    expect(screen.getByText(/can be restored|recently deleted/i)).toBeVisible();
   });
 });

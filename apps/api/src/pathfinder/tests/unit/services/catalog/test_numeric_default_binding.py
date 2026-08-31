@@ -21,11 +21,11 @@ That accounted for 5 of the 7 open slots on the drug-target strategy.
 from __future__ import annotations
 
 from pathfinder.domain.parameters.values import StringValue
-from pathfinder.services.catalog.param_dag import (
-    ParameterInfo,
+from pathfinder.services.catalog._param_binding import (
     _scalar_default,
     param_value_for,
 )
+from pathfinder.services.catalog.param_formatting import ParameterInfo
 
 
 def _numeric(name: str, default: str, *, is_number: bool = True) -> ParameterInfo:

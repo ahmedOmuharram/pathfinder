@@ -12,19 +12,22 @@ from pydantic_ai.toolsets.wrapper import WrapperToolset
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.tools.standalone import frame_spec
-from pathfinder.ai.tools.standalone.frame_spec import (
+from pathfinder.ai.tools.standalone._frame_proposals import (
     ParamProposals,
-    SetCriterionResult,
     coerce_proposals,
+)
+from pathfinder.ai.tools.standalone.frame_spec import (
+    SetCriterionResult,
     drop_criterion,
     set_criterion,
-    set_structure,
 )
+from pathfinder.ai.tools.standalone.frame_structure import set_structure
 from pathfinder.ai.tools.toolsets.frame import (
     _frame_enum_overrides,
     build_toolset,
 )
-from pathfinder.domain.parameters.values import MultiPickValue, to_wire
+from pathfinder.domain.parameters.value_codec import to_wire
+from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.parameters.wdk_vocab import VocabOption, WDKVocabTerm
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.operational_spec import (

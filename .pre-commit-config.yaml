@@ -65,7 +65,7 @@ repos:
         files: ^(packages/assistant-client-ts/|packages/assistant-core/PROTOCOL\.md)
       - id: prettier-assistant-client
         name: prettier (assistant-client)
-        entry: bash -c "cd packages/assistant-client-ts && yarn format"
+        entry: bash -c "cd packages/assistant-client-ts && yarn format:check"
         language: system
         pass_filenames: false
         files: ^packages/assistant-client-ts/
@@ -88,9 +88,15 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
+      - id: prettier-shared-ts
+        name: prettier (shared-ts)
+        entry: bash -c "cd packages/shared-ts && yarn format:check"
+        language: system
+        pass_filenames: false
+        files: ^packages/shared-ts/
       - id: prettier-web
         name: prettier (web)
-        entry: bash -c "cd apps/web && yarn format"
+        entry: bash -c "cd apps/web && yarn format:check"
         language: system
         pass_filenames: false
         files: ^(apps/web/|packages/shared-ts/|packages/assistant-client-ts/).*
@@ -163,6 +169,13 @@ repos:
       - id: import-linter-api
         name: import-linter (api)
         entry: bash -c "cd apps/api && $HOME/.local/bin/uv run lint-imports"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^apps/api/.*
+      - id: vulture-api
+        name: vulture (api)
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run vulture"
         language: system
         pass_filenames: false
         types: [python]

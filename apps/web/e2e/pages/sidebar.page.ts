@@ -1,5 +1,7 @@
 import { type Locator, type Page, expect } from "@playwright/test";
 
+import { waitForConversationRoute, waitForDraftChatRoute } from "./navigation";
+
 export class SidebarPage {
   readonly refreshButton: Locator;
   readonly newButton: Locator;
@@ -23,8 +25,12 @@ export class SidebarPage {
     );
   }
 
+  /** Open a fresh draft chat and wait for the router to drop the previous
+   *  conversation id from the URL. A send() before the URL moves posts into
+   *  the previous conversation. */
   async createNew() {
     await this.newButton.click();
+    await waitForDraftChatRoute(this.page);
   }
 
   async search(query: string) {
@@ -35,8 +41,10 @@ export class SidebarPage {
     await this.searchInput.clear();
   }
 
+  /** Open one conversation and wait for the router to put its id in the URL. */
   async selectConversation(conversationId: string) {
     await this.item(conversationId).click();
+    await waitForConversationRoute(this.page, conversationId);
   }
 
   /** Open the dropdown menu on a conversation item via the "..." button. */
@@ -96,9 +104,11 @@ export class SidebarPage {
 
   /** Get the first conversation item's data-conversation-id. */
   async firstConversationId(): Promise<string> {
-    const first = this.items.first();
-    await expect(first).toBeVisible({ timeout: 15_000 });
-    return (await first.getAttribute("data-conversation-id")) ?? "";
+    await expect.poll(() => this.items.count(), { timeout: 15_000 }).toBeGreaterThan(0);
+    const ids = await this.items.evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute("data-conversation-id") ?? ""),
+    );
+    return ids[0] ?? "";
   }
 
   // ── Dismissed section ──────────────────────────────────────────
@@ -123,18 +133,17 @@ export class SidebarPage {
   /** Expand the dismissed section (idempotent — no-op if already expanded). */
   async expandDismissed() {
     await expect(this.dismissedToggle).toBeVisible({ timeout: 15_000 });
-    // Only click if items are not already visible (prevents toggling off).
-    const alreadyExpanded = await this.dismissedItems.first().isVisible();
-    if (!alreadyExpanded) {
+    // The rows are in the DOM only while the section is open, so their count
+    // says whether the toggle still has to be clicked.
+    if ((await this.dismissedItems.count()) === 0) {
       await this.dismissedToggle.click();
     }
-    await expect(this.dismissedItems.first()).toBeVisible({ timeout: 5_000 });
+    await expect(this.dismissedItems).not.toHaveCount(0, { timeout: 5_000 });
   }
 
   /** Collapse the dismissed section (idempotent — no-op if already collapsed). */
   async collapseDismissed() {
-    const isExpanded = await this.dismissedItems.first().isVisible();
-    if (isExpanded) {
+    if ((await this.dismissedItems.count()) > 0) {
       await this.dismissedToggle.click();
     }
   }

@@ -28,6 +28,7 @@ from pathfinder.jobs.runner import run_durable_task
 from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
+    NewBackgroundTask,
 )
 
 TOOL_NAME = "test_thread_progress"
@@ -81,11 +82,15 @@ async def _run(
 ) -> UUID:
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name=tool_name,
-        args={"args": [], "kwargs": args or {}},
-        estimated_duration_seconds=10,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name=tool_name,
+            args={"args": [], "kwargs": args or {}},
+            tool_call_id=f"call_{tool_name}",
+            phase_overrides={},
+            estimated_duration_seconds=10,
+        ),
     )
     await run_durable_task(
         tool_name=tool_name,
@@ -176,11 +181,15 @@ async def test_the_thread_replays_started_progress_completed_in_order(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name=TOOL_NAME,
-        args={"args": [], "kwargs": {}},
-        estimated_duration_seconds=10,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name=TOOL_NAME,
+            args={"args": [], "kwargs": {}},
+            tool_call_id="call_lifecycle_in_order",
+            phase_overrides={},
+            estimated_duration_seconds=10,
+        ),
     )
     await ChatEventWriter(conversation_id=conversation_id, turn_id=uuid4()).write(
         background_task_started_event(
@@ -226,11 +235,15 @@ async def test_a_tail_from_the_turn_terminator_frames_the_gap(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name=TOOL_NAME,
-        args={"args": [], "kwargs": {}},
-        estimated_duration_seconds=10,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name=TOOL_NAME,
+            args={"args": [], "kwargs": {}},
+            tool_call_id="call_gap_after_the_terminator",
+            phase_overrides={},
+            estimated_duration_seconds=10,
+        ),
     )
     writer = ChatEventWriter(conversation_id=conversation_id, turn_id=uuid4())
     terminator = await writer.write(
@@ -367,7 +380,7 @@ async def test_a_task_that_reports_nothing_still_completes_on_the_thread(
 
 
 @pytest.mark.asyncio
-async def test_a_scoped_child_shares_the_parent_coalescing_budget(
+async def test_each_scoped_lane_leaves_a_part_of_its_own(
     db_cleaner: None,
     patch_app_db_engine: None,
 ) -> None:
@@ -393,7 +406,7 @@ async def test_a_scoped_child_shares_the_parent_coalescing_budget(
 
     register_tool(TOOL_NAME, _fanout)
 
-    await _run(
+    task_id = await _run(
         tool_name=TOOL_NAME,
         conversation_id=conversation_id,
         user_id=user_id,
@@ -404,6 +417,19 @@ async def test_a_scoped_child_shares_the_parent_coalescing_budget(
     assert [chunk["data"]["message"] for chunk in progress] == [
         "a 0",
         "a 2",
+        "b 0",
         "b 2",
+        "c 0",
         "c 2",
     ]
+    assert [chunk["id"] for chunk in progress] == [
+        f"{task_id}:a",
+        f"{task_id}:a",
+        f"{task_id}:b",
+        f"{task_id}:b",
+        f"{task_id}:c",
+        f"{task_id}:c",
+    ]
+    assert {chunk["id"] for chunk in progress} == {
+        f"{task_id}:{variant}" for variant in "abc"
+    }

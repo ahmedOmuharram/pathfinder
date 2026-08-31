@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import os
 from collections.abc import AsyncGenerator, Coroutine, Generator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID, uuid4
@@ -59,6 +60,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
+from pathfinder.ai.capabilities.security import warm_up_scanner
 from pathfinder.ai.conversation.assistant_routing import resolve_turn_assistant
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.assistants.registry import get_assistant_registry
@@ -295,8 +297,14 @@ def fake_embedder() -> Generator[FakeEmbedder]:
 
 
 @pytest.fixture
-async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
+async def db_cleaner(
+    db_engine: AsyncEngine,
+    _eager_spawn: _SpawnedTasks,
+) -> AsyncGenerator[None]:
     yield
+    # A task still writing rows would hit a foreign key that the truncate
+    # below has already removed, so the turn is settled first.
+    await _eager_spawn.drain()
     # Truncate after each test so committed rows do not leak into the next one.
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
@@ -339,6 +347,17 @@ async def in_memory_jobs() -> AsyncGenerator[InMemoryConnector]:
 def _test_env_defaults() -> None:
     # The rate limiter stays off, because a test can exceed the request rate.
     limiter.enabled = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _warm_the_input_scanner() -> None:
+    """Load the injection model once, the way readiness loads it in production.
+
+    Without this the first chat POST of the process builds the ONNX session
+    inside the enqueue wait, and the red lands on whichever test posted first.
+    """
+    if get_settings().piguard_enabled:
+        warm_up_scanner()
 
 
 @pytest.fixture
@@ -535,14 +554,40 @@ async def _close_eda_clients_after_test() -> AsyncGenerator[None]:
 
 # Background task control.
 
+# A ceiling on a deadlock, not a budget for the work: an in-process turn
+# settles in under a second on an idle machine, and a loaded one may take
+# two orders of magnitude longer without being broken.
+_SPAWN_DRAIN_CEILING_SECONDS = 120.0
+
+
+@dataclass(frozen=True)
+class _SpawnedTasks:
+    """The tasks one test spawned, and the wait that settles them."""
+
+    pending: set[asyncio.Task[Any]]
+
+    async def drain(self) -> None:
+        if not self.pending:
+            return
+        _done, timed_out = await asyncio.wait(
+            set(self.pending),
+            timeout=_SPAWN_DRAIN_CEILING_SECONDS,
+        )
+        for task in timed_out:
+            task.cancel()
+        if timed_out:
+            await asyncio.gather(*timed_out, return_exceptions=True)
+
 
 @pytest.fixture(autouse=True)
-async def _eager_spawn(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
+async def _eager_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncGenerator[_SpawnedTasks]:
     """Tracks every spawned task and awaits it during teardown.
 
     The tasks still run, but none of them outlives the test that started it.
     """
-    pending: set[asyncio.Task[Any]] = set()
+    spawned = _SpawnedTasks(pending=set())
 
     def _tracked_spawn(
         coro: Coroutine[Any, Any, Any], *, name: str | None = None
@@ -552,19 +597,14 @@ async def _eager_spawn(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
         except RuntimeError:
             coro.close()
             return None
-        pending.add(task)
-        task.add_done_callback(pending.discard)
+        spawned.pending.add(task)
+        task.add_done_callback(spawned.pending.discard)
         return task
 
     # Several modules import spawn by name, so patch every binding site.
     monkeypatch.setattr("pathfinder.platform.tasks.spawn", _tracked_spawn)
     monkeypatch.setattr("pathfinder.platform.store.spawn", _tracked_spawn)
 
-    yield
+    yield spawned
 
-    if pending:
-        _done, timed_out = await asyncio.wait(pending, timeout=10.0)
-        for t in timed_out:
-            t.cancel()
-        if timed_out:
-            await asyncio.gather(*timed_out, return_exceptions=True)
+    await spawned.drain()

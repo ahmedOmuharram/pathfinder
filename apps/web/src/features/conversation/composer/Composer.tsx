@@ -54,7 +54,7 @@ function ConversationUsageFooter() {
           </TooltipTrigger>
           <TooltipContent side="top" className="space-y-0.5 text-[11px]">
             <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">Lead</span>
+              <span className="text-muted-foreground">Assistant</span>
               <span className="font-mono tabular-nums">
                 {formatUsage(usage.leadTokens, usage.leadCost)}
               </span>

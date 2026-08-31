@@ -63,9 +63,8 @@ def is_pure_approval(text: str) -> bool:
 class UserInputScanner:
     """Single-scan-per-turn trust boundary for user input.
 
-    The scanners are lazy-initialised under a lock so the first caller
-    pays the onnxruntime + tokenizer load once. ``warm_up_piguard`` at
-    startup primes the OS page cache so the first real scan is fast.
+    The scanners are built under a lock, so one caller pays the onnxruntime
+    and tokenizer load. ``ensure_loaded`` moves that cost to startup.
     """
 
     injection_threshold: float = 0.90
@@ -82,7 +81,11 @@ class UserInputScanner:
         repr=False,
     )
 
-    def _ensure_initialised(self) -> tuple[PIGuardScanner, InvisibleTextScanner]:
+    @property
+    def is_loaded(self) -> bool:
+        return self._piguard is not None and self._invisible is not None
+
+    def ensure_loaded(self) -> tuple[PIGuardScanner, InvisibleTextScanner]:
         if self._piguard is not None and self._invisible is not None:
             return self._piguard, self._invisible
         with self._lock:
@@ -104,7 +107,7 @@ class UserInputScanner:
         """
         if is_pure_approval(text):
             return
-        piguard, invisible = self._ensure_initialised()
+        piguard, invisible = self.ensure_loaded()
         piguard_name = "PIGuardScanner"
         invisible_name = "InvisibleTextScanner"
         _, valid, score = piguard.scan(text)
@@ -128,6 +131,11 @@ class UserInputScanner:
 _scanner = UserInputScanner()
 
 
+def warm_up_scanner() -> None:
+    """Build the scanners the request path calls, so no request pays the load."""
+    _scanner.ensure_loaded()
+
+
 async def scan_user_input(text: str) -> None:
     """Offload the CPU-bound scan to a thread so the event loop stays free."""
     if not get_settings().piguard_enabled:
@@ -140,4 +148,5 @@ __all__ = [
     "UserInputScanner",
     "is_pure_approval",
     "scan_user_input",
+    "warm_up_scanner",
 ]

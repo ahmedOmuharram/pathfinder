@@ -54,7 +54,9 @@ describe("a step that failed to validate", () => {
   it("still shows the step name", () => {
     renderFailed();
 
-    expect(screen.getByText("Genes by ortholog pattern")).toBeTruthy();
+    expect(screen.getByTestId("node-title")).toHaveTextContent(
+      "Genes by ortholog pattern",
+    );
   });
 
   it("does not print the error over the node", () => {
@@ -66,13 +68,13 @@ describe("a step that failed to validate", () => {
   it("shows an unknown count rather than nothing", () => {
     renderFailed();
 
-    expect(screen.getByText(/\? genes/)).toBeTruthy();
+    expect(screen.getByText(/genes/)).toHaveTextContent("? genes");
   });
 
   it("keeps the red corner dot", () => {
     const { container } = renderFailed();
 
-    expect(container.querySelector('[data-corner-dot="error"]')).toBeTruthy();
+    expect(container.querySelectorAll('[data-corner-dot="error"]')).toHaveLength(1);
   });
 
   it("carries the error on the dot for a popup to show", () => {
@@ -103,18 +105,18 @@ describe("a healthy step", () => {
   it("shows its count", () => {
     render(<Shell s={step({ estimatedSize: 132 })} />);
 
-    expect(screen.getByText(/132 genes/)).toBeTruthy();
+    expect(screen.getByText(/genes/)).toHaveTextContent("132 genes");
   });
 
   it("has no error dot", () => {
     const { container } = render(<Shell s={step({ estimatedSize: 132 })} />);
 
-    expect(container.querySelector('[data-corner-dot="error"]')).toBeNull();
+    expect(container.querySelectorAll('[data-corner-dot="error"]')).toHaveLength(0);
   });
 
   it("offers no error popup", () => {
     render(<Shell s={step({ estimatedSize: 132 })} />);
 
-    expect(screen.queryByTestId("node-error-trigger")).toBeNull();
+    expect(screen.queryByTestId("node-error-trigger")).toBe(null);
   });
 });

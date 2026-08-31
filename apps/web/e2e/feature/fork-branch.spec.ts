@@ -30,10 +30,12 @@ test.describe("Fork Branch", () => {
         /\/api\/v1\/conversations\/[^/]+\/fork$/.test(r.url()) &&
         r.request().method() === "POST",
     );
-    await page.locator(".is-assistant").first().hover();
-    await page
+    const assistantReply = page
+      .locator(".is-assistant")
+      .filter({ hasText: /\[mock\]/ });
+    await assistantReply.hover();
+    await assistantReply
       .getByRole("button", { name: /branch to a new chat from here/i })
-      .first()
       .click();
     const fork = await forkResponse;
     expect(fork.ok()).toBeTruthy();

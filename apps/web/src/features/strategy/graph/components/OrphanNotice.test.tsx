@@ -1,21 +1,26 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OrphanNotice } from "./OrphanNotice";
 
 describe("OrphanNotice", () => {
   it("renders nothing when count <= 0", () => {
     const { container } = render(<OrphanNotice count={0} firstOrphanId={null} />);
-    expect(container.firstChild).toBeNull();
+    expect(container.firstChild).toBe(null);
   });
 
   it("shows the count and singular/plural form", () => {
     render(<OrphanNotice count={1} firstOrphanId="o1" />);
-    expect(screen.getByText(/1 disconnected step/)).toBeTruthy();
+    expect(screen.getByTestId("orphan-notice")).toHaveTextContent(
+      "1 disconnected step",
+    );
+    cleanup();
 
     render(<OrphanNotice count={3} firstOrphanId="o1" />);
-    expect(screen.getByText(/3 disconnected steps/)).toBeTruthy();
+    expect(screen.getByTestId("orphan-notice")).toHaveTextContent(
+      "3 disconnected steps",
+    );
   });
 
   it("paints the notice from the warning token with no alpha on its text", () => {

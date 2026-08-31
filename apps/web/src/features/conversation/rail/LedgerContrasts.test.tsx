@@ -19,8 +19,10 @@ const contrast = (
 
 describe("LedgerContrasts", () => {
   it("states the contrast the way a biologist would read it", () => {
-    render(<LedgerContrasts contrasts={[contrast()]} />);
-    expect(screen.getByText("up-regulated in female vs male")).toBeTruthy();
+    const { container } = render(<LedgerContrasts contrasts={[contrast()]} />);
+    expect(container).toHaveTextContent(
+      "female_enrichment·up-regulated in female vs male",
+    );
   });
 
   it("shows an inverted contrast differently so it can be spotted", () => {
@@ -37,13 +39,13 @@ describe("LedgerContrasts", () => {
         ]}
       />,
     );
-    expect(screen.getByText("up-regulated in male vs female")).toBeTruthy();
-    expect(screen.queryByText("up-regulated in female vs male")).toBeNull();
+    expect(screen.getByText("up-regulated in male vs female")).toBeVisible();
+    expect(screen.queryByText("up-regulated in female vs male")).toBe(null);
   });
 
   it("names the criterion each contrast belongs to", () => {
     render(<LedgerContrasts contrasts={[contrast()]} />);
-    expect(screen.getByText(/female_enrichment/)).toBeTruthy();
+    expect(screen.getByText(/female_enrichment/)).toBeVisible();
   });
 
   it("flags a contrast that is still missing a side", () => {
@@ -54,8 +56,8 @@ describe("LedgerContrasts", () => {
         ]}
       />,
     );
-    expect(screen.getByText("up-regulated in female vs (unset)")).toBeTruthy();
-    expect(screen.getByText(/incomplete/i)).toBeTruthy();
+    expect(screen.getByText("up-regulated in female vs (unset)")).toBeVisible();
+    expect(screen.getByText(/incomplete/i)).toHaveTextContent("(incomplete)");
   });
 
   it("paints an incomplete contrast with the warning token and no alpha", () => {
@@ -90,7 +92,7 @@ describe("LedgerContrasts", () => {
         ]}
       />,
     );
-    expect(screen.getByText("up-regulated in female vs male")).toBeTruthy();
-    expect(screen.getByText("down-regulated in larva vs adult")).toBeTruthy();
+    expect(screen.getByText("up-regulated in female vs male")).toBeVisible();
+    expect(screen.getByText("down-regulated in larva vs adult")).toBeVisible();
   });
 });

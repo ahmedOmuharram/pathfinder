@@ -9,6 +9,7 @@ from assistant_core.platform.db import async_session_factory
 from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
+    NewBackgroundTask,
 )
 
 
@@ -30,17 +31,23 @@ async def test_create_mark_transitions(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name="test",
-        args={"kwargs": {}},
-        estimated_duration_seconds=30,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name="test",
+            args={"kwargs": {}},
+            tool_call_id="call_test_transitions",
+            phase_overrides={},
+            estimated_duration_seconds=30,
+        ),
     )
     await repo.mark_running(task_id=task_id)
     task = await repo.get(task_id=task_id)
     assert task is not None
     assert task.status == "running"
     assert task.started_at is not None
+    # The row names the call the completion turn answers.
+    assert task.tool_call_id == "call_test_transitions"
 
     await repo.mark_result_ready(task_id=task_id, result={"ok": True})
     task = await repo.get(task_id=task_id)
@@ -76,11 +83,15 @@ async def test_mark_failed(db_cleaner: None, patch_app_db_engine: None) -> None:
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name="test",
-        args={},
-        estimated_duration_seconds=30,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name="test",
+            args={},
+            tool_call_id="call_test_failed",
+            phase_overrides={},
+            estimated_duration_seconds=30,
+        ),
     )
     await repo.mark_failed(task_id=task_id, error="boom")
     task = await repo.get(task_id=task_id)

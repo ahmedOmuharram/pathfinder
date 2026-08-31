@@ -98,7 +98,7 @@ export function EditorFooter({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-foreground hover:underline"
             >
-              View in {siteId !== "" ? siteShortName(siteId) : "WDK"}
+              View in {siteId !== "" ? siteShortName(siteId) : "VEuPathDB"}
               <ExternalLink className="size-3" />
             </a>
           )}

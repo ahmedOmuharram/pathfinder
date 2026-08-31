@@ -4,16 +4,17 @@ import { useState } from "react";
 import type { DataLedgerUpdatePayload } from "@pathfinder/shared";
 import { normalizeLedgerPayload } from "./normalizeLedger";
 
+import { phaseLabel } from "@/lib/models/phaseRoles";
 import { cn } from "@/lib/utils/cn";
 import { useRightRailStore } from "@/state/useRightRailStore";
 
+import { runningPhase } from "../thread/runningPhase";
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
 import { ConstraintsSection } from "./ConstraintsSection";
 import {
   BuildSection,
   FrameSection,
   IntentSection,
-  SubAgentCountSection,
   VerificationSection,
 } from "./LedgerPanelSections";
 
@@ -22,9 +23,9 @@ type DetailTab = Exclude<Tab, "summary">;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "summary", label: "Summary" },
-  { id: "frame", label: "Frame" },
-  { id: "build", label: "Build" },
-  { id: "verification", label: "Verification" },
+  { id: "frame", label: phaseLabel("frame") },
+  { id: "build", label: phaseLabel("build") },
+  { id: "verification", label: phaseLabel("verification") },
 ];
 
 export function ledgerTabSignatures(
@@ -34,6 +35,25 @@ export function ledgerTabSignatures(
     frame: JSON.stringify([ledger.userIntent, ledger.frame]),
     build: JSON.stringify(ledger.build),
     verification: JSON.stringify(ledger.verification),
+  };
+}
+
+/** Whether each detail tab has anything behind it yet. An empty one raises no dot. */
+export function ledgerTabHasContent(
+  ledger: DataLedgerUpdatePayload,
+): Record<DetailTab, boolean> {
+  const { frame, build, verification } = ledger;
+  return {
+    frame: ledger.userIntent !== null || frame.present || frame.criteriaCount > 0,
+    build:
+      build.pushedCount > 0 ||
+      build.failedCount > 0 ||
+      build.skippedCount > 0 ||
+      build.zeroResultSteps.length > 0 ||
+      build.needsRecovery ||
+      build.succeeded,
+    verification:
+      verification.complete || verification.successful || verification.digest != null,
   };
 }
 
@@ -64,7 +84,9 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
   const markLedgerTabSeen = useRightRailStore((s) => s.markLedgerTabSeen);
 
   const signatures = ledger !== null ? ledgerTabSignatures(ledger) : null;
+  const hasContent = ledger !== null ? ledgerTabHasContent(ledger) : null;
   const seen = ledgerSeen[conversationId] ?? {};
+  const phase = runningPhase(chat?.messages.flatMap((m) => m.parts) ?? []);
 
   // Keep the active detail tab marked seen as it updates live (render-time
   // pattern, no useEffect) so it never re-flags after the user watched it.
@@ -81,7 +103,11 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
   };
 
   const hasUpdate = (id: Tab): boolean =>
-    signatures !== null && id !== "summary" && seen[id] !== signatures[id];
+    signatures !== null &&
+    hasContent !== null &&
+    id !== "summary" &&
+    hasContent[id] &&
+    seen[id] !== signatures[id];
 
   return (
     <div
@@ -89,9 +115,9 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
       data-testid="ledger-panel"
     >
       <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">Investigation Ledger</h2>
+        <h2 className="text-sm font-semibold">Progress</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Live state of the Lead&apos;s investigation. Tabs show per-phase detail.
+          Live state of the investigation. Each tab shows one stage in detail.
         </p>
       </div>
       <div className="grid shrink-0 grid-cols-4 gap-0.5 border-b border-border bg-muted/30 p-1">
@@ -120,15 +146,24 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
       <div
         className="flex-1 overflow-auto"
         role="region"
-        aria-label="Investigation Ledger detail"
+        aria-label="Progress detail"
         tabIndex={0}
       >
         {ledger === null ? (
           <p className="px-4 py-3 text-xs text-muted-foreground">
-            Waiting for the Lead to dispatch its first sub-agent...
+            {phase === null
+              ? "Waiting for the first stage of this investigation..."
+              : `${phaseLabel(phase)} is running...`}
           </p>
         ) : (
-          <LedgerTabContent tab={tab} ledger={ledger} />
+          <>
+            {phase !== null && (
+              <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                {`${phaseLabel(phase)} is running...`}
+              </p>
+            )}
+            <LedgerTabContent tab={tab} ledger={ledger} />
+          </>
         )}
       </div>
     </div>
@@ -150,10 +185,6 @@ function LedgerTabContent({
         <BuildSection build={ledger.build} />
         <VerificationSection verification={ledger.verification} />
         <ConstraintsSection constraints={ledger.constraints} />
-        <SubAgentCountSection
-          thisTurn={ledger.subAgentCallsThisTurn}
-          total={ledger.subAgentCallsTotal}
-        />
       </div>
     );
   }

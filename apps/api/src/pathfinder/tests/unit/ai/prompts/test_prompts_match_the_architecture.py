@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import get_args
 
 import pathfinder.ai.lead.deltas as deltas_module
-from pathfinder.ai.lead.ledger import SubAgentName
+from pathfinder.ai.lead.ledger_sections import SubAgentName
 
 _PROMPTS = Path(deltas_module.__file__).parents[1] / "prompts"
 

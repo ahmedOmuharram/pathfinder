@@ -179,11 +179,10 @@ async def run_gene_set_enrichment(
 ) -> dict[str, Any]:
     """Run enrichment analysis on a gene set in the Workbench.
 
-    Durable: the real analysis runs on the verification worker; the graph
-    suspends on ``interrupt()`` while GO/Pathway/Word ORA phases complete
-    and progress streams back through ``task_progress``. The resumed value
-    is the summary dict (``geneSetId``, ``geneCount``, ``enrichmentResults``,
-    ``downloads``).
+    Durable: the real analysis runs on the verification worker; the turn
+    ends while GO/Pathway/Word ORA phases complete and progress streams back
+    through ``task_progress``. You are called again with the summary dict
+    (``geneSetId``, ``geneCount``, ``enrichmentResults``, ``downloads``).
 
     Requires the gene set to have a WDK step ID or search parameters so the
     enrichment service can recover the full background gene universe.

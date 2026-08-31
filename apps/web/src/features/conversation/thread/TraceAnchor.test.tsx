@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { UIMessage } from "ai";
 import { reduceSnapshot, type MessagePart } from "@pathfinder/assistant-client";
+import type { DataSubAgentCallPayload } from "@pathfinder/shared";
 
 import { useSettingsStore } from "@/state/useSettingsStore";
 
@@ -18,11 +19,11 @@ vi.mock("sonner", () => ({
 }));
 
 const ROW_LABELS = [
-  "Search eda studies",
-  "Open eda analysis",
-  "Search catalog",
-  "Set criterion",
-  "Preview eda subset",
+  "Find studies",
+  "Open study",
+  "Find searches",
+  "Choose a search",
+  "Preview samples",
   "Run control tests",
   "Optimize parameters",
 ];
@@ -35,12 +36,15 @@ function turnParts(): MessagePart[] {
   return assistant.parts;
 }
 
-function chatWith(parts: MessagePart[]): ChatHelpers {
+function chatWith(
+  parts: MessagePart[],
+  status: ChatHelpers["status"] = "ready",
+): ChatHelpers {
   const message: UIMessage = { id: "m1", role: "assistant", parts };
   return {
     id: "conv-1",
     messages: [message],
-    status: "ready",
+    status,
     error: undefined,
     setMessages: () => {},
     sendMessage: async () => {},
@@ -52,6 +56,34 @@ function chatWith(parts: MessagePart[]): ChatHelpers {
     addToolApprovalResponse: () => {},
     clearError: () => {},
   };
+}
+
+const DISPATCH: DataSubAgentCallPayload = {
+  toolCallId: "sa_9",
+  subAgent: "build_strategy",
+  phase: "execution",
+  state: "started",
+};
+
+function openDispatch(): MessagePart[] {
+  return [
+    { type: "data-sub-agent-call", id: "sa_9", data: DISPATCH },
+    {
+      type: "data-sub-agent-step",
+      data: {
+        parentToolCallId: "sa_9",
+        kind: "tool",
+        state: "started",
+        toolCallId: "s1",
+        toolName: "set_criterion",
+        args: { criterionId: "c1" },
+      },
+    },
+  ];
+}
+
+function stoppedDispatch(): MessagePart[] {
+  return [...openDispatch(), { type: "data-turn-stopped", data: {} }];
 }
 
 function anchorFor(toolCallId: string, toolName: string, parts = turnParts()) {
@@ -76,7 +108,7 @@ describe("TraceAnchor", () => {
     const rows = view.getAllByTestId("trace-row");
     expect(rows).toHaveLength(7);
     expect(rows.map((node) => node.textContent)).toEqual(
-      expect.arrayContaining([expect.stringContaining("Search eda studies")]),
+      expect.arrayContaining([expect.stringContaining("Find studies")]),
     );
     ROW_LABELS.forEach((label, index) => {
       expect(rows[index]).toHaveTextContent(label);
@@ -110,9 +142,9 @@ describe("TraceAnchor", () => {
   it("labels the run's three groups through the shared phase labels", () => {
     const view = anchorFor("call_1", "search_eda_studies");
     expect(view.getAllByTestId("trace-group-label").map((n) => n.textContent)).toEqual([
-      "Lead",
-      "Frame",
-      "Lead",
+      "Assistant",
+      "Planning",
+      "Assistant",
     ]);
   });
 
@@ -152,7 +184,7 @@ describe("TraceAnchor", () => {
     );
     const rows = screen.getAllByTestId("trace-row");
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toHaveTextContent("Set criterion");
+    expect(rows[0]).toHaveTextContent("Choose a search");
     expect(screen.getByTestId("tool-call-part")).toBeInTheDocument();
     expect(screen.getByTestId("turn-trace-summary")).toHaveTextContent("Working...");
   });
@@ -170,7 +202,7 @@ describe("TraceAnchor", () => {
       />,
     );
     expect(screen.getByTestId("data-sub-agent-call")).toBeInTheDocument();
-    expect(screen.getByTestId("trace-group-label")).toHaveTextContent("Frame");
+    expect(screen.getByTestId("trace-group-label")).toHaveTextContent("Planning");
   });
 
   it("draws no group for a dispatch payload the wire's schema refuses", () => {
@@ -180,6 +212,46 @@ describe("TraceAnchor", () => {
       />,
     );
     expect(view.container.innerHTML).toBe("");
+  });
+
+  it("reads a dispatch the user's stop left open as Stopped", () => {
+    useSettingsStore.setState({ showRawToolCalls: false, showTokenUsage: true });
+    const view = render(
+      <ChatHelpersProvider value={chatWith(stoppedDispatch())}>
+        <SubAgentTraceAnchor data={DISPATCH} />
+      </ChatHelpersProvider>,
+    );
+    expect(view.getByTestId("trace-group-state")).toHaveTextContent("Stopped");
+    expect(view.getByTestId("trace-row-summary")).toHaveTextContent("Stopped");
+    expect(view.getByTestId("trace-row-status")).not.toHaveClass("animate-spin");
+    expect(view.getByTestId("turn-trace-summary")).toHaveTextContent("1 step");
+    expect(view.getByTestId("turn-trace-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("reads a dispatch of a turn that ended saying nothing as Not finished", () => {
+    useSettingsStore.setState({ showRawToolCalls: false, showTokenUsage: true });
+    const view = render(
+      <ChatHelpersProvider value={chatWith(openDispatch())}>
+        <SubAgentTraceAnchor data={DISPATCH} />
+      </ChatHelpersProvider>,
+    );
+    expect(view.getByTestId("trace-group-state")).toHaveTextContent("Not finished");
+    expect(view.getByTestId("trace-row-status")).toHaveClass("animate-spin");
+    expect(view.getByTestId("turn-trace-summary")).toHaveTextContent("Working...");
+  });
+
+  it("says nothing about a dispatch of the turn still streaming", () => {
+    useSettingsStore.setState({ showRawToolCalls: false, showTokenUsage: true });
+    const view = render(
+      <ChatHelpersProvider value={chatWith(openDispatch(), "streaming")}>
+        <SubAgentTraceAnchor data={DISPATCH} />
+      </ChatHelpersProvider>,
+    );
+    expect(view.queryByTestId("trace-group-state")).toBeNull();
+    expect(view.getByTestId("turn-trace-summary")).toHaveTextContent("Working...");
   });
 
   it("draws no row for a summary the wire's schema refuses", () => {

@@ -20,7 +20,7 @@ from pathfinder.ai.tools.standalone._eda_stream_parts import (
     eda_analysis_state_chunk,
     eda_viz_chunk,
 )
-from pathfinder.domain.eda import validate_compute_config
+from pathfinder.domain.eda_compute_config import validate_compute_config
 from pathfinder.integrations.eda.models import (
     EdaAnalysisDetail,
     EdaComputation,

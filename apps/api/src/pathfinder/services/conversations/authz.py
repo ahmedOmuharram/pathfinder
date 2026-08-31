@@ -116,6 +116,20 @@ async def conversation_assistant_id(conversation_id: UUID) -> str | None:
     return assistant_id
 
 
+async def conversation_owner_id(conversation_id: UUID) -> UUID | None:
+    """Return the account a conversation belongs to, or None if it is gone.
+
+    A worker job that opens a turn on a thread acts as its owner.
+    """
+    async with async_session_factory() as session:
+        user_id: UUID | None = await session.scalar(
+            select(Conversation.user_id).where(
+                Conversation.id == conversation_id,
+            ),
+        )
+    return user_id
+
+
 async def conversation_application_id(conversation_id: UUID) -> str | None:
     """Return the application that holds a conversation, or None if it is gone.
 

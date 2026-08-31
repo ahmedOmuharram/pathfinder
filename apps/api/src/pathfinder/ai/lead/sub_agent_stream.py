@@ -1,27 +1,25 @@
 """The sub-agent streaming engine.
 
-Runs one phase agent, renders its inner events onto the chat stream, and
-surfaces an approval-required tool call as a tool part the user can answer.
+Runs one phase agent, drives its inner events onto the chat stream, and parks
+the run on a call the user or the worker must answer.
 """
 
 from __future__ import annotations
 
 import contextlib
-import json
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
 from assistant_core.capabilities.repetition_guard import RepetitionGuard
 from assistant_core.cost import cost_for_run
 from assistant_core.graph.emit import emit_chunk
 from assistant_core.graph.stream_events import (
     SubAgentCallPayload,
-    SubAgentStepPayload,
     sub_agent_call_event,
-    sub_agent_step_event,
     turn_status_event,
 )
 from assistant_core.graph.turn_state import (
+    DurableDeferral,
     SubAgentApprovalCall,
     SubAgentApprovalPending,
 )
@@ -30,45 +28,28 @@ from assistant_core.models.scripted import (
     current_user_text,
 )
 from assistant_core.platform.logging import get_logger
-from assistant_core.platform.pydantic_base import CamelModel
 from langgraph.config import get_stream_writer
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from pydantic_ai import AgentRunResultEvent
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import (
-    AgentStreamEvent,
-    FunctionToolCallEvent,
     FunctionToolResultEvent,
     ModelMessage,
     ModelMessagesTypeAdapter,
-    PartEndEvent,
-    RetryPromptPart,
-    TextPart,
-    ThinkingPart,
-    ToolCallPart,
-    ToolReturnPart,
 )
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults
-from pydantic_ai.ui.vercel_ai.response_types import (
-    BaseChunk,
-    DataChunk,
-    FileChunk,
-    SourceDocumentChunk,
-    SourceUrlChunk,
-    ToolApprovalRequestChunk,
-    ToolInputAvailableChunk,
-    ToolInputStartChunk,
-    ToolOutputAvailableChunk,
-    ToolOutputDeniedChunk,
-)
 from pydantic_ai.usage import RunUsage
 
 from pathfinder.ai.agents.roles import PhaseRole
-from pathfinder.ai.capabilities.error_classification import is_error_directive
 from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.stream_events import ledger_update_event
 from pathfinder.ai.lead.derive import derive_ledger
+from pathfinder.ai.lead.sub_agent_events import (
+    _announce_approval,
+    _close_answered_approval,
+    _forward_inner_event,
+)
 from pathfinder.ai.lead.sub_agent_tools import (
     BUILD_SUB_AGENT_BY_ROLE,
     WIRE_PHASE_BY_ROLE,
@@ -81,10 +62,6 @@ from pathfinder.ai.lead.sub_agent_tools import (
 )
 
 logger = get_logger(__name__)
-
-_RESULT_LIMIT = 8000
-
-_STREAMABLE_METADATA = (DataChunk, SourceUrlChunk, SourceDocumentChunk, FileChunk)
 
 _PHASE_STATUS_LABELS: dict[PhaseRole, str] = {
     "lead": "Thinking...",
@@ -113,188 +90,46 @@ class SubAgentResume:
 
 @dataclass(frozen=True)
 class SubAgentApprovalWait:
-    """A sub-agent run waiting on the user's answer to a tool approval."""
+    """A sub-agent run parked on a deferred call.
+
+    ``durable`` names the worker task that answers it; without one the call is
+    an approval the user answers.
+    """
 
     pending: SubAgentApprovalPending
+    durable: DurableDeferral | None = None
 
 
-def _emit_step(writer: Any, payload: SubAgentStepPayload) -> None:
-    emit_chunk(writer, sub_agent_step_event(payload))
-
-
-def _short(s: str, *, limit: int = 280) -> str:
-    return s if len(s) <= limit else s[:limit] + "..."
-
-
-def _summarize_tool_result(content: object) -> str:
-    if isinstance(content, BaseModel):
-        return _short(json.dumps(content.model_dump(mode="json")), limit=_RESULT_LIMIT)
-    if isinstance(content, str):
-        return _short(content, limit=_RESULT_LIMIT)
-    try:
-        return _short(json.dumps(content), limit=_RESULT_LIMIT)
-    except TypeError, ValueError:
-        return _short(str(content), limit=_RESULT_LIMIT)
-
-
-def _result_summary(result: ToolReturnPart | RetryPromptPart) -> str:
-    """One-line rendering of an inner tool's result."""
-    if isinstance(result, RetryPromptPart):
-        content = result.content
-        return _short(
-            content if isinstance(content, str) else result.model_response(),
-            limit=_RESULT_LIMIT,
-        )
-    return _summarize_tool_result(result.content)
-
-
-def _step_state(
-    result: ToolReturnPart | RetryPromptPart,
-) -> Literal["completed", "failed", "denied"]:
-    """Terminal state of one inner tool call. A denial is the user's decision,
-    not a failure."""
-    if isinstance(result, RetryPromptPart):
-        return "failed"
-    if result.outcome == "denied":
-        return "denied"
-    return "failed" if is_error_directive(result.content) else "completed"
-
-
-class _InnerToolSummary(CamelModel):
-    """The line an inner tool wrote about its own call."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    summary: str = ""
-
-
-@dataclass(frozen=True)
-class _InnerMetadata:
-    """An inner tool's metadata, split into its line and what the stream shows."""
-
-    summary: str | None
-    forwarded: list[BaseChunk]
-
-
-def _read_tool_metadata(metadata: object) -> _InnerMetadata:
-    """Take the inner tool's own line out of its metadata.
-
-    A summary names the inner call, which no reducer on the main stream holds,
-    so it becomes the step row's text instead of a chunk. Every other chunk is
-    forwarded: a sub-agent tool runs outside the VercelAIAdapter, so the
-    adapter does not emit them.
-    """
-    if not isinstance(metadata, list):
-        return _InnerMetadata(summary=None, forwarded=[])
-    summary: str | None = None
-    forwarded: list[BaseChunk] = []
-    for chunk in metadata:
-        if isinstance(chunk, DataChunk) and chunk.type == "data-tool-summary":
-            summary = _InnerToolSummary.model_validate(chunk.data).summary or None
-        elif isinstance(chunk, _STREAMABLE_METADATA):
-            forwarded.append(chunk)
-    return _InnerMetadata(summary=summary, forwarded=forwarded)
-
-
-def _forward_inner_event(
-    *,
-    parent_tool_call_id: str,
-    writer: Any,
-    inner_calls: dict[str, str],
-    event: AgentStreamEvent,
-) -> None:
-    """Translate one inner-agent stream event into a
-    ``data-sub-agent-step`` chunk for the frontend."""
-    if isinstance(event, FunctionToolCallEvent):
-        inner_calls[event.tool_call_id] = event.part.tool_name
-        _emit_step(
-            writer,
-            SubAgentStepPayload(
-                parent_tool_call_id=parent_tool_call_id,
-                kind="tool",
-                state="started",
-                tool_call_id=event.tool_call_id,
-                tool_name=event.part.tool_name,
-                args=event.part.args_as_dict(),
-            ),
-        )
-        return
-    if isinstance(event, FunctionToolResultEvent):
-        tool_name = inner_calls.get(event.tool_call_id)
-        if tool_name is None:
-            return
-        result = event.part
-        inner = (
-            _read_tool_metadata(result.metadata)
-            if isinstance(result, ToolReturnPart)
-            else _InnerMetadata(summary=None, forwarded=[])
-        )
-        _emit_step(
-            writer,
-            SubAgentStepPayload(
-                parent_tool_call_id=parent_tool_call_id,
-                kind="tool",
-                state=_step_state(result),
-                tool_call_id=event.tool_call_id,
-                tool_name=tool_name,
-                result_summary=inner.summary or _result_summary(result),
-            ),
-        )
-        for chunk in inner.forwarded:
-            emit_chunk(writer, chunk)
-        return
-    if isinstance(event, PartEndEvent):
-        part = event.part
-        if not isinstance(part, (TextPart, ThinkingPart)) or not part.content.strip():
-            return
-        _emit_step(
-            writer,
-            SubAgentStepPayload(
-                parent_tool_call_id=parent_tool_call_id,
-                kind="text" if isinstance(part, TextPart) else "reasoning",
-                state="completed",
-                text=_short(part.content, limit=2000),
-            ),
-        )
-
-
-def _announce_approval(writer: Any, call: ToolCallPart) -> SubAgentApprovalCall:
-    """Render one inner tool call as a tool part awaiting the user's answer."""
-    args = call.args_as_dict()
-    emit_chunk(
-        writer,
-        ToolInputStartChunk(tool_call_id=call.tool_call_id, tool_name=call.tool_name),
-    )
-    emit_chunk(
-        writer,
-        ToolInputAvailableChunk(
-            tool_call_id=call.tool_call_id,
-            tool_name=call.tool_name,
-            input=args,
-        ),
-    )
-    emit_chunk(
-        writer,
-        ToolApprovalRequestChunk(
-            approval_id=call.tool_call_id,
-            tool_call_id=call.tool_call_id,
-        ),
-    )
-    return SubAgentApprovalCall(
-        tool_call_id=call.tool_call_id,
-        tool_name=call.tool_name,
-        args=args,
-    )
-
-
-def _await_approval(
+def _park_run(
     *,
     writer: Any,
     role: PhaseRole,
     requests: DeferredToolRequests,
     messages: list[ModelMessage],
+    deferrals: dict[str, DurableDeferral],
 ) -> SubAgentApprovalWait | None:
-    """Ask the user about every approval the sub-agent run stopped at."""
+    """Park the run on the call it stopped at.
+
+    A durable call outranks an approval: its task is already running, so the
+    worker's result must reach this run rather than a later one.
+    """
+    durable = [call for call in requests.calls if call.tool_call_id in deferrals]
+    if durable:
+        call = durable[0]
+        return SubAgentApprovalWait(
+            pending=SubAgentApprovalPending(
+                role=role,
+                approvals=[
+                    SubAgentApprovalCall(
+                        tool_call_id=call.tool_call_id,
+                        tool_name=call.tool_name,
+                        args=call.args_as_dict(),
+                    ),
+                ],
+                messages_json=ModelMessagesTypeAdapter.dump_json(messages).decode(),
+            ),
+            durable=deferrals[call.tool_call_id],
+        )
     if not requests.approvals:
         return None
     return SubAgentApprovalWait(
@@ -302,27 +137,6 @@ def _await_approval(
             role=role,
             approvals=[_announce_approval(writer, call) for call in requests.approvals],
             messages_json=ModelMessagesTypeAdapter.dump_json(messages).decode(),
-        ),
-    )
-
-
-def _close_answered_approval(
-    writer: Any,
-    event: FunctionToolResultEvent,
-    answered: frozenset[str],
-) -> None:
-    """Put an answered tool part into its terminal state on the client."""
-    if event.tool_call_id not in answered:
-        return
-    result = event.part
-    if isinstance(result, ToolReturnPart) and result.outcome == "denied":
-        emit_chunk(writer, ToolOutputDeniedChunk(tool_call_id=event.tool_call_id))
-        return
-    emit_chunk(
-        writer,
-        ToolOutputAvailableChunk(
-            tool_call_id=event.tool_call_id,
-            output=_result_summary(result),
         ),
     )
 
@@ -339,8 +153,8 @@ async def stream_sub_agent[OutputT: BaseModel](
     """Run a sub-agent, forward its inner events, and return the typed delta.
 
     Answers a ``resume`` into the run that produced it. Returns a
-    ``SubAgentApprovalWait`` when the run stops on a tool the user must
-    approve, and ``None`` when the run exhausts its budget.
+    ``SubAgentApprovalWait`` when the run stops on a call the user or the
+    worker must answer, and ``None`` when the run exhausts its budget.
     """
     role = run.role
     agent = BUILD_SUB_AGENT_BY_ROLE[role]()
@@ -389,11 +203,12 @@ async def stream_sub_agent[OutputT: BaseModel](
                         if isinstance(agent_output, expected_output_type):
                             output = agent_output
                         elif isinstance(agent_output, DeferredToolRequests):
-                            wait = _await_approval(
+                            wait = _park_run(
                                 writer=writer,
                                 role=role,
                                 requests=agent_output,
                                 messages=list(event.result.all_messages()),
+                                deferrals=agent_deps.durable_deferrals,
                             )
                         response = event.result.response
                         deps.record_sub_agent_usage(

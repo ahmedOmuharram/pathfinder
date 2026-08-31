@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from pathfinder.ai.conversation import turn_runner as tr
+from pathfinder.ai.conversation import turn_runner
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.tests._support.chunk_log import reduce_chunks_to_messages
 
@@ -43,13 +43,13 @@ class _RaisingGraph:
         graph_input: dict[str, Any],
         config: dict[str, Any],
         context: Any,
-        stream_mode: list[str],
-    ) -> AsyncIterator[tuple[str, Any]]:
+        stream_mode: str,
+    ) -> AsyncIterator[Any]:
         del graph_input, config, context, stream_mode
         return self._iter()
 
-    async def _iter(self) -> AsyncIterator[tuple[str, Any]]:
-        yield ("custom", {"chunk": {"type": "text-delta", "id": "t", "delta": "Look"}})
+    async def _iter(self) -> AsyncIterator[Any]:
+        yield {"chunk": {"type": "text-delta", "id": "t", "delta": "Look"}}
         raise RuntimeError(_ERROR_TEXT)
 
 
@@ -61,47 +61,35 @@ class _RaisingGraphMidToolCall:
         graph_input: dict[str, Any],
         config: dict[str, Any],
         context: Any,
-        stream_mode: list[str],
-    ) -> AsyncIterator[tuple[str, Any]]:
+        stream_mode: str,
+    ) -> AsyncIterator[Any]:
         del graph_input, config, context, stream_mode
         return self._iter()
 
-    async def _iter(self) -> AsyncIterator[tuple[str, Any]]:
-        yield (
-            "custom",
-            {
-                "chunk": {
-                    "type": "tool-input-start",
-                    "toolCallId": "call-1",
-                    "toolName": "search_eda_studies",
-                },
+    async def _iter(self) -> AsyncIterator[Any]:
+        yield {
+            "chunk": {
+                "type": "tool-input-start",
+                "toolCallId": "call-1",
+                "toolName": "search_eda_studies",
             },
-        )
-        yield (
-            "custom",
-            {
-                "chunk": {
-                    "type": "tool-input-available",
-                    "toolCallId": "call-1",
-                    "toolName": "search_eda_studies",
-                    "input": {"limit": 5},
-                },
+        }
+        yield {
+            "chunk": {
+                "type": "tool-input-available",
+                "toolCallId": "call-1",
+                "toolName": "search_eda_studies",
+                "input": {"limit": 5},
             },
-        )
-        yield (
-            "custom",
-            {
-                "chunk": {
-                    "type": "tool-input-start",
-                    "toolCallId": "call-2",
-                    "toolName": "list_sites",
-                },
+        }
+        yield {
+            "chunk": {
+                "type": "tool-input-start",
+                "toolCallId": "call-2",
+                "toolName": "list_sites",
             },
-        )
-        yield (
-            "custom",
-            {"chunk": {"type": "tool-output-available", "toolCallId": "call-2"}},
-        )
+        }
+        yield {"chunk": {"type": "tool-output-available", "toolCallId": "call-2"}}
         raise RuntimeError(_ERROR_TEXT)
 
 
@@ -130,7 +118,7 @@ async def test_a_raising_graph_writes_the_failure_part_beside_the_error(
     async def _no_poll(**_kwargs: Any) -> None:
         return None
 
-    monkeypatch.setattr(tr, "_watch_for_cancel", _no_poll)
+    monkeypatch.setattr(turn_runner, "watch_for_cancel", _no_poll)
 
     @dataclass
     class _RuntimeCtx:
@@ -140,7 +128,7 @@ async def test_a_raising_graph_writes_the_failure_part_beside_the_error(
     turn_id = uuid4()
     writer = _StubWriter(conversation_id=conversation_id, turn_id=turn_id)
 
-    result = await tr._drive_graph(
+    result = await turn_runner._drive_graph(
         body=_body(conversation_id),
         graph_input={"turn_message_id": turn_id, "user_id": uuid4()},
         compiled_graph=_RaisingGraph(),
@@ -165,7 +153,7 @@ async def test_a_raising_graph_ends_the_tool_calls_it_left_open(
     async def _no_poll(**_kwargs: Any) -> None:
         return None
 
-    monkeypatch.setattr(tr, "_watch_for_cancel", _no_poll)
+    monkeypatch.setattr(turn_runner, "watch_for_cancel", _no_poll)
 
     @dataclass
     class _RuntimeCtx:
@@ -175,7 +163,7 @@ async def test_a_raising_graph_ends_the_tool_calls_it_left_open(
     turn_id = uuid4()
     writer = _StubWriter(conversation_id=conversation_id, turn_id=turn_id)
 
-    await tr._drive_graph(
+    await turn_runner._drive_graph(
         body=_body(conversation_id),
         graph_input={"turn_message_id": turn_id, "user_id": uuid4()},
         compiled_graph=_RaisingGraphMidToolCall(),

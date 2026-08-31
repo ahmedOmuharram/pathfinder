@@ -116,11 +116,10 @@ describe("EnrichmentDotPlot", () => {
   it("keeps the axis label of an unbounded term but draws no dot for it", () => {
     render(<EnrichmentDotPlot terms={[term(), UNBOUNDED]} />);
 
-    const axis = within(screen.getByTestId("axis"));
-    expect(axis.getByText("dna replication")).toBeTruthy();
+    expect(screen.getByTestId("axis")).toHaveTextContent("dna replication");
     expect(
-      screen.getByTestId("mark-dna replication").querySelector("circle"),
-    ).toBeNull();
+      screen.getByTestId("mark-dna replication").querySelectorAll("circle"),
+    ).toHaveLength(0);
   });
 
   it("draws a dot for a term whose fold enrichment is a number", () => {
@@ -161,13 +160,13 @@ describe("EnrichmentDotPlot", () => {
   it("reports the unbounded term as Inf and the finite one by its value", () => {
     render(<EnrichmentDotPlot terms={[term(), UNBOUNDED]} />);
 
-    const unbounded = within(screen.getByTestId("tip-dna replication"));
-    expect(unbounded.getByText("Fold: Inf")).toBeTruthy();
-    expect(unbounded.getByText("Genes: 5")).toBeTruthy();
-    expect(unbounded.getByText("p: 2.00e-3")).toBeTruthy();
+    const unbounded = screen.getByTestId("tip-dna replication");
+    expect(unbounded).toHaveTextContent("Fold: Inf");
+    expect(unbounded).toHaveTextContent("Genes: 5");
+    expect(unbounded).toHaveTextContent("p: 2.00e-3");
 
-    const finite = within(screen.getByTestId("tip-protein kinase activity"));
-    expect(finite.getByText("Fold: 3.48")).toBeTruthy();
-    expect(finite.getByText("p: 1.00e-4")).toBeTruthy();
+    const finite = screen.getByTestId("tip-protein kinase activity");
+    expect(finite).toHaveTextContent("Fold: 3.48");
+    expect(finite).toHaveTextContent("p: 1.00e-4");
   });
 });

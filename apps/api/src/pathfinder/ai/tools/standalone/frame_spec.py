@@ -1,42 +1,46 @@
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass
-from typing import Annotated, Literal
-
 from assistant_core.graph.tool_summary import count_noun, with_summary
 from assistant_core.platform.pydantic_base import CamelModel
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
-from pydantic import ValidationError as PydanticValidationError
+from pydantic import Field
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.messages import ToolReturn
 
-from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import (
     ensure_search_registered,
     register_search,
 )
-from pathfinder.ai.tools.standalone._validation_helpers import validation_model_retry
-from pathfinder.domain.parameters.values import to_wire
-from pathfinder.domain.parameters.wdk_vocab import (
-    MAX_NEAREST_ENTRIES,
-    VocabOption,
-    accession_matches,
-    match_exact_option,
-    nearest_entries,
+from pathfinder.ai.tools.standalone._frame_proposals import (
+    ParamProposals,
+    _CriterionCall,
+    _phyletic_overrides,
+    _radio_overrides,
+    _refuse_undecided,
+    _refuse_unknown_names,
+    _refuse_unmatched_values,
 )
+from pathfinder.ai.tools.standalone._frame_saved import (
+    bind_saved_criterion,
+    holds_open_saved_slot,
+)
+from pathfinder.ai.tools.standalone._frame_sheet import (
+    _reconcile_dependents,
+    _sheet_for,
+)
+from pathfinder.ai.tools.standalone._validation_helpers import validation_model_retry
+from pathfinder.domain.parameters.value_codec import to_wire
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.operational_spec import (
+    AssumedValue,
     Criterion,
+    CriterionRole,
     OpenSlot,
-    SpecStructure,
-    StructureNode,
 )
 from pathfinder.platform.errors import ValidationError
+from pathfinder.services.catalog._param_filters import has_contrast_sibling
 from pathfinder.services.catalog.param_dag import (
     ParamFetcher,
-    ResolvedParams,
     UnknownParameterError,
     resolve_params_with_intent,
     wdk_fetch_at,
@@ -45,80 +49,17 @@ from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.catalog.param_formatting import (
     PHYLETIC_LIST_PARAMS,
     ParameterInfo,
-    format_param_info_typed,
 )
 from pathfinder.services.catalog.param_intent import ParamIntent
-from pathfinder.services.catalog.param_phyletic import (
-    PhyleticNoSelection,
-    PhyleticUnresolvedProposal,
-    derive_phyletic_overrides,
-    is_phyletic_sheet,
-)
-from pathfinder.services.catalog.param_sheet import SheetEntry, build_sheet
+from pathfinder.services.catalog.param_sheet import SheetEntry
 from pathfinder.services.catalog.param_validation import validate_parameters
-from pathfinder.services.catalog.radio_pairs import (
-    RADIO_OFF,
-    RadioPairIssue,
-    check_radio_pairs,
-    radio_pairs,
-)
 from pathfinder.services.catalog.searches import (
     read_search_definition,
     resolve_search_record_type,
 )
 from pathfinder.services.catalog.validation_callbacks import make_validation_callbacks
+from pathfinder.services.strategies.saved_library import SavedStrategyListing
 from pathfinder.services.wdk import WDKSearch
-
-CriterionRole = Literal["seed", "filter", "transform", "exclude"]
-
-
-class _Proposal(BaseModel):
-    """One proposed value as the model may type it: a string, a number, a list,
-    a JSON-encoded list, or null."""
-
-    model_config = ConfigDict(coerce_numbers_to_str=True)
-    value: str | list[str] | None = None
-
-    @field_validator("value", mode="before")
-    @classmethod
-    def _json_word(cls, v: object) -> object:
-        """A boolean is its JSON word, so a yes/no vocabulary answers it."""
-        if isinstance(v, bool):
-            return "true" if v else "false"
-        return v
-
-    @field_validator("value", mode="before")
-    @classmethod
-    def _json_list(cls, v: object) -> object:
-        if not isinstance(v, str) or not v.startswith("["):
-            return v
-        try:
-            parsed = json.loads(v)
-        except json.JSONDecodeError:
-            # Bracketed text that is not a JSON list is a literal value.
-            return v
-        return [str(x) for x in parsed] if isinstance(parsed, list) else v
-
-
-def _proposed(name: str, value: object) -> str | list[str] | None:
-    try:
-        return _Proposal.model_validate({"value": value}).value
-    except PydanticValidationError as exc:
-        message = f"{name}: {exc.errors()[0]['msg']}"
-        raise ValueError(message) from exc
-
-
-def coerce_proposals(raw: object) -> object:
-    """Reads each proposed value in the form the model wrote it. A non-mapping
-    passes through so Pydantic reports the type error."""
-    if not isinstance(raw, dict):
-        return raw
-    return {str(name): _proposed(str(name), value) for name, value in raw.items()}
-
-
-ParamProposals = Annotated[
-    dict[str, str | list[str] | None], BeforeValidator(coerce_proposals)
-]
 
 
 class SetCriterionResult(CamelModel):
@@ -126,6 +67,8 @@ class SetCriterionResult(CamelModel):
 
     criterion_id: str
     search_name: str
+    # The saved strategy this criterion reuses as its input, when it names one.
+    saved_strategy: SavedStrategyListing | None = None
     # Every visible parameter name mapped to null, in sheet order. Declared
     # before `decide` so the object to copy is read before the vocabularies.
     params_template: dict[str, None] = Field(default_factory=dict)
@@ -145,17 +88,47 @@ class SetCriterionResult(CamelModel):
     redecide: list[SheetEntry] = Field(default_factory=list)
 
 
-class SetStructureResult(CamelModel):
-    """Result of folding the bound criteria into the strategy structure."""
-
-    criteria_combined: int
-
-
 class DropCriterionResult(CamelModel):
     """Result of dropping a criterion from the spec."""
 
     criterion_id: str
     reason: str
+
+
+def _refuse_bad_assumptions(
+    call: _CriterionCall,
+    assumed: list[AssumedValue],
+    infos: list[ParameterInfo],
+) -> None:
+    """An assumption names a parameter this call gave a value to.
+
+    A half of a reference and comparison pair has no defensible assumption:
+    both halves guessed is a degenerate all-against-all contrast.
+    """
+    by_name = {info.name: info for info in infos if info.is_visible}
+    for entry in assumed:
+        info = by_name.get(entry.param_name)
+        if info is None:
+            msg = (
+                f"No such parameter on {call.search_name}: {entry.param_name}. "
+                f"Declare an assumption only for a parameter of this search. "
+                f"Valid names: {sorted(by_name)}."
+            )
+            raise ModelRetry(msg)
+        if has_contrast_sibling(info, infos):
+            msg = (
+                f"{entry.param_name} is one half of a contrast pair, so no value "
+                f"for it can be assumed. State the group the request names, or "
+                f"leave it null and ask the user."
+            )
+            raise ModelRetry(msg)
+        if call.params.get(entry.param_name) is None:
+            msg = (
+                f"{entry.param_name} carries no value in this call, so there is "
+                f"nothing to assume. Pass the value in `params`, or drop the "
+                f"assumption."
+            )
+            raise ModelRetry(msg)
 
 
 async def _record_type(ctx: RunContext[AgentDeps], search_name: str) -> str:
@@ -170,16 +143,6 @@ async def _record_type(ctx: RunContext[AgentDeps], search_name: str) -> str:
         search_name,
         graph.record_type if graph is not None else None,
     )
-
-
-@dataclass(frozen=True)
-class _CriterionCall:
-    """The one call's identity, carried through the checks it drives."""
-
-    criterion_id: str
-    search_name: str
-    text: str
-    params: ParamProposals
 
 
 def _memoized_fetch(site_id: str, record_type: str, search_name: str) -> ParamFetcher:
@@ -200,98 +163,6 @@ def _memoized_fetch(site_id: str, record_type: str, search_name: str) -> ParamFe
     return memoized
 
 
-def _values_of(proposal: str | list[str] | None) -> list[str]:
-    if proposal is None:
-        return []
-    return proposal if isinstance(proposal, list) else [proposal]
-
-
-def _refuse_unknown_names(call: _CriterionCall, infos: list[ParameterInfo]) -> None:
-    """A proposal names a visible parameter of the search.
-
-    A null proposal is dropped before the DAG's own name check, so a misspelt
-    name paired with a null would otherwise set nothing and say nothing.
-    """
-    visible = sorted(i.name for i in infos if i.is_visible)
-    unknown = sorted(set(call.params) - set(visible))
-    if unknown:
-        nearest = nearest_entries(
-            [VocabOption(value=name, display="") for name in visible],
-            unknown[0],
-            MAX_NEAREST_ENTRIES,
-        )
-        msg = (
-            f"No such parameter(s) on {call.search_name}: {unknown}. Nearest: "
-            f"{nearest}. The valid names are listed above; "
-            f"do not request the sheet again. Valid names: {visible}."
-        )
-        raise ModelRetry(msg)
-
-
-def _refuse_undecided(call: _CriterionCall, infos: list[ParameterInfo]) -> None:
-    """Every visible required parameter needs a value or a null."""
-    required = {i.name for i in infos if i.is_visible and i.required}
-    undecided = sorted(required - set(call.params))
-    if undecided:
-        msg = (
-            f"Decide every visible required parameter of {call.search_name}: missing "
-            f"{undecided}. Pass a value from the sheet, or null for the default. "
-            f"The valid names are listed above; do not request the sheet again."
-        )
-        raise ModelRetry(msg)
-
-
-def _refuse_unmatched_value(
-    call: _CriterionCall, info: ParameterInfo, options: list[VocabOption]
-) -> None:
-    """A proposed vocabulary value is one of the entries, not a substring."""
-    unmatched = [
-        value
-        for value in _values_of(call.params.get(info.name))
-        if match_exact_option(options, value) is None
-    ]
-    if not unmatched:
-        return
-    shared = accession_matches(options, unmatched[0])
-    if len(shared) > 1:
-        msg = (
-            f"{info.name} on {call.search_name}: {len(shared)} entries share the "
-            f"accession {unmatched[0]!r}; copy the full value of the one you mean: "
-            f"{shared[:MAX_NEAREST_ENTRIES]}."
-        )
-        raise ModelRetry(msg)
-    msg = (
-        f"{info.name} on {call.search_name} has no entry matching {unmatched}. Copy "
-        f"a value or a label from the vocabulary exactly; a substring names a "
-        f"different entry. Nearest entries: "
-        f"{nearest_entries(options, unmatched[0], MAX_NEAREST_ENTRIES)}."
-    )
-    raise ModelRetry(msg)
-
-
-def _refuse_unmatched_values(
-    call: _CriterionCall, infos: list[ParameterInfo], derived: frozenset[str]
-) -> None:
-    """Checks every proposal the sheet's own vocabulary can answer.
-
-    A dependent parameter is skipped here: the sheet showed its vocabulary under
-    the search defaults, and ``_reconcile_dependents`` checks it against the one
-    the bound parents produce. A filter parameter takes a facet expression, not
-    a vocabulary entry. A ``derived`` parameter holds a canonical value the
-    derivation already resolved, which names no single entry.
-    """
-    for info in infos:
-        options = info.vocabulary()
-        skip = (
-            info.name in derived
-            or info.vocab_depends_on
-            or info.param_kind == "filter"
-            or not options
-        )
-        if info.name in call.params and not skip:
-            _refuse_unmatched_value(call, info, options)
-
-
 async def _search_definition(search: SearchContext) -> WDKSearch:
     """The published definition of the search, read through the catalog.
 
@@ -302,189 +173,25 @@ async def _search_definition(search: SearchContext) -> WDKSearch:
     return response.search_data
 
 
-def _phyletic_overrides(
-    definition: WDKSearch, call: _CriterionCall, infos: list[ParameterInfo]
-) -> dict[str, str] | None:
-    """The three phyletic values the two proposed species lists state.
-
-    The clade tree lives on the structural parameters, which the sheet drops. An
-    unresolved term and an empty selection are both retries.
-    """
-    if not is_phyletic_sheet(infos):
-        return None
-    derived = derive_phyletic_overrides(definition.parameters or [], call.params)
-    if derived is None:
-        return None
-    if isinstance(derived, PhyleticUnresolvedProposal):
-        raise ModelRetry(_phyletic_retry(call, derived))
-    if isinstance(derived, PhyleticNoSelection):
-        msg = (
-            f"{call.search_name}: a phylogenetic profile needs at least one "
-            f"species or clade in included_species or excluded_species. An empty "
-            f"selection states no criterion and returns every gene of the chosen "
-            f"organisms. Name what must have an ortholog and what must not, or "
-            f"drop_criterion if the request states neither."
-        )
-        raise ModelRetry(msg)
-    return derived.model_dump()
-
-
-def _phyletic_retry(call: _CriterionCall, derived: PhyleticUnresolvedProposal) -> str:
-    """Names each list's unresolved terms and the entries nearest to them."""
-    unresolved = derived.unresolved
-    reasons: list[str] = []
-    if unresolved.included_unknown:
-        reasons.append(f"included_species names no entry {unresolved.included_unknown}")
-    if unresolved.excluded_unknown:
-        reasons.append(f"excluded_species names no entry {unresolved.excluded_unknown}")
-    if unresolved.conflicts:
-        reasons.append(f"{unresolved.conflicts} is in both lists")
-    nearest = f" Nearest entries: {derived.nearest}." if derived.nearest else ""
-    return (
-        f"{call.search_name}: {'; '.join(reasons)}. Copy a code or a label from the "
-        f"included_species / excluded_species vocabulary on the sheet, and name each "
-        f"species or clade in ONE of the two lists. A genus or common name is not a "
-        f"node - name a species or a clade code from the sheet, or call "
-        f"lookup_phyletic_codes(query).{nearest}"
-    )
-
-
-def _radio_overrides(
-    definition: WDKSearch, call: _CriterionCall, infos: list[ParameterInfo]
-) -> dict[str, str]:
-    """The off value for each free-text half of a pair the search ORs.
-
-    The pairs are declared in the search properties, which the sheet drops. A
-    free-text half that states the criterion is a retry.
-    """
-    overrides, issue = check_radio_pairs(
-        radio_pairs(definition.properties), infos, call.params
-    )
-    if issue is not None:
-        raise ModelRetry(_radio_retry(call, issue, infos))
-    return overrides
-
-
-def _published_default(infos: list[ParameterInfo], name: str) -> str | None:
-    """The default value the search publishes for a param, or ``None`` for none.
-
-    An empty list and a blank string are refused by the search that publishes
-    them, so neither states a value the query would use.
-    """
-    published = next((i.default_value for i in infos if i.name == name), None)
-    if published is None or published.strip() in ("", "[]"):
-        return None
-    return published
-
-
-def _radio_retry(
-    call: _CriterionCall, issue: RadioPairIssue, infos: list[ParameterInfo]
-) -> str:
-    """Names the half that carries the criterion and the entries nearest to it."""
-    pair = issue.pair
-    published = _published_default(infos, pair.vocabulary)
-    holds = (
-        f"{pair.vocabulary} default {published} would still contribute"
-        if published is not None
-        else f"{pair.vocabulary} cannot be left empty"
-    )
-    return (
-        f"{pair.free_text} and {pair.vocabulary} on {call.search_name} are ORed "
-        f"halves of one criterion; the vocabulary half carries it and cannot be "
-        f"switched off ({holds}). Put the criterion in {pair.vocabulary} (nearest "
-        f"entries for {issue.free_value!r}: {issue.nearest}; for a wildcard use "
-        f"get_parameter_options({call.search_name}, '{pair.vocabulary}', "
-        f"query='...') and list every entry it should cover) and pass {RADIO_OFF} "
-        f"for {pair.free_text}."
-    )
-
-
-def _decided_here(info: ParameterInfo, params: ParamProposals) -> bool:
-    """The proposal for this param names an entry of the vocabulary shown here."""
-    if info.name not in params:
-        return False
-    values = _values_of(params[info.name])
-    options = info.vocabulary()
-    return bool(values) and all(
-        match_exact_option(options, value) is not None for value in values
-    )
-
-
-async def _reconcile_dependents(
-    fetch_at: ParamFetcher,
-    infos: list[ParameterInfo],
-    resolved: ResolvedParams,
-    call: _CriterionCall,
-    state: AgentToolState,
-) -> list[SheetEntry]:
-    """Visible dependent params to hand back with the vocabulary the parents produce.
-
-    The sheet was read under the search defaults, so a proposal made from it does
-    not decide the vocabulary the bound parents produce. A param already handed
-    back for this criterion is decided by whatever the re-call says, so it is
-    validated against the fresh vocabulary instead of asked again.
-    """
-    on_the_sheet = {
-        info.name: {option.value for option in info.vocabulary()}
-        for info in infos
-        if info.is_visible and info.vocab_depends_on
-    }
-    if not on_the_sheet:
-        return []
-    context = {name: to_wire(value) for name, value in resolved.params.items()}
-    stale: list[ParameterInfo] = []
-    for info in await fetch_at(context):
-        if info.name not in on_the_sheet:
-            continue
-        options = info.vocabulary()
-        changed = {option.value for option in options} != on_the_sheet[info.name]
-        asked = state.was_redecided(call.criterion_id, call.search_name, info.name)
-        if changed and not asked and not _decided_here(info, call.params):
-            stale.append(info)
-        elif options and info.param_kind != "filter":
-            _refuse_unmatched_value(call, info, options)
-    for info in stale:
-        state.mark_redecided(call.criterion_id, call.search_name, info.name)
-    return build_sheet(stale, query=call.text)
-
-
-_RE_SHEET_NOTE = (
-    "vocabulary shown in the first sheet; use get_parameter_options(search_name, "
-    "parameter_id, query=...) for an entry you no longer see"
-)
-
-
-def _sheet_for(
-    state: AgentToolState, criterion_id: str, search_name: str, definition: WDKSearch
-) -> list[SheetEntry]:
-    """The parameter sheet for one criterion, without repeating a vocabulary.
-
-    The second sheet for the same criterion and search carries every parameter
-    but no vocabulary, which the model already holds.
-    """
-    entries = build_sheet(
-        format_param_info_typed(definition.parameters or []),
-        query=state.operational_spec_draft.goal,
-    )
-    if not state.was_sheet_shown(criterion_id, search_name):
-        state.mark_sheet_shown(criterion_id, search_name)
-        return entries
-    return [
-        entry.model_copy(update={"vocabulary": [], "vocabulary_note": _RE_SHEET_NOTE})
-        for entry in entries
-    ]
-
-
 async def set_criterion(
     ctx: RunContext[AgentDeps],
     *,
     criterion_id: str,
     text: str,
-    search_name: str,
+    search_name: str = "",
     role: CriterionRole = "filter",
     params: ParamProposals | None = None,
+    assumed: list[AssumedValue] | None = None,
+    saved_strategy: str = "",
 ) -> ToolReturn[SetCriterionResult]:
     """Bind a criterion to a WDK search, in two calls.
+
+    Pass ``saved_strategy`` INSTEAD of ``search_name`` when the criterion's
+    input is a strategy the user already saved: give the name (or the id) from
+    ``list_saved_strategies``, and the saved strategy becomes that criterion's
+    input, collapsed under the combine that uses it. There are no parameters to
+    decide then, and a reference the listing does not hold comes back as a retry
+    naming the ones it does; ask the user which one rather than dropping it.
 
     Call this ONCE with no ``params`` to receive ``decide``, the PARAMETER
     SHEET: every visible parameter of the search with its type, help, default,
@@ -506,12 +213,39 @@ async def set_criterion(
     criterion, or the value is beyond a shortlisted vocabulary (use
     ``get_parameter_options(query=...)``).
 
+    ``assumed`` records every value you chose that the criterion text does not
+    state and that is not the sheet's default, one entry per parameter with the
+    value and the reason. Each becomes a constraint the user reads and can
+    override. A half of a reference and comparison pair is never assumed.
+
     ``redecide`` lists dependent parameters whose vocabulary changed once the
     parents were bound, each with that fresh vocabulary; nothing is recorded
     then. Re-call with the same ``params`` and either a value from the fresh
     vocabulary or the same null for each listed parameter, and it closes. Re-call
     the same way once the user answers an open slot."""
     state = ctx.deps.agent_state
+    if saved_strategy:
+        match = await bind_saved_criterion(
+            ctx,
+            criterion_id=criterion_id,
+            text=text,
+            role=role,
+            reference=saved_strategy,
+        )
+        return with_summary(
+            SetCriterionResult(
+                criterion_id=criterion_id, search_name="", saved_strategy=match
+            ),
+            f"{criterion_id} starts from {match.name}",
+            ctx=ctx,
+        )
+    if not search_name:
+        msg = (
+            "set_criterion needs a search_name, or a saved_strategy when the "
+            "criterion starts from a strategy the user saved "
+            "(list_saved_strategies names them)."
+        )
+        raise ModelRetry(msg)
     record_type = await _record_type(ctx, search_name)
     if params is None:
         definition = await read_search_definition(
@@ -537,6 +271,7 @@ async def set_criterion(
     )
     _refuse_unknown_names(call, infos)
     _refuse_undecided(call, infos)
+    _refuse_bad_assumptions(call, assumed or [], infos)
     definition = await _search_definition(search)
     phyletic = _phyletic_overrides(definition, call, infos)
     radio = _radio_overrides(definition, call, infos)
@@ -615,6 +350,7 @@ async def set_criterion(
             resolved_params=resolved.params,
             defaulted_params=defaulted,
             open_params=open_params,
+            assumptions=list(assumed or []),
         )
     )
     return _criterion_return(
@@ -651,44 +387,6 @@ def _criterion_return(
     )
 
 
-def _count_criteria(node: StructureNode) -> int:
-    own = 1 if node.criterion_id else 0
-    return own + sum(_count_criteria(child) for child in node.inputs)
-
-
-async def set_structure(
-    ctx: RunContext[AgentDeps],
-    *,
-    root: StructureNode,
-) -> ToolReturn[SetStructureResult]:
-    """Set the strategy tree from the bound criteria.
-
-    ``root`` is a tree, not a list, because the shape carries meaning. Each
-    node is one of:
-
-    - ``{"kind": "leaf", "criterionId": "<id>"}`` -- one bound criterion.
-    - ``{"kind": "combine", "operator": "INTERSECT" | "UNION" | "MINUS",
-      "inputs": [<left>, <right>]}`` -- boolean-combine two subtrees.
-    - ``{"kind": "transform", "criterionId": "<id>", "inputs": [<subtree>]}``
-      -- a search that MAPS the subtree's genes rather than combining with
-      them (e.g. ``GenesByOrthologs`` returning orthologs in another
-      organism). It is wired to that input, never run standalone.
-
-    Nest freely. When a property has several alternative evidence sources,
-    UNION them into their own branch and INTERSECT that branch with the
-    others -- do not flatten it into a chain, which asks a different
-    question. WDK step trees carry a primary and a secondary input, so a
-    branch on either side is representable.
-    """
-    ctx.deps.agent_state.frame_set_structure(SpecStructure(root=root))
-    combined = _count_criteria(root)
-    return with_summary(
-        SetStructureResult(criteria_combined=combined),
-        f"Structure set: {combined} criteria",
-        ctx=ctx,
-    )
-
-
 def drop_criterion(
     ctx: RunContext[AgentDeps], *, criterion_id: str, reason: str
 ) -> ToolReturn[DropCriterionResult]:
@@ -696,9 +394,25 @@ def drop_criterion(
     from the spec, e.g. when its WDK search is unavailable or has no realizable
     binding. The criterion and its open params are removed (so it no longer
     blocks the build) and recorded in ``dropped`` to surface to the user."""
-    dropped = ctx.deps.agent_state.frame_drop_criterion(criterion_id, reason)
+    state = ctx.deps.agent_state
+    open_saved = next(
+        (
+            c
+            for c in state.operational_spec_draft.criteria
+            if c.id == criterion_id and holds_open_saved_slot(c)
+        ),
+        None,
+    )
+    if open_saved is not None:
+        msg = (
+            f"{criterion_id} is the strategy the request starts from, and it is "
+            f"still unresolved. Ask the user which one they mean and re-call "
+            f"set_criterion with it; do not drop it."
+        )
+        raise ModelRetry(msg)
+    dropped = state.frame_drop_criterion(criterion_id, reason)
     if not dropped:
-        ids = [c.id for c in ctx.deps.agent_state.operational_spec_draft.criteria]
+        ids = [c.id for c in state.operational_spec_draft.criteria]
         msg = (
             f"No criterion with id {criterion_id!r} to drop. Use the exact "
             f"criterion_id from set_criterion. Current criteria: {ids}."

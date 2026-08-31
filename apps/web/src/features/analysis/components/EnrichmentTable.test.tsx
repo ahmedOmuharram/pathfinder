@@ -28,15 +28,17 @@ describe("EnrichmentTable", () => {
 
   it("shows the numbers of a finite term", () => {
     render(<EnrichmentTable terms={[term()]} />);
-    expect(screen.getByText("3.48")).toBeTruthy();
-    expect(screen.getByText("1.00e-4")).toBeTruthy();
-    expect(screen.getByText("2.00e-3")).toBeTruthy();
+    const row = screen.getByRole("row", { name: /protein kinase activity/ });
+    expect(row).toHaveTextContent("3.48");
+    expect(row).toHaveTextContent("1.00e-4");
+    expect(row).toHaveTextContent("2.00e-3");
   });
 
   it("shows an unbounded fold enrichment as Inf and an unknown p as n/a", () => {
     render(<EnrichmentTable terms={[term({ foldEnrichment: null, pValue: null })]} />);
-    expect(screen.getByText("Inf")).toBeTruthy();
-    expect(screen.getByText("n/a")).toBeTruthy();
+    const row = screen.getByRole("row", { name: /protein kinase activity/ });
+    expect(row).toHaveTextContent("Inf");
+    expect(row).toHaveTextContent("n/a");
   });
 
   it("shows an unbounded odds ratio and an unknown bonferroni in the detail row", async () => {
@@ -44,7 +46,7 @@ describe("EnrichmentTable", () => {
 
     await userEvent.click(screen.getByText("protein kinase activity"));
 
-    expect(screen.getByText("Inf")).toBeTruthy();
-    expect(screen.getByText("n/a")).toBeTruthy();
+    expect(screen.getByText(/Odds Ratio:/)).toHaveTextContent("Odds Ratio: Inf");
+    expect(screen.getByText(/Bonferroni:/)).toHaveTextContent("Bonferroni: n/a");
   });
 });

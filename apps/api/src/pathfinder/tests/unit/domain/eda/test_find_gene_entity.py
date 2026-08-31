@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from pathfinder.domain.eda import (
+from pathfinder.domain.eda import find_gene_entity
+from pathfinder.domain.eda_study import (
     VEUPATHDB_GENE_ID,
     ancestor_entity_ids,
     entity_by_id,
-    find_gene_entity,
     walk_entities,
 )
 

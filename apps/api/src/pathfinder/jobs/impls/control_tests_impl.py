@@ -1,7 +1,7 @@
 """Worker-side impl for ``run_control_tests_on_step``.
 
 Moved from ``ai/tools/standalone/experiment.py``: the agent-side wrapper is
-now a thin durable stub that submits this job and ``interrupt()``s. All WDK
+now a thin durable stub that submits this job and defers its call. All WDK
 I/O, validation, and result shaping happens here.
 """
 

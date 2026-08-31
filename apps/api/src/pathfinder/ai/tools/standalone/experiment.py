@@ -114,9 +114,9 @@ async def run_control_tests_on_step(
 ) -> dict[str, Any]:
     """Run control tests against an already-built WDK strategy step.
 
-    Durable: this tool defers work to the verification worker and the graph
-    suspends via ``interrupt()`` while it runs. The resumed value is a dict
-    matching :class:`StepControlTestResult`'s serialised shape.
+    Durable: this tool defers work to the verification worker and the turn
+    ends while it runs. You are called again with a dict matching
+    :class:`StepControlTestResult`'s serialised shape.
 
     Tests directly against the strategy's actual results using Python set
     operations -- no temporary WDK strategy needed.  Use this after building

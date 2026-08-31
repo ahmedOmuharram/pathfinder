@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk, TextStartChunk
 
-from pathfinder.ai.lead.sub_agent_stream import _read_tool_metadata
+from pathfinder.ai.lead.sub_agent_events import _read_tool_metadata
 
 
 def test_forwards_data_chunks() -> None:

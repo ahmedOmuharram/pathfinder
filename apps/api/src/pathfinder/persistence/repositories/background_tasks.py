@@ -13,12 +13,34 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import BackgroundTask
 
 SessionFactory = Callable[[], AsyncSession]
+
+ACTIVE_TASK_STATES = ("pending", "running", "resuming", "result_ready")
+"""The statuses of a task the worker has not finished with."""
+
+
+class NewBackgroundTask(BaseModel):
+    """The durable call a turn defers, as the row records it.
+
+    ``phase_overrides`` is the deferring turn's per-phase picks, so the turn
+    that answers the call resolves the same models.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    conversation_id: UUID
+    user_id: UUID
+    tool_name: str
+    tool_call_id: str
+    args: dict[str, Any]
+    estimated_duration_seconds: int
+    phase_overrides: dict[str, Any]
 
 
 class BackgroundTaskRepository:
@@ -27,26 +49,14 @@ class BackgroundTaskRepository:
     def __init__(self, *, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
 
-    async def create(
-        self,
-        *,
-        conversation_id: UUID,
-        user_id: UUID,
-        tool_name: str,
-        args: dict[str, Any],
-        estimated_duration_seconds: int,
-    ) -> UUID:
+    async def create(self, *, task: NewBackgroundTask) -> UUID:
         task_id = uuid4()
         async with self._session_factory() as session:
             session.add(
                 BackgroundTask(
                     id=task_id,
-                    conversation_id=conversation_id,
-                    user_id=user_id,
-                    tool_name=tool_name,
                     status="pending",
-                    args=args,
-                    estimated_duration_seconds=estimated_duration_seconds,
+                    **task.model_dump(),
                 )
             )
             await session.commit()
@@ -64,12 +74,11 @@ class BackgroundTaskRepository:
         *,
         conversation_id: UUID,
     ) -> list[BackgroundTask]:
-        active_states = ("pending", "running", "resuming", "result_ready")
         async with self._session_factory() as session:
             result = await session.execute(
                 select(BackgroundTask)
                 .where(BackgroundTask.conversation_id == conversation_id)
-                .where(BackgroundTask.status.in_(active_states))
+                .where(BackgroundTask.status.in_(ACTIVE_TASK_STATES))
             )
             return list(result.scalars().all())
 

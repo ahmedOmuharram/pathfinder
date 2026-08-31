@@ -28,11 +28,11 @@ describe("revisionOfMessage", () => {
   });
 
   it("ignores a user message", () => {
-    expect(revisionOfMessage({ role: "user", content: [{ type: "text" }] })).toBeNull();
+    expect(revisionOfMessage({ role: "user", content: [{ type: "text" }] })).toBe(null);
   });
 
   it("returns null when the turn carried no revision", () => {
-    expect(revisionOfMessage(assistant(null))).toBeNull();
+    expect(revisionOfMessage(assistant(null))).toBe(null);
   });
 
   it("takes the last revision when a turn emitted several", () => {
@@ -42,7 +42,7 @@ describe("revisionOfMessage", () => {
   it("treats an empty revision as absent", () => {
     // An empty fingerprint is what `strategy_revision` returns for no
     // strategy at all; that is not something a message can be stale against.
-    expect(revisionOfMessage(assistant(""))).toBeNull();
+    expect(revisionOfMessage(assistant(""))).toBe(null);
   });
 
   it("also accepts the generic data part shape", () => {
@@ -75,12 +75,12 @@ describe("latestRevision", () => {
   });
 
   it("is null for a thread that never mentioned a strategy", () => {
-    expect(latestRevision({ messages: [assistant(null)] })).toBeNull();
+    expect(latestRevision({ messages: [assistant(null)] })).toBe(null);
   });
 
   it("is null for an empty thread", () => {
-    expect(latestRevision({ messages: [] })).toBeNull();
-    expect(latestRevision(undefined)).toBeNull();
+    expect(latestRevision({ messages: [] })).toBe(null);
+    expect(latestRevision(undefined)).toBe(null);
   });
 });
 

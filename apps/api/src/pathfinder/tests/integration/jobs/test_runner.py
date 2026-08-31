@@ -14,6 +14,7 @@ from pathfinder.jobs.runner import run_durable_task
 from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
+    NewBackgroundTask,
 )
 
 
@@ -69,11 +70,15 @@ async def test_runner_executes_tool_and_marks_complete(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name="test_echo",
-        args={"args": [], "kwargs": {"value": 42}},
-        estimated_duration_seconds=10,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name="test_echo",
+            args={"args": [], "kwargs": {"value": 42}},
+            tool_call_id="call_test_echo",
+            phase_overrides={},
+            estimated_duration_seconds=10,
+        ),
     )
 
     await run_durable_task(
@@ -116,11 +121,15 @@ async def test_runner_marks_failed_on_exception(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name="test_boom",
-        args={"args": [], "kwargs": {}},
-        estimated_duration_seconds=10,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name="test_boom",
+            args={"args": [], "kwargs": {}},
+            tool_call_id="call_test_boom",
+            phase_overrides={},
+            estimated_duration_seconds=10,
+        ),
     )
 
     await run_durable_task(
@@ -149,11 +158,15 @@ async def test_runner_marks_failed_when_tool_unknown(
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        conversation_id=conversation_id,
-        user_id=user_id,
-        tool_name="nonexistent_tool",
-        args={"args": [], "kwargs": {}},
-        estimated_duration_seconds=10,
+        task=NewBackgroundTask(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            tool_name="nonexistent_tool",
+            args={"args": [], "kwargs": {}},
+            tool_call_id="call_nonexistent_tool",
+            phase_overrides={},
+            estimated_duration_seconds=10,
+        ),
     )
 
     await run_durable_task(

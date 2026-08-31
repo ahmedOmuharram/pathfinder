@@ -32,7 +32,7 @@ from pathfinder.ai.tools.standalone._eda_stream_parts import (
     eda_subset_preview_chunk,
     eda_viz_chunk,
 )
-from pathfinder.domain.eda import walk_entities
+from pathfinder.domain.eda_study import walk_entities
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.integrations.eda import factory as eda_factory
 from pathfinder.integrations.eda.client import EdaClient

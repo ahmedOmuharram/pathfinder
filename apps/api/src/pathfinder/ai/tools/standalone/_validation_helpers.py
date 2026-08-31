@@ -71,16 +71,38 @@ class StepOkResponse(CamelModel):
 
 
 def get_graph(session: StrategySession, graph_id: str | None) -> StrategyGraph | None:
-    """Returns the named graph, or the active graph when no id is given.
+    """Returns the graph this id addresses, or the active graph when none is given.
 
-    An unknown id returns None. The active graph is never substituted for it.
+    The id is PathFinder's graph id or the VEuPathDB strategy id the graph was
+    pushed to. An unknown id returns None; the active graph is never
+    substituted for it.
     """
-    return session.get_graph(graph_id)
+    graph = session.get_graph(graph_id)
+    if graph is not None or graph_id is None:
+        return graph
+    return _graph_of_wdk_strategy(session, graph_id)
+
+
+def _graph_of_wdk_strategy(
+    session: StrategySession, strategy_id: str
+) -> StrategyGraph | None:
+    """The graph pushed to this VEuPathDB strategy, or None."""
+    sync_state = session.sync_state
+    if sync_state is None or sync_state.wdk_strategy_id is None:
+        return None
+    if strategy_id.strip() != str(sync_state.wdk_strategy_id):
+        return None
+    return session.graph
 
 
 def graph_not_found(graph_id: str | None) -> ToolErrorPayload:
     if graph_id:
-        return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
+        return tool_error(
+            ErrorCode.NOT_FOUND,
+            "No strategy has that id. Pass the graph id, the VEuPathDB "
+            "strategy id, or nothing at all for the active strategy.",
+            graphId=graph_id,
+        )
     return tool_error(
         ErrorCode.NOT_FOUND, "Graph not found. Provide a graphId.", graphId=graph_id
     )

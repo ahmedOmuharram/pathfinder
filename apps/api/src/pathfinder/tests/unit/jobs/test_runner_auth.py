@@ -7,6 +7,7 @@ from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
 import pytest
+from assistant_core.graph.turn_state import DurableTaskResult
 from assistant_core.platform.context import application_id_ctx
 
 from pathfinder.jobs import auth_context as auth_context_mod
@@ -74,25 +75,15 @@ def _conversation_application(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-async def _fake_resume_with_result(
+async def _fake_completion_turn(
     thread_id: str,
-    task_id: UUID,
-    result: dict[str, Any],
+    result: DurableTaskResult,
     *,
     veupathdb_auth_token: str | None = None,
 ) -> str | None:
-    del thread_id, task_id, result, veupathdb_auth_token
+    del thread_id, veupathdb_auth_token
+    _Observer.completions.append({"completionTurnFor": str(result.task_id)})
     return None
-
-
-async def _fake_resume_with_error(
-    thread_id: str,
-    task_id: UUID,
-    error: str,
-    *,
-    veupathdb_auth_token: str | None = None,
-) -> None:
-    del thread_id, task_id, error, veupathdb_auth_token
 
 
 class _FakeStore:
@@ -149,16 +140,7 @@ def _stubbed_runner(monkeypatch: pytest.MonkeyPatch) -> None:
         "build_worker_runtime_context",
         _fake_build_worker_runtime_context,
     )
-    monkeypatch.setattr(
-        runner_mod,
-        "_safe_resume_graph_with_result",
-        _fake_resume_with_result,
-    )
-    monkeypatch.setattr(
-        runner_mod,
-        "_safe_resume_graph_with_error",
-        _fake_resume_with_error,
-    )
+    monkeypatch.setattr(runner_mod, "_safe_completion_turn", _fake_completion_turn)
     monkeypatch.setattr(runner_mod, "append_chunk", _record_chunk)
 
 
@@ -207,7 +189,7 @@ async def test_run_durable_task_none_token_is_ok() -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_durable_task_announces_completion_on_the_thread() -> None:
+async def test_the_completion_turn_opens_after_the_task_is_announced() -> None:
     task_id = uuid4()
 
     await run_durable_task(
@@ -223,4 +205,5 @@ async def test_run_durable_task_announces_completion_on_the_thread() -> None:
             "type": "data-task-completed",
             "data": {"taskId": str(task_id), "status": "success"},
         },
+        {"completionTurnFor": str(task_id)},
     ]

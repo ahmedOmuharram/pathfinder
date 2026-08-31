@@ -23,9 +23,7 @@ beforeEach(() => {
 describe("EdaPanel", () => {
   it("invites the researcher to ask for a study when nothing is bound", () => {
     render(<EdaPanel conversationId="conv-1" siteId="plasmodb" />);
-    expect(screen.getByTestId("rail-eda-panel")).toHaveTextContent(
-      "No EDA analysis is open",
-    );
+    expect(screen.getByTestId("rail-eda-panel")).toHaveTextContent("No study is open");
   });
 
   it("names the bound study, the analysis and its filter count", () => {

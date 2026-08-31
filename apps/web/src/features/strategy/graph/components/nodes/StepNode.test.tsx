@@ -130,13 +130,13 @@ describe("StepNode dispatcher", () => {
     const { container } = render(
       <StepNode {...makeNodeProps(step, false, { isOrphan: true })} />,
     );
-    expect(container.querySelector('[data-orphan="true"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-orphan="true"]')).toHaveLength(1);
   });
 
   it("data-orphan is false by default", () => {
     const step = makeStep();
     const { container } = render(<StepNode {...makeNodeProps(step, false)} />);
-    expect(container.querySelector('[data-orphan="true"]')).toBeNull();
-    expect(container.querySelector('[data-orphan="false"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-orphan="true"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-orphan="false"]')).toHaveLength(1);
   });
 });

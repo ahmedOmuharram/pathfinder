@@ -20,7 +20,7 @@ vi.mock("@/lib/components/charts/echartsRegistry", () => ({
   }),
 }));
 
-import { useRightRailStore } from "@/state/useRightRailStore";
+import { lastSeenFor, useRightRailStore } from "@/state/useRightRailStore";
 import { ChatHelpersProvider, type ChatHelpers } from "../runtime/chatHelpersContext";
 import { RightRail } from "./RightRail";
 
@@ -67,22 +67,15 @@ beforeEach(() => {
     openPanel: null,
     autoOpenedConversation: null,
     ledgerSeen: {},
-    lastSeen: {
-      strategyStepCount: 0,
-      ledgerCount: 0,
-      scratchpadCount: 0,
-      taskCount: 0,
-      memoryCount: 0,
-      edaCount: 0,
-    },
+    lastSeen: {},
   });
 });
 
 describe("RightRail eda marker", () => {
   it("marks unseen EDA activity when the thread carries eda parts", () => {
     renderRail(EDA_MESSAGES);
-    expect(screen.getByLabelText("EDA has updates")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Ledger has updates")).toBe(null);
+    expect(screen.getByLabelText("Studies has updates")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Progress has updates")).toBe(null);
   });
 
   it("carries no marker on a thread with no eda part", () => {
@@ -93,56 +86,62 @@ describe("RightRail eda marker", () => {
         parts: [{ type: "data-ledger-update", data: {} }],
       },
     ]);
-    expect(screen.queryByLabelText("EDA has updates")).toBe(null);
-    expect(screen.getByLabelText("Ledger has updates")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Studies has updates")).toBe(null);
+    expect(screen.getByLabelText("Progress has updates")).toBeInTheDocument();
   });
 
   it("clears the marker once the eda panel records what it saw", async () => {
     renderRail(EDA_MESSAGES);
     act(() => {
-      useRightRailStore.getState().openPanelId("eda", { edaCount: 3 });
+      useRightRailStore.getState().openPanelId("conv-1", "eda", { edaCount: 3 });
     });
-    expect(useRightRailStore.getState().lastSeen.edaCount).toBe(3);
+    expect(lastSeenFor(useRightRailStore.getState().lastSeen, "conv-1").edaCount).toBe(
+      3,
+    );
     act(() => {
       useRightRailStore.getState().closePanel();
     });
     await waitFor(() => {
-      expect(screen.queryByLabelText("EDA has updates")).toBe(null);
+      expect(screen.queryByLabelText("Studies has updates")).toBe(null);
     });
-    expect(screen.getByLabelText("Open EDA")).toBeInTheDocument();
+    expect(screen.getByLabelText("Open Studies")).toBeInTheDocument();
   });
 
   it("records what the rail icon showed when the researcher opens the panel", async () => {
     renderRail(EDA_MESSAGES);
-    expect(screen.getByLabelText("EDA has updates")).toBeInTheDocument();
+    expect(screen.getByLabelText("Studies has updates")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByLabelText("Open EDA"));
+    await userEvent.click(screen.getByLabelText("Open Studies"));
     expect(screen.getByTestId("rail-eda-panel")).toBeInTheDocument();
-    expect(useRightRailStore.getState().lastSeen.edaCount).toBe(3);
+    expect(lastSeenFor(useRightRailStore.getState().lastSeen, "conv-1").edaCount).toBe(
+      3,
+    );
 
     act(() => {
       useRightRailStore.getState().closePanel();
     });
     await waitFor(() => {
-      expect(screen.queryByLabelText("EDA has updates")).toBe(null);
+      expect(screen.queryByLabelText("Studies has updates")).toBe(null);
     });
   });
 
   it("marks EDA again when a later turn adds a part", () => {
     useRightRailStore.setState({
       lastSeen: {
-        strategyStepCount: 0,
-        ledgerCount: 0,
-        scratchpadCount: 0,
-        taskCount: 0,
-        memoryCount: 0,
-        edaCount: 3,
+        "conv-1": {
+          strategyStepCount: 0,
+          ledgerCount: 0,
+          scratchpadCount: 0,
+          taskCount: 0,
+          memoryCount: 0,
+          edaCount: 3,
+        },
       },
     });
     renderRail([
       ...EDA_MESSAGES,
       { id: "m2", role: "assistant", parts: [{ type: "data-eda.viz", data: {} }] },
     ]);
-    expect(screen.getByLabelText("EDA has updates")).toBeInTheDocument();
+    expect(screen.getByLabelText("Studies has updates")).toBeInTheDocument();
   });
 });

@@ -5,10 +5,10 @@ edited outside the conversation, those counts are wrong and the summary is
 the only place the Lead would notice.
 """
 
-from pathfinder.ai.lead.ledger import (
+from pathfinder.ai.lead.ledger import InvestigationLedger
+from pathfinder.ai.lead.ledger_sections import (
     BuildSection,
     FrameSection,
-    InvestigationLedger,
     VerificationSection,
 )
 from pathfinder.domain.strategy.staleness import StaleBuild

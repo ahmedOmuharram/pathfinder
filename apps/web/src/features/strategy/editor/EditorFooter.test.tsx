@@ -43,15 +43,15 @@ describe("the link to the host site", () => {
     expect(screen.getByRole("link").getAttribute("href")).toBe(props.wdkUrl);
   });
 
-  it("says WDK when the site is unknown", () => {
+  it("says VEuPathDB when the site is unknown", () => {
     render(<EditorFooter {...props} siteId="" />);
 
-    expect(screen.getByRole("link").textContent).toContain("WDK");
+    expect(screen.getByRole("link").textContent).toContain("VEuPathDB");
   });
 
   it("renders no link without a url", () => {
     render(<EditorFooter {...props} wdkUrl={null} siteId="plasmodb" />);
 
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link")).toBe(null);
   });
 });

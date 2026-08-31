@@ -7,6 +7,7 @@ import type {
   LedgerVerificationPayload,
 } from "@pathfinder/shared";
 
+import { phaseLabel } from "@/lib/models/phaseRoles";
 import { type Tone } from "@/lib/utils/statusTone";
 
 import { BuildDetail, FrameDetail, VerificationDetail } from "./LedgerPanelDetail";
@@ -65,7 +66,7 @@ export function FrameSection({
   detail?: boolean;
 }) {
   return (
-    <LedgerSection title="Frame">
+    <LedgerSection title={phaseLabel("frame")}>
       <LedgerRow label="present" value={<BoolBadge value={frame.present} />} />
       <LedgerRow
         label="criteria"
@@ -186,21 +187,6 @@ export function VerificationSection({
         value={<BoolBadge value={verification.successful} />}
       />
       {detail && <VerificationDetail verification={verification} />}
-    </LedgerSection>
-  );
-}
-
-export function SubAgentCountSection({
-  thisTurn,
-  total,
-}: {
-  thisTurn: number;
-  total: number;
-}) {
-  return (
-    <LedgerSection title="Sub-agent calls">
-      <LedgerRow label="this turn" value={<CountChip value={thisTurn} />} />
-      <LedgerRow label="total" value={<CountChip value={total} />} />
     </LedgerSection>
   );
 }

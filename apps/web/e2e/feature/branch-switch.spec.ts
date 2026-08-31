@@ -29,10 +29,12 @@ test.describe("Branch Switch", () => {
         /\/api\/v1\/conversations\/[^/]+\/fork$/.test(r.url()) &&
         r.request().method() === "POST",
     );
-    await page.locator(".is-assistant").first().hover();
-    await page
+    const assistantReply = page
+      .locator(".is-assistant")
+      .filter({ hasText: /\[mock\]/ });
+    await assistantReply.hover();
+    await assistantReply
       .getByRole("button", { name: /branch to a new chat from here/i })
-      .first()
       .click();
     await forkResponse;
     await expect(page).not.toHaveURL(
@@ -46,10 +48,7 @@ test.describe("Branch Switch", () => {
       page.locator(".is-user").filter({ hasText: "show me kinase genes" }),
     ).toBeVisible({ timeout: 15_000 });
     await expect(
-      page
-        .locator(".is-assistant")
-        .filter({ hasText: /\[mock\]/ })
-        .first(),
+      page.locator(".is-assistant").filter({ hasText: /\[mock\]/ }),
     ).toBeVisible({ timeout: 15_000 });
   });
 });

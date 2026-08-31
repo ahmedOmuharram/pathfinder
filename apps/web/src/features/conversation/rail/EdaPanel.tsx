@@ -24,7 +24,7 @@ export function EdaPanel({ conversationId, siteId }: EdaPanelProps) {
 
   return (
     <RailPanelShell
-      title="EDA"
+      title="Studies"
       headerActions={
         analysis !== null ? (
           <Button
@@ -55,7 +55,7 @@ export function EdaPanel({ conversationId, siteId }: EdaPanelProps) {
         ) : (
           <RailEmptyState
             icon={<FlaskConical className="h-8 w-8" aria-hidden />}
-            heading="No EDA analysis is open"
+            heading="No study is open"
             description="Ask the assistant to explore a study, and the subset and its plots appear here."
           />
         )}

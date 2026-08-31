@@ -44,7 +44,9 @@ describe("the rail panel links to the host site", () => {
   // The panel is where a researcher looks first. Reaching WDK should not
   // require opening the full editor.
   it("offers a link to the strategy on the host site", () => {
-    render(<StrategyPanel strategy={strategy()} siteId="plasmodb" />);
+    render(
+      <StrategyPanel strategy={strategy()} siteId="plasmodb" conversationId="conv-1" />,
+    );
 
     expect(screen.getByTestId("rail-strategy-wdk-link").getAttribute("href")).toBe(
       WDK_URL,
@@ -52,7 +54,9 @@ describe("the rail panel links to the host site", () => {
   });
 
   it("names the site the strategy belongs to", () => {
-    render(<StrategyPanel strategy={strategy()} siteId="plasmodb" />);
+    render(
+      <StrategyPanel strategy={strategy()} siteId="plasmodb" conversationId="conv-1" />,
+    );
 
     expect(screen.getByTestId("rail-strategy-wdk-link").textContent).toContain(
       "PlasmoDB",
@@ -60,7 +64,9 @@ describe("the rail panel links to the host site", () => {
   });
 
   it("opens in a new tab without leaking the referrer", () => {
-    render(<StrategyPanel strategy={strategy()} siteId="plasmodb" />);
+    render(
+      <StrategyPanel strategy={strategy()} siteId="plasmodb" conversationId="conv-1" />,
+    );
     const link = screen.getByTestId("rail-strategy-wdk-link");
 
     expect(link.getAttribute("target")).toBe("_blank");
@@ -68,9 +74,11 @@ describe("the rail panel links to the host site", () => {
   });
 
   it("keeps the button that opens the full editor", () => {
-    render(<StrategyPanel strategy={strategy()} siteId="plasmodb" />);
+    render(
+      <StrategyPanel strategy={strategy()} siteId="plasmodb" conversationId="conv-1" />,
+    );
 
-    expect(screen.getByTestId("rail-strategy-open")).toBeTruthy();
+    expect(screen.getByTestId("rail-strategy-open")).toBeVisible();
   });
 
   it("offers no link before the strategy reaches WDK", () => {
@@ -78,15 +86,16 @@ describe("the rail panel links to the host site", () => {
       <StrategyPanel
         strategy={strategy({ wdkUrl: null, wdkStrategyId: null })}
         siteId="plasmodb"
+        conversationId="conv-1"
       />,
     );
 
-    expect(screen.queryByTestId("rail-strategy-wdk-link")).toBeNull();
+    expect(screen.queryByTestId("rail-strategy-wdk-link")).toBe(null);
   });
 
   it("offers no link when there is no strategy", () => {
-    render(<StrategyPanel strategy={null} siteId="plasmodb" />);
+    render(<StrategyPanel strategy={null} siteId="plasmodb" conversationId="conv-1" />);
 
-    expect(screen.queryByTestId("rail-strategy-wdk-link")).toBeNull();
+    expect(screen.queryByTestId("rail-strategy-wdk-link")).toBe(null);
   });
 });

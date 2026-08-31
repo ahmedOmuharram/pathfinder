@@ -1,19 +1,17 @@
 """The Lead Agent's sub-agent dispatch tools.
 
-The tool wrappers the Lead invokes to run a phase sub-agent and the
-``AgentDeps`` construction they share.
+The tool wrappers the Lead invokes to run a phase sub-agent, and the phase
+runs behind them that a resumed dispatch re-enters.
 """
 
 from __future__ import annotations
 
-from typing import NoReturn
-
 from langgraph.config import get_stream_writer
 from pydantic_ai import RunContext
-from pydantic_ai.exceptions import CallDeferred, ModelRetry
+from pydantic_ai.exceptions import ModelRetry
 
-from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps, VerificationScope
+from pathfinder.ai.graph.state import VerificationDigest
 from pathfinder.ai.lead.deltas import (
     ExecuteDelta,
     FrameResult,
@@ -21,6 +19,12 @@ from pathfinder.ai.lead.deltas import (
     VerificationDelta,
 )
 from pathfinder.ai.lead.derive import derive_ledger
+from pathfinder.ai.lead.dispatch_context import (
+    agent_deps_for,
+    defer_dispatch,
+    dispatch_call_id,
+    refuse_and_restore,
+)
 from pathfinder.ai.lead.dispatch_messages import (
     build_not_ready_message,
     build_would_replace_the_strategy,
@@ -28,6 +32,10 @@ from pathfinder.ai.lead.dispatch_messages import (
     frame_claimed_more_than_it_bound,
     frame_result_from_draft,
     undeclared_spec_changes,
+)
+from pathfinder.ai.lead.ledger import (
+    build_contradiction,
+    digest_held_to_the_build,
 )
 from pathfinder.ai.lead.sub_agent_stream import (
     PhaseRun,
@@ -40,9 +48,9 @@ from pathfinder.ai.lead.sub_agent_tools import (
     apply_agent_state,
 )
 from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
+from pathfinder.ai.tools.toolsets._dynamic import live_wdk_step_ids
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import (
-    OperationalSpec,
     build_step_tree,
     renumber_criteria,
 )
@@ -57,52 +65,6 @@ from pathfinder.services.strategies.spec_build import (
 )
 from pathfinder.services.strategies.sync import sync_strategy_for_site
 from pathfinder.services.strategies.sync_state import ensure_sync_state
-
-
-def agent_deps_for(deps: LeadDeps) -> AgentDeps:
-    state = deps.state
-    runtime = deps.runtime
-    return AgentDeps(
-        site_id=runtime.site_id,
-        user_id=runtime.user_id,
-        strategy_session=runtime.strategy_session,
-        web_search_service=runtime.web_search_service,
-        literature_search_service=runtime.literature_search_service,
-        agent_state=AgentToolState(
-            discovered_searches=dict(state.domain.discovered_searches),
-            # The draft is a copy, so a pass that binds nothing leaves the
-            # committed spec exactly as the turn found it.
-            operational_spec_draft=(
-                state.domain.operational_spec.model_copy(deep=True)
-                if state.domain.operational_spec is not None
-                else OperationalSpec(goal=state.user_prompt)
-            ),
-        ),
-        ledger_summary=derive_ledger(state, deps.intent).render_summary(),
-        experiment_id=runtime.experiment_id,
-        cancel_event=runtime.cancel_event,
-        memory_store=runtime.memory_store,
-        retrieved_memories=deps.retrieved_memories,
-        conversation_id=state.conversation_id,
-        db_session_factory=runtime.db_session_factory,
-    )
-
-
-def dispatch_call_id(ctx: RunContext[LeadDeps]) -> str:
-    """The Lead's tool_call_id for the active sub-agent dispatch.
-    Always present when invoked through the Lead's toolset; defensively
-    returns an empty string if missing so we never crash on telemetry."""
-    return ctx.tool_call_id or ""
-
-
-def defer_to_user(
-    deps: LeadDeps,
-    tool_call_id: str,
-    wait: SubAgentApprovalWait,
-) -> NoReturn:
-    """End the Lead's run deferred so the user answers the sub-agent's tool."""
-    deps.pending_sub_agent_approvals[tool_call_id] = wait.pending
-    raise CallDeferred
 
 
 def frame_work_order(reason: str, prompt: str) -> str:
@@ -155,20 +117,6 @@ async def run_frame(
     return delta
 
 
-def refuse_and_restore(deps: LeadDeps, message: str) -> NoReturn:
-    """Reject the pass and put back the spec the turn found.
-
-    The sub-agent writes into the shared spec as it goes, so a refusal that
-    left the draft in place would show the retry a workspace missing the very
-    criterion it has to preserve.
-    """
-    before = deps.state.domain.spec_before_turn
-    deps.state.domain.operational_spec = (
-        None if before is None else before.model_copy(deep=True)
-    )
-    raise ModelRetry(message)
-
-
 async def frame_problem(
     ctx: RunContext[LeadDeps], reason: str, expected_criteria: int = 3
 ) -> FrameResult:
@@ -189,7 +137,7 @@ async def frame_problem(
         expected_criteria=expected_criteria,
     )
     if isinstance(result, SubAgentApprovalWait):
-        defer_to_user(ctx.deps, tool_call_id, result)
+        defer_dispatch(ctx.deps, tool_call_id, result)
     return result
 
 
@@ -309,7 +257,7 @@ async def recover_failed_steps(
         reason=reason,
     )
     if isinstance(result, SubAgentApprovalWait):
-        defer_to_user(ctx.deps, tool_call_id, result)
+        defer_dispatch(ctx.deps, tool_call_id, result)
     return result
 
 
@@ -341,11 +289,26 @@ async def _resync_outcome(agent_deps: AgentDeps, prior: BuildOutcome) -> BuildOu
     return fresh
 
 
+def verification_scope(
+    deps: LeadDeps, *, enrichment_requested: bool
+) -> VerificationScope:
+    """What this turn changed, as the verification playbook reads it."""
+    diff = derive_ledger(deps.state, deps.intent).frame.spec_diff()
+    if diff is None:
+        return VerificationScope(enrichment_requested=enrichment_requested)
+    return VerificationScope(
+        criteria_touched=diff.touched_count(),
+        is_edit=True,
+        enrichment_requested=enrichment_requested,
+    )
+
+
 async def run_verification(
     *,
     deps: LeadDeps,
     parent_tool_call_id: str,
     reason: str,
+    enrichment_requested: bool = False,
     resume: SubAgentResume | None = None,
 ) -> VerificationDelta | SubAgentApprovalWait:
     """Run verification and record its digest, on a fresh or a resumed dispatch."""
@@ -354,6 +317,9 @@ async def run_verification(
         "Inspect the built strategy. Return a VerificationDelta."
     )
     agent_deps = agent_deps_for(deps)
+    agent_deps.verification_scope = verification_scope(
+        deps, enrichment_requested=enrichment_requested
+    )
     delta = await stream_sub_agent(
         run=PhaseRun("verification", work_order),
         agent_deps=agent_deps,
@@ -368,13 +334,37 @@ async def run_verification(
     if delta is None:
         msg = "Verification sub-agent did not return a VerificationDelta."
         raise TypeError(msg)
-    deps.state.domain.verification_digest = delta.digest
-    return delta
+    digest = _digest_the_build_supports(deps, delta.digest)
+    deps.state.domain.verification_digest = digest
+    return VerificationDelta(digest=digest)
+
+
+def _digest_the_build_supports(
+    deps: LeadDeps, digest: VerificationDigest
+) -> VerificationDigest:
+    """Hold the verdict to what the ledger recorded.
+
+    The digest decides the reply, the memory auto-write and the eval verdict,
+    so a success it cannot support is corrected here rather than at each
+    reader.
+    """
+    if not digest.success:
+        return digest
+    ledger = derive_ledger(deps.state, deps.intent)
+    contradiction = build_contradiction(
+        ledger.build,
+        built_step_count=len(live_wdk_step_ids(deps.runtime.strategy_session)),
+    )
+    if contradiction is None:
+        return digest
+    return digest_held_to_the_build(digest, contradiction)
 
 
 async def verify_strategy(
     ctx: RunContext[LeadDeps],
     reason: str,
+    *,
+    enrichment_requested: bool = False,
 ) -> VerificationDelta:
     """Run the verification sub-agent on the built strategy.
 
@@ -382,13 +372,18 @@ async def verify_strategy(
     one here through ``reason``: GO, pathway and word enrichment on a gene
     set; control tests on a step or a search; parameter optimization; sample
     records from a result; result export. None of these are Lead tools.
+
+    Set ``enrichmentRequested`` only when the user asked for GO, pathway or
+    word enrichment in this message. It runs for minutes on a worker, so an
+    edit turn that did not ask for it is verified by its counts instead.
     """
     tool_call_id = dispatch_call_id(ctx)
     result = await run_verification(
         deps=ctx.deps,
         parent_tool_call_id=tool_call_id,
         reason=reason,
+        enrichment_requested=enrichment_requested,
     )
     if isinstance(result, SubAgentApprovalWait):
-        defer_to_user(ctx.deps, tool_call_id, result)
+        defer_dispatch(ctx.deps, tool_call_id, result)
     return result

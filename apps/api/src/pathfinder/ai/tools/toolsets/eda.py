@@ -21,9 +21,9 @@ from pathfinder.ai.tools.standalone.eda_step import create_eda_step
 def build_toolset() -> AbstractToolset[LeadDeps]:
     """The seven EDA tools the Lead calls.
 
-    ``run_eda_compute`` is registered sequential: a durable tool suspends the
-    graph, and a sibling running in parallel would leave an orphaned tool
-    return in the persisted history.
+    ``run_eda_compute`` is registered sequential: one parked durable call is
+    checkpointed per turn, so a batch that fires two of them would leave the
+    second unanswered.
     """
     toolset: FunctionToolset[LeadDeps] = FunctionToolset(
         max_retries=3,

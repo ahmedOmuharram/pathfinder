@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -183,6 +182,8 @@ async def test_parallel_fan_out_runs_variants_concurrently(
     progress_sink: _ProgressSink,
 ) -> None:
     del progress_sink
+    in_flight = 0
+    max_in_flight = 0
 
     async def fake_run_trial(
         variant: VariantSpec,
@@ -191,20 +192,20 @@ async def test_parallel_fan_out_runs_variants_concurrently(
         **_kwargs: Any,
     ) -> dict[str, Any]:
         del progress
-        await asyncio.sleep(0.5)
+        nonlocal in_flight, max_in_flight
+        in_flight += 1
+        max_in_flight = max(max_in_flight, in_flight)
+        await asyncio.sleep(0)
+        in_flight -= 1
         return {"variant_id": variant.id, "status": "success", "score": 0.5}
 
     monkeypatch.setattr(
         "pathfinder.jobs.impls.optimize_params_impl.run_single_trial",
         fake_run_trial,
     )
-    t0 = time.monotonic()
     result = await run_impl(variants_count=5)
-    elapsed = time.monotonic() - t0
 
-    assert elapsed < 1.2, (
-        f"expected parallel execution (~0.5s); got {elapsed:.2f}s — likely sequential"
-    )
+    assert max_in_flight == 5
     assert len(result["variants"]) == 5
     assert all(v.get("status") == "success" for v in result["variants"])
 

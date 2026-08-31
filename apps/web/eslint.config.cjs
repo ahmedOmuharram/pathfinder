@@ -12,6 +12,10 @@ module.exports = defineConfig([
       "playwright-report/**",
       "test-results/**",
       "coverage/**",
+      // Stryker keeps one sandbox copy of the tree per mutation run, so a
+      // whole-directory lint would type-check the project several times over.
+      ".stryker-tmp/**",
+      "reports/**",
       // Vendored shadcn / AI Elements primitives — copied via shadcn CLI.
       // Treat as third-party; lint rules apply to PathFinder code only.
       "src/components/ui/**",

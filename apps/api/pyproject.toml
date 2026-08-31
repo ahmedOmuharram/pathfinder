@@ -7,7 +7,7 @@ dependencies = [
     "fastapi>=0.135.0",
     "uvicorn[standard]>=0.44.0",
     "pydantic>=2.12.0",
-    "pydantic-settings>=2.13.0",
+    "pydantic-settings>=2.14.2", # GHSA-4xgf-cpjx-pc3j
     "sqlalchemy[asyncio]>=2.0.49",
     "asyncpg>=0.31.0",
     "alembic>=1.18.0",
@@ -15,7 +15,7 @@ dependencies = [
     "pydantic-ai>=2.22.0,<3",
     "fastmcp-slim[server]>=3.3.0,<4",
     "langgraph==1.1.6",
-    "langgraph-checkpoint-postgres==3.0.5",
+    "langgraph-checkpoint-postgres==3.1.1", # PYSEC-2026-3635
     "psycopg[binary]>=3.2.0",
     "langfuse>=4.0.0",
     "opentelemetry-sdk>=1.39.0",
@@ -25,7 +25,7 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.60b0",
     "opentelemetry-instrumentation-httpx>=0.60b0",
     "opentelemetry-instrumentation-logging>=0.60b0",
-    "python-multipart>=0.0.22",
+    "python-multipart>=0.0.31", # PYSEC-2026-3040
     "structlog>=25.0.0",
     "pyyaml>=6.0.3",
     "tenacity>=9.1.0",
@@ -46,9 +46,20 @@ dependencies = [
 ]
 
 [tool.uv]
+# Transitive packages pip-audit reports. Each line names the advisory the
+# lower bound answers, so a bound outlives the memory of why it is there.
 constraint-dependencies = [
-    "pyasn1>=0.6.3",  # CVE-2026-30922
+    "pyasn1>=0.6.4",  # CVE-2026-30922, PYSEC-2026-3455/3456/3457
     "aiohttp>=3.14.0",  # CVE-2026-34993, CVE-2026-47265
+    "click>=8.3.3",  # PYSEC-2026-2132
+    "cryptography>=50.0.0",  # PYSEC-2026-3552/3553/3554, GHSA-537c-gmf6-5ccf
+    "langgraph-sdk>=0.3.15",  # PYSEC-2026-2194, PYSEC-2026-2575
+    "langsmith>=0.8.18",  # GHSA-f4xh-w4cj-qxq8
+    "mcp>=1.28.1",  # PYSEC-2026-3481/3482/3483
+    "msgpack>=1.2.1",  # PYSEC-2026-3625
+    "pip>=26.2",  # PYSEC-2026-3721
+    "starlette>=1.3.1",  # PYSEC-2026-248, PYSEC-2026-249
+    "soupsieve>=2.8.4",  # PYSEC-2026-3071, PYSEC-2026-3072
 ]
 
 [tool.uv.sources]
@@ -68,10 +79,9 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["src/pathfinder/tests"]
-addopts = "--ignore=src/pathfinder/tests/llm -m 'not llm and not eda_acceptance'"
+addopts = "-m 'not eda_acceptance'"
 markers = [
     "live_wdk: tests that make live HTTP calls to VEuPathDB WDK endpoints (require network)",
-    "llm: per-phase tests that hit real OpenAI and real WDK (opt-in; run via `uv run pytest src/pathfinder/tests/llm -m llm --override-ini addopts=''`)",
     "allow_network: unit tests that are allowed to open a real network connection",
     "eda_acceptance: frozen EDA conformance suite, run at batch close (opt-in; see src/pathfinder/tests/acceptance/eda/README.md)",
 ]
@@ -206,9 +216,12 @@ disable_error_code = [
 ]
 
 [tool.vulture]
-paths = ["src/pathfinder", "vulture_whitelist.py"]
+paths = ["src/pathfinder"]
 exclude = ["tests/", "*/conftest.py"]
 min_confidence = 80
+# Ruff TC006 requires the type expression in cast() to be a string. Vulture does
+# not resolve string annotations, so it reads every such import as unused.
+ignore_names = ["CursorResult"]
 
 # Mutation testing config lives in apps/api/setup.cfg under [mutmut].
 # mutmut 3.x reads only setup.cfg, not pyproject.toml.
@@ -228,6 +241,7 @@ dev = [
     "respx>=0.22.0",
     "ruff>=0.15.0",
     "testcontainers>=4.14.0",
+    "vulture>=2.16",
     "schemathesis>=4.16.1",
     "mutmut>=3.5.0",
     # The served endpoint's admission run composes the suite as its own process.
@@ -298,6 +312,7 @@ source_modules = ["pathfinder.services"]
 forbidden_modules = [
     "pathfinder.transport",
     "pathfinder.ai",
+    "pydantic_ai",
 ]
 
 [[tool.importlinter.contracts]]

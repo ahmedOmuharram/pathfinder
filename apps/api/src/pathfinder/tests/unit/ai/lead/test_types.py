@@ -17,14 +17,15 @@ from pathfinder.ai.lead.deltas import (
     VerificationDelta,
 )
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
-from pathfinder.ai.lead.ledger import (
+from pathfinder.ai.lead.lead_agent import classify_user_intent
+from pathfinder.ai.lead.ledger import InvestigationLedger
+from pathfinder.ai.lead.ledger_sections import (
     BuildSection,
     FrameSection,
-    InvestigationLedger,
-    SubAgentCallRecord,
     VerificationSection,
 )
 from pathfinder.domain.strategy.build_outcome import BuildOutcome, NodeResult
+from pathfinder.domain.strategy.constraints import ConstraintKind
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
     OpenSlot,
@@ -245,15 +246,30 @@ def test_investigation_ledger_compose() -> None:
     )
     assert ledger.frame.present is False
     assert ledger.build.succeeded is False
-    assert ledger.sub_agent_calls_total == 0
 
 
-def test_sub_agent_call_record_shape() -> None:
-    rec = SubAgentCallRecord(
-        sub_agent="frame",
-        called_at_turn="t1",
-        input_summary="frame the goal",
-        output_summary="3 criteria",
-        succeeded=True,
+def test_investigation_ledger_carries_no_sub_agent_call_count() -> None:
+    """The thread's data-sub-agent-call parts are the only record of a dispatch."""
+    ledger = InvestigationLedger(
+        user_intent=None,
+        frame=FrameSection(spec=None),
+        build=BuildSection(),
+        verification=VerificationSection(),
     )
-    assert rec.sub_agent == "frame"
+    assert "sub_agent_calls_this_turn" not in InvestigationLedger.model_fields
+    assert "sub_agent_calls_total" not in InvestigationLedger.model_fields
+    assert "Sub-agent calls" not in ledger.render_summary()
+
+
+def test_the_constraint_kinds_the_classifier_reads_come_from_the_enum() -> None:
+    """A new ConstraintKind reaches the classifier without a hand edit."""
+    description = UserIntent.model_fields["explicit_constraints"].description or ""
+
+    for kind in ConstraintKind:
+        assert kind.value in description, kind.value
+
+
+def test_the_classifier_is_told_to_capture_a_stated_share() -> None:
+    doc = classify_user_intent.__doc__ or ""
+    assert "percentile" in doc
+    assert "top 10%" in doc

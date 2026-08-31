@@ -129,6 +129,14 @@ def sync_disabled(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
 
 
+@pytest.fixture
+def sync_enabled(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.setenv("EMBEDDING_INDEX_SYNC_ENABLED", "true")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 async def test_a_catalog_build_that_may_not_sync_writes_no_vector(
     db: None,
     sync_disabled: None,
@@ -150,9 +158,10 @@ async def test_a_catalog_build_that_may_not_sync_writes_no_vector(
 
 async def test_a_catalog_build_that_may_sync_writes_its_vectors(
     db: None,
+    sync_enabled: None,
     fake_embedder: FakeEmbedder,
 ) -> None:
-    del db
+    del db, sync_enabled
     catalog = SearchCatalog("openeddb")
     catalog._searches = _SEARCHES
 

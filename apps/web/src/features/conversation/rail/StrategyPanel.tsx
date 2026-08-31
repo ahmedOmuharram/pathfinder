@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { ExternalLink, Workflow } from "lucide-react";
+import { Bookmark, ExternalLink, Workflow } from "lucide-react";
 
 import { siteShortName, type Strategy } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,16 @@ import { RailEmptyState, RailPanelShell } from "./RailPanelShell";
 interface StrategyPanelProps {
   strategy: Strategy | null;
   siteId: string;
+  conversationId: string;
 }
 
 const STEP_ROUTE_RE = /\/strategy\/step\/([^/?#]+)/;
 
-export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
+export function StrategyPanel({
+  strategy,
+  siteId,
+  conversationId,
+}: StrategyPanelProps) {
   const router = useRouter();
   const pathname = usePathname() as string | null;
   const selectedStepId =
@@ -31,6 +36,7 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
 
   const [saveStepId, setSaveStepId] = useState<string | null>(null);
   const [insertTargetId, setInsertTargetId] = useState<string | null>(null);
+  const [insertAsRoot, setInsertAsRoot] = useState(false);
 
   const saveMutation = useSaveSubstrategyMutation({
     conversationId: strategy?.id ?? "",
@@ -107,7 +113,30 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
         <RailEmptyState
           icon={<Workflow className="h-8 w-8" aria-hidden />}
           heading="No strategy built yet"
-          description="The execution agent will build a WDK strategy here once the plan is approved."
+          description="The strategy is built here once the plan is approved, or start from one you saved."
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => setInsertAsRoot(true)}
+              data-testid="rail-strategy-insert-saved"
+            >
+              <Bookmark className="size-3" aria-hidden />
+              Insert saved strategy
+            </Button>
+          }
+        />
+      )}
+      {insertAsRoot && (
+        <InsertSavedDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setInsertAsRoot(false);
+          }}
+          conversationId={conversationId}
+          siteId={siteId}
+          targetStepId=""
         />
       )}
       {strategy != null && (

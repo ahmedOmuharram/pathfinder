@@ -35,10 +35,10 @@ describe("useStepSnapshot", () => {
 
   it("defaults to idle with null values for a null step", () => {
     const { result } = renderHook(() => useStepSnapshot(null));
-    expect(result.current.step).toBeNull();
+    expect(result.current.step).toBe(null);
     expect(result.current.lifecycleState).toBe("idle");
-    expect(result.current.estimatedSize).toBeNull();
-    expect(result.current.validationErrors).toBeNull();
+    expect(result.current.estimatedSize).toBe(null);
+    expect(result.current.validationErrors).toBe(null);
     expect(result.current.isBusy).toBe(false);
     expect(result.current.isInvalid).toBe(false);
     expect(result.current.isFailed).toBe(false);
@@ -189,13 +189,13 @@ describe("useStepSnapshot", () => {
   it("has no rejection for a healthy step", () => {
     const { result } = renderHook(() => useStepSnapshot(makeStep()));
 
-    expect(result.current.wdkPushError).toBeNull();
+    expect(result.current.wdkPushError).toBe(null);
   });
 
   it("a null step has no rejection", () => {
     const { result } = renderHook(() => useStepSnapshot(null));
 
-    expect(result.current.wdkPushError).toBeNull();
+    expect(result.current.wdkPushError).toBe(null);
   });
 
   it("reports every state the machine can actually be in", () => {

@@ -1,6 +1,985 @@
 # Log
 
+## 2026-08-31
+
+* **Insert-saved dropped an edit committed while it read WDK, and spliced the
+  saved strategy onto itself when the target step was the root.**
+  `POST /conversations/{id}/insert-saved` read the stored AST, read and cloned
+  a saved WDK strategy, and only then wrote the whole tree back.
+  `test_an_insert_saved_and_a_param_edit_both_land` parks the insert inside the
+  saved-strategy read while a parameter edit commits: the persisted
+  `text_expression` came back `kinase`, not the committed `phosphatase`.
+  `insert_saved` now takes `strategy_write_lock` before its read, and
+  `_record_consumer` joins that transaction through the shared
+  `write_lock.py::strategy_write_scope` instead of opening a second session
+  against the row the caller's transaction already holds, which is what
+  deadlocked. The same test found a second fault: `_build_new_root` added the
+  new combine to the graph before it looked up the target step's parent, so the
+  combine answered as its own parent, `primary_input_id` pointed at itself, and
+  a root-target insert persisted the pre-insert tree with the consumer already
+  recorded - `['GenesByText', 'GenesByGoTerm', '__combine__']` and
+  `imported=[7777]` on a solo run. The parent is now read before the combine
+  joins the graph; `tests/unit/services/strategies/test_insert_saved_splice.py`
+  covers a root target and a target below the root.
+
+* **A cancel test still encoded the pre-thread heartbeat window.**
+  `test_stop_on_a_starved_but_live_worker_only_asks` staged a heartbeat aged
+  153 s and asserted the job stayed `doing`; with
+  `worker_dead_heartbeat_seconds` at 60 the job came back `failed`. The staged
+  ages now read `worker_dead_heartbeat_seconds` and
+  `worker_heartbeat_interval_seconds`, so the starved case sits one beat inside
+  the window and the dead case ten windows past it, and the test asserts the
+  starved age is inside the window before it stages it. The stale "five to six
+  minutes" in `jobs/maintenance.py::release_stalled_jobs` is now the one to two
+  minutes [the decision](decisions/a-dead-worker-fails-its-turn-by-heartbeat.md)
+  already states.
+
+* **Two overlapping edits on one thread each wrote a whole tree built from the
+  same base, so one of them was dropped.** `POST /operations` read
+  `conversation_strategies.strategy_ast`, edited the tree in memory, pushed to
+  WDK, and only then took the per-thread advisory lock for the write, so a
+  second operation that read before the first committed wrote its own tree over
+  it. Measured both ways in
+  `tests/integration/services/conversations/test_concurrent_strategy_edits.py`,
+  which parks one writer inside its WDK push while the other commits: a
+  parameter edit to `phosphatase` put a committed `INTERSECT` back to `UNION`,
+  and a combine-operator edit put a committed `phosphatase` back to `kinase`.
+  `apply_operation` now takes the lock before the read and holds it through the
+  write, and `persist_strategy_ast_to_conversation` joins that transaction
+  instead of opening one of its own. The rejected alternatives, and the agent
+  turn this does not cover, are
+  [a decision](decisions/a-graph-operation-holds-the-thread-lock-across-its-read.md).
+
+* **A resumed tail reads one turn at a time, so a suspended turn's card is
+  drawn once.** `ai@6.0.154` builds one assistant message per stream and
+  seeds it with the message the client already holds
+  (`AbstractChat.makeRequest` -> `createStreamingUIMessageState`), and its
+  `start` case only renames that message. A tail that carried a durable task's
+  gap and then the continuation turn therefore ended with the continuation
+  holding the suspending turn's parts: measured on the e2e stack's production
+  build as one `data-background-task-started` frame on the wire (1 chat POST,
+  2 tail GETs, 1 snapshot) and two `Optimize parameters / Completed` rows,
+  with `durable-progress-live.spec.ts:137` red on a strict-mode violation.
+  `DurableChatTransport` now ends a resumed stream at a `start` that opens
+  another message, keeps the frame iterator, and serves the rest to the next
+  resume; `resumeDurableThread` opens that message first, so no second request
+  is made and each turn is read into its own message. PROTOCOL 1.5.2 states
+  the reader rule in section 9. The rejected alternatives are
+  [a decision](decisions/a-resumed-stream-reads-one-turn.md).
+
+* **The e2e stack serves the production build, and the suite finishes in one
+  process.** `docker-compose.e2e.yml` pins `web.build.target: runner`, which
+  overrides the dev overlay's `dev` target and makes the local recipe build the
+  image CI already built. The dev server it replaces compiled a route on every
+  first request and kept the result: 7.44 GiB of anonymous memory, then
+  `OOMKilled=true` part way through a run that ended `54 failed / 1 skipped /
+  66 passed`, 47 of them on `ERR_CONNECTION_REFUSED`. Rebuilt on the dev target
+  to compare the two, it did not even survive the global setup's twelve route
+  requests - dead in 2 m 48 s, with single compiles of 14.8 s to 23.4 s in its
+  log. The production container holds 96 MiB at boot and 182 MiB mid-suite, and
+  one `playwright test --retries=0` process now runs all 158 tests. The
+  reasoning and the rejected alternative - `mem_limit` plus
+  `--max-old-space-size` on the dev server - are
+  [a decision](decisions/the-e2e-stack-serves-the-production-build.md).
+
+* **Neither dev overlay reaches the suite any more, and the devtools bubble is
+  off the nav rail.** A production build mounts no `<nextjs-portal>`, and
+  `@tanstack/react-query-devtools` 5.95.2 resolves its own entry to
+  `function () { return null; }` unless `NODE_ENV === "development"`, so the
+  seven specs that timed out on a click an overlay swallowed
+  (`settings.spec.ts:8,13,22`, `auth.spec.ts:64`, `memory-settings.spec.ts:5`,
+  `full-researcher-lifecycle.spec.ts:19`, `workbench-panels.spec.ts:235`) are
+  green; the lifecycle journey that burned its whole 720 s budget on the retry
+  loop finishes in 47.3 s. For the dev stack, where the toggle does render, its
+  `buttonPosition` moves off the left edge the nav rail owns, pinned by a
+  vitest. `no-dev-overlays.spec.ts` asserts both overlays are absent and that
+  the Settings gear takes the first click.
+
+* **The FRAME budget card closed on its own anchors.** Both halves the card
+  tracked are in the tree and pinned: `phase_usage_limits(declared_criteria)`
+  scales the ceiling with the declared criteria between a floor and a cap,
+  and `frame_result_from_draft` reports the bound criteria when a pass
+  exhausts its budget instead of discarding them. The card's own text
+  recorded both as closed; the "done when" holds, so the card leaves.
+
+* **No module explains itself by what Kani did.** The two platform
+  docstrings that still did (`tool_errors.py`, `pydantic_validation.py`) now
+  state what the module owns; the rendered API pages carry no framework
+  history.
+
+* **The docs build imports three modules before Sphinx starts, and 40 pages
+  gain their API.** `apps/api/docs/conf.py` imports `fastapi.openapi.models`,
+  `langchain_core.messages` and `pathfinder.transport.http.schemas.sites` after
+  it extends `sys.path`. Autodoc's type-comment pass writes the source text of
+  `pydantic.BaseModel.__pydantic_extra__` back into `BaseModel.__annotations__`,
+  which `ModelMetaclass.__new__` had cleared; pydantic then evaluates that
+  string in the namespace of whatever model is built next, and a model with
+  `extra="allow"` in a module without `Dict` raises `NameError: name 'Dict' is
+  not defined`. FastAPI declares such a model, so every module that imports
+  FastAPI failed. Building those three first removes the 40
+  `autodoc: failed to import` warnings, and `docs/api/transport.rst` renders
+  925 API objects across its 40 modules instead of prose with nothing under it.
+  Sphinx 9.1.0 is the newest release and carries the pass; the reload the card
+  blamed is gated on `SPHINX_AUTODOC_RELOAD_MODULES` and never ran. The
+  reasoning and the two rejected alternatives are
+  [a decision](decisions/extra-allow-models-are-built-before-autodoc-runs.md).
+
+* **`sphinx.ext.napoleon` is on, so the tool reference shows each tool's whole
+  contract.** The tool docstrings are Google style and the config had no
+  extension that parses Google style, so every `Args:` block rendered as a
+  block quote and lost the lines after the first indented continuation:
+  `build_strategy`, `lookup_gene_records` and `search_for_searches` each
+  published a truncated contract. Napoleon renders them as parameter lists and
+  removes 13 of the 17 docutils warnings without touching a docstring, which
+  matters because each of those strings is also the tool description the model
+  reads. The remaining four, in two docstrings, are fixed as markup: the
+  module docstring of `ai/graph/stream_events.py` escapes the plural after an inline literal (and
+  becomes a raw string, so Python 3.14 does not warn on `\ `), and the example
+  in `build_strategy` opens with `::` so its code is a literal block. No word
+  in any docstring changed. `autodoc_inherit_docstrings` is off, so a
+  third-party base class's prose is no longer published as this project's API;
+  it was pulling `pydantic_settings`' `Args:` block into
+  `TomlConfigSettingsSource.__init__` and taking an ambiguous `type`
+  cross-reference with it.
+
+* **`overview.rst` and `ai_functions.rst` describe the system that exists.**
+  The overview is rewritten around the installed assistants, one chat turn
+  (dispatcher, deferred `chat_turn` job, worker, two-node graph, durable event
+  log), the Lead with FRAME, BUILD and VERIFY as tools, durable tools, the
+  typed `data-*` parts, cross-thread memory and the layer rules; the Kani
+  sections, the `subkani_*` event table, the delegation-plan grammar, the
+  `@-mentions` block whose service no longer exists and the Redis dropdown are
+  gone. `ai_functions.rst` is now the tool index by caller: Lead, FRAME, BUILD,
+  VERIFY, EDA, the shared three, and the approval and durable mechanics.
+  `conf.py` no longer resolves an intersphinx inventory at `kani.readthedocs.io`,
+  and `grep -ri kani apps/api/docs` returns nothing. Two module docstrings
+  still name the old framework and are published on `docs/api/platform.rst`;
+  they are [a new card].
+  With all three cards closed, `uv run sphinx-build -b html docs docs/_build/html` exits 0 with
+  **3 warnings**, down from 73; all three are the one ambiguous `kind`
+  cross-reference across the 13 classes that declare that attribute. Two
+  docstrings that only became visible once their modules imported open a bullet
+  list directly under a colon line, which docutils reads as an unexpected
+  indentation: the module docstring of `ai/tools/standalone/optimization.py`
+  and `dispatch` in `ai/conversation/dispatcher.py` each gained the blank line
+  the list needs.
+
+* **An `automodule::` target that names nothing now fails a test, not a page.**
+  All 73 dangling targets are gone from `apps/api/docs/api/*.rst`: the ones
+  whose module moved are repointed (`transport.http.sse` to `sse_utils`, the
+  four `routers.strategies.*` to `routers.conversations.*`, `schemas.chat` to
+  `schemas.conversations`, `schemas.strategies` to `schemas.strategy_ast`,
+  `persistence.session` to `assistant_core.platform.db`,
+  `services.experiment.core.streaming` to `services.experiment.streaming`, the
+  four experiment enrichment modules to the `services.enrichment` package,
+  `integrations.veupathdb.site_search` to `site_search_client`), and the ones
+  whose surface is gone lost their prose with them (`platform.redis` and the
+  Redis event-bus dropdown, `platform.events`, the seven
+  `services.strategies.engine.*`, `domain.parameters.normalize`,
+  `domain.strategy.compile`, the workbench-chat endpoint table). Three pages
+  described a framework the product replaced: `agents.rst` is rewritten around
+  the Lead and the FRAME, BUILD and VERIFY sub-agents, `chat.rst` around the
+  dispatcher, the worker turn runner, the two-node graph and the durable event
+  log, `tools.rst` around the phase toolsets and `ai/tools/standalone`;
+  `engines.rst` and `delegation.rst` are deleted with their toctree entries and
+  the two grid cards that linked them, and `ai.rst` is now the model page
+  (catalog, resolution, settings, tiers, scripted model, pricing). The gate is
+  `tests/unit/test_sphinx_automodule_targets_import.py`, which walks every
+  `.rst` under `apps/api/docs`, extracts each target and imports it: it failed
+  on 73 of the 241 targets before the change and passes on all 278 after.
+  `sphinx-build` stays without `-W`, and its warning count falls from **108 to
+  73**: no warning left says a module is missing. Three cards carry what
+  remains, all of it outside the docs tree - 40 live modules autodoc cannot
+  reload under Python 3.14 (`NameError: name 'Dict' is not defined`, raised
+  re-executing `fastapi.openapi.models`), 17 tool docstrings written as plain
+  text where the renderer wants reST, which truncate in the tool reference,
+  and the Kani-era prose in `overview.rst` and `ai_functions.rst`, which carry
+  no target for the new gate to reach.
+
 ## 2026-08-30
+
+* **Turn-driving feature specs run serialized, and the e2e suite's last
+  harness reds are fixed.** `apps/web/playwright.config.ts` splits the feature
+  project in two: `feature-turns` carries the nineteen specs that send a
+  message through the mock provider and waits on a turn, with
+  `fullyParallel: false`, and `feature` ignores the same list, so
+  `playwright test` still runs all 156 tests once. `auto-build`,
+  `execution-phase` and `ai-workbench-integration` pass in the full run, and
+  `fungal-pathogenesis` has its first green run since the fixme came off.
+  Four specs reached `/conversation/<id>`, which is a 404 without the site
+  segment; `eda-chat-parts` asked for "Open EDA" and "Open in EDA tab", which
+  the vocabulary decision renamed to "Open Studies" and "Open study";
+  `durable-progress-live` asked for a "Task completed" card the thread
+  redesign replaced with a task row; `user-data` accepted a `seed_complete`
+  frame that reported zero strategies, and now reads its counters;
+  `toxoplasma-host-invasion` asserted a union preview while the compose bar
+  still showed Intersect, and `expectComposeResultCount` is scoped to the
+  sidebar that owns it; the two journeys that open with "I'm investigating"
+  now assert the context-statement reply instead of the mock marker.
+  `e2e/global-setup.ts` warms one request per route pattern before the run, so
+  a spec no longer pays a route's first compile inside its own budget, which is
+  what the Turbopack decision already prescribed: the first analysis spec on a
+  restarted container goes from 1.4 min to 9.4 s. `makeWdkLinked` in
+  `dismissed-strategies` read the conversation it had just created off the
+  first sidebar row, which is a race with the refetch: under load both calls
+  returned the same id, the test dismissed the conversation it meant to keep,
+  and the end state was the other one still active. It reads the id from the
+  route instead, through `openConversationId`.
+
+* **The last module over the 400-line cap was split along its own seam.**
+  `domain/parameters/values.py` 428 -> 197 meaningful lines: it owns the eleven
+  `*Value` models, the filter clauses one of them carries, and the `ParamValue`
+  union, and nothing else. `value_codec.py` (219) owns the translation: the wire
+  and decoded payload builders, `from_wire`/`to_wire`, `from_decoded`/
+  `to_decoded`, the maps over them, and the coercion of a raw scalar, list or
+  dict into a typed value. `close_open_range` went to `canonicalize.py` (160),
+  its only production caller and the module that already owns the spec-dependent
+  post-processing, so the `ParamSpecLimits` Protocol that existed only to keep
+  `values.py` from importing `specs.py` is deleted and the function takes
+  `ParamSpecNormalized` directly. No re-export and no shim: 26 modules and 10
+  test files import the module that defines the name, and the two rule anchors
+  that pointed into the moved half (`WDK-MAP-001` at `_WIRE_BUILDERS`,
+  `WDK-VOCAB-004` at `coerce_context_values`) point at `value_codec.py`.
+  `check_max_lines.py` exits 0.
+
+* **The workbench chat surface is deleted, not revived.** The eight experiment
+  tools split out on 2026-08-30 had no importer outside their own island: no
+  toolset named `refine_with_search`, `refine_with_gene_ids`,
+  `re_evaluate_controls`, `fetch_result_records`, `lookup_gene_detail`,
+  `get_attribute_distribution`, `compare_gene_groups` or `search_results`, and
+  no agent was parameterised on `WorkbenchDeps`. Nine files go:
+  `ai/tools/standalone/experiment_refinement.py` and `experiment_analysis.py`,
+  `services/experiment/strategy_refinement.py`, `result_analysis.py`,
+  `workbench_deps.py`, `ai_analysis_helpers.py` (reachable only from the two
+  service halves), `ai/prompts/workbench_chat.py`, `ai/prompts/experiment/
+  workbench.md`, and `tests/unit/services/experiment/
+  test_split_experiment_tools.py`, whose 344 lines tested nothing else. The
+  `"workbench"` entry left `_LOCAL_FILES` in `platform/langfuse/prompts.py`, so
+  `seed_prompts()` no longer uploads a prompt nothing loads. Eight
+  `vulture_whitelist.py` entries go with them, and the Sphinx pages stop
+  describing an agent that does not exist: the `WorkbenchAgent` section in
+  `docs/api/agents.rst` (it still named Kani and seven tool mixins), the
+  `Workbench Chat` section and two schema/router automodules in
+  `transport.rst`, the `AI Analysis` and `Strategy Refinement` sections in
+  `experiments.rst`, and the prompt automodule in `ai.rst`. `apps/api/
+  README.md` no longer lists a `services/workbench_chat/` directory. The audit
+  that found those stale pages also found 73 other `automodule::` targets with
+  no module behind them, recorded as its own card.
+
+* **An eval case is a thread, and the corpus can now hold an edit.** `EvalCase`
+  states `turns`, a list driven in order on one conversation id, and `prompt`
+  is gone with no alias; the five shipped cases carry a one-entry list, so none
+  of them changed what it asks. The expectation gained `stepIdsUnchanged`,
+  observed from the persisted strategy's `wdkStepIds` on both sides of the last
+  turn (a thread that held none before it observes `None`, so nothing passes
+  vacuously), and `parameters`, which names per search the values that search
+  must carry. Two cases were written from the closed edit defects and both were
+  measured against live plasmodb through the deterministic model:
+  `edit-keeps-the-criteria-it-was-told-to-keep` (build three criteria, then
+  "swap the organism on the seed criterion and keep the rest") and
+  `edit-does-not-mint-new-wdk-step-ids`. Each was shown to fail on a reverted
+  guard and pass on the guard restored, both reverts byte for byte. Removing
+  the pre-edit tree the commit diffs against (`commit.py`, `old_ast = None`)
+  turned every step into a fresh WDK step: `stepIdsUnchanged: expected 'True',
+  got 'False'`. Seeding the edit's FRAME draft with an empty spec instead of
+  the spec the strategy already holds (`dispatch_context.py`) left the swap
+  unapplied: `parameters.GenesByTaxon.organism: expected 'Plasmodium vivax
+  P01', got 'Plasmodium falciparum 3D7'`, with parameter fidelity 0.5. Recorded
+  as a measured limit: the shrink path the first case describes is closed by a
+  refusal rather than by a value, so the case reads the swapped parameter, not
+  the node count, to tell a landed edit from a refused one.
+
+* **Eval scoring answers "how far", not only "same shape or not".**
+  `pathfinder.evals.distance` implements the retired thesis decomposition in
+  plain Python and adds no dependency: topology as a normalised Zhang-Shasha
+  distance with the labels erased, search selection as a Jaccard distance over
+  the search names, a labelled distance that charges 0.3 for a differing
+  operator and up to 0.7 for parameter divergence, and parameter fidelity over
+  the searches the two trees share. The two rows the item filed now separate:
+  `((GenesByText UNION GenesByGoTerm) INTERSECT GenesByTaxon)` against the same
+  tree with `INTERSECT` in place of `UNION` scores topology 0.0, searches 0.0,
+  labelled 0.06; against `GenesByLocation` it scores 0.8, 1.0, 1.0. The
+  expected side is parsed from the case's structure signature, so a case still
+  states one readable string. Every case result carries the four numbers, on a
+  pass as well as a failure. `zss`, `numpy` and `scipy` stay out of the API
+  image: Zhang-Shasha is seventy lines, and pairing searches by name in
+  postorder is already the optimal name-only alignment the Hungarian solver was
+  there for. [The harness decision](decisions/the-eval-harness-is-pydantic-evals.md)
+  records it and what it rejects.
+
+* **Eval extraction keeps the first envelope of an id, as the client reducer
+  does.** `read_turns` opened a turn at every user-message envelope, so a
+  legacy conversation holding one duplicated envelope extracted a phantom turn
+  with the request twice and the reply split across two turns. It now skips an
+  envelope whose id the thread already carried; an envelope with no id still
+  opens a turn, because one id names one message and no id names none. Pinned
+  over the incident-shaped sequence: one duplicated envelope between two text
+  deltas yields one turn, one request, and the joined reply.
+
+* **The services layer holds no agent framework, and the vocabulary filter
+  filters.** `services/experiment/ai_refinement_tools.py` and
+  `ai_analysis_tools.py` imported `pydantic_ai.RunContext` inside services.
+  They are split the way the four catalog tools were: the WDK halves are
+  `services/experiment/strategy_refinement.py` and `result_analysis.py`, which
+  take the site and the experiment by value and return typed models, and the
+  `RunContext` halves are `ai/tools/standalone/experiment_refinement.py` and
+  `experiment_analysis.py`. The import-linter contract that says services never
+  import transport or AI now also forbids `pydantic_ai`, so the whole layer is
+  covered rather than two entry points, and the contract was proved to bite by
+  planting the import and reading the break. In `services/catalog/
+  search_inspection.py` the `isinstance(vocab, dict)` branch is gone, because
+  `WDKVocabulary` is a list or a `CamelModel` tree and never a dict; the filter
+  now walks a tree and keeps the branches that reach a match, so a query on the
+  `GenesByMolecularWeight` organism tree narrows 90 leaves to 25 and the
+  rendered tree no longer offers `Plasmodium berghei ANKA` under `falciparum`.
+  The list branch matched `str(term)`, the pydantic repr, so the query `root=`
+  matched all 48 entries; it reads the term and the label now and matches none.
+
+* **A stopped turn closes the tool calls it left open.** The error path
+  already wrote `tool-output-error` for every open call; the stop path wrote
+  only the stopped event, so a lead tool call interrupted by Stop stayed
+  `input-available` and its trace row read as running forever. The cancel
+  branch of the turn driver now closes every open call with "Stopped by the
+  user.", pinned by a test that stops a turn mid-call and reads the closing
+  chunk. The stub writer in that test now satisfies the writer protocol, and
+  the last type suppression in the test tier went with it.
+
+* **The small UI defects of the 2026-08-17 run are closed, and the three the
+  e2e run measured with them.** Fixed: a refused request now reports what the
+  server said, because `extractErrorMessage` reads `detail`, then each
+  `errors[].message`, then `title`, so a plan refusal reads "Record type is
+  required" rather than "HTTP 422 Unprocessable Content"; `streamTypedEvents`
+  throws that same `APIError` instead of `stream failed: 403`; and the chat's
+  failure notice runs the transport's rethrown body through `toUserMessage`.
+  The status line and the Progress panel read the running phase off the same
+  `data-sub-agent-call` chunks the trace reads (`runningPhase`), so neither can
+  lag the card any more - `build_strategy` runs no sub-agent and sends no
+  status label of its own. A Progress tab with nothing behind it raises no dot
+  (`ledgerTabHasContent`). Every message action carries an `aria-label`. The
+  rail panel overlays the chat below the width where the chat would be a
+  sliver: at 866px with the list and a panel open the chat column is **54px**,
+  so `shouldOverlayRailPanel` floats the panel instead. The thread's scroll
+  surface is `ThreadPrimitive.Viewport`, whose `scrollToBottomOnRunStart`
+  scrolls on send; `use-stick-to-bottom` is gone. Rail markers are keyed by
+  conversation, so a fresh thread shows no Tasks dot. A finished task links to
+  the turn that carries its result, from the card and from the Tasks panel row.
+  The enrichment panel renders the analyses the API saved on the gene set and
+  invalidates that query after a run, so a run's 200 reaches the page through
+  the cache and a set the researcher returns to still shows its results. The
+  Compose panel no longer promises a Venn it cannot draw: a set opened from a
+  strategy stores no gene IDs, so `SetVenn` says that instead of captioning an
+  empty area. `devIndicators: false` stops the dev overlay taking pointer
+  events. `--chart-1`, `--chart-2` and `--chart-3` are darkened so a gene-set
+  source badge reads at AA over its own tint - `--chart-3` measured **3.53:1**
+  on a card and now measures **4.61:1** at worst, pinned for all four badge
+  tokens in both grounds by `statusTokens.test.ts`. Shown not to reproduce: the
+  workbench polls nothing (every one of `gene-sets`, `control-sets`,
+  `me/quota` and `veupathdb/auth/status` resolves to a 30 s `staleTime` and no
+  `refetchInterval`, pinned in `features/workbench/api/polling.test.ts`), and
+  the phase card that stayed `started` after Stop is closed by the client's own
+  reader rule. Moved, not dropped: inserting a saved strategy from an empty
+  Strategy panel and the constraints a later turn forgets belong to the
+  saved-strategy and accumulated-requirements work.
+
+* **A vocabulary entry names its parent, and a search that cannot be read no
+  longer reads as one that does not exist.** `WDKVocabTerm` is
+  `tuple[str, str, str | None]` and exposes the third element as `parent`, which
+  is what `EnumParamVocabInstance.getFullVocab` writes; the reference client
+  types that column `null` and is wrong about its own platform
+  ([WDK-VOCAB-007](wdk/rules/parameters-and-vocabularies.md)). Before the change
+  `GenesByOrthologPattern` failed with **1802 validation errors** on plasmodb and
+  no route could read its parameters; after it the live document parses and
+  `phyletic_tree_of` builds **903 nodes under 3 roots**, with
+  `derive_binding(pfal, hsap)` giving `%hsap:N%pfal:Y%`. `PhyleticTree.from_vocab`
+  now attaches a term to the parent it names and falls back to the indent stack
+  only for a term that names none, and plasmodb and toxodb agree on all 903 rows
+  that the indent depth is the parent's depth plus one. The failure that hid this
+  is gone too: `_fallback_scan_record_types` answers a search WDK lists but cannot
+  serve with `reading <search> failed: <cause>`, keeps `Search not found` for a
+  name that is genuinely absent, and drops the search itself from its own
+  did-you-mean.
+
+* **The substitution report compares each parameter as what it states.** A filter
+  is compared as its clause set - each clause by field, `isRange`,
+  `includeUnknown` and its values as a set - so key order, clause order and a
+  dropped `fieldDisplayName` no longer read as a value WDK chose. Measured on
+  plasmodb: posting `variation_sample_meta` to `GenesByNgsSnps` with every other
+  parameter bound returns `isValid: true` and echoes the caller's own string
+  verbatim, while `FilterValue.to_wire` re-serializes it with the keys reordered
+  and the display name gone, so the old text comparison reported the parameter as
+  substituted. An `input-step` is now excluded by name: its value is the wiring
+  the caller made, never a choice WDK made, and `canonicalize` says so where it
+  skips it ([WDK-PARAM-008](wdk/rules/parameters-and-vocabularies.md),
+  [WDK-PARAM-009](wdk/rules/parameters-and-vocabularies.md)).
+
+* **A step carries its own record class, and the strategy's is the root's.**
+  `StrategyStep.record_class` holds the record type WDK lists that step's search
+  under; `assign_step_record_classes` fills it from the site catalog,
+  `validate_parameters` reports the class it resolved, and the push addresses each
+  step's search URL from the step's own rather than from one value per graph.
+  `record_class_of` reads a step's class and takes a combine's from the steps it
+  consumes, `sync_strategy` sets the strategy's class from the root through it,
+  and the leaf-first `resolve_record_type_from_steps` is deleted along with the
+  unreferenced `services/strategies/search_resolution.py`. The pin is live on
+  plasmodb: `GenesByMolecularWeight` is listed under `transcript` and
+  `GenesFromTranscripts` ("Transform Transcripts to Genes") under `gene`, and each
+  404s under the other - `There is no search "GenesFromTranscripts" associated
+  with record type "TranscriptRecordClass"`. **[WDK-STRAT-004](wdk/rules/strategies-and-steps.md)
+  is `ENFORCED`, and the bundle's `UNENFORCED` column is now empty**: 84 rules, 80
+  enforced, 4 partial. The persisted AST gains no field, so there is no migration:
+  the class is derived from the catalog on the push and the sync that use it.
+
+* **The hidden-default sweep stops at published defaults, by ruling.** Measuring
+  `channel` (75 searches) and `dataset_url` (56) needs a plausible value per
+  search rather than a published one, which is 131 separate studies whose answer
+  is a property of the datasets loaded that day. The sweep already names every
+  outcome: `SweepReport.measured` carries one row per search with its status and
+  WDK's own message, so the 58 that answer 500 are listed by name in the
+  `wdk-hidden-defaults.json` the nightly lane uploads, and none of the 158
+  refusals names a hidden parameter. Recorded as
+  [the sweep stops at published defaults](decisions/hidden-default-sweep-stops-at-published-defaults.md)
+  and linked from [WDK-PARAM-010](wdk/rules/parameters-and-vocabularies.md); no
+  code changed.
+
+* **The two EDA subset searches count the same genes; the 46 that separated
+  them was transcripts against genes.** Measured on plasmodb.org on the same
+  day with one analysis spec (`DS_53f554ec6a`, `VAR_035294d0` = "P. berghei"),
+  `GenesByPhenotypeEdaSubset_PlasmoDB_Rod_Mal_Phenotype_RSRC` and
+  `GenesByEdaSubset` both answered `totalCount` 5602 and `displayTotalCount`
+  5556. The earlier 5602-against-5556 was one result read through two counts,
+  and `estimatedSize` tracks the display one (WDK-FILTER-005). The model agrees:
+  the two process queries are the same plugin with the same four `wsColumn`s,
+  differing only in `visible="false"` on the dataset id. One real difference
+  did turn up and is now documented with it: `eda_analysis_spec` declares no
+  `allowEmpty`, the per-dataset template overrides it to true, and the generic
+  search answers HTTP 422 "Cannot be empty." for an unfiltered analysis, where
+  the per-dataset search answers 5810/5764. `eda-wdk-bridge.md` carries the
+  table and the pinned model links.
+
+* **"N genes analyzed" is the size of the set that went in.** `percentInResult`
+  is result genes over background genes - the GO plugin's own `COLUMN_HELP`
+  reads "Of the genes in the background with this term, the percent that are
+  present in your result" - so inverting it returned a term's genome-wide
+  count, and a 46-gene set read "217 genes analyzed". `derive_total_analyzed`
+  is deleted; `EnrichmentService` reads the step's own count once per batch and
+  every analysis reports it, and `parse_enrichment_from_raw` takes
+  `analyzed_gene_count` because no plugin publishes a result-level total. The
+  semantics and the measurement are recorded under WDK-ANS-007.
+
+* **A scored comparison persists encoded parameters, and a failed scoring says
+  so.** The single-mode branch of `_persist_experiment_strategy` handed typed
+  `ParamValue`s to `WDKSearchConfig` and every variant died with seven
+  validation errors; it now encodes with `encode_params`, like the tree branch
+  four lines above. A variant that still fails carries one line naming the
+  first rejected field rather than the validation dump, and every variant
+  carries `control_hits`, the given control ids its result contains - read from
+  the experiment when it ran, and from the variant's own answer when it did
+  not - so "which threshold recovers these three genes" is answerable either
+  way. The tool's summary and its docstring tell the Lead to report a failed
+  scoring as one, and the card renders "scoring failed: <line>" with the
+  membership beneath it.
+
+* **A dispatch card ends in a terminal state (protocol 1.5.1).** Closing a
+  phase card is a reader rule, not a chunk: `buildTrace` in
+  `packages/assistant-client-ts/src/core/trace.ts` resolves every dispatch its
+  turn left `started` to `cancelled` when the parts carry `data-turn-stopped`,
+  to `failed` when they carry `data-turn-failed`, and to `superseded` when the
+  host says the turn ended and neither is there. Nothing the graph writes after
+  a Stop reaches the log - the astream task is cancelled and only
+  `turn_stopped_event()` follows - so the producer cannot close the card, and
+  the error path left it `started` too. `TraceGroupState` grows `cancelled` and
+  `superseded`, `BuildTraceOptions` grows `turnEnded`, `TraceAnchor` passes it
+  for every message but the streaming one, and `TraceGroup` reads the two new
+  states as "Stopped" and "Not finished". PROTOCOL.md states the rule beside
+  the turn's shape in section 6.
+
+* **A stopped turn stops spinning.** The same close reaches the rows: a call
+  still running inside a dispatch the turn cancelled or failed reads the new
+  `TraceRowStatus` member `stopped`, drawn with a still `CircleDashed` and the
+  word its group carries ("Stopped" under a cancelled dispatch, "Not finished"
+  under a failed one). `Trace.running` is therefore false, so the run reads its
+  step count instead of "Working..." and collapses like any settled run. A
+  `superseded` dispatch keeps its running rows and its spinner: the durable
+  task really is still running, and the turn that resumes it settles the row.
+  Measured before the fix on a stopped dispatch: group "Stopped", summary
+  "Working...", glyph `animate-spin`, `aria-expanded` "true".
+
+* **A checkpoint call is bounded by the turn.** `BoundedCheckpointCalls` in
+  `assistant_core/conversation/checkpointer.py` wraps `aget_tuple`, `aput`,
+  `aput_writes` and `adelete_thread` in `checkpoint_deadline`, an
+  `asyncio.timeout` of `checkpoint_timeout_seconds` (default 30) that raises
+  `CheckpointTimeoutError` naming the operation and the window;
+  `lifespan_checkpointer` yields `BoundedPostgresSaver` and bounds its own
+  `setup()`. The checkpointer was the last Postgres path of a turn with no
+  bound: the same single `AsyncConnection` shape the memory store had, so a
+  checkpoint read or write that never resolved held the turn and its worker
+  slot. The turn reports the typed error through the `error` chunk and
+  `data-turn-failed` its driver already writes. Pinned against a saver whose
+  every call hangs, which now fails in under 1 s.
+
+* **A turn cannot wait on the memory store without end.** Retrieval at Lead
+  entry and the auto-write in `finalize_turn` run inside
+  `memory_store_deadline`, an `asyncio.timeout` of
+  `memory_store_timeout_seconds` (default 30). Retrieval logs the timeout and
+  returns no memories; the auto-write logs and re-raises, so the turn writes
+  `error`, `data-turn-failed`, `finish` and `done` instead of holding its
+  worker slot. The store was the one outbound call of a turn with no bound:
+  `AsyncBatchedBaseStore` awaits a future only its batch task resolves, over a
+  single `AsyncConnection` with no statement timeout, and the unit test written
+  against a store that never answers ran the full 600 s command ceiling before
+  the deadline and 1.26 s after it. `lifespan_memory_store` now cancels and
+  awaits that batch task before the connection closes, so a closed store leaves
+  no `_run()` task pending at `langgraph/store/base/batch.py:330`. The FungiDB
+  journey spec no longer carries `test.fixme`. Decision:
+  [a-memory-store-call-is-bounded-by-the-turn](decisions/a-memory-store-call-is-bounded-by-the-turn.md).
+
+* **A busy worker is not a dead one.** The worker's heartbeat moved off the
+  event loop the jobs run on: `jobs/heartbeat.py::HeartbeatThread` refreshes
+  `procrastinate_workers.last_heartbeat` from a thread with its own loop and
+  its own connection every `worker_heartbeat_interval_seconds` (5), and warns
+  when a beat lands more than three intervals after the last one. `amain`
+  builds the `procrastinate.worker.Worker` itself, because the thread needs the
+  worker id the worker registers. Measured with one job holding the loop for
+  5.00 s: a beat on that loop lands 0 times and the row reads 5.028 s old,
+  while the thread beats 10 times and the row reads 0.315 s old.
+  `worker_dead_heartbeat_seconds` therefore drops from 300 s to 60 s, so a
+  killed worker's thread unlocks in one to two minutes. On the web,
+  `notReady == ["worker"]` renders the app behind a non-blocking banner
+  instead of the fatal "Some services failed to start" page, and without
+  waiting out the startup grace window. Decision:
+  [a-dead-worker-fails-its-turn-by-heartbeat](decisions/a-dead-worker-fails-its-turn-by-heartbeat.md).
+
+* **The agent can start from a strategy the user saved.** FRAME has
+  `list_saved_strategies`, a service read of the caller's saved threads on the
+  current site (name, thread id, WDK id, record type, root count, step count),
+  and `set_criterion(saved_strategy=...)` binds a criterion to one instead of to
+  a search. The criterion carries the saved strategy's steps, cloned with fresh
+  ids by the same `clone_saved_strategy` the panel's "Insert saved here" runs,
+  so the FRAME to BUILD conversion splices the subtree with no I/O: a saved
+  operand moves to the combine's secondary input, where WDK marks the collapsed
+  reference, and MINUS mirrors to RMINUS when it moves. A reference the listing
+  does not hold records an open `saved_strategy` slot before the retry that
+  names the listing, so `ready_to_build` stays false and `drop_criterion`
+  refuses that criterion: the measured failure was a frame that dropped the
+  saved input and built `GenesWithSignalPeptide` alone for 603 genes. On the
+  web, `POST /conversations/{id}/insert-saved` accepts an empty `targetStepId`
+  and makes the saved strategy the thread's root, which is what the empty
+  Strategy panel's new "Insert saved strategy" action and the Saved strategies
+  page's "Use in new chat" both call. Decision:
+  [a-saved-strategy-is-a-criterion-input](decisions/a-saved-strategy-is-a-criterion-input.md).
+
+* **Building is a response to a request.** `IntentClassification` gains
+  `context_statement` and `memory_request`, and a `PrepareTools` capability on
+  the Lead drops `frame_problem`, `build_strategy`, `edit_strategy`,
+  `recover_failed_steps`, `verify_strategy`, `open_eda_analysis`,
+  `set_eda_filters`, `run_eda_compute` and `create_eda_step` from the tool list
+  on every turn whose classification is not one of the six that ask for a
+  change. `remember` is now a Lead tool and stays visible in every intent, and
+  a turn whose classification does not build contributes no strategy memory.
+  The deterministic provider classifies once per turn, with a remember arc and
+  a context-statement arc; the eval corpus gains
+  `question-turns-do-not-build`. The classifier's constraint-kind list is
+  derived from `ConstraintKind`, so `percentile` reaches it without a hand
+  edit, and the tool tells the model to capture a stated share as that kind.
+  Decision:
+  [building-is-a-response-to-a-request](decisions/building-is-a-response-to-a-request.md).
+
+* **A clarification adds to the request instead of replacing it.**
+  `StrategyDomainState` gains `requirements`, the thread's stated constraints
+  deduped on kind AND value, and `original_request`, the text of the first turn
+  that stated a request of its own. `classify_user_intent` records both. The
+  ledger's constraint section merges the whole accumulated list and the pinned
+  summary prints one line per stated requirement, and `framing_goal` seeds a
+  missing spec's goal with the original request followed by the clarification,
+  so a clarification turn frames from both. Decision:
+  [a-clarification-adds-to-the-request](decisions/a-clarification-adds-to-the-request.md).
+
+* **An assumed value is recorded, not narrated.** `set_criterion` takes
+  `assumed`, one entry per parameter whose value the criterion text does not
+  state and that is not the sheet's default, with the value and one sentence of
+  reason. The entries land on `Criterion.assumptions` and the ledger's
+  constraint section renders each as a non-blocking `assumed` constraint,
+  grounded, with the reason as its note, so the Lead names them from the ledger
+  and the user can override any of them. Three refusals guard the input: an
+  unknown parameter, a parameter this call left null, and a half of a reference
+  and comparison pair, which has no defensible assumption. FRAME's instructions
+  say when to declare one. Decision:
+  [an-assumed-value-is-recorded-not-narrated](decisions/an-assumed-value-is-recorded-not-narrated.md).
+
+* **A stated share is now checked against the percentile that was bound.**
+  `ConstraintKind.PERCENTILE` carries a share and a direction ("top 10%"), and
+  `ground_constraints` reads the criterion's `*percentile*` parameter from the
+  values the spec bound: a minimum of 90 for "top 10%" grounds, a minimum of 80
+  grounds SUBSTITUTED with the note "bound 80 means top 20%", which blocks
+  because the constraint is user-explicit. `ground_constraints` therefore takes
+  `param_values` beside `param_names`. VERIFY's instructions add that a numeric
+  parameter is restated ONLY from its `constraint_report` entry, so a reply
+  cannot write an interpretation the bound value does not support, and the
+  verification prompt is ASCII throughout.
+
+* **A search overview no longer carries a verdict nothing writes.**
+  `SearchOverview` kept `decided`, `selection_status`, `rationale`,
+  `selection_reason`, `confidence` and `param_hints`, whose only writer was an
+  unregistered tool that is already deleted, so every reader ran against the
+  default. The six fields are gone with `SearchSelectionStatus`,
+  `AgentToolState.decided_search_names()` and `selected_search_names()`.
+  `search_for_searches` and `list_searches` no longer drop a result or append
+  the "already-decided search(es) hidden" note, the pinned discovered-searches
+  instruction no longer prints a `[selected]` / `[rejected]` tag or a
+  confidence, and the verification toolset's enum override keeps only the
+  `wdk_step_id` constraint it can fill.
+
+* **The last two modules over the 400-line cap were split along their own
+  seams.** `frame_spec.py` 407 -> 370 meaningful lines, beside
+  `frame_structure.py`, which owns the other half of an operational spec: the
+  tree `set_structure` folds the bound criteria into. The module also drops its
+  second copy of `CriterionRole` and reads the domain's. `conversation.py`
+  413 -> 292, beside `saved_strategy.py`, whose `SavedStrategyRepository` owns
+  the reads keyed by the WDK strategy a thread holds: the saved listing, the
+  threads that import one, and the prune of threads whose WDK strategy is gone.
+  `ConversationService` reaches those through
+  `strategy_ops.list_saved_strategy_consumers`, so the delete guard keeps one
+  owner for that query. No re-export and no shim: every caller and test imports
+  the module that defines the name. `check_max_lines.py` exits 0.
+
+* **The two modules the revision history grew past the 400-line cap were split
+  the same way as the eleven before them.** `fork.py` 474 -> 165 meaningful
+  lines, beside `fork_ids.py` (the fork's one id space and the chunk rewriting
+  that moves a copied chunk into it), `fork_copy.py` (the event rows and the
+  checkpoint rows) and `fork_strategy.py` (the anchor's snapshot and the
+  strategy the fork pushes from it); `turn_runner.py` 425 -> 370, beside
+  `turn_stop.py`, which owns the Stop path: the cancellation poll, the revision
+  the thread opens on, and the restore a stopped turn ends with. No re-export
+  and no shim, so a caller imports the module that defines the name, and the
+  mechanic the earlier batches recorded held again: a monkeypatched global stays
+  in the module the test patches, which moved
+  `monkeypatch.setattr(fork_module, "materialize_strategy_snapshot", ...)` onto
+  `fork_strategy` and the cancel-watcher patch onto `turn_runner.watch_for_cancel`.
+  `check_max_lines.py` exits 0.
+
+* **A strategy now has a revision history, and fork, revert and Stop read
+  it.** Every write of `conversation_strategies` appends a `strategy_revisions`
+  row through `ConversationRepository`, carrying the `strategy_revision`
+  fingerprint, the full AST with its per-step WDK ids and counts, the record
+  type, the step count, the WDK strategy id, the name and the message the turn
+  ended with. A branch resolves the anchor message's snapshot and pushes that
+  tree to WDK as a strategy of its own instead of duplicating the thread's
+  current one, so a branch at the turn-2 answer opens on three steps rather
+  than the four a later turn built; WDK's `sourceStrategySignature` duplication
+  went with the code that used it. A thread with a strategy and no history is
+  refused with `FORK_REFUSED` (409) rather than copied, and a branch is refused
+  while a durable task runs in the copied prefix. Revert restores the snapshot
+  in force at its target, or clears the strategy when the target predates every
+  snapshot. A stopped turn deletes what it appended and restores the snapshot
+  the thread opened with, or clears a first build that never reached WDK, and
+  the epilogue's `data-strategy-revision` reports the restored state right
+  after `data-turn-stopped`. A branch now keeps one id space: every copied
+  chunk's `messageId`, `message.id` and `turn_id` go through the id map its
+  `messages` rows are minted from, copied rows carry `task_id = NULL` so a
+  parent revert or delete cannot cascade into the branch's log, and the branch
+  copies its source's `assistant_id` and `application_id`. Migration
+  `2026_08_30_0003`. The stopped build's phase card and the editor's rendering
+  of a validation failure are the two halves of that report this change does
+  not reach; both are closed by later entries under this date.
+  Decision:
+  [a-strategy-has-a-revision-history](decisions/a-strategy-has-a-revision-history.md).
+
+* **Revert now truncates the thread the reader sees.** The revert flow
+  invalidated `["conversations", <id>, "messages"]`, a key no query uses, so the
+  snapshot query (`["conversations", <id>, "snapshot"]`) never refetched and the
+  remount replayed the pre-revert list: the deleted turn stayed on screen with
+  the edited message appended under it. The flow now invalidates the snapshot
+  query and awaits it, so the client holds the re-snapshotted log before the
+  edit is sent. The "Edit earlier message" dialog gained an error line: a failed
+  revert or branch renders the server's refusal, the dialog stays open and both
+  buttons stay clickable, replacing a toast the dialog covered. `toUserMessage`
+  reads a problem body's `title` when it carries no `detail`, which is the shape
+  `http_exception_handler` sends, so a 404 reads "Target message not found"
+  instead of "HTTP 404 Not Found"; the hand-rolled `isProblemDetail` guard and
+  the `isRecord` helper it was the last caller of are deleted. Pinned by
+  `apps/web/src/features/conversation/RevertFlow.test.tsx`, which drives the
+  real thread over a mocked transport.
+
+* **`packages/shared-ts` now has a formatting gate of its own.** `types.ts` was
+  prettier-dirty on the trunk and nothing read it: the `prettier-web` hook
+  triggers on that package but runs `prettier --check .` inside `apps/web`.
+  The package gains `format`/`format:check` scripts, a `prettier-shared-ts`
+  pre-commit hook and a CI step in `check-shared-ts`. The two identical
+  `.prettierrc.json` copies in `apps/web` and `packages/assistant-client-ts`
+  are replaced by one at the repository root, which every package resolves.
+  The package's `lint` script named an eslint it does not install and nothing
+  ran it; it is gone.
+
+* **The ledger's sub-agent call counts had no writer and are gone.**
+  `InvestigationLedger.sub_agent_calls_this_turn` and `sub_agent_calls_total`
+  were never assigned by `derive_ledger` or anything else, so every
+  `data-ledger-update` carried an empty list and a zero while a sub-agent ran,
+  and the Lead's pinned summary read `## Sub-agent calls this turn: 0` over a
+  live dispatch. The thread already records each dispatch as a
+  `data-sub-agent-call` part, so the counts are deleted rather than given a
+  writer: the two fields, the summary line, `SubAgentCallRecord`, the
+  `subAgentCallsThisTurn`/`subAgentCallsTotal` members of
+  `DataLedgerUpdatePayload`, the panel's `SubAgentCountSection` and the golden
+  SSE fixture's keys. Pinned in `test_types.py` and `LedgerPanel.test.tsx`.
+
+* **Batch 1's re-verification closed three gaps the batch had opened.** The
+  `dev-login` credential kind reached `Principal` without the spec, so the
+  OpenAPI check was red; the spec and the generated types are regenerated. The
+  refresh route relinked every dev-login session to the account the shared
+  VEuPathDB token names, which split one Playwright worker across two users on
+  every page load; a dev-login session now returns from refresh untouched,
+  pinned in `test_refresh_relinks_the_internal_session.py`. The Lead's EDA loop
+  ended at `create_eda_step`, so a study-backed strategy was reported from the
+  compute summary and never verified; the loop now ends with `verify_strategy`,
+  pinned in `test_eda_instructions.py`. Two wasted retries per consultation came
+  from the Lead placing background at the top level of `consult_user`; the tool
+  now says background belongs to a question's `context`, and its schema is
+  pinned to `questions` alone. The second pass then reached the frozen thread
+  acceptance journey, which still expected the old trace-row labels (`Search
+  eda studies`, `Open eda analysis`, `Search catalog`, `Set criterion`,
+  `Preview eda subset`); the vocabulary decision wins, and the spec now
+  expects `Find studies`, `Open study`, `Find searches`, `Choose a search` and
+  `Preview samples`.
+
+* **The CI, lint, size and build gates now report the code rather than
+  themselves.** Seven backlog cards left together and one shrank. `yarn
+  format:check` was already green on the trunk, so the formatting card left on
+  proof rather than on a reformat; what stayed wrong was that the `prettier-web`
+  and `prettier-assistant-client` pre-commit hooks ran `yarn format`, which
+  writes, while CI ran `yarn format:check`, which reads. Both hooks now check,
+  and CLAUDE.md's frontend list is the five package scripts CI runs, so a gate
+  spelled one way in three places cannot pass in one and fail in another.
+
+  `yarn lint` died at the 4 GiB default heap after 210 s with 3.93 GB resident
+  and "Ineffective mark-compacts near heap limit". The lint program was reading
+  8029 TypeScript files under `.stryker-tmp`, against 1002 under `src`: eight
+  sandbox copies of the project that a mutation run leaves behind, each with its
+  own tsconfig, each becoming another type-aware program. `.stryker-tmp` and
+  `reports` join the eslint ignore set, and the same command now exits 0 in
+  42 s at 1.96 GB. An ESLint-API test asks the config whether each generated
+  tree is ignored, so the next such directory fails a test instead of a runner.
+
+  `ruff check .` was red on an S608 in the tenancy migration, which built its
+  copy statement by interpolating a table name and a column list into a string.
+  The statement is now a SQLAlchemy `insert().from_select()` over a `sa.table()`
+  built from the catalog's own column names, with `add`, `cut` and `old_like` as
+  bind parameters and `to_regclass` taking its qualified name as one; the seven
+  migration tests that drive the real database in both directions are unchanged
+  and green. `pip-audit` reported 24 advisories across 13 packages, all with a
+  fix version: the two pinned checkpoint packages moved
+  (`langgraph-checkpoint-postgres` 3.0.5 -> 3.1.1, PYSEC-2026-3635), two direct
+  dependencies gained a floor, and the remaining transitives are bounded in
+  `[tool.uv] constraint-dependencies` with the advisory id on each line. It
+  reports no known vulnerabilities. No advisory needed an ignore.
+
+  The two locks disagreed on `langgraph-checkpoint` (4.0.1 against 4.2.0), and
+  also on `langgraph-prebuilt` and `langgraph-sdk`, so the package suite proved
+  decode behaviour the app never ran. `assistant-core` owns the checkpoint
+  serializer, so it now owns the pin: `langgraph-checkpoint==4.2.0` sits in its
+  dependencies and `apps/api` inherits it through the editable path dependency
+  it already declares. A test reads both `uv.lock` files and fails when any
+  shared `langgraph-*` package resolves to two versions.
+
+  The last five modules over the 400-line cap were split the same way, so
+  `check_max_lines.py` now exits 0 and `file-size-api` fails only for the change
+  that grew a module: `domain/eda.py` 669 -> 129 beside the study tree it walks,
+  the per-entry filter checks and the compute config; `eda_analysis.py` 467 ->
+  308 beside the filter sheet and the guidance a result carries;
+  `sub_agent_stream.py` 449 -> 263 beside the inner events it renders;
+  `ledger.py` 424 -> 143 beside its four sections and their full renderers;
+  `sub_agent_dispatch.py` 407 -> 353 beside the deps, the call id and the two
+  early ends a dispatch shares with the edit dispatch. Ten modules across the
+  two batches, and the two mechanics the first batch recorded held for all of
+  them: the tool-summary walk follows a helper a tool's module imports, so the
+  three EDA tools keep their `with_summary` calls in the module the walk starts
+  from, and a monkeypatched global stays in the module the test patches, which
+  pins `stream_sub_agent` and `build_strategy_from_spec` to
+  `sub_agent_dispatch.py` and every name the EDA tool tests patch to
+  `eda_analysis.py`. The frozen acceptance suite reaches `validate_filters` and
+  `find_gene_entity` through `pathfinder.domain.eda`, so both stay defined there
+  rather than re-exported.
+
+  Six modules over the 400-line cap were split by responsibility, with no
+  re-export shim and no behaviour change: `param_dag.py` 649 -> 237 beside a
+  binding module and a filter module; `frame_spec.py` 600 -> 314 beside its
+  proposals and its sheet; `strategy.py` 532 -> 203 beside the per-step edits
+  and the refusals both halves return; `mcp/server.py` 488 -> 148 beside the
+  catalog tools and the user-credentialed tools; `operations/apply.py` 458 ->
+  230 beside the delete resolutions and the wiring primitives;
+  `step_wdk_push.py` 416 -> 296 beside the WDK calls that create or patch one
+  step. Two mechanics surfaced and are recorded on the card that remains: the
+  tool-summary walk read a tool's own module only and now follows a helper the
+  module imports, and a name a consumer reaches through a module rather than
+  from its definition needs that module to declare it in `__all__` or
+  `mypy --strict` calls it an implicit re-export. Five modules are still over
+  the cap, in trees this work does not own, so the card stays and names them.
+
+  `yarn generate:types` dumped the spec from whichever api container happened to
+  be running, so a regeneration during an e2e session committed
+  `/api/v1/dev/login` into the shared contract. It now builds the app in process
+  with the production route set, and the writer refuses a spec that names any
+  path the dev router mounts, reading that set off the router rather than a
+  literal. Regenerating changed `packages/spec/openapi.json` and no generated
+  TypeScript file: 1068 files came back byte-identical.
+
+  The rule that Turbopack buffers SSE is retired on measurement rather than on
+  belief. A proxied `text/event-stream` emitting five frames 300 ms apart
+  reaches the client through a Next 16.2.0 dev server with its gaps intact under
+  both bundlers - 0.271, 0.302, 0.311 and 0.303 s under Turbopack. The dev
+  script, the Dockerfile, CLAUDE.md and the batch-7 plan all name plain
+  `next dev`, and [the decision](decisions/the-dev-server-runs-turbopack.md)
+  records what was rejected. Turbopack's first frame is later by the on-demand
+  compile, which is a cold start and is warmed, not timed out.
+
+  Last, the injection scanner. `warm_up_piguard` built a `PIGuardScanner` and
+  threw it away, so readiness primed the page cache and the first real request
+  still built an onnxruntime session inside the 5 s enqueue wait - and in a test
+  process, which never runs readiness, the red landed on whichever test posted
+  first. The warm-up now loads the scanner the request path calls, the dead
+  loader is gone, and a session-scoped fixture warms it once per test process
+  the way readiness does in production. The 1.2 s bound the card flagged beside
+  it no longer exists in the tree.
+
+* **The test gates that could not decide anything now decide.** Five backlog
+  cards left together. Both frontend ratchets are green on the trunk and run in
+  CI beside `check:boundaries`: 84 tests gained an assertion on a value, and
+  the weak-assertion baseline dropped from 209 entries to 62 as the fixed ones
+  left it. Two more of the reported 86 were the script's own gap -
+  `toBeEmptyDOMElement` was missing from its strong list - and the list gained
+  it rather than the tests losing a good matcher.
+
+  The checker also learned what a throwing query is. `getBy*` and `getAllBy*`
+  raise when nothing matches, so `expect(screen.getByText("3.48"))` pins the
+  value before any matcher runs, and calling that test weak asked its author to
+  restate a literal the query already carried. Given a string or regex literal
+  as the query's first argument the chain now counts as strong; a variable does
+  not, and `queryBy*` and `findBy*` do not, because neither raises. That single
+  rule cleared 126 of the 188 baseline entries, which is how many of them were
+  never weak. The checker now has a checker,
+  `scripts/check-weak-assertions.test.mjs`, in the shape the knowledge and WDK
+  rule checkers already use, and it runs in CI.
+
+  Every `.first()` and `.nth()`
+  in the six older specs is now a locator that names what it means to click:
+  the ensemble chip by its gene set's name, the gene set card by the `title`
+  its name span carries, the branch button inside the assistant reply that
+  carries it, and the task progress row inside the task that started it. Two
+  page objects lost the same escape, because the specs that call them depend on
+  it.
+
+  Two api tests reported a machine's load as a product defect. The parallel
+  fan-out test now counts the trials in flight and asserts five, rather than
+  timing them against a 1.2 s bound that measured 1.47 s at load average 69.
+  The deadlines that stand for "the turn finished" are named ceilings on a
+  deadlock, and `db_cleaner` drains the turn it is about to truncate under, so
+  a slow turn can no longer write an event for a conversation the teardown has
+  already removed. Both hold at load average 80.
+
+  `parse_sse_body` splits on `\n` alone. `str.splitlines()` also breaks on
+  U+2028, which a recorded EDA study description carries, so a
+  `tool-output-available` frame parsed in two while the wire frame was intact.
+
+  The opt-in llm tier is gone. It had no test files at all - a conftest of
+  fixtures for three models (`ClarificationQuestion`, `ProblemFrame`,
+  `ResearchNote`) that no longer exist anywhere - so there was nothing to
+  repair. A collect with `addopts` cleared now runs in CI and in the documented
+  backend ladder, so the next tier that stops importing is reported by the only
+  command that can see it.
+
+* **Verification can now reach a verdict, and cannot state one the build does
+  not support.** Three backlog cards left together. A tool that takes a graph
+  id now answers to the VEuPathDB strategy id as well
+  (`ai/tools/standalone/_validation_helpers.py::get_graph` resolves it through
+  the session's `wdk_strategy_id`), so the lookup that returned "not found" on
+  strategy 330558093 returns the graph. A study step is verified by its own
+  numbers: `check_study_step` reads the volcano cut out of the step's
+  `eda_analysis_spec` through `services/eda/export.py::exported_thresholds`
+  and reports one `ConstraintCheck` per threshold the caller names, so the
+  measured step reports 1,543 records at 2-fold and p 0.05 with `success true`
+  instead of "should be treated as unverified".
+
+  A success digest is now held to the ledger. `run_verification` derives the
+  ledger and refuses a `success=True` digest that the build does not support -
+  a build that failed, skipped or left a step empty, or a turn that built
+  nothing on a strategy with no step in VEuPathDB - and rewrites it into a
+  failure digest naming the contradiction. Rewriting at the single write point
+  was chosen over a `ModelRetry` on the sub-agent
+  (`decisions/the-ledger-outranks-the-verification-digest.md`): retries are
+  finite, and the flag also decides the memory auto-write and the eval
+  extractor's verdict, so the correction belongs where the digest is recorded.
+
+  The verification playbook now picks its checks from what the turn changed.
+  `VerificationScope` carries the turn's spec diff into the sub-agent's deps
+  and the verification toolset filters `run_gene_set_enrichment` out of an
+  edit that touched one criterion, so "add a P. vivax ortholog transform" is
+  answered by a count check rather than a two-minute background job. The Lead
+  passes `enrichmentRequested` when the user asked for enrichment by name.
+
+* **One account's EDA authorization answered every later account in the same
+  api or worker process.** `services/eda/catalog.py::_permissions` kept the
+  `/eda/permissions` answer in a per-site cache, and `/eda/permissions` is an
+  account-scoped read: it decides which datasets exist for the caller, which
+  can be subset and which can export rows. The first credential to ask on a
+  site decided what every later one was told, and `resolve_dataset` raised
+  `UnknownEdaDatasetError` from the same map, so an account could be refused a
+  dataset it owns or offered one it may not read.
+
+  The entry is now addressed by the site and a sha256 of the request's
+  VEuPathDB token, and a call carrying no token is refused before the address
+  is built. `studies` stays keyed by the site, because the listing is the same
+  for every account. Keying by the numeric WDK user id was rejected
+  (`decisions/the-eda-permissions-cache-is-keyed-by-the-credential.md`): the
+  `/users/current` round trip buys only the dedup of two tokens belonging to
+  one account, and it would put a WDK dependency in a read that is otherwise
+  pure EDA. `clear_study_caches` keeps its callers and now drops the new map
+  too.
+
+* **The turn that answered a durable call ran on the configured tier, not on
+  the model the request pinned.** `jobs/runner.py` built
+  `ChatRequestBody(conversation_id=...)` and nothing else, so
+  `phase_models` and `phase_reasoning` were empty on the completion turn and
+  `resolve_lead_model_context` fell through to the phase tier. The half of an
+  investigation a researcher reads the compute numbers from was answered by a
+  different model, at a different price, with nothing on the transcript saying
+  so.
+
+  The picks now travel on the durable task. `run_turn` publishes the validated
+  pair on `phase_overrides_ctx`, `create_background_task` writes it to the new
+  `background_tasks.phase_overrides` column (migration `2026_08_30_0002`), and
+  `jobs/runner.py::_completion_body` rebuilds the completion turn's request
+  body from the row. `BackgroundTaskRepository.create` takes a
+  `NewBackgroundTask` spec, so the picks are a named field rather than a
+  seventh keyword. Persisting them on the conversation was rejected
+  (`decisions/a-durable-task-carries-the-turn-s-phase-picks.md`), because it
+  would make a per-request override a thread setting.
+
+* **A durable task's completion replayed the Lead node from its first line, so
+  one prompt produced two EDA analyses, three compute jobs and no step.**
+  `@durable_tool` called LangGraph `interrupt()` from inside the tool, inside
+  the agent run, inside the `lead` node, and the worker resumed with
+  `Command(resume=...)`. LangGraph re-executes a resumed node from its start:
+  the model was called again, a second analysis was opened, `run_eda_compute`
+  deferred a second job before its `interrupt()` returned the stored result,
+  and `create_eda_step` failed twice on an analysis that carried no
+  computation. The turn never wrote `done`.
+
+  A durable tool is now a deferred tool. The decorator creates the
+  `background_tasks` row with the pydantic-ai `tool_call_id` it will be
+  answered on (new nullable column, migration `2026_08_30_0001`, which also
+  flushes the interrupt-era checkpoints), defers the job, records a
+  `DurableDeferral` on the deps, emits `data-background-task-started` and
+  raises `CallDeferred`. The turn parks a `PendingDurableCall` beside
+  `pending_approval` and closes. On completion the worker announces
+  `data-task-completed` and opens a new turn with
+  `TurnRequest(durable_result=...)`, which resumes the parked run with
+  `DeferredToolResults(calls={tool_call_id: ToolReturn(...)})`; the tool's
+  `chunks_from_result` runs there and rides the result's metadata, so the
+  summary and the figure land beside the tool's output part. A durable call
+  inside the verify sub-agent parks the dispatch with that run's
+  `messages_json` and the completion turn re-enters it, so the verification
+  verdict reaches the reply. `_resume_graph`, `_interrupt_chunks` and the
+  `interrupt` import are deleted, and the turn runner reads `custom` chunks
+  alone. The observable wire did not move, so PROTOCOL 6.1 stands.
 
 * **One PathFinder session wrote two EDA analyses under WDK user 1216062453 and
   then read them back as WDK user 1202189953, which answered
@@ -50,6 +1029,20 @@
   `open_eda_analysis`, `set_eda_filters`, `run_eda_compute` and
   `create_eda_step` instead of repeating the rejection, and the declarative
   build fails the node before `push_step_to_wdk` is reached.
+
+* **No internal name reaches the researcher.** The first real session showed
+  `Open in EDA tab`, `Search eda studies`, a group labelled `Frame`, rail tabs
+  `Ledger` and `EDA`, a badge `WDK` and summaries carrying `DS_e973eadd57`.
+  `docs/knowledge/decisions/user-facing-vocabulary.md` fixes the glossary
+  (study, Studies, Open study; VEuPathDB; Planning, Building, Checking,
+  Repairing; Assistant; Progress) and two source scans enforce it: a vitest
+  over every JSX text and string literal the app renders, and a pytest over
+  every summary line, error title and detail, and refusal message in the
+  study tools and services. All 81 registered tools carry a verb in
+  `toolNames.ts`, so the Title-case fallback can no longer print a tool's
+  internal name; the Lead's instructions carry the same rule for its prose
+  and its consult questions. The recorded turn, the rail, the settings page
+  and a live turn's prose scan clean.
 
 * **The EDA tab's compute never landed on the analysis, and the consult recap
   could not read the answer it was given.** Running the differential
@@ -101,6 +1094,153 @@
   first thing a reader saw was `Title set: ...` drawn as a figure with a rule
   and 24 px margins, for a title the sidebar already shows; the
   `data-conversation-title` part now draws nothing in the thread.
+
+* **The e2e lane's blanket 401, a cross-tier settings leak, two tools that
+  could not be addressed by strategy id, and a gate that stopped at the spec
+  files.** A Playwright worker signs in through the dev-login route as
+  `worker-N` and carries the one shared registered VEuPathDB test token, so
+  `require_session_matches_wdk_identity` answered 401 `WDK_IDENTITY_MISMATCH`
+  on every WDK-backed route. The identity match belongs to a session minted
+  from a VEuPathDB identity; a dev-login session is a synthetic user with no
+  such account. The dev-login route marks its JWT, `decode_session_token`
+  reads the mark, and the `Principal` carries `credential="dev-login"` beside
+  `veupathdb-bearer`, which the match returns early for. The login refusal is
+  unchanged, so a dev-login session still needs a registered non-guest token.
+  Production cannot mint the credential and a test says so twice: the app
+  built without the mock overlay carries no dev-login route, and the dev
+  router is the only caller of `create_dev_login_token`.
+
+  `test_catalog_index.py`'s sync assertion answered `0 == 3` whenever the unit
+  tier was collected in the same process, because `tests/unit/conftest.py`
+  wrote `EMBEDDING_INDEX_SYNC_ENABLED=false` into `os.environ` at import and
+  never restored it. The unit tier has no database and refuses network calls,
+  so the write guarded nothing the tier did not already guard; it is deleted,
+  the whole unit tier is green without it, the catalog test now pins the
+  setting it asserts on the way its disabled twin already did, and an AST
+  scan fails any tier conftest that writes the process environment again.
+
+  `rename_strategy` and `clear_strategy` called `session.get_graph` directly,
+  so they alone refused the VEuPathDB strategy id every other tool accepts;
+  both now go through `_validation_helpers.get_graph` and say which ids they
+  take when the lookup misses. And `check-no-first-nth` read only `*.spec.ts`,
+  so a page object hid the escapes from every spec that called it: it now
+  reads `e2e/pages/**` too, skips a call named in a comment, and reports zero
+  after the four page objects were rewritten to name what they address.
+
+* **The Lead can throw a strategy away, and only the Lead can.** `build_strategy`
+  refuses a thread that already has a strategy and `edit_strategy` only changes
+  one, so "scrap this and start again" had no tool behind it: `clear_strategy`
+  was registered in the execution toolset alone, which the Lead reaches only
+  through `recover_failed_steps`. It is now a Lead tool - a thin
+  `clear_strategy(ctx: RunContext[LeadDeps], *, confirm: bool)` that builds
+  `AgentDeps` through `agent_deps_for` and delegates to the standalone tool -
+  registered `requires_approval=True`, so the user answers a card before a step
+  is removed. Its card reads "Clear the strategy? This removes every step from
+  this thread and from VEuPathDB." through a new `approvalPromptFor` seam in
+  `lib/utils/toolNames.ts`; `ApprovalCard` now renders the whole sentence its
+  caller wrote instead of appending one, and every other tool keeps the
+  standing "X needs your approval before it runs." The build refusal and the
+  Lead's instructions name the tool again. The execution toolset's registration
+  is gone with it: a repair sub-agent has no business deleting the strategy it
+  was sent to repair, and two registrations would be two approval surfaces for
+  one act.
+
+* **`get_live_strategy_state` asks the site for every count.** After a hand edit
+  in the graph editor the tool answered from `sync_state.step_counts`, which the
+  editor never writes: the root read 15 for a strategy the editor showed
+  returning 7, the edited step read null, and the step's name still said "top
+  20%" while its parameter said 90. `read_live_state` is now async, takes a
+  `StrategyReader`, and sources every count from `read_wdk_step_counts` - a
+  count the site does not answer for is reported as unknown, never as the count
+  from the last build. Step parameters are serialized through `wire_map`, so the
+  Lead reads `min_expression_percentile: "90"` rather than a nested value model,
+  and the tool's description says the parameters outrank the step's name. The
+  summary says "count not available" with `status="warn"` instead of "0 genes".
+  Measured on the card's state: root 7, the edited step 752, the text step 2122.
+
+* **One row-to-session parse, pinned by a test.** The assistant spec and the
+  worker runtime each used to hold the same guard-parse-fallback over
+  `conversation_strategies.strategy_ast`; both now call
+  `services/strategies/session_factory.py::persisted_graph`, which raises
+  `StrategyAstCorruptError` (`STRATEGY_AST_CORRUPT`) rather than swallowing a
+  parse failure into an empty graph. Nothing asserted the two agreed, so
+  `test_row_to_session_is_parsed_once.py` now serves one row to both callers and
+  checks the graphs, the step counts and the WDK step ids match, that a corrupt
+  row stops each of them by name, and that both modules read the one function.
+
+* **The thread's trim now mirrors both tails pydantic-ai refuses.**
+  `settled_history` popped trailing messages until the last one was a
+  `ModelResponse` with no tool calls, which kept a response the provider paused
+  (`state == "suspended"`) as the thread's tail; `UserPromptNode` raises
+  `UserError` on a new prompt over that tail as surely as it does over an
+  unprocessed tool call. The trim now treats a suspended response as unsettled
+  and drops it with its request. A response in state `incomplete` still
+  settles, because the library accepts it.
+
+* **A warm-up death now reaches `/health/ready`.** `_warm_up_subsystems` runs
+  as a spawned task and each step catches its own expected exception tuples, so
+  a type outside those tuples killed the task and left the remaining subsystems
+  reporting "loading" forever, traced only by asyncio's
+  exception-never-retrieved log at garbage collection. The spawn now carries a
+  done callback that logs the exception and calls
+  `ReadinessState.fail_loading`, which fails every subsystem and catalog that
+  is neither ready nor already failed, with `<TypeName>: <message>` as the
+  error. A step that already reported its own error keeps it.
+
+* **The devtools summary counts every tool call its own log holds.**
+  `RunCapture` built its call list from `data-sub-agent-step` chunks alone, so
+  a turn that ran one agent printed `toolcalls=0` over an `events.jsonl` full of
+  `tool-input-available`, and a Lead turn counted its sub-agents' inner calls
+  but never its own dispatches. The count is now the union, deduped by
+  `toolCallId`: every id a `tool-input-available` announces, plus every
+  captured sub-agent step that reached a terminal state. A recorded site_help
+  mock run (one `list_veupathdb_sites` call, `toolcalls=0` in its own
+  `summary.json`) is pinned as a fixture under the devtools unit tests.
+
+* **A sweep's variants now advance in lanes of their own (protocol 1.5.0).**
+  Every variant of a parameter sweep emitted `data-task-progress` under the
+  same `id` (the task id), so section 5.2's reconciliation left one part for
+  the whole fan-out and the bar jumped between variants and moved backwards.
+  `task_progress_event` takes a `lane` and emits `id=<task id>:<lane>`; a
+  scoped emitter derives its lane from its scope's values and keeps a
+  coalescing budget and an unwritten update of its own, so three variants of
+  three updates leave six rows under three ids instead of four rows under one.
+  PROTOCOL 6.1 states the lane rule, says the lane is read from `toolSpecific`
+  and never parsed out of the `id`, and the client's conformance suite pins two
+  lanes reducing to two parts. The thread card renders one row per lane,
+  ordered by lane, and a task that runs one sequence is unchanged: bare task
+  id, one row.
+
+* **PROTOCOL 6.2 now states the resume sequence the runtime emits.** A resumed
+  approval turn re-enters the parked `toolCallId` with `tool-input-available`
+  and then `tool-output-available`, and never a second `tool-input-start`:
+  pydantic-ai's resume emits its own input-available, which marks the id
+  started, so the adapter's missing-start backfill never fires. The document
+  described a start-first sequence, so a consumer written from the page alone
+  built a reader the reference producer contradicts. Section 6.2 now says the
+  resumed turn carries the input chunk alone and that a client MUST open a call
+  on `tool-input-available` whether or not a start came before it. The producer
+  is unchanged; the client's conformance suite gains the resume half of the
+  approval arc.
+
+* **The dead-code checker is pinned, wired, and has no whitelist.** `vulture`
+  was configured in `apps/api/pyproject.toml` but declared in no dependency
+  group, so `uv run vulture` resolved to a global `vulture 2.14` on a
+  pre-3.14 interpreter and reported 69 valid PEP 758 / PEP 695 / `match` files
+  as `invalid syntax`. It is now `vulture>=2.16` in the api dev group, where the
+  same command reads every file and exits 0. Two gates run it, spelled
+  identically: the `vulture-api` pre-commit hook and the `Check for dead code`
+  step of the `Lint API` job. `vulture_whitelist.py` is deleted: all 49 entries
+  named functions, `min_confidence` is 80, vulture scores an unused function at
+  60, and the run without the file returns the same findings as the run with it
+  - 16 of the 49 names had no `def` left in the tree. Its live replacement is
+  `ignore_names = ["CursorResult"]`, for six imports whose only use is inside
+  `cast("CursorResult[object]", ...)`, which ruff `TC006` requires to be a
+  string and vulture does not resolve. The one true finding is fixed:
+  `Settings.model_post_init` took `__context`, an unused parameter under the
+  old positional-only spelling, now `_context: object, /` to match
+  `BaseModel.model_post_init`. `min_confidence` 60 was measured and rejected at
+  997 findings.
 
 ## 2026-08-29
 
@@ -258,10 +1398,9 @@
   loses its lock five to six minutes after it dies instead of at the hour-wide
   started-age timeout, and Stop calls the same release directly. The window is
   300 s and not 60 s because a live worker was measured 153 s behind its own
-  heartbeat during a long frame, so
-  [the starvation item](backlog/worker-heartbeat-starves-during-turn-and-ui-gate-goes-fatal.md)
-  is the prerequisite for lowering it; the 30 s window in
-  `platform/health.py` is a different question and keeps its number. A released
+  heartbeat during a long frame, so the heartbeat starvation is the
+  prerequisite for lowering it; the 30 s window in `platform/health.py` is a
+  different question and keeps its number. A released
   turn, and a turn whose own driver raises, now write one `tool-output-error`
   per tool call they left open before the terminator; `PROTOCOL.md` 1.3.1
   states the rule and the client's conformance capture carries it.
@@ -1160,7 +2299,7 @@
   reports a regression that is not there. Exact structural match rather than NTED: the
   only tree-edit-distance implementation in the repo is in the retired thesis harness and
   depends on `zss`, `numpy` and `scipy`
-  ([backlog](backlog/eval-scoring-is-exact-match-only.md)). And reading a thread through
+  (the graded distance landed on 2026-08-30, written in plain Python). And reading a thread through
   `graph.aget_state` prints eleven "Deserializing unregistered type" warnings, including
   for three types that are on the allowlist `assistant_core.conversation.serde` builds,
   where the same checkpoint read by `astream` prints none
@@ -1210,7 +2349,7 @@
   default was refused, and what blocks the remaining measurement is the visible half of
   [WDK-PARAM-010](wdk/rules/parameters-and-vocabularies.md). `channel` (75 searches) and
   `dataset_url` (56) stay unmeasured for that reason, and
-  [the item](backlog/hidden-required-default-chooses-the-science.md) now carries the
+  the hidden-required-defaults item now carries the
   numbers instead of the question.
 
 * **The lane's first run found seven dead live tests, and they are fixed.** Every
@@ -1250,7 +2389,7 @@
 
 * **WS2 batch A: the turn state and the wire vocabulary are seamed.** The first two seams of the platform program (`docs/superpowers/specs/2026-08-21-ws2-in-repo-seams.md`) landed together. `PipelineState` is now `TurnState` (the generic turn: message, accounting, approvals, consults, memories) plus one `domain: StrategyDomainState` field holding the eight strategy fields; `Context`/`AgentDeps` split the same way into `TurnContext`/`AssistantDeps` plus product subclasses; the checkpoint serializer keeps a core allowlist and takes product registrations at import, and a guarded migration flushes old-shape checkpoints while sparing the checkpointer's own DDL ledger. The strict round-trip tests caught three REAL pre-existing decode bugs on the way: `ToolApprovalResponded`, `UserQuestionAnswer` and `StepPushFailure` reached checkpoints unregistered, so a strict decode returned plain dicts and attribute reads would have raised. Two dead fields died instead of crossing the seam (`AssistantDeps.writer`, `PendingApproval.plan_id`). On the wire side, the closed `data-*` union became a `StreamPartRegistry` (core parts in core, strategy parts registered by a product module, schema-only tier for payload models no kind emits), the TS `DataPartKind` opened to `KnownDataPartKind | (string & {})`, and the renderer map is a compile-time-total merge of a core half and a strategy half; part kinds keep their names ([decision](decisions/part-kinds-keep-their-names.md)) because a rename would invalidate persisted event replay. Verified on the combined tree: ruff/mypy/pyright zero findings, 2308 unit + 348 integration backend tests, 2177 vitest, boundaries clean, knowledge gate clean, and a live devtools turn against plasmodb through the new checkpoint shape (frame, build, verify, zero failures). Known couplings deliberately left for batch C: `PendingApproval.phase` still speaks `PhaseRole`, and `turn_state.py` imports `ai/agents/roles` for it.
 
-* **The suite reached 120 passed / 10 failed / 0 flaky, and the feature project is fully green.** Every strategy-edit spec, both purge specs and the enrichment panels pass; the trajectory across the campaign is 94, 105, 120 of 133. The last GO-spec failures were their own lesson: the spec's follow-up question named the mock's GO marker phrase, which routed a plain question into a rebuild that re-minted every step id (the AST leaf changed from `step_65fae9c7` to `step_8b4f3fc6` across one turn) - the question now avoids marker phrases, the precondition reads the vocabulary half through `values`, and the file passes in 33 s. The ten that remain are deep in composite flows and are a healthier class of red: two cross-feature flows now live long enough to fail their axe checkpoint with serious/critical accessibility violations, five journeys share one `rail-strategy-panel` wait, and three are tail-of-run environment flakes; all filed with next steps in [the backlog item](backlog/e2e-suite-residual-failures-after-auth-overhaul.md). One operational lesson is recorded beside them: a worker chat turn on the portal built the portal's semantic index in-process for 2 h 39 m at 785% CPU, freezing every queued turn - the portal's catalog varies per fetch, so a whole-file cache cannot validate, which the per-entry cache entry of the same day closes.
+* **The suite reached 120 passed / 10 failed / 0 flaky, and the feature project is fully green.** Every strategy-edit spec, both purge specs and the enrichment panels pass; the trajectory across the campaign is 94, 105, 120 of 133. The last GO-spec failures were their own lesson: the spec's follow-up question named the mock's GO marker phrase, which routed a plain question into a rebuild that re-minted every step id (the AST leaf changed from `step_65fae9c7` to `step_8b4f3fc6` across one turn) - the question now avoids marker phrases, the precondition reads the vocabulary half through `values`, and the file passes in 33 s. The ten that remain are deep in composite flows and are a healthier class of red: two cross-feature flows now live long enough to fail their axe checkpoint with serious/critical accessibility violations, five journeys share one `rail-strategy-panel` wait, and three are tail-of-run environment flakes; all filed with next steps in the e2e residual-failures backlog item, since closed. One operational lesson is recorded beside them: a worker chat turn on the portal built the portal's semantic index in-process for 2 h 39 m at 785% CPU, freezing every queued turn - the portal's catalog varies per fetch, so a whole-file cache cannot validate, which the per-entry cache entry of the same day closes.
 
 * **The mock now speaks the FRAME contract: discovery before binding, and one half of a GO criterion.** The run-12 edit-family failures reproduced deterministically in the chat debugger: `set_criterion` is enum-guarded to the discovered search universe, the mock never called a discovery tool, and the guard's cold start admitted the first sheet read and then locked the universe to that one search - the second criterion was refused verbatim, `search_name='GenesByTaxon' is not a known value for set_criterion. Choose one of: GenesByText`, three identical replays, retry cap, "Response failed". Separately the GO arc died on the parameter rule `go_term and go_typeahead on GenesByGoTerm are ORed halves of one criterion ... Put the criterion in go_typeahead`, because the canned values filled both. `frame_call` now emits `list_searches` before any criterion so every canned name enters the universe, and `_go_kinases` carries `go_typeahead` only. Both arcs re-run clean end to end against live plasmodb in the debugger: the interpro turn ends on the feedback prose the specs wait for and the GO turn on the success digest, zero tool failures. Six new mock unit tests pin the sequence and the halves rule; the SSE golden is untouched because its prompt rides the echo arc.
 
@@ -1262,11 +2401,11 @@
 
 ## 2026-08-20
 
-* **The suite reached 105 passed / 23 failed / 2 flaky / 0 did-not-run, and the 23 have three measured causes.** The run-10 deletion, durable-SSE and auth clusters are green. Of what remains, (a) the strategy-EDIT family and the edit-ending journeys time out on `/returned 0|root size is 0|too narrow|loosen/i`, the OLD mock's verification-feedback wording, which the rewritten mock never emits - the one reconciled spec (`insert-saved:15`, via `expectVerificationFeedback()`) passes, the rest carry inline copies of the dead regex; (b) the purge specs fail against the polluted shared WDK account, named outright by the flaky `user-data:66`: "sync-wdk re-imported 50 active strategies on plasmodb after dismiss purge" - prior runs left hundreds of strategies under the registered test account, so "everything deleted" cannot hold; (c) the enrichment cluster (analysis, workbench panels, all three cross-feature specs, five site journeys) waits 120 s for a result OR an error and sees neither, which predates every change this week and is the one unexplained cause. All three, with the fix each needs, are in [the backlog item](backlog/e2e-suite-residual-failures-after-auth-overhaul.md).
+* **The suite reached 105 passed / 23 failed / 2 flaky / 0 did-not-run, and the 23 have three measured causes.** The run-10 deletion, durable-SSE and auth clusters are green. Of what remains, (a) the strategy-EDIT family and the edit-ending journeys time out on `/returned 0|root size is 0|too narrow|loosen/i`, the OLD mock's verification-feedback wording, which the rewritten mock never emits - the one reconciled spec (`insert-saved:15`, via `expectVerificationFeedback()`) passes, the rest carry inline copies of the dead regex; (b) the purge specs fail against the polluted shared WDK account, named outright by the flaky `user-data:66`: "sync-wdk re-imported 50 active strategies on plasmodb after dismiss purge" - prior runs left hundreds of strategies under the registered test account, so "everything deleted" cannot hold; (c) the enrichment cluster (analysis, workbench panels, all three cross-feature specs, five site journeys) waits 120 s for a result OR an error and sees neither, which predates every change this week and is the one unexplained cause. All three, with the fix each needs, are in the e2e residual-failures backlog item, since closed.
 
 * **The mock model is site-aware, and two more response-path bugs are fixed.** The deterministic mock (`ai/models/mock_specs.py`, `mock.py`) now derives the organism from the conversation's site (five sites), builds four spec shapes (single, GO, a 3-node InterPro chain, a 5-node combine), and routes prompts naming InterPro/PF00069/EC 2.7 through a feedback arc whose fix-prompt succeeds - which exposed a real harness bug: the frame stage counted tool calls instead of resolved parameters, so a `ModelRetry` read as success and produced an empty build. Specs stop hardcoding node ids through new AST fixtures (`e2e/fixtures/ast.ts`). On the product side, `DELETE /api/v1/conversations/{id}` and restore committed after the response like `/open` did (commit moved before it, three integration tests reading through a second session), and Next's rewrite proxy answered any API call over its 30 s default with a bare 500 - a long multi-site purge among them - so `next.config.ts` sets `experimental.proxyTimeout: 300_000`, recorded with the alternative it rejected in [the API rewrite carries a long call](decisions/the-api-rewrite-carries-a-long-call.md). The e2e cleanup client sent no CSRF header (every non-GET postcondition 403'd silently; header applied at all seven call sites), and `auth.spec.ts` inherited the worker's cookies through `browser.newContext()`, so its signed-out cases ran signed in - it now passes an explicitly empty storage state.
 
-* **Two bugs only a fast client could see, found by running the e2e suite against the production web image, both fixed.** First: `POST /api/v1/conversations/open` returned the new conversation id before the row was committed, because the request-scoped session commits in yield-dependency teardown and FastAPI runs that after the response is sent; the dev-mode web client was slow enough to lose that race every time, and the production build's instant sidebar refresh won it - a trace shows open returning one id and the immediately refreshed listing (HTTP 200) holding only other ids. The route now commits before returning. In-process test transports buffer the whole app call including teardown, so no integration test can reproduce the race; the e2e suite is the regression test. Second: the app's on-load `POST /api/v1/veupathdb/auth/refresh` re-minted `pathfinder-auth` from the `Authorization` cookie even when a valid internal session existed, silently switching accounts - in e2e every worker collapsed onto the one registered VEuPathDB user while older cookie snapshots kept writing as per-worker users (two requests from one test carried different `pathfinder-auth` cookies). The endpoint now honors its own docstring: a request with a valid internal token keeps it (200, no Set-Cookie); absent or expired still mints, pinned by three unit tests. The e2e stack itself was corrected on the way: the web service runs the production image (the containerized dev server was OOM-killed twice and hydrated slower than Playwright clicks), and `docker-compose.e2e.yml` now points at `pathfinder_test` instead of the dev database, into which earlier runs had written several hundred conversations. Full-suite result after all fixes: 94 passed / 26 failed / 1 flaky in 1.3 h with every one of the 254 worker turns succeeding; the residual failures are recorded as [four clusters in the backlog](backlog/e2e-suite-residual-failures-after-auth-overhaul.md).
+* **Two bugs only a fast client could see, found by running the e2e suite against the production web image, both fixed.** First: `POST /api/v1/conversations/open` returned the new conversation id before the row was committed, because the request-scoped session commits in yield-dependency teardown and FastAPI runs that after the response is sent; the dev-mode web client was slow enough to lose that race every time, and the production build's instant sidebar refresh won it - a trace shows open returning one id and the immediately refreshed listing (HTTP 200) holding only other ids. The route now commits before returning. In-process test transports buffer the whole app call including teardown, so no integration test can reproduce the race; the e2e suite is the regression test. Second: the app's on-load `POST /api/v1/veupathdb/auth/refresh` re-minted `pathfinder-auth` from the `Authorization` cookie even when a valid internal session existed, silently switching accounts - in e2e every worker collapsed onto the one registered VEuPathDB user while older cookie snapshots kept writing as per-worker users (two requests from one test carried different `pathfinder-auth` cookies). The endpoint now honors its own docstring: a request with a valid internal token keeps it (200, no Set-Cookie); absent or expired still mints, pinned by three unit tests. The e2e stack itself was corrected on the way: the web service runs the production image (the containerized dev server was OOM-killed twice and hydrated slower than Playwright clicks), and `docker-compose.e2e.yml` now points at `pathfinder_test` instead of the dev database, into which earlier runs had written several hundred conversations. Full-suite result after all fixes: 94 passed / 26 failed / 1 flaky in 1.3 h with every one of the 254 worker turns succeeding; the residual failures are recorded as four clusters in the e2e residual-failures backlog item, since closed.
 
 ## 2026-08-19
 
@@ -1304,7 +2443,7 @@
 
 * **The half of a criterion nobody wrote into is now switched off rather than asked about, and the half that widens the search is refused.** A `radio-params` pair is two required parameters one query ORs, so the intuition that filling both narrows the search is exactly backwards ([WDK-SITE-007](wdk/rules/site-model-params.md)). `set_criterion` reads the pair off the search definition - the same cached read the phyletic derivation uses, so it costs no extra GET - and binds `N/A` into the free-text half of every declared pair. A criterion written into the free text comes back as a retry that names the pair, says the vocabulary half cannot be switched off and quotes its default, lists the vocabulary entries nearest to the value with the wildcards stripped, and sends a wildcard to `get_parameter_options(query=...)` to be expanded into the entries it covers. The off value is reported in `defaulted_params`, so the user is told about a value the request never stated. Measured on plasmodb.org for *P. falciparum* 3D7: `ec_number_pattern=2.7.-.-` beside `ec_wildcard=N/A` returns **364**, and so does the published default `2.7.11.1` beside `2.7.*`, because that wildcard happens to cover the default; `2.7.11.1` beside `N/A` returns **136**, and beside `*protease*` returns **141** - the 133 protein kinases of the default carried into a search asking only for proteases. Two live behaviours this replaces: a turn that bound `ec_wildcard=2.7.*` next to a default it did not choose, and a turn that left it null and got an open slot, because the walk refuses to inherit a free-text default. The FRAME procedure states the same rule, the resolver bench arm records a refused free-text half and continues so the guard is measured, and the rule is `ENFORCED`, which empties the `SILENT` column for the third time: **32 of 83 untested, all of them HARD or CONTRACT.**
 
-* **The search whose criterion nobody could state now states it once.** `GenesByOrthologPattern` carries one criterion - which species must have an ortholog and which must not - in three parameters: two visible free-text lists the query never reads, and a hidden required SQL `LIKE` pattern that is the only one it does read. The model could propose the lists and could not touch the pattern, so the pattern came from `initialDisplayValue`, which is `hsap=1T`, a well-formed expression in a different parameter's grammar on a different site. **The two lists are now the proposal, the pattern is derived from them, and all three are written together.** The sheet gives both lists the clade tree as their vocabulary, so the model names species and clades by code or by label; `derive_phyletic_overrides` resolves them against that tree, pushes each clade down to the species the census holds, sorts the tokens into census order, and returns the pattern beside the two canonical lists for `set_criterion` to bind. An unknown term is a retry naming the nearest labels, a code in both lists is a conflict, and two empty lists are a retry rather than a binding - the bare `%` matches every census, so it reads as a phyletic answer and is not one. Live on plasmodb.org for *P. falciparum* 3D7: the derived `%hsap:N%pfal:Y%` returns **3,347** genes, `%pfal:Y%` returns 5,389, and the published default returns **0**. On the 20 gold strategies, 332 parameters, the propose arm moves from 285 exact / 18 wrong to **288 exact (stated 226, defaulted 62) / 15 wrong**, questions and unset values unchanged at 20 and 9, with the pattern and both lists exact on both gold steps of that search; the one wrong value left there is the organism strain, which is a model choice. One live turn bound the same three values after a single retry that named the nearest labels. Deleted with the work: `_build_phyletic_tree`, `_expand_entries`, the quantifier tokens and `is_census_pattern` from the wire layer, which now reads a value through `_read_census` and refuses a code that states two states; `integrations/veupathdb/phyletic_tree.py:phyletic_tree_of` is the one tree builder and the sheet, the binding and the wire guard all use it. [WDK-SITE-005](wdk/rules/site-model-params.md) and `WDK-SITE-006` are `ENFORCED` by backend tests, so the untested count is **33 of 83** and the `SILENT` column is unchanged at one. Recorded as [the two lists are the proposal](decisions/phyletic-lists-are-the-proposal.md). [The backlog item](backlog/hidden-required-default-chooses-the-science.md) keeps only its unmeasured tail: whether the hidden defaults on the other 181 searches return rows.
+* **The search whose criterion nobody could state now states it once.** `GenesByOrthologPattern` carries one criterion - which species must have an ortholog and which must not - in three parameters: two visible free-text lists the query never reads, and a hidden required SQL `LIKE` pattern that is the only one it does read. The model could propose the lists and could not touch the pattern, so the pattern came from `initialDisplayValue`, which is `hsap=1T`, a well-formed expression in a different parameter's grammar on a different site. **The two lists are now the proposal, the pattern is derived from them, and all three are written together.** The sheet gives both lists the clade tree as their vocabulary, so the model names species and clades by code or by label; `derive_phyletic_overrides` resolves them against that tree, pushes each clade down to the species the census holds, sorts the tokens into census order, and returns the pattern beside the two canonical lists for `set_criterion` to bind. An unknown term is a retry naming the nearest labels, a code in both lists is a conflict, and two empty lists are a retry rather than a binding - the bare `%` matches every census, so it reads as a phyletic answer and is not one. Live on plasmodb.org for *P. falciparum* 3D7: the derived `%hsap:N%pfal:Y%` returns **3,347** genes, `%pfal:Y%` returns 5,389, and the published default returns **0**. On the 20 gold strategies, 332 parameters, the propose arm moves from 285 exact / 18 wrong to **288 exact (stated 226, defaulted 62) / 15 wrong**, questions and unset values unchanged at 20 and 9, with the pattern and both lists exact on both gold steps of that search; the one wrong value left there is the organism strain, which is a model choice. One live turn bound the same three values after a single retry that named the nearest labels. Deleted with the work: `_build_phyletic_tree`, `_expand_entries`, the quantifier tokens and `is_census_pattern` from the wire layer, which now reads a value through `_read_census` and refuses a code that states two states; `integrations/veupathdb/phyletic_tree.py:phyletic_tree_of` is the one tree builder and the sheet, the binding and the wire guard all use it. [WDK-SITE-005](wdk/rules/site-model-params.md) and `WDK-SITE-006` are `ENFORCED` by backend tests, so the untested count is **33 of 83** and the `SILENT` column is unchanged at one. Recorded as [the two lists are the proposal](decisions/phyletic-lists-are-the-proposal.md). The hidden-required-defaults item keeps only its unmeasured tail: whether the hidden defaults on the other 181 searches return rows.
 
 * **Two findings that work produced on the way, both kept.** First, "display purposes only" is a statement about the query and not about the metadata read: the contextual `POST` for that search answers **500** when the context carries `organism` and `profile_pattern` and omits the two structural maps, and either map alone is still a 500, while both together are a 200 with `validation: {level: SEMANTIC, isValid: true}`. Every hidden parameter that allows empty now goes into a metadata read's context at its published default, by shape rather than by name, at all three read sites. Second, that fix could not land until substitution detection was corrected. When the contextual read fails, the client falls back to the static `GET`, whose echoed values are the published defaults, so every value the caller set differs from the echo and none of those differences is WDK substituting anything ([WDK-PARAM-008](wdk/rules/parameters-and-vocabularies.md)). The comparison is now against the canonical values actually sent, a vocabulary echo is compared as a set, a hidden parameter this read supplies is never reported, and `values_were_read` gates both the comparison and the validation verdict when the read fell back.
 
@@ -1336,13 +2475,13 @@
 
 * **Fixed, both halves: an edit made outside the flow that produced an artefact never reached the artefact.** A parameter changed in the graph editor moved a step from 3,259 to 897 and the root from 15 to 3. Two things then disagreed with reality, and they needed opposite fixes, which is the part worth carrying: **WDK owns the strategy**, so anything stored here is either stamped with when it was true or re-read from the server. (1) The Ledger's Build tab kept showing 3,259 and 15 marked `ok`, and the Lead quoted 15 as current while asserting nothing had changed. The Ledger is a record of what the build did, so it stays frozen and now says its counts are from the build. The reason its staleness check never fired is that `detect_build_staleness` compared the recorded counts against `live_step_counts`, which read the same persisted AST the build wrote - **a cache compared with itself, unable to detect any edit by construction**. The live side now reads WDK, and `live_step_counts` is gone. (2) A gene set went the other way: it stores its member ids and rendered its results by re-reading the step it came from, so the panel showed "15 genes" beside a table of 3, and an enrichment saved against it stopped describing its own input. Membership is what the set stores, so results are now reported from a step materialized from those ids. WDK refuses to run a step belonging to no strategy, so the materialized step is held by an internal one, cached by the membership hash.
 
-* **Verified in the browser, not reproduced: the two open agent items.** A request stating "top 10 percent" bound `min_expression_percentile` to 90 against a declared default of 80, selected the trophozoite sample window, and asked no questions under an explicit use-defaults instruction. Both [numeric intent](backlog/numeric-intent-ignored-then-reported-as-honoured.md) and [use-defaults](backlog/frame-ignores-use-defaults.md) are held open pending their original repro, since this search carries two numeric slots and so does not exercise the single-slot rule that was added for them.
+* **Verified in the browser, not reproduced: the two open agent items.** A request stating "top 10 percent" bound `min_expression_percentile` to 90 against a declared default of 80, selected the trophozoite sample window, and asked no questions under an explicit use-defaults instruction. Both numeric intent and use-defaults are held open pending their original repro, since this search carries two numeric slots and so does not exercise the single-slot rule that was added for them.
 
 ## 2026-08-14
 
 * **A hidden parameter was choosing the science, and the bundle covered none of it. Added `WDK-SITE`, a rule family whose falsifier is ApiCommonModel rather than WDK.** `GenesByOrthologPattern.profile_pattern` is hidden, required, 4000 characters of free text, and it is a **SQL `LIKE` pattern** matched against a colon-joined species census - `%code:Y%` for present, `%code:N%` for absent, `%` being the wildcard rather than a separator. Nothing upstream states that grammar in prose; it was reconstructed from [the query's own SQL](wdk/rules/site-model-params.md) and confirmed by measurement on plasmodb.org and toxodb.org. Four things follow and none of them is a refusal: a wrong pattern is not refused, tokens out of ascending code order match nothing (`%atum:Y%bant:Y%` returns 387 and the reverse returns 0, on three separate pairs chosen because tree order and code order disagree), a clade code matches nothing, and **WDK's own published default returns nothing** - `initialDisplayValue` is `hsap=1T`, which is a valid expression in OrthoMCL's *different* `phyletic_expression` grammar (it returns 9691 groups there) and is meaningless here. Six `WDK-SITE` rules plus [two `WDK-PARAM` rules](wdk/rules/parameters-and-vocabularies.md) for the general lesson: `initialDisplayValue` is whatever the spec holds, the model default behind it is stored by [a setter whose javadoc promises validation and whose body does not](wdk/rules/parameters-and-vocabularies.md), and `isVisible: false` is presentation only - a grep of the whole WDK repository finds `Param.isVisible()` read in exactly two places, one of which just publishes it. The new explainer is [site-model parameters](wdk/model/site-model-parameters.md); `scripts/check-wdk-rules.mjs` learned the `SITE` namespace and its suite went from 27 tests to 28. ApiCommonModel had been pinned since the bundle was created with a note admitting nothing cited it; that note is now deleted rather than softened.
 
-* **Filed two defects the research found, both PathFinder's rather than WDK's.** The phyletic profile widget writes a pattern that matches nothing is ranked first in the WDK section because the trigger is an ordinary user action: pick species in the step editor, submit a valid form, get zero genes and no error. `encodeProfilePattern` emits `code>=1T` / `code=0T` - OrthoMCL syntax, measured at 0 on both sites - and three separate faults have to be fixed together, since the token grammar, the ordering and the clade-versus-leaf expansion each independently yield zero. Its own test file asserts `pfal>=1T` literally in three places, so **the test pins the defect and has to be rewritten rather than patched around**; `decodeProfilePattern` cannot read the correct form either, so a step built by PathFinder's own backend opens in the editor reading "0 included, 0 excluded". Second, [filling a hidden required parameter from `initialDisplayValue` chooses the science](backlog/hidden-required-default-chooses-the-science.md): the fill is the right shape - WDK demands these parameters and the model cannot supply them - and the value it fills carries no guarantee at any layer. The same belief is written into `param_dag.py:_is_free_text_query` as a comment, and both have to move together.
+* **Filed two defects the research found, both PathFinder's rather than WDK's.** The phyletic profile widget writes a pattern that matches nothing is ranked first in the WDK section because the trigger is an ordinary user action: pick species in the step editor, submit a valid form, get zero genes and no error. `encodeProfilePattern` emits `code>=1T` / `code=0T` - OrthoMCL syntax, measured at 0 on both sites - and three separate faults have to be fixed together, since the token grammar, the ordering and the clade-versus-leaf expansion each independently yield zero. Its own test file asserts `pfal>=1T` literally in three places, so **the test pins the defect and has to be rewritten rather than patched around**; `decodeProfilePattern` cannot read the correct form either, so a step built by PathFinder's own backend opens in the editor reading "0 included, 0 excluded". Second, filling a hidden required parameter from `initialDisplayValue` chooses the science: the fill is the right shape - WDK demands these parameters and the model cannot supply them - and the value it fills carries no guarantee at any layer. The same belief is written into `param_dag.py:_is_free_text_query` as a comment, and both have to move together.
 
 * **Review caught the worst of it, and it made the finding worse rather than smaller.** The query is a `UNION`, and its **first** branch never touches `LIKE`: it inspects the pattern *string* with `not like '%:Y%'` and, when the string carries no `:Y`, returns every ortholog-less protein-coding gene for the selected organism. So "a wrong pattern returns zero" was the wrong statement of the hazard. **A wrong pattern returns whatever that branch yields for that organism**, which is zero here and is guaranteed nowhere - and a plausible non-zero count from a meaningless pattern is the worst answer this product can give. Four of the measured forms carry no `:Y` (`hsap=1T`, `hsap>=1T`, `hsap=0T`, prose) and their zeros are a property of the data; the two `:Y`-bearing zeros (`%zzzz:Y%`, `%MAMM:Y%`) are intrinsic. **Every string PathFinder's widget can emit lacks `:Y`**, so it never reaches the matching branch at all. I isolated that branch with `hsap=1T` on **eleven organisms across both sites** and it was empty on all eleven - recorded as a limit of the measurement, not as a refutation. A residue argument that had been offered as reassurance was deleted rather than repaired: it was vacuous, since both patterns it compared lack `:Y` and so both include the same branch. Also from review: `WDK-SITE-001`, `-002`, `-004` and `-005` are **live-only** - `profile_string` is built outside all four pinned repositories - so each now says so in the rule itself, and [sources.md](wdk/sources.md) gained the mirror image of its source-only ledger, with a re-run instruction per rule. A rule with no upstream and no re-run is unfalsifiable, which the charter forbids. Vocabulary counts were re-derived with `jq`: 865 terms, 818 lowercase, 47 uppercase, no duplicates, every term four characters except the three-character root `ALL` - so `three_letter_abbrev` is wrong about its own contents for 864 of 865 rows.
 
@@ -1358,7 +2497,7 @@
 
 * **The multi-criterion mega prompt, in the browser, on a real account.** No crash, on either the Portal or PlasmoDB -- the turn that used to die on `No tool invocation found for tool call ID` now completes. On PlasmoDB, FRAME operationalized all five criteria (four kinase routes as a UNION, the non-syntenic orthology transform, the trophozoite mass-spec-or-microarray alternative, Broad 3K variation, and phyletic specificity) for $0.03. It then declined to build, because one criterion's search 5xx'd -- correct behaviour, wrong conclusion: the value WDK 500s on the refresh endpoint runs fine (a non-empty result). That 5xx has since been root-caused and fixed at the seam behind it -- see [a contextualized param view is an enrichment](decisions/contextualizing-params-is-an-enrichment.md). Two claims the same run made on the Portal were checked and are Portal artifacts: `GenesBySnps` genuinely does not exist there, while `GenesByOrthologs` does and retrieval simply missed it among 2,356 searches.
 
-* **Done and removed: the dependent-param false rejection.** Two independent defects, both proven on live WDK. The tool was reading a dependent vocabulary under WDK's DEFAULT parents, so the model saw HB3's time points for a criterion bound to 3D7 and correctly reported hours that do not exist in what it was shown ([decision](decisions/a-dependent-vocabulary-is-read-under-its-parents.md)). Separately, a multi-pick answer was serialized to wire form at the tool boundary, so the whole array counted as one option and the model was told its own correct answer was invalid ([decision](decisions/an-override-list-stays-a-list.md)). Same prompt, before and after: 4 `set_criterion` failures to **0**, and the built strategy built (a large result protein-coding, intersected with a large result top-percentile trophozoite and 81 `PF00069` kinases, giving the intended genes). Filed from that run: [a numeric bound stated in the request is ignored, then reported as honoured](backlog/numeric-intent-ignored-then-reported-as-honoured.md).
+* **Done and removed: the dependent-param false rejection.** Two independent defects, both proven on live WDK. The tool was reading a dependent vocabulary under WDK's DEFAULT parents, so the model saw HB3's time points for a criterion bound to 3D7 and correctly reported hours that do not exist in what it was shown ([decision](decisions/a-dependent-vocabulary-is-read-under-its-parents.md)). Separately, a multi-pick answer was serialized to wire form at the tool boundary, so the whole array counted as one option and the model was told its own correct answer was invalid ([decision](decisions/an-override-list-stays-a-list.md)). Same prompt, before and after: 4 `set_criterion` failures to **0**, and the built strategy built (a large result protein-coding, intersected with a large result top-percentile trophozoite and 81 `PF00069` kinases, giving the intended genes). Filed from that run: a numeric bound stated in the request is ignored, then reported as honoured.
 
 * **Fixed: an unmatched accession stops the chain.** "InterPro domain PF00069" bound `IPR000023 : Phosphofructokinase_dom` and returned almost nothing with verification reporting success, because the accession is Pfam and the dependent vocabulary was IPR-only. Live re-run now binds `PF00069 : Pkinase` and the intended genes. See [decisions/unmatched-accession-stops-the-chain.md](decisions/unmatched-accession-stops-the-chain.md).
 
@@ -1370,7 +2509,7 @@
 
 * **Root-caused and fixed the tool-call-id crash.** Not orphaned tool pairs (`pair_tool_calls` logged zero corrections); it was `openai_send_reasoning_ids`, which defaults to True for reasoning models and echoes provider item IDs back from a history we rewrite. See [decisions/no-openai-item-ids.md](decisions/no-openai-item-ids.md).
 
-* Real-account browser testing on a multi-criterion reference strategy. Fixed [build_strategy's unactionable retry](decisions/build-retry-must-be-actionable.md). Filed three findings: the tool-call-id crash on complex turns (since root-caused and fixed, see above), [FRAME ignoring an explicit defaults instruction](backlog/frame-ignores-use-defaults.md), and the organism param rendering as unset (since fixed, see above).
+* Real-account browser testing on a multi-criterion reference strategy. Fixed [build_strategy's unactionable retry](decisions/build-retry-must-be-actionable.md). Filed three findings: the tool-call-id crash on complex turns (since root-caused and fixed, see above), FRAME ignoring an explicit defaults instruction, and the organism param rendering as unset (since fixed, see above).
 
 ## 2026-08-09
 

@@ -98,7 +98,7 @@ export function SweepSummary({
       {failedCount > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-warning">
           <AlertTriangle className="h-3 w-3" />
-          {failedCount} point{failedCount !== 1 ? "s" : ""} failed (timeout or WDK
+          {failedCount} point{failedCount !== 1 ? "s" : ""} failed (timeout or site
           error)
         </div>
       )}

@@ -38,15 +38,15 @@ _OWNED_TABLES: tuple[str, ...] = (
 # with no ON UPDATE action, so the new rows land before the old ones go.
 _STORE_TABLES: tuple[str, ...] = ("store", "store_vectors")
 
-_NEW_PREFIX = ":add || substring(prefix from CAST(:cut AS integer))"
-
 _DELETE_OLD_STORE_ROWS = "DELETE FROM store WHERE prefix LIKE :old_like"
 
 
 def _table_exists(connection: Connection, name: str) -> bool:
-    return (
-        connection.scalar(sa.text(f"SELECT to_regclass('public.{name}')")) is not None
+    found = connection.scalar(
+        sa.text("SELECT to_regclass(:qualified)"),
+        {"qualified": f"public.{name}"},
     )
+    return found is not None
 
 
 def _column_names(connection: Connection, table: str) -> list[str]:
@@ -61,7 +61,7 @@ def _column_names(connection: Connection, table: str) -> list[str]:
     return [str(row[0]) for row in rows]
 
 
-def _copy_statement(table: str, columns: list[str]) -> str:
+def _copy_statement(table: str, columns: list[str]) -> sa.Insert:
     """Copy every column the table has, so no value can be left behind.
 
     The column list comes from the catalog because the store DDL grows over
@@ -69,13 +69,19 @@ def _copy_statement(table: str, columns: list[str]) -> str:
     raises instead of being skipped, so the delete that follows can never
     remove a memory that was not copied.
     """
-    names = ", ".join(f'"{column}"' for column in columns)
-    values = ", ".join(
-        _NEW_PREFIX if column == "prefix" else f'"{column}"' for column in columns
+    store = sa.table(table, *(sa.column(name) for name in columns))
+    moved_prefix = sa.bindparam("add", type_=sa.String) + sa.func.substr(
+        store.c.prefix,
+        sa.bindparam("cut", type_=sa.Integer),
     )
-    return (
-        f"INSERT INTO {table} ({names}) SELECT {values} "
-        f"FROM {table} WHERE prefix LIKE :old_like"
+    selected = [
+        moved_prefix if column == "prefix" else store.c[column] for column in columns
+    ]
+    return sa.insert(store).from_select(
+        columns,
+        sa.select(*selected).where(
+            store.c.prefix.like(sa.bindparam("old_like", type_=sa.String)),
+        ),
     )
 
 
@@ -99,7 +105,7 @@ def move_store_namespaces(
         if not _table_exists(connection, table):
             continue
         columns = _column_names(connection, table)
-        connection.execute(sa.text(_copy_statement(table, columns)), params)
+        connection.execute(_copy_statement(table, columns), params)
     connection.execute(
         sa.text(_DELETE_OLD_STORE_ROWS),
         {"old_like": params["old_like"]},

@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.security import APIKeyCookie, APIKeyHeader, HTTPBearer
 from fastapi.security.http import HTTPAuthorizationCredentials
 from jwt.types import Options
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -41,8 +42,21 @@ service_token_header = APIKeyHeader(name=SERVICE_AUTH_HEADER, auto_error=False)
 limiter = Limiter(key_func=get_remote_address)
 
 
-def decode_user_id(token: str) -> UUID | None:
-    """Return the user a PathFinder JWT names, or None when it is not one."""
+class SessionToken(BaseModel):
+    """The identity a PathFinder JWT carries.
+
+    ``dev_login`` marks a synthetic user the dev-login route minted; it names
+    no VEuPathDB account.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    user_id: UUID = Field(alias="sub")
+    dev_login: bool = False
+
+
+def decode_session_token(token: str) -> SessionToken | None:
+    """Return the identity a PathFinder JWT carries, or None when it is not one."""
     try:
         payload = jwt.decode(
             token,
@@ -50,9 +64,15 @@ def decode_user_id(token: str) -> UUID | None:
             algorithms=[_JWT_ALGORITHM],
             options=_JWT_DECODE_OPTIONS,
         )
-        return UUID(payload["sub"])
-    except jwt.InvalidTokenError, ValueError, KeyError, TypeError:
+        return SessionToken.model_validate(payload)
+    except jwt.InvalidTokenError, ValidationError:
         return None
+
+
+def decode_user_id(token: str) -> UUID | None:
+    """Return the user a PathFinder JWT names, or None when it is not one."""
+    claims = decode_session_token(token)
+    return None if claims is None else claims.user_id
 
 
 def _application_id(service_token: str | None) -> str:
@@ -87,22 +107,22 @@ async def _identify(
 ) -> Principal:
     """Read the request's credential: bearer first, then the cookie."""
     if bearer is not None:
-        user_id = decode_user_id(bearer.credentials)
-        if user_id is not None:
+        claims = decode_session_token(bearer.credentials)
+        if claims is not None:
             return Principal(
-                user_id=user_id,
+                user_id=claims.user_id,
                 application_id=application_id,
-                credential="pathfinder-bearer",
+                credential="dev-login" if claims.dev_login else "pathfinder-bearer",
             )
         return await _veupathdb_principal(bearer.credentials, application_id)
 
     if cookie_token:
-        user_id = decode_user_id(cookie_token)
-        if user_id is not None:
+        claims = decode_session_token(cookie_token)
+        if claims is not None:
             return Principal(
-                user_id=user_id,
+                user_id=claims.user_id,
                 application_id=application_id,
-                credential="pathfinder-cookie",
+                credential="dev-login" if claims.dev_login else "pathfinder-cookie",
             )
 
     raise UnauthorizedError(detail="Not authenticated")
@@ -134,17 +154,30 @@ async def get_current_user(
     return principal.user_id
 
 
+def _encode(claims: SessionToken, expires_in: int) -> str:
+    payload = claims.model_dump(by_alias=True, mode="json")
+    payload["exp"] = int(time.time()) + expires_in
+    return jwt.encode(
+        payload,
+        get_settings().api_secret_key,
+        algorithm=_JWT_ALGORITHM,
+    )
+
+
 def create_user_token(user_id: UUID, expires_in: int = 86400) -> str:
     """Create a signed JWT for a user.
 
     :param expires_in: Token lifetime in seconds.
     """
-    settings = get_settings()
-    payload = {
-        "sub": str(user_id),
-        "exp": int(time.time()) + expires_in,
-    }
-    return jwt.encode(payload, settings.api_secret_key, algorithm=_JWT_ALGORITHM)
+    return _encode(SessionToken(sub=user_id), expires_in)
+
+
+def create_dev_login_token(user_id: UUID, expires_in: int = 86400) -> str:
+    """Create a signed JWT for a synthetic user with no VEuPathDB account.
+
+    The dev-login route is the only caller; it mounts under the mock overlay.
+    """
+    return _encode(SessionToken(sub=user_id, dev_login=True), expires_in)
 
 
 _CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})

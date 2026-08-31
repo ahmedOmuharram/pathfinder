@@ -69,6 +69,6 @@ describe("HoverActions delete affordance", () => {
   it("nests the kebab inside the toolbar the onNodeClick guard keys on", () => {
     render(<HoverActions step={makeStep({ id: "s3" })} onDelete={vi.fn()} />);
     const kebab = screen.getByTestId("rf-more-s3");
-    expect(kebab.closest("[data-node-toolbar]")).not.toBeNull();
+    expect(kebab.closest("[data-node-toolbar]")).not.toBe(null);
   });
 });

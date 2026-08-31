@@ -55,17 +55,15 @@ async def get_current_user_with_db_row(principal: CurrentPrincipal) -> UUID:
 CurrentUser = Annotated[UUID, Depends(get_current_user_with_db_row)]
 
 
-async def require_registered_wdk_identity(
-    user_id: Annotated[UUID, Depends(get_current_user_with_db_row)],
-) -> UUID:
+async def require_registered_wdk_identity(principal: CurrentPrincipal) -> UUID:
     """Refuse a request that acts on WDK without a registered VEuPathDB login.
 
     Routes that read or write a WDK account attach this. The token must also
     name the session's own user, so one session writes to one WDK account.
     """
     await require_registered_wdk_login()
-    await require_session_matches_wdk_identity(user_id)
-    return user_id
+    await require_session_matches_wdk_identity(principal)
+    return principal.user_id
 
 
 async def require_quota_available(

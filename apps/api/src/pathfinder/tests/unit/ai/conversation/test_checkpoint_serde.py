@@ -14,7 +14,9 @@ from assistant_core.conversation.serde import (
     checkpoint_types,
 )
 from assistant_core.graph.turn_state import (
+    DurableTaskResult,
     PendingApproval,
+    PendingDurableCall,
     SubAgentApprovalCall,
     SubAgentApprovalPending,
     UserQuestionAnswer,
@@ -74,6 +76,29 @@ def _memory() -> MemoryValue:
         summary="OBPs are odorant binding proteins",
         content={"detail": "vectorbase"},
         created_at=datetime(2026, 8, 7, tzinfo=UTC),
+    )
+
+
+def _pending_durable_call() -> PendingDurableCall:
+    return PendingDurableCall(
+        phase="verification",
+        tool_call_id="call_verify_strategy",
+        tool_name="verify_strategy",
+        tool_args={"reason": "enrich the built set"},
+        prior_messages_json='[{"kind":"request","parts":[]}]',
+        task_id=UUID("0c6100d2-0000-4000-8000-000000000001"),
+        durable_tool_name="geneset_enrichment",
+        sub_agent=SubAgentApprovalPending(
+            role="verification",
+            approvals=[
+                SubAgentApprovalCall(
+                    tool_call_id="call_run_gene_set_enrichment",
+                    tool_name="run_gene_set_enrichment",
+                    args={"gene_set_id": "gs-1"},
+                ),
+            ],
+            messages_json='[{"kind":"response","parts":[]}]',
+        ),
     )
 
 
@@ -242,6 +267,12 @@ SAMPLES: dict[type, object] = {
     ToolApprovalResponded: ToolApprovalResponded(id="call_1", approved=True),
     MemoryValue: _memory(),
     PendingApproval: _pending_approval(),
+    PendingDurableCall: _pending_durable_call(),
+    DurableTaskResult: DurableTaskResult(
+        task_id=UUID("0c6100d2-0000-4000-8000-000000000001"),
+        status="success",
+        result={"genesTested": 5511},
+    ),
     SubAgentApprovalPending: _pending_approval().sub_agent,
     SubAgentApprovalCall: SubAgentApprovalCall(
         tool_call_id="call_delete_step",

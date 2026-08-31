@@ -58,9 +58,10 @@ from pathfinder.ai.graph._lead_events import (
 )
 from pathfinder.ai.graph._lead_model import resolve_lead_model_context
 from pathfinder.ai.graph._lead_turn import (
-    ApprovalResolution,
+    TurnResumption,
     pending_approval,
-    resolve_pending_approval,
+    pending_durable_call,
+    resolve_turn_resumption,
     retrieve_memories,
 )
 from pathfinder.ai.graph.runtime import Context
@@ -92,15 +93,15 @@ class LeadNode(Protocol):
     ) -> Awaitable[Command[Literal["finalize_turn"]]]: ...
 
 
-def _run_prompt(state: PipelineState, resolution: ApprovalResolution) -> str | None:
+def _run_prompt(state: PipelineState, resumption: TurnResumption) -> str | None:
     """The message the Lead's run starts from.
 
-    A turn that resumes a deferred tool carries the user's answer, not a new
-    prompt, unless the user answered by typing instead of clicking.
+    A turn that resumes a deferred tool carries the answer, not a new prompt,
+    unless the user answered by typing instead of clicking.
     """
-    if resolution.user_prompt:
-        return resolution.user_prompt
-    if state.pending_approval is not None:
+    if resumption.user_prompt:
+        return resumption.user_prompt
+    if resumption.parked is not None:
         return None
     return state.user_prompt
 
@@ -119,11 +120,18 @@ def _absorb_run_result(
     if isinstance(output, LeadResponse):
         capture.response = output
     elif isinstance(output, DeferredToolRequests):
-        capture.pending_approval = pending_approval(
+        messages = list(run_result.all_messages())
+        capture.pending_durable_call = pending_durable_call(
             output=output,
             deps=deps,
-            messages=list(run_result.all_messages()),
+            messages=messages,
         )
+        if capture.pending_durable_call is None:
+            capture.pending_approval = pending_approval(
+                output=output,
+                deps=deps,
+                messages=messages,
+            )
     usage = run_result.usage
     capture.tokens = usage.total_tokens
     capture.cost_usd = cost_for_run(
@@ -181,25 +189,22 @@ async def _drive_lead_stream(
     writer: Any,
     message_id: UUID,
 ) -> None:
-    resolution = await resolve_pending_approval(state=state, deps=deps)
-    if resolution.still_pending is not None:
-        # The sub-agent asked for another approval. The Lead's run is untouched,
-        # so the turn ends on the new question instead of resuming it.
-        capture.pending_approval = resolution.still_pending
+    resumption = await resolve_turn_resumption(state=state, deps=deps)
+    if resumption.still_pending is not None or resumption.still_durable is not None:
+        # The sub-agent stopped again. The Lead's run is untouched, so the turn
+        # ends on the new call instead of resuming it.
+        capture.pending_approval = resumption.still_pending
+        capture.pending_durable_call = resumption.still_durable
         return
-    approval = state.pending_approval
+    parked = resumption.parked
     emitter = PhaseStreamEmitter(
         message_id=str(message_id),
-        deferred_hint=(
-            approvals.deferred_hint(approval) if approval is not None else None
-        ),
+        deferred_hint=(approvals.deferred_hint(parked) if parked is not None else None),
     )
-    deferred_results = resolution.results
-    capture.approval_consumed = deferred_results is not None
-    resume_prompt = _run_prompt(state, resolution)
-    resume_messages = (
-        approvals.resume_history(approval) if approval is not None else None
-    )
+    deferred_results = resumption.results
+    capture.parked_call_answered = deferred_results is not None
+    resume_prompt = _run_prompt(state, resumption)
+    resume_messages = approvals.resume_history(parked) if parked is not None else None
     usage_acc = RunUsage()
     override_ctx, agent_model = resolve_lead_model_context(
         agent,
@@ -322,8 +327,12 @@ def _build_state_delta(
     }
     if capture.pending_approval is not None:
         delta["pending_approval"] = capture.pending_approval
-    elif capture.approval_consumed:
+    elif capture.parked_call_answered:
         delta["pending_approval"] = None
+    if capture.pending_durable_call is not None:
+        delta["pending_durable_call"] = capture.pending_durable_call
+    elif state.pending_durable_call is not None and capture.parked_call_answered:
+        delta["pending_durable_call"] = None
     return delta
 
 
@@ -335,7 +344,7 @@ async def _run_lead_turn(
     build_agent: TurnAgentFactory[LeadAgent],
 ) -> Command[Literal["finalize_turn"]]:
     writer = get_stream_writer()
-    if state.pending_approval is not None:
+    if state.resumes_parked_call:
         memories = list(state.retrieved_memories)
     else:
         stored = await retrieve_memories(state, runtime)
@@ -379,7 +388,11 @@ async def _run_lead_turn(
         message_id=message_id,
     )
 
-    if capture.response is None and capture.pending_approval is None:
+    if (
+        capture.response is None
+        and capture.pending_approval is None
+        and capture.pending_durable_call is None
+    ):
         capture.response = LeadResponse(
             prose=(
                 "I couldn't produce a response for this turn. Please "

@@ -582,7 +582,7 @@ async def test_viz_on_an_analysis_with_no_computation_is_a_409(
         },
     )
     assert response.status_code == 409
-    assert "compute" in json.dumps(response.json()).lower()
+    assert "no comparison has run" in json.dumps(response.json()).lower()
 
 
 async def test_viz_on_a_thread_with_no_open_analysis_is_a_409(
@@ -595,7 +595,7 @@ async def test_viz_on_a_thread_with_no_open_analysis_is_a_409(
         json={"datasetId": _DATASET, "chart": "volcano"},
     )
     assert response.status_code == 409
-    assert "compute" in json.dumps(response.json()).lower()
+    assert "no study is open" in json.dumps(response.json()).lower()
 
 
 async def test_viz_on_another_users_thread_is_a_404(
