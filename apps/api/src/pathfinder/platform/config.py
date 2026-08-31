@@ -157,13 +157,20 @@ class Settings(RuntimeSettings):
             "Age at which a job still in 'doing' is failed so its lock releases."
         ),
     )
+    worker_heartbeat_interval_seconds: float = Field(
+        default=5.0,
+        gt=0,
+        description=(
+            "Seconds between the worker heartbeats. The heartbeat runs in a "
+            "thread of its own, so a job cannot widen this."
+        ),
+    )
     worker_dead_heartbeat_seconds: int = Field(
-        default=300,
+        default=60,
         ge=60,
         description=(
             "Silence after which a worker counts as dead and the jobs it holds "
-            "are failed so their locks release. A busy worker starves its own "
-            "heartbeat, so this stays well above the worst measured gap."
+            "are failed so their locks release."
         ),
     )
 
@@ -307,7 +314,7 @@ class Settings(RuntimeSettings):
             msg = f"{joined} must be set together when Langfuse is enabled."
             raise ValueError(msg)
 
-    def model_post_init(self, __context: object) -> None:
+    def model_post_init(self, _context: object, /) -> None:
         """Validate settings after initialization."""
         self._validate_required_settings()
         self._validate_chat_provider()

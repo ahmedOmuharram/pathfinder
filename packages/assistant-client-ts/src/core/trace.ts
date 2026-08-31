@@ -21,9 +21,15 @@ export type TraceRowStatus =
   | "warn"
   | "error"
   | "denied"
-  | "awaiting-approval";
+  | "awaiting-approval"
+  | "stopped";
 
-export type TraceGroupState = "started" | "completed" | "failed";
+export type TraceGroupState =
+  | "started"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "superseded";
 
 export interface TraceRow {
   key: string;
@@ -54,12 +60,15 @@ export interface Trace {
 
 export interface BuildTraceOptions {
   renderingKinds?: ReadonlySet<string>;
+  turnEnded?: boolean;
 }
 
 const LEAD = "lead";
 const NO_KINDS: ReadonlySet<string> = new Set();
 const STATUSES: readonly ToolSummaryStatus[] = ["ok", "empty", "warn"];
-const GROUP_STATES: readonly TraceGroupState[] = ["started", "completed", "failed"];
+const WIRE_STATES: readonly TraceGroupState[] = ["started", "completed", "failed"];
+const TURN_STOPPED = "data-turn-stopped";
+const TURN_FAILED = "data-turn-failed";
 const STEP_STATUS: Record<SubAgentStepPayload["state"], TraceRowStatus> = {
   started: "running",
   completed: "ok",
@@ -92,6 +101,7 @@ interface Walk {
   traces: Trace[];
   open: RunBuild | null;
   group: GroupBuild | null;
+  dispatches: TraceGroup[];
   lines: Map<string, Line>;
   kinds: ReadonlySet<string>;
 }
@@ -160,9 +170,14 @@ function closeRun(walk: Walk): void {
   walk.open = null;
   walk.group = null;
   if (open === null) return;
-  const groups = open.groups.map(finalize);
+  const built = open.groups.map((build) => ({
+    group: finalize(build),
+    dispatch: build.fromSteps,
+  }));
+  const groups = built.map((each) => each.group);
   const rowCount = groups.reduce((total, group) => total + group.rows.length, 0);
   if (rowCount === 0 && open.figures.length === 0) return;
+  for (const each of built) if (each.dispatch) walk.dispatches.push(each.group);
   walk.traces.push({ groups, figures: open.figures, rowCount, running: false });
 }
 
@@ -200,7 +215,7 @@ function openDispatch(walk: Walk, part: DataPart): void {
   const group = ensureGroup(walk, key, phase ?? key);
   group.fromSteps = true;
   if (phase !== undefined) group.phase = phase;
-  group.state = GROUP_STATES.find((known) => known === data["state"]) ?? group.state;
+  group.state = WIRE_STATES.find((known) => known === data["state"]) ?? group.state;
   group.tokens = fieldNumber(data, "tokens") ?? group.tokens;
   group.costUsd = fieldString(data, "costUsd") ?? group.costUsd;
 }
@@ -261,6 +276,28 @@ function applyLines(walk: Walk): void {
   }
 }
 
+/** How a turn that ended reads a dispatch it never resolved. */
+function closingState(
+  parts: readonly MessagePart[],
+  turnEnded: boolean,
+): TraceGroupState | null {
+  if (parts.some((part) => part.type === TURN_STOPPED)) return "cancelled";
+  if (parts.some((part) => part.type === TURN_FAILED)) return "failed";
+  return turnEnded ? "superseded" : null;
+}
+
+function closeDispatches(walk: Walk, state: TraceGroupState | null): void {
+  if (state === null) return;
+  for (const group of walk.dispatches) {
+    if (group.state !== "started") continue;
+    group.state = state;
+    if (state === "superseded") continue;
+    for (const row of group.rows) {
+      if (row.status === "running") row.status = "stopped";
+    }
+  }
+}
+
 /**
  * Group a message's parts into the runs a reader sees: one trace per stretch of
  * work between the prose that frames it.
@@ -273,11 +310,13 @@ export function buildTrace(
     traces: [],
     open: null,
     group: null,
+    dispatches: [],
     lines: new Map(),
     kinds: options?.renderingKinds ?? NO_KINDS,
   };
   for (const part of parts) visit(walk, part);
   closeRun(walk);
+  closeDispatches(walk, closingState(parts, options?.turnEnded ?? false));
   applyLines(walk);
   return walk.traces;
 }

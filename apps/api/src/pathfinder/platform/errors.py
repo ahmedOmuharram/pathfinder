@@ -41,6 +41,7 @@ class ErrorCode(StrEnum):
 
     # Conversation
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
+    FORK_REFUSED = "FORK_REFUSED"
     ASSISTANT_NOT_FOUND = "ASSISTANT_NOT_FOUND"
     ASSISTANT_MISMATCH = "ASSISTANT_MISMATCH"
 
@@ -262,6 +263,18 @@ class AssistantMismatchError(AppError):
                 f"This conversation is answered by {existing!r}; "
                 f"the request names {requested!r}."
             ),
+        )
+
+
+class ForkRefusedError(AppError):
+    """A branch point the new thread cannot be given."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(
+            code=ErrorCode.FORK_REFUSED,
+            title="Cannot branch this chat",
+            status=409,
+            detail=reason,
         )
 
 

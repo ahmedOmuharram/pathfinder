@@ -12,11 +12,13 @@ from uuid import UUID
 from assistant_core.persistence.models import DEFAULT_ASSISTANT_ID, Conversation
 from assistant_core.platform.logging import get_logger
 from assistant_core.platform.pydantic_base import CamelModel
-from assistant_core.platform.types import JSONObject
 from pydantic import Field
 
 from pathfinder.domain.strategy.ast import walk_step_tree
-from pathfinder.domain.strategy.revision import strategy_revision
+from pathfinder.domain.strategy.revision import (
+    parse_strategy_ast,
+    strategy_revision,
+)
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import ConversationStrategyView
 from pathfinder.persistence.repositories.conversation_strategy import (
@@ -104,21 +106,11 @@ def extract_root_step_id(
     return fallback_root_step_id
 
 
-def _parse_strategy_ast(plan_raw: JSONObject | None) -> StrategyAst | None:
-    if not plan_raw or "root" not in plan_raw:
-        return None
-    try:
-        return StrategyAst.model_validate(plan_raw)
-    except (ValueError, KeyError, TypeError) as exc:
-        logger.warning("Failed to parse plan payload", error=str(exc))
-        return None
-
-
 def conversation_strategy_revision(strategy: ConversationStrategyView | None) -> str:
     """Fingerprint the conversation's persisted strategy; ``""`` when absent."""
     if strategy is None:
         return ""
-    return strategy_revision(_parse_strategy_ast(strategy.strategy_ast))
+    return strategy_revision(parse_strategy_ast(strategy.strategy_ast))
 
 
 def build_conversation_response(
@@ -129,7 +121,7 @@ def build_conversation_response(
     total_cost_usd: Decimal | None = None,
 ) -> ConversationResponse:
     """Build a detail-view ``ConversationResponse`` from a ``Conversation``."""
-    payload = _parse_strategy_ast(strategy.strategy_ast)
+    payload = parse_strategy_ast(strategy.strategy_ast)
     root_step_id = extract_root_step_id(payload)
     wdk_url = _compute_wdk_url(conversation.site_id, strategy.wdk_strategy_id)
 
@@ -168,7 +160,7 @@ def build_conversation_summary(
     """Build a list-view ``ConversationResponse`` (steps=[]) from a ``Conversation``."""
     effective_site_id = site_id or conversation.site_id
     wdk_url = _compute_wdk_url(effective_site_id, strategy.wdk_strategy_id)
-    payload = _parse_strategy_ast(strategy.strategy_ast)
+    payload = parse_strategy_ast(strategy.strategy_ast)
 
     return ConversationResponse(
         id=conversation.id,

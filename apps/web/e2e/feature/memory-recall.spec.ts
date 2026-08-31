@@ -3,6 +3,7 @@ import { sseDone, sseFrame, uiMessageStreamHeaders } from "../fixtures/sse";
 import type { BrowserContext } from "@playwright/test";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
+const SITE_ID = "veupathdb";
 
 interface OpenStrategyResponse {
   conversationId?: string;
@@ -12,7 +13,7 @@ interface OpenStrategyResponse {
 
 async function openStrategy(context: BrowserContext): Promise<string> {
   const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
-    data: { siteId: "veupathdb" },
+    data: { siteId: SITE_ID },
     headers: { "X-Requested-With": "XMLHttpRequest" },
   });
   if (!resp.ok()) throw new Error(`openStrategy failed: ${resp.status()}`);
@@ -76,7 +77,7 @@ test.describe("Recalled memories", () => {
       });
     });
 
-    await page.goto(`/conversation/${strategyId}`);
+    await page.goto(`/${SITE_ID}/conversation/${strategyId}`);
     const composer = page.getByTestId("message-input");
     await expect(composer).toBeVisible({ timeout: 30_000 });
     await composer.click();

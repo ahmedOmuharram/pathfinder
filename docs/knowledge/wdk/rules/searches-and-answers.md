@@ -385,6 +385,23 @@ display label and a long description. Read the manifest instead of a table like 
 above, and a plugin that renames a column degrades to an unrecognized column rather than an
 empty one.
 
+**`percentInResult` is result genes over background genes, and no column carries the size of
+the analyzed set.** The plugin names the quantity in its own manifest:
+[`HEADER_ROW`](https://github.com/VEuPathDB/ApiCommonWebsite/blob/830bb57fe07fc2e4dd37b6ea2e3baae0eaee5bee/Model/src/main/java/org/apidb/apicommon/model/stepanalysis/GoEnrichmentPlugin.java#L50-L51)
+labels it `Percent of bkgd Genes in your result`, and
+[`COLUMN_HELP`](https://github.com/VEuPathDB/ApiCommonWebsite/blob/830bb57fe07fc2e4dd37b6ea2e3baae0eaee5bee/Model/src/main/java/org/apidb/apicommon/model/stepanalysis/GoEnrichmentPlugin.java#L53-L64)
+reads `Of the genes in the background with this term, the percent that are present in your
+result`. So `percentInResult = resultGenes / bgdGenes * 100`, and
+`resultGenes * 100 / percentInResult` returns `bgdGenes`, not the input size.
+
+Measured on plasmodb.org: a 46-gene set's top GO:BP row was `resultGenes` 46,
+`bgdGenes` 217, and `46 * 100 / 217 = 21.2`, which is the value on the wire. A client that
+inverts the percentage to recover "genes analyzed" prints 217, a term's genome-wide count,
+under a label that promises the researcher's own set size.
+
+There is no result-level total anywhere in the envelope, so the analyzed size comes from the
+caller: the step's own count, or the size of the gene list that built the step.
+
 ### WDK-ANS-008 - An attribute value is a string, an object, or null, and `attributeFormat: text` does not strip HTML
 
 - class: SILENT

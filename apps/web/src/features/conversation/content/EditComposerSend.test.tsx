@@ -28,9 +28,8 @@ vi.mock("@pathfinder/shared/generated/hooks/useForkStrategy", () => ({
   forkStrategy: vi.fn(() => Promise.resolve({ id: "fork-4" })),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
-
 import { forkStrategy } from "@pathfinder/shared/generated/hooks/useForkStrategy";
+import { APIError } from "@/lib/api/http";
 import { chatUrl } from "@/lib/routes";
 import { useSessionStore } from "@/state/useSessionStore";
 
@@ -57,5 +56,35 @@ describe("EditComposerBranchOrRevert", () => {
       conversationId: "fork-4",
       content: "narrow it to kinases",
     });
+  });
+
+  it("keeps the dialog open and names the refusal when the fork fails", async () => {
+    vi.mocked(forkStrategy).mockRejectedValueOnce(
+      new APIError("HTTP 404 Not Found", {
+        status: 404,
+        statusText: "Not Found",
+        url: "/api/v1/conversations/conv-2/fork",
+        data: {
+          type: "/errors/NOT_FOUND",
+          title: "Parent message not found",
+          status: 404,
+          code: "NOT_FOUND",
+        },
+      }),
+    );
+
+    render(<EditComposerBranchOrRevert />);
+
+    fireEvent.click(screen.getByTestId("edit-composer-branch-or-revert"));
+    fireEvent.click(screen.getByTestId("edit-branch-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-dialog-error")).toHaveTextContent(
+        "Parent message not found",
+      );
+    });
+    expect(screen.getByTestId("edit-branch-button")).toBeEnabled();
+    expect(screen.getByTestId("edit-revert-button")).toBeEnabled();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });

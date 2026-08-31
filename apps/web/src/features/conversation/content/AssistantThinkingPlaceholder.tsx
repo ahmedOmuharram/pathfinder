@@ -4,7 +4,10 @@ import { useAuiState } from "@assistant-ui/react";
 
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { ProviderIcon } from "@/lib/components/ProviderIcon";
+import { phaseLabel } from "@/lib/models/phaseRoles";
 import { isLocalProvider, parseModelString } from "@/lib/models/providerMeta";
+
+import { runningPhase } from "../thread/runningPhase";
 
 const DEFAULT_LABEL = "Thinking...";
 
@@ -36,11 +39,12 @@ function turnStatusData(part: StatusPart): TurnStatusData | null {
 }
 
 // Selectors return primitives so useAuiState's identity check doesn't loop
-// (React #185). The status stays visible for the whole running turn, tracking
-// the latest data-turn-status label instead of hiding once tool calls or text
-// start.
+// (React #185). An open dispatch names the phase, so the line and the trace
+// read the same chunks; otherwise the latest reported label stands.
 export function selectStatusLabel(m: StatusCarrier | undefined): string | null {
   if (m == null || m.status?.type !== "running") return null;
+  const phase = runningPhase(m.content);
+  if (phase !== null) return `${phaseLabel(phase)}...`;
   let label = DEFAULT_LABEL;
   for (const part of m.content) {
     const data = turnStatusData(part);

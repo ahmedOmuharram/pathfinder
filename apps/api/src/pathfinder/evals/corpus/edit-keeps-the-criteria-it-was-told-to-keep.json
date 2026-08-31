@@ -1,0 +1,40 @@
+{
+  "name": "edit-keeps-the-criteria-it-was-told-to-keep",
+  "turns": [
+    "Build a comprehensive kinase strategy for Plasmodium.",
+    "Swap the organism on the seed criterion and keep the rest."
+  ],
+  "siteId": "plasmodb",
+  "assistantId": "pathfinder",
+  "rationale": "An edit turn re-binds the criterion it was told to change and leaves the others standing. The cataloged run framed three criteria, came back from the edit with two, and reported the rest preserved. Three criteria over two operators must still sign as five nodes after the edit.",
+  "expected": {
+    "buildsStrategy": true,
+    "structure": "((GenesByText UNION GenesByGoTerm) INTERSECT GenesByTaxon)",
+    "recordType": null,
+    "stepCount": 5,
+    "verified": null,
+    "stepIdsUnchanged": null,
+    "parameters": {
+      "GenesByTaxon": {
+        "organism": "Plasmodium vivax P01"
+      },
+      "GenesByText": {
+        "text_expression": "kinase",
+        "text_search_organism": "Plasmodium falciparum 3D7"
+      }
+    },
+    "replyMentions": [
+      "unchanged"
+    ],
+    "replyOmits": []
+  },
+  "provenance": {
+    "site": "plasmodb",
+    "assistant": "pathfinder",
+    "origin": "cataloged-failure",
+    "addedAt": "2026-08-30",
+    "stagingId": "",
+    "reference": "decisions/an-edit-is-a-delta-not-a-rebuild.md",
+    "curatorNote": "Two turns on one thread: the first builds, the second edits. A single-prompt case cannot reach the state this pins."
+  }
+}

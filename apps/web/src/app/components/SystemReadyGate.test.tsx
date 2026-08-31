@@ -37,6 +37,23 @@ describe("SystemReadyGate", () => {
   it("shows the startup screen while not ready, listing what is pending", async () => {
     mockSystemReady.mockResolvedValue({
       ready: false,
+      apiReady: false,
+      workerAlive: false,
+      notReady: ["database"],
+    });
+
+    await renderGate();
+
+    await waitFor(() => {
+      expect(screen.getByText(/starting up/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/database/)).toBeInTheDocument();
+    expect(screen.queryByTestId("app-content")).not.toBeInTheDocument();
+  });
+
+  it("renders the app behind a banner when only the worker is unresponsive", async () => {
+    mockSystemReady.mockResolvedValue({
+      ready: false,
       apiReady: true,
       workerAlive: false,
       notReady: ["worker"],
@@ -45,9 +62,27 @@ describe("SystemReadyGate", () => {
     await renderGate();
 
     await waitFor(() => {
+      expect(screen.getByTestId("app-content")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /background service is not responding/i,
+    );
+    expect(screen.queryByText(/failed to start/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the fatal screen when a subsystem other than the worker is down", async () => {
+    mockSystemReady.mockResolvedValue({
+      ready: false,
+      apiReady: false,
+      workerAlive: true,
+      notReady: ["database"],
+    });
+
+    await renderGate();
+
+    await waitFor(() => {
       expect(screen.getByText(/starting up/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/worker/)).toBeInTheDocument();
     expect(screen.queryByTestId("app-content")).not.toBeInTheDocument();
   });
 

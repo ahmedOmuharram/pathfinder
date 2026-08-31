@@ -63,6 +63,7 @@ async def dispatch(
     """Scan user input, persist it, enqueue a turn job, tail the event stream.
 
     Two trigger modes:
+
     - Normal turn: ``messages[-1]`` is a user message -> persist + chunk it.
     - Approval resume: SDK v6 fired the request after
       ``chat.addToolApprovalResponse`` (no new user message) - skip the

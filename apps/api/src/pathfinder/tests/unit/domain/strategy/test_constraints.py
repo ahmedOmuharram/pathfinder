@@ -13,13 +13,14 @@ from pathfinder.domain.strategy.constraints import (
 )
 
 # Realized facts of a single microarray fold-change leaf — the criteria's bound
-# search name + the union of its parameter names.
+# search name, its parameter names, and the values bound to them.
 _MICROARRAY_SEARCH = (
     "GenesByMicroarrayaaegLVP_AGWG_microarrayExpression_GSE22339_male_vs_female_RSRC"
 )
-_MICROARRAY_FACTS: dict[str, list[str] | set[str]] = {
+_MICROARRAY_FACTS: dict[str, list[str] | set[str] | dict[str, str]] = {
     "search_names": [_MICROARRAY_SEARCH],
     "param_names": {"fold_change"},
+    "param_values": {"fold_change": "2"},
 }
 
 
@@ -149,3 +150,69 @@ def test_merge_explicit_overrides_assumed_per_kind_and_forces_user_explicit() ->
     assert by_kind[ConstraintKind.DATA_TYPE].requested_value == "RNA-Seq only"
     assert by_kind[ConstraintKind.DATA_TYPE].source is ConstraintSource.USER_EXPLICIT
     assert by_kind[ConstraintKind.ORGANISM].source is ConstraintSource.ASSUMED
+
+
+def _percentile(requested: str) -> Constraint:
+    return Constraint(
+        kind=ConstraintKind.PERCENTILE,
+        requested_value=requested,
+        label="expression percentile",
+        source=ConstraintSource.USER_EXPLICIT,
+    )
+
+
+def test_a_percentile_bound_that_means_the_stated_share_is_grounded() -> None:
+    [g] = ground_constraints(
+        [_percentile("top 10%")],
+        search_names=[_MICROARRAY_SEARCH],
+        param_names={"min_expression_percentile"},
+        param_values={"min_expression_percentile": "90"},
+    )
+    assert g.status is ConstraintStatus.GROUNDED
+    assert g.realized_value == "90"
+
+
+def test_a_percentile_bound_that_means_another_share_is_substituted() -> None:
+    """A min percentile of 80 is the top 20 percent, not the top 10."""
+    [g] = ground_constraints(
+        [_percentile("top 10%")],
+        search_names=[_MICROARRAY_SEARCH],
+        param_names={"min_expression_percentile"},
+        param_values={"min_expression_percentile": "80"},
+    )
+    assert g.status is ConstraintStatus.SUBSTITUTED
+    assert g.realized_value == "80"
+    assert g.note == "bound 80 means top 20%"
+    assert is_blocking(g) is True
+
+
+def test_a_bottom_share_reads_the_max_percentile_bound() -> None:
+    [g] = ground_constraints(
+        [_percentile("bottom 25 percent")],
+        search_names=[_MICROARRAY_SEARCH],
+        param_names={"max_expression_percentile"},
+        param_values={"max_expression_percentile": "25"},
+    )
+    assert g.status is ConstraintStatus.GROUNDED
+
+
+def test_a_percentile_constraint_without_a_percentile_param_is_ungroundable() -> None:
+    [g] = ground_constraints(
+        [_percentile("top 10%")],
+        search_names=[_MICROARRAY_SEARCH],
+        param_names={"fold_change"},
+        param_values={"fold_change": "2"},
+    )
+    assert g.status is ConstraintStatus.UNGROUNDABLE
+    assert g.note == "no percentile parameter in the strategy"
+
+
+def test_a_percentile_request_without_a_direction_is_ungroundable() -> None:
+    [g] = ground_constraints(
+        [_percentile("10%")],
+        search_names=[_MICROARRAY_SEARCH],
+        param_names={"min_expression_percentile"},
+        param_values={"min_expression_percentile": "90"},
+    )
+    assert g.status is ConstraintStatus.UNGROUNDABLE
+    assert g.note == "the requested share and direction could not be read"

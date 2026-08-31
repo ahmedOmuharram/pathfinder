@@ -119,16 +119,12 @@ def test_parse_from_raw_infers_type_and_parses_terms_end_to_end() -> None:
         "downloadPath": "/a/b",
         "pvalueCutoff": "0.05",
     }
-    res = parse_enrichment_from_raw("pathway-enrichment", {}, result)
+    res = parse_enrichment_from_raw(
+        "pathway-enrichment", {}, result, analyzed_gene_count=24
+    )
     assert res.analysis_type == "pathway"
     assert [t.term_id for t in res.terms] == ["kegg_pfa03030"]
     assert res.terms[0].term_name == "DNA replication"
-
-
-def test_parse_from_raw_derives_total_genes_analyzed_from_percent() -> None:
-    result: JSONObject = {"resultData": [_go_row()], "pvalueCutoff": "0.05"}
-    res = parse_enrichment_from_raw("go-enrichment", {}, result)
-    assert res.total_genes_analyzed == 24
 
 
 def test_infer_go_ontology_from_param() -> None:

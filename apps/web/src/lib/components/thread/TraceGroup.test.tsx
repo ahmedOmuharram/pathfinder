@@ -98,6 +98,48 @@ describe("TraceGroup", () => {
     expect(view.getAllByTestId("trace-row")[0]).toHaveTextContent("Delete step");
   });
 
+  it("says Stopped for a dispatch the user's stop left open", () => {
+    const view = draw({ state: "cancelled" });
+    expect(view.getByTestId("trace-group-state")).toHaveTextContent("Stopped");
+  });
+
+  it("says Not finished for a dispatch that outlived its turn", () => {
+    const view = draw({ state: "superseded" });
+    expect(view.getByTestId("trace-group-state")).toHaveTextContent("Not finished");
+  });
+
+  it("says nothing beside a dispatch that is running or done", () => {
+    const started = draw({ state: "started" });
+    expect(started.queryByTestId("trace-group-state")).toBeNull();
+    expect(started.getAllByTestId("trace-row")).toHaveLength(1);
+    const done = draw({ state: "completed" });
+    expect(done.queryByTestId("trace-group-state")).toBeNull();
+  });
+
+  it("reads a stopped call under a cancelled dispatch as Stopped", () => {
+    const view = draw({
+      state: "cancelled",
+      rows: [step({ status: "stopped", summary: null })],
+    });
+    expect(view.getByTestId("trace-row-summary")).toHaveTextContent("Stopped");
+  });
+
+  it("reads a stopped call under a failed dispatch as Not finished", () => {
+    const view = draw({
+      state: "failed",
+      rows: [step({ status: "stopped", summary: null })],
+    });
+    expect(view.getByTestId("trace-row-summary")).toHaveTextContent("Not finished");
+  });
+
+  it("keeps the line a stopped call had already written", () => {
+    const view = draw({
+      state: "cancelled",
+      rows: [step({ status: "stopped", summary: "12 searches" })],
+    });
+    expect(view.getByTestId("trace-row-summary")).toHaveTextContent("12 searches");
+  });
+
   it("drops the heading entirely for the Lead's own bare group", () => {
     const view = render(
       <TraceGroup

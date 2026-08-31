@@ -17,14 +17,13 @@ Overview
 Design Decisions
 ~~~~~~~~~~~~~~~~
 
-.. dropdown:: Redis for event bus
+.. dropdown:: PostgreSQL as the only broker
    :icon: broadcast
 
-   The platform event bus uses Redis Streams for durable
-   event delivery. Chat streams and experiment executions publish events that
-   clients consume via SSE. Redis Streams support consumer groups, cursor-based
-   replay, and TTL-based cleanup — all necessary for reliable long-running
-   operations that may outlive HTTP connections.
+   Durable events are rows in ``conversation_events`` and
+   ``task_progress``, published with ``pg_notify`` and tailed with
+   LISTEN/NOTIFY. One store means a client can replay from a cursor after a
+   restart without a second system to keep in step.
 
 .. dropdown:: Pydantic settings
    :icon: gear
@@ -129,13 +128,13 @@ token and the request base URL; the runtime package owns the rest.
    :undoc-members:
    :show-inheritance:
 
-Events
-------
+Notify Dispatcher
+-----------------
 
-**Purpose:** Application event bus for cross-cutting concerns and
-inter-service communication.
+**Purpose:** Fan a PostgreSQL ``LISTEN`` connection out to the subscribers
+waiting on one channel.
 
-.. automodule:: pathfinder.platform.events
+.. automodule:: pathfinder.platform.notify_dispatcher
    :members:
    :undoc-members:
    :show-inheritance:
@@ -146,16 +145,6 @@ Health
 **Purpose:** Health check logic and readiness probe implementation.
 
 .. automodule:: pathfinder.platform.health
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Redis
------
-
-**Purpose:** Redis client management, connection pooling, and utilities.
-
-.. automodule:: pathfinder.platform.redis
    :members:
    :undoc-members:
    :show-inheritance:

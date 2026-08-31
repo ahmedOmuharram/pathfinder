@@ -18,10 +18,8 @@ from pathfinder.domain.parameters.specs import (
     find_missing_required_params,
     topological_fill_order,
 )
-from pathfinder.domain.parameters.values import (
-    ParamValue,
-    to_decoded_map,
-)
+from pathfinder.domain.parameters.value_codec import to_decoded_map
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery_service import (
     DiscoveryService,
@@ -289,9 +287,11 @@ async def _find_search_record_type_hint(
 
 
 class ValidatedParams(CamelModel):
-    """Canonical values, and the names WDK supplied rather than accepted."""
+    """Canonical values, the record class WDK lists the search under, and the
+    names WDK supplied rather than accepted."""
 
     params: dict[str, ParamValue] = Field(default_factory=dict)
+    record_class: str | None = None
     substituted: list[str] = Field(default_factory=list)
 
 
@@ -487,7 +487,11 @@ async def validate_parameters(
         )
         | set(filled_hidden_defaults(param_spec_map, caller_canonical))
     )
-    return ValidatedParams(params=canonical, substituted=substituted)
+    return ValidatedParams(
+        params=canonical,
+        record_class=resolved_record_type,
+        substituted=substituted,
+    )
 
 
 async def _refresh_dependent_vocabularies(

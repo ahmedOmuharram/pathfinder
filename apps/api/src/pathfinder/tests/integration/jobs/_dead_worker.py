@@ -1,4 +1,8 @@
-"""Stage a chat turn held by a worker whose heartbeat is a chosen age."""
+"""Stage a chat turn held by a worker whose heartbeat is a chosen age.
+
+The ages come from the settings that decide the window, so a change to the
+window cannot leave a staged age on the wrong side of it.
+"""
 
 from __future__ import annotations
 
@@ -15,8 +19,29 @@ from sqlalchemy import select
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
+from pathfinder.platform.config import get_settings
 
 TOOL_CALL_ID = "call_search_eda_studies_1"
+
+
+def dead_window_seconds() -> int:
+    """Silence after which a worker counts as dead and loses its jobs."""
+    return get_settings().worker_dead_heartbeat_seconds
+
+
+def fresh_beat_age() -> int:
+    """A worker that beat one interval ago."""
+    return int(get_settings().worker_heartbeat_interval_seconds)
+
+
+def starved_age() -> int:
+    """A worker that missed many beats and is still inside the window."""
+    return dead_window_seconds() - fresh_beat_age()
+
+
+def dead_age() -> int:
+    """Silence far past the window, whatever the window is set to."""
+    return dead_window_seconds() * 10
 
 
 async def stage_chat_turn_job(

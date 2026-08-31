@@ -10,11 +10,8 @@ from __future__ import annotations
 
 import json
 
-from pathfinder.domain.parameters.values import (
-    FilterTermClause,
-    FilterValue,
-    param_value_from_raw,
-)
+from pathfinder.domain.parameters.value_codec import param_value_from_raw
+from pathfinder.domain.parameters.values import FilterTermClause, FilterValue
 
 
 def test_empty_filter_is_include_all() -> None:

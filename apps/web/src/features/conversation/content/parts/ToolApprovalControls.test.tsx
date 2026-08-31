@@ -159,6 +159,16 @@ describe("ToolApprovalControls", () => {
     expect(screen.getByTestId("tool-approval-deny")).toBeInTheDocument();
   });
 
+  it("names what a deletion removes instead of the standing sentence", () => {
+    renderControls([pendingPart("tool-clear_strategy")]);
+    expect(screen.getByTestId("approval-card-title")).toHaveTextContent(
+      "Clear the strategy? This removes every step from this thread and from VEuPathDB.",
+    );
+    expect(screen.getByTestId("approval-card-title")).not.toHaveTextContent(
+      "needs your approval before it runs",
+    );
+  });
+
   it("keeps the call's input out of the card while the dev flag is off", () => {
     useSettingsStore.setState({ showRawToolCalls: false });
     const { container } = renderControls([pendingPart("tool-delete_step")]);

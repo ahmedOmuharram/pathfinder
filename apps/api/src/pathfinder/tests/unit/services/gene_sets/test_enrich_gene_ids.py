@@ -131,6 +131,11 @@ class _FakeStrategyAPI:
     async def delete_strategy(self, strategy_id: int) -> None:
         self.deleted.append(strategy_id)
 
+    async def get_step_count(self, step_id: int, user_id: str | None = None) -> int:
+        """The step holds the temporary dataset, so its count is the list's."""
+        del step_id, user_id
+        return len(self.datasets[-1]) if self.datasets else 0
+
     async def get_analysis_type(
         self, step_id: int, analysis_type: str
     ) -> WDKStepAnalysisTypeResponse:

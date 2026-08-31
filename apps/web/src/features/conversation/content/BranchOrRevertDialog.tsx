@@ -16,6 +16,7 @@ export interface BranchOrRevertDialogProps {
   open: boolean;
   canBranch: boolean;
   pending: boolean;
+  error: string | null;
   onBranch: () => void;
   onRevert: () => void;
   onCancel: () => void;
@@ -25,6 +26,7 @@ export function BranchOrRevertDialog({
   open,
   canBranch,
   pending,
+  error,
   onBranch,
   onRevert,
   onCancel,
@@ -63,6 +65,15 @@ export function BranchOrRevertDialog({
               </div>
             </div>
           </div>
+          {error !== null && (
+            <p
+              role="alert"
+              data-testid="edit-dialog-error"
+              className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive"
+            >
+              {error}
+            </p>
+          )}
         </div>
         <DialogFooter className="gap-2 sm:justify-between">
           <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>

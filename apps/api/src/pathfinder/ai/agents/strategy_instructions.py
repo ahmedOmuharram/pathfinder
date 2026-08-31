@@ -11,7 +11,7 @@ from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.context.rendering import render_graph_state
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.prompts.loader import load_system_prompt
-from pathfinder.domain.parameters.values import to_wire
+from pathfinder.domain.parameters.value_codec import to_wire
 
 
 def base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
@@ -29,7 +29,9 @@ def pinned_frame_workspace(ctx: RunContext[AgentDeps]) -> str | None:
     ]
     for c in spec.criteria:
         slots = [s.param_name for s in c.open_params]
-        line = f"- [{c.id}] {c.text[:60]} -> {c.search_name or '(UNBOUND)'}"
+        saved = c.saved_strategy_ref
+        bound_to = c.search_name or (saved.label if saved is not None else "(UNBOUND)")
+        line = f"- [{c.id}] {c.text[:60]} -> {bound_to}"
         if slots:
             line += f" | open: {slots}"
         lines.append(line)
@@ -85,23 +87,9 @@ def pinned_discovered_searches(ctx: RunContext[AgentDeps]) -> str | None:
 
 
 def _render_search(name: str, ov: SearchOverview) -> list[str]:
-    header_bits = [f"`{name}`", f"({ov.record_type})"]
-    if ov.selection_status != "candidate":
-        header_bits.append(f"[{ov.selection_status}]")
-    if ov.confidence > 0:
-        header_bits.append(f"conf={ov.confidence:.2f}")
-    out = [f"- {' '.join(header_bits)} — {ov.display_name}"]
-    if ov.rationale:
-        out.append(f"    why: {ov.rationale}")
-    if ov.selection_reason:
-        out.append(f"    decision: {ov.selection_reason}")
-    if ov.selection_status == "rejected":
-        return out
+    out = [f"- `{name}` ({ov.record_type}) — {ov.display_name}"]
     if ov.required_params:
         out.append(f"    required params: {', '.join(ov.required_params)}")
-    if ov.param_hints:
-        hint_str = ", ".join(f"{k}={v}" for k, v in sorted(ov.param_hints.items()))
-        out.append(f"    hints: {hint_str}")
     if ov.param_vocab:
         out.append("    param_vocab (copy values verbatim):")
         for pname in sorted(ov.param_vocab):

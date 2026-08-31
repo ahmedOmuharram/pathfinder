@@ -143,8 +143,6 @@
         "present": false,
         "readyToBuild": false
       },
-      "subAgentCallsThisTurn": [],
-      "subAgentCallsTotal": 0,
       "verification": {
         "complete": false,
         "successful": false

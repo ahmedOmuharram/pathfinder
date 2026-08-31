@@ -1,6 +1,34 @@
 import { test, expect } from "../fixtures/test";
 import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
+interface SeedFrame {
+  type: string;
+  message: string;
+}
+
+interface SeedItemErrorFrame extends SeedFrame {
+  type: "seed_item_error";
+  name: string;
+  error: string;
+}
+
+interface SeedCompleteFrame extends SeedFrame {
+  type: "seed_complete";
+  total: number;
+  strategiesCreated: number;
+  controlSetsCreated: number;
+  failed: number;
+  error: string | null;
+}
+
+/** The typed frames of one `/api/v1/experiments/seed` stream. */
+function seedFrames(body: string): SeedFrame[] {
+  return body
+    .split("\n")
+    .filter((line) => line.startsWith("data: ") && line.trim() !== "data: [DONE]")
+    .map((line) => JSON.parse(line.slice("data: ".length)) as SeedFrame);
+}
+
 /**
  * Feature: User data purge — verified against real PostgreSQL + Redis.
  *
@@ -152,8 +180,25 @@ test.describe("User Data Purge", () => {
       timeout: 300_000,
     });
     expect(seedResp.ok()).toBeTruthy();
-    const seedBody = await seedResp.text();
-    expect(seedBody).toContain("seed_complete");
+    // A seed that creates nothing still ends with `seed_complete`, so the
+    // counters decide, and the item errors name what VEuPathDB refused.
+    const frames = seedFrames(await seedResp.text());
+    const itemErrors = frames
+      .filter((f): f is SeedItemErrorFrame => f.type === "seed_item_error")
+      .map((f) => `${f.name}: ${f.error}`);
+    const complete = frames.find(
+      (f): f is SeedCompleteFrame => f.type === "seed_complete",
+    );
+    if (complete === undefined) {
+      throw new Error(
+        `seed stream carried no seed_complete frame; item errors: ${itemErrors.join(" | ")}`,
+      );
+    }
+    expect(complete.error, `seed reported a top-level failure`).toBe(null);
+    expect(
+      complete.strategiesCreated,
+      `seed created 0 of ${String(complete.total)} strategies (${String(complete.failed)} failed): ${itemErrors.slice(0, 5).join(" | ")}`,
+    ).toBeGreaterThan(0);
 
     // Verify: strategies exist. Their WDK ids are the purge's target set:
     // the shared account also holds strategies this run did not create, and

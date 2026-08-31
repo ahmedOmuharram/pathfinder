@@ -5,7 +5,7 @@ Usage::
     python -m pathfinder.devtools.evals staged
     python -m pathfinder.devtools.evals show <staging-id>
     python -m pathfinder.devtools.evals promote <staging-id> --name <case-name> \\
-        --rationale "what this pins" [--prompt ...] [--note ...]
+        --rationale "what this pins" [--turn ...] [--note ...]
     python -m pathfinder.devtools.evals corpus
     python -m pathfinder.devtools.evals run [--only NAME ...] [--out FILE] [--real]
 
@@ -94,7 +94,7 @@ async def _promote(args: argparse.Namespace) -> int:
         edits=PromotionEdits(
             name=args.name,
             rationale=args.rationale,
-            prompt=args.prompt,
+            turns=args.turn or None,
             expected=(
                 None
                 if args.expect is None
@@ -135,6 +135,13 @@ def _run(args: argparse.Namespace) -> int:
     for case in summary.cases:
         mark = "PASS" if case.passed else "FAIL"
         print(f"{mark}  {case.name}  {case.duration_seconds}s")
+        if case.distance is not None:
+            print(
+                f"      distance: topology {case.distance.topology}, "
+                f"searches {case.distance.search_selection}, "
+                f"labelled {case.distance.labelled}, "
+                f"parameter fidelity {case.distance.parameter_fidelity}",
+            )
         if case.error:
             print(f"      error: {case.error}")
         for difference in case.differences:
@@ -167,7 +174,13 @@ def _build_parser() -> argparse.ArgumentParser:
     promote.add_argument("staging_id")
     promote.add_argument("--name", required=True, help="case name, also the file name")
     promote.add_argument("--rationale", required=True, help="what the case pins")
-    promote.add_argument("--prompt", default=None, help="override the request text")
+    promote.add_argument(
+        "--turn",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="override the request text; repeat once per turn, in order",
+    )
     promote.add_argument(
         "--expect",
         default=None,

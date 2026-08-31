@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer, WDKAnswerMeta
 from pathfinder.platform.errors import WDKError
 from pathfinder.services.experiment import scored_comparison
 from pathfinder.services.experiment.metrics import (
@@ -95,7 +96,12 @@ async def test_failing_variant_excluded_from_ranking(
             raise WDKError(msg)
         return _exp("SA", _metrics(7, 1))
 
+    async def _search(site_id: str, spec: VariantSpec) -> WDKAnswer:
+        del site_id, spec
+        return WDKAnswer(meta=WDKAnswerMeta(totalCount=0), records=[])
+
     monkeypatch.setattr(scored_comparison, "run_experiment", _run)
+    monkeypatch.setattr(scored_comparison, "run_variant_search", _search)
 
     result = await run_scored_comparison(
         "plasmodb",

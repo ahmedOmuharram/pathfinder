@@ -19,7 +19,8 @@ from assistant_core.platform.db import async_session_factory
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.graph.state import PipelineState, StrategyDomainState
+from pathfinder.ai.lead.intent import BUILDING_INTENTS
 
 __all__ = [
     "PRODUCT_MEMORY_KINDS",
@@ -37,11 +38,25 @@ PRODUCT_MEMORY_KINDS: tuple[str, ...] = (
 PREFERENCE_MIN_SUCCESSES = 3
 
 
+def _asked_to_build(domain: StrategyDomainState) -> bool:
+    """Whether the turn's classification asks for a change to the strategy.
+
+    A turn the model never classified keeps the strategy memory it earns from
+    the spec alone.
+    """
+    intent = domain.user_intent
+    return intent is None or intent.classification in BUILDING_INTENTS
+
+
 def collect_memory_candidates(state: PipelineState) -> list[MemoryCandidate]:
     """The strategies, gene sets and verification findings of one turn."""
     domain = state.domain
     candidates: list[MemoryCandidate] = []
-    if domain.operational_spec is not None and domain.operational_spec.criteria:
+    if (
+        domain.operational_spec is not None
+        and domain.operational_spec.criteria
+        and _asked_to_build(domain)
+    ):
         candidates.append(
             (
                 _build_strategy_value(state),

@@ -73,6 +73,24 @@ class TestReadinessState:
         assert state.database.error == "connection refused"
         assert "database" in state.not_ready
 
+    def test_fail_loading_marks_every_subsystem_still_loading(self) -> None:
+        state = ReadinessState()
+        state.mark_ready("database")
+        state.register_catalog("plasmodb")
+        state.fail_loading("warm-up died")
+        assert state.database.ready is True
+        assert state.embedding_backend.error == "warm-up died"
+        assert state.piguard.error == "warm-up died"
+        assert state.catalogs["plasmodb"].error == "warm-up died"
+
+    def test_fail_loading_keeps_an_error_a_step_already_reported(self) -> None:
+        state = ReadinessState()
+        state.mark_failed("embedding_backend", "connection refused")
+        state.mark_catalog_failed("plasmodb", "404")
+        state.fail_loading("warm-up died")
+        assert state.embedding_backend.error == "connection refused"
+        assert state.catalogs["plasmodb"].error == "404"
+
     def test_unknown_subsystem_raises(self) -> None:
         state = ReadinessState()
         with pytest.raises(ValueError, match="unknown"):

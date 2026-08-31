@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from langgraph.store.postgres.base import PostgresIndexConfig
@@ -37,4 +38,22 @@ async def lifespan_memory_store(
         index=index_config,
     ) as store:
         await store.setup()
-        yield store
+        try:
+            yield store
+        finally:
+            await _end_batch_task(store)
+
+
+async def _end_batch_task(store: AsyncPostgresStore) -> None:
+    """End the batch task of a closing store.
+
+    The store queues every operation onto one background task and holds only a
+    weak reference to itself from it, so nothing ends that task when the store
+    goes. The task is private to LangGraph and there is no public shutdown.
+    """
+    task = store._task
+    if task is None:
+        return
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task

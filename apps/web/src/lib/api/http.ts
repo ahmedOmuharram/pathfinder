@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 
 import { getConfiguredServerApiBaseUrl } from "@/lib/config/apiBase";
 
@@ -108,20 +108,41 @@ type RequestArgs = {
   signal?: AbortSignal;
 };
 
-export function extractErrorMessage(data: unknown): string | null {
-  if (typeof data !== "object" || data === null || !("detail" in data)) return null;
-  const detail = (data as { detail: unknown }).detail;
-  if (typeof detail === "string") return detail;
+/**
+ * An error body the API can send: an RFC 7807 problem, a FastAPI validation
+ * payload, or a problem that carries one entry per refused field.
+ */
+const errorBodySchema = z.object({
+  detail: z.unknown().optional(),
+  title: z.string().optional(),
+  errors: z.array(z.object({ message: z.string() }).loose()).optional(),
+});
+
+const fastApiIssueSchema = z.object({ msg: z.string() });
+
+function detailMessage(detail: unknown): string | null {
+  if (typeof detail === "string") return detail.trim() === "" ? null : detail;
   if (Array.isArray(detail)) {
-    return detail
-      .map((e: unknown) =>
-        typeof e === "object" && e != null && "msg" in e
-          ? String((e as { msg: unknown }).msg)
-          : String(e),
-      )
-      .join("; ");
+    const parts = detail.map((entry) => {
+      const parsed = fastApiIssueSchema.safeParse(entry);
+      return parsed.success ? parsed.data.msg : String(entry);
+    });
+    return parts.length > 0 ? parts.join("; ") : null;
   }
+  if (detail === undefined || detail === null) return null;
   return String(detail);
+}
+
+/** The sentence the server offers about a refusal, or null when it offers none. */
+export function extractErrorMessage(data: unknown): string | null {
+  const parsed = errorBodySchema.safeParse(data);
+  if (!parsed.success) return null;
+  const detail = detailMessage(parsed.data.detail);
+  if (detail !== null) return detail;
+  const fields = parsed.data.errors?.map((entry) => entry.message) ?? [];
+  if (fields.length > 0) return fields.join("; ");
+  const title = parsed.data.title?.trim() ?? "";
+  return title === "" ? null : title;
 }
 
 async function fetchJsonRaw(path: string, args?: RequestArgs): Promise<unknown> {

@@ -178,38 +178,23 @@ def parse_enrichment_terms(
     return terms
 
 
-def derive_total_analyzed(rows: list[JSONObject]) -> int:
-    """Derive the input-set size from the per-row result percentage.
-
-    WDK gives no result-level total. The row with the most result genes has the
-    least rounding error.
-    """
-    total = 0
-    best_result_genes = 0
-    for row in rows:
-        try:
-            base = WDKEnrichmentRowBase.model_validate(row)
-            percent = float(base.percent_in_result or "0")
-        except ValueError, ValidationError:
-            continue
-        result_genes, _ = _extract_genes(base.result_genes)
-        if percent > 0 and result_genes > best_result_genes:
-            best_result_genes = result_genes
-            total = round(result_genes * 100 / percent)
-    return total
-
-
 def parse_enrichment_from_raw(
     wdk_analysis_name: str,
     params: JSONObject,
     result: JsonValue,
+    *,
+    analyzed_gene_count: int,
 ) -> EnrichmentResult:
-    """Parse a raw WDK analysis result into an enrichment result."""
+    """Parse a raw WDK analysis result into an enrichment result.
+
+    The plugins publish no result-level total, so the size of the set that was
+    analyzed comes from the caller.
+    """
     analysis_type = infer_enrichment_type(wdk_analysis_name, params, result)
     envelope = parse_enrichment_response(result)
     terms = parse_enrichment_terms(envelope.result_data, analysis_type)
     return EnrichmentResult(
         analysis_type=analysis_type,
         terms=terms,
-        total_genes_analyzed=derive_total_analyzed(envelope.result_data),
+        total_genes_analyzed=analyzed_gene_count,
     )

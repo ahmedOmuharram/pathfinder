@@ -228,6 +228,32 @@ class StrategyStepNode(CamelModel):
         return self.search_name
 
 
+def deep_clone_with_fresh_ids(node: StrategyStepNode) -> StrategyStepNode:
+    """Recursively clone a subtree, assigning a fresh ``id`` to every node.
+
+    A cloned subtree joins another graph, so its ids must not collide with the
+    ids that graph already holds.
+    """
+    primary = (
+        deep_clone_with_fresh_ids(node.primary_input)
+        if node.primary_input is not None
+        else None
+    )
+    secondary = (
+        deep_clone_with_fresh_ids(node.secondary_input)
+        if node.secondary_input is not None
+        else None
+    )
+    return node.model_copy(
+        deep=True,
+        update={
+            "id": generate_step_id(),
+            "primary_input": primary,
+            "secondary_input": secondary,
+        },
+    )
+
+
 def walk_step_tree(root: StrategyStepNode) -> list[StrategyStepNode]:
     """Walk a step tree depth first. Each node comes after its inputs, and the
     primary input comes before the secondary input."""

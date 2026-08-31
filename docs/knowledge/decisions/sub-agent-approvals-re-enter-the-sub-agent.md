@@ -12,9 +12,9 @@ status: stable
 
 The tool that needs approval is the tool the user answers, wherever it runs.
 
-`optimize_search_parameters` (verification), `delete_step` and `clear_strategy`
-(execution) carry `requires_approval=True`, so a sub-agent run that calls one
-ends in `DeferredToolRequests` instead of its typed delta. That run is now
+`optimize_search_parameters` (verification) and `delete_step` (execution) carry
+`requires_approval=True`, so a sub-agent run that calls one ends in
+`DeferredToolRequests` instead of its typed delta. That run is now
 suspended rather than discarded:
 
 1. **The inner call becomes a tool part.** `sub_agent_stream` emits

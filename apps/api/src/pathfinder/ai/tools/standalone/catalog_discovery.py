@@ -16,7 +16,7 @@ from pydantic_ai.messages import ToolReturn
 from pathfinder.ai.agents.state import ParamVocabSnapshot
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import register_search
-from pathfinder.domain.parameters.values import coerce_context_values
+from pathfinder.domain.parameters.value_codec import coerce_context_values
 from pathfinder.services.catalog.overview_formatting import SearchOverviewResult
 from pathfinder.services.catalog.param_formatting import (
     GetParameterOptionsResult,

@@ -6,6 +6,9 @@ import { getConfiguredServerApiBaseUrl } from "./src/lib/config/apiBase";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   reactCompiler: true,
+  // The dev-tools indicator button sits in a page corner and takes the pointer
+  // events of the controls under it.
+  devIndicators: false,
   output: "standalone",
   // Disable built-in gzip compression so SSE streams are flushed per-event
   // instead of being buffered by the compressor.  In production, the reverse

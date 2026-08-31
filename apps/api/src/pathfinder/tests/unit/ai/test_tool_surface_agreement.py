@@ -39,6 +39,7 @@ _TOOL_NAME_TOKENS = frozenset(
         "get_parameter_options",
         "get_record_types",
         "get_search_overview",
+        "list_saved_strategies",
         "list_searches",
         "list_transforms",
         "lookup_phyletic_codes",

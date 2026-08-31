@@ -63,12 +63,22 @@ vi.mock("../../api/geneSets", () => ({
   enrichGeneSet: (...args: unknown[]) => mockEnrichGeneSet(...args),
 }));
 
+const mockInvalidateGeneSets = vi.fn(async () => {});
+
+vi.mock("@/lib/query/hooks/useInvalidateGeneSets", () => ({
+  useInvalidateGeneSets: () => mockInvalidateGeneSets,
+}));
+
 // ---------------------------------------------------------------------------
 // Mock EnrichmentSection to simplify rendering
 // ---------------------------------------------------------------------------
 
 vi.mock("@/features/analysis", () => ({
-  EnrichmentSection: () => <div data-testid="enrichment-results">Results</div>,
+  EnrichmentSection: ({ results }: { results: { analysisType: string }[] }) => (
+    <div data-testid="enrichment-results">
+      {results.map((r) => r.analysisType).join()}
+    </div>
+  ),
 }));
 
 // ---------------------------------------------------------------------------
@@ -85,6 +95,7 @@ describe("EnrichmentPanel", () => {
   afterEach(() => {
     cleanup();
     mockEnrichGeneSet.mockReset();
+    mockInvalidateGeneSets.mockClear();
   });
 
   beforeEach(() => {
@@ -182,6 +193,63 @@ describe("EnrichmentPanel", () => {
         "set-1",
         expect.arrayContaining(["go_process", "pathway"]),
       );
+    });
+  });
+});
+
+const PERSISTED = [
+  {
+    analysisType: "go_process" as const,
+    terms: [],
+    totalGenesAnalyzed: 5,
+    backgroundSize: 100,
+  },
+];
+
+describe("EnrichmentPanel restores what the API already holds", () => {
+  beforeEach(() => {
+    storeState["activeSetId"] = "set-1";
+    storeState["expandedPanels"] = new Set(["enrichment"]);
+  });
+
+  it("draws the gene set's saved analyses without a run", () => {
+    storeState["geneSets"] = [makeGeneSet({ enrichmentResults: PERSISTED })];
+
+    render(<EnrichmentPanel />);
+
+    expect(screen.getByTestId("enrichment-results")).toHaveTextContent("go_process");
+    expect(mockEnrichGeneSet).not.toHaveBeenCalled();
+  });
+
+  it("draws nothing for a set that has never been run", () => {
+    storeState["geneSets"] = [makeGeneSet({ enrichmentResults: [] })];
+
+    render(<EnrichmentPanel />);
+
+    expect(screen.queryAllByTestId("enrichment-results")).toHaveLength(0);
+  });
+
+  it("refreshes the gene set after a run so the saved analyses are what shows", async () => {
+    storeState["geneSets"] = [makeGeneSet({ enrichmentResults: [] })];
+    mockEnrichGeneSet.mockResolvedValue(PERSISTED);
+
+    render(<EnrichmentPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /run enrichment/i }));
+
+    await waitFor(() => {
+      expect(mockInvalidateGeneSets).toHaveBeenCalled();
+    });
+  });
+
+  it("shows the server's message when a run is refused", async () => {
+    storeState["geneSets"] = [makeGeneSet({ enrichmentResults: [] })];
+    mockEnrichGeneSet.mockRejectedValue(new Error("Enrichment analysis failed"));
+
+    render(<EnrichmentPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /run enrichment/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Enrichment analysis failed")).toBeInTheDocument();
     });
   });
 });

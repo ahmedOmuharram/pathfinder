@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import cast
+from datetime import datetime
+from typing import Literal, cast
 from uuid import UUID
 
 from assistant_core.persistence.models import Conversation, ConversationEvent, Message
@@ -17,8 +18,20 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.persistence.models import BackgroundTask, ScratchpadNote
+from pathfinder.persistence.models import (
+    BackgroundTask,
+    ScratchpadNote,
+    StrategyRevisionView,
+)
+from pathfinder.persistence.repositories.conversation import ConversationRepository
+from pathfinder.persistence.repositories.strategy_revision import (
+    StrategyRevisionRepository,
+)
 from pathfinder.services.conversations.authz import owned_by_caller
+from pathfinder.services.strategies.revision_ops import (
+    restore_revision,
+    revision_at_message,
+)
 
 logger = get_logger(__name__)
 
@@ -29,6 +42,24 @@ class RevertError(ValueError):
 
 def _rows(result: object) -> int:
     return cast("CursorResult[object]", result).rowcount or 0
+
+
+def _strategy_state(
+    snapshot: StrategyRevisionView | None,
+    *,
+    cutoff_ts: datetime,
+    had_history: bool,
+) -> Literal["snapshot", "cleared", "unknown"]:
+    """What the strategy must become for the surviving transcript to be true.
+
+    A thread with no history at all predates the revision store, so the
+    strategy is left where it is rather than deleted on a guess.
+    """
+    if snapshot is not None and snapshot.created_at < cutoff_ts:
+        return "snapshot"
+    if had_history:
+        return "cleared"
+    return "unknown"
 
 
 async def revert_conversation_to_message(
@@ -94,6 +125,10 @@ async def revert_conversation_to_message(
 
     cutoff_ts = target.created_at
     thread_id = str(conversation_id)
+    # Read before the cut: the target message is one of the rows it deletes.
+    revisions = StrategyRevisionRepository(session)
+    snapshot = await revision_at_message(session, message=target)
+    had_history = await revisions.has_any(conversation_id)
 
     # Cut on (created_at, id) so timestamp ties delete deterministically
     # instead of over-deleting siblings that share the target's created_at.
@@ -163,6 +198,16 @@ async def revert_conversation_to_message(
         )
     )
 
+    deleted_revisions = await revisions.delete_at_or_after(
+        conversation_id,
+        moment=cutoff_ts,
+    )
+    restored = _strategy_state(snapshot, cutoff_ts=cutoff_ts, had_history=had_history)
+    if restored == "snapshot" and snapshot is not None:
+        await restore_revision(session, revision=snapshot)
+    elif restored == "cleared":
+        await ConversationRepository(session).clear_strategy(conversation_id)
+
     logger.info(
         "conversation reverted to message",
         conversation_id=thread_id,
@@ -173,4 +218,6 @@ async def revert_conversation_to_message(
         deleted_tasks=deleted_tasks,
         deleted_checkpoints=deleted_checkpoints,
         deleted_checkpoint_writes=deleted_writes,
+        deleted_strategy_revisions=deleted_revisions,
+        strategy=restored,
     )

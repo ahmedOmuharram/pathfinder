@@ -1,6 +1,7 @@
 import {
   Ban,
   Check,
+  CircleDashed,
   CircleSlash,
   Loader2,
   ShieldAlert,
@@ -27,4 +28,5 @@ export const TRACE_GLYPHS: Record<TraceRowStatus, TraceGlyph> = {
   error: { Icon: X, className: "text-destructive" },
   denied: { Icon: Ban, className: "text-muted-foreground" },
   "awaiting-approval": { Icon: ShieldAlert, className: "text-warning" },
+  stopped: { Icon: CircleDashed, className: "text-muted-foreground" },
 };

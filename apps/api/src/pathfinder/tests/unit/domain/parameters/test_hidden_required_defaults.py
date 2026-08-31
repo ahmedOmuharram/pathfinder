@@ -16,7 +16,8 @@ from pathfinder.domain.parameters.specs import (
     fill_hidden_required_defaults,
     find_missing_required_params,
 )
-from pathfinder.domain.parameters.values import StringValue, to_decoded_map
+from pathfinder.domain.parameters.value_codec import to_decoded_map
+from pathfinder.domain.parameters.values import StringValue
 
 
 def _genes_by_text_specs() -> dict[str, ParamSpecNormalized]:

@@ -24,6 +24,12 @@ if (
 }
 if (
   typeof Element !== "undefined" &&
+  typeof (Element.prototype as Partial<Element>).scrollTo !== "function"
+) {
+  Element.prototype.scrollTo = function scrollTo() {};
+}
+if (
+  typeof Element !== "undefined" &&
   typeof (Element.prototype as Partial<Element>).hasPointerCapture !== "function"
 ) {
   Element.prototype.hasPointerCapture = () => false;

@@ -1,35 +1,14 @@
 import { z } from "zod";
 
-import { APIError } from "./http";
+import { APIError, extractErrorMessage } from "./http";
 import { AppError } from "@/lib/errors/AppError";
-import { isRecord } from "@/lib/utils/isRecord";
 
-/** FastAPI validation error item: `{loc: [...], msg: string, type: string}`. */
-type ValidationErrorItem = {
-  loc?: (string | number)[];
-  msg?: string;
-  type?: string;
-};
-
-type ProblemDetail = {
-  type?: string;
-  title?: string;
-  status?: number;
-  detail?: string;
-  instance?: string;
-  code?: string;
-  errors?: ValidationErrorItem[];
-};
-
-export function isProblemDetail(value: unknown): value is ProblemDetail {
-  if (!isRecord(value)) return false;
-  const record = value;
-  // Most FastAPI problem+json responses include these.
-  return (
-    typeof record["title"] === "string" &&
-    typeof record["status"] === "number" &&
-    typeof record["detail"] === "string"
-  );
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 export function toUserMessage(err: unknown, fallback = "Request failed."): string {
@@ -41,20 +20,16 @@ export function toUserMessage(err: unknown, fallback = "Request failed."): strin
   }
 
   if (err instanceof APIError) {
-    const data = err.data;
-    if (isProblemDetail(data)) {
-      const msg = (data.detail ?? data.title ?? "").trim();
-      return msg !== "" ? msg : fallback;
-    }
-    if (isRecord(data)) {
-      const detail = data["detail"];
-      if (typeof detail === "string" && detail.trim() !== "") return detail;
-    }
+    const problem = extractErrorMessage(err.data);
+    if (problem !== null) return problem;
     const msg = err.message.trim();
     return msg !== "" ? msg : err.statusText !== "" ? err.statusText : fallback;
   }
 
   if (err instanceof Error) {
+    // The chat transport rethrows the response body as the message.
+    const body = extractErrorMessage(parseJson(err.message));
+    if (body !== null) return body;
     const msg = err.message.trim();
     return msg !== "" ? msg : fallback;
   }
@@ -74,14 +49,6 @@ const wdkAuthRefusalSchema = z.object({
 
 /** A refusal about which VEuPathDB account the request acts as. */
 export type WdkAuthRefusal = z.infer<typeof wdkAuthRefusalSchema>;
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The server's refusal when a route wants a VEuPathDB login or reports that the

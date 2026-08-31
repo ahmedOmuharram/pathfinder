@@ -84,7 +84,6 @@ src/pathfinder/
     strategies/              #   Strategy lifecycle
       engine/                #     Graph integrity, step ordering, execution helpers
     wdk/                     #   WDK integration helpers (enrichment, record types, results)
-    workbench_chat/          #   Workbench-specific chat orchestration
   transport/                 # HTTP layer
     http/
       routers/               #   FastAPI routers

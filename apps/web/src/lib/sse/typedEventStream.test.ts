@@ -7,7 +7,17 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { APIError } from "@/lib/api/http";
 import { streamTypedEvents } from "./typedEventStream";
+
+async function collectError(stream: AsyncGenerator<unknown>): Promise<unknown> {
+  try {
+    for await (const _ of stream) void _;
+  } catch (err: unknown) {
+    return err;
+  }
+  return null;
+}
 
 function streamFromChunks(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -129,14 +139,13 @@ describe("streamTypedEvents", () => {
     expect(events).toEqual([{ v: 1 }]);
   });
 
-  it("throws when the response is not ok", async () => {
+  it("reports the transport status when the refusal says nothing", async () => {
     stubFetchWithStream(null, false, 500);
 
-    await expect(async () => {
-      for await (const _ of streamTypedEvents("/x")) {
-        // unreachable
-      }
-    }).rejects.toThrow(/stream failed: 500/);
+    const error = await collectError(streamTypedEvents("/x"));
+    expect(error).toBeInstanceOf(APIError);
+    expect((error as APIError).status).toBe(500);
+    expect((error as APIError).message).toBe("HTTP 500 Internal Server Error");
   });
 
   it("names the API's reason in the thrown error", async () => {
@@ -159,7 +168,36 @@ describe("streamTypedEvents", () => {
       for await (const _ of streamTypedEvents("/x", { method: "POST", body: {} })) {
         void _;
       }
-    }).rejects.toThrow("stream failed: 403: Missing required X-Requested-With header");
+    }).rejects.toThrow("Missing required X-Requested-With header");
+  });
+
+  it("shows the field message a refused stream carries, never a transport line", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              title: "Invalid request",
+              status: 403,
+              errors: [
+                { path: "siteId", message: "This account cannot read plasmodb" },
+              ],
+            }),
+            {
+              status: 403,
+              statusText: "Forbidden",
+              headers: { "content-type": "application/problem+json" },
+            },
+          ),
+      ),
+    );
+
+    const error = await collectError(
+      streamTypedEvents("/x", { method: "POST", body: {} }),
+    );
+    expect(error).toBeInstanceOf(APIError);
+    expect((error as APIError).message).toBe("This account cannot read plasmodb");
   });
 
   it("throws when the response body is null", async () => {

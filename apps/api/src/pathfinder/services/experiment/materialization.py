@@ -158,8 +158,8 @@ async def _persist_experiment_strategy(
         step_payload = await api.create_step(
             NewStepSpec(
                 search_name=config.search_name,
-                search_config=WDKSearchConfig.model_validate(
-                    {"parameters": config.parameters or {}},
+                search_config=WDKSearchConfig(
+                    parameters=encode_params(config.parameters)
                 ),
                 custom_name=f"Experiment: {config.name}",
             ),

@@ -36,7 +36,7 @@ def _ctx(state: AgentToolState, site_id: str = "plasmodb") -> Any:
     return ctx
 
 
-def _decided(name: str) -> SearchOverview:
+def _inspected(name: str) -> SearchOverview:
     return SearchOverview(
         search_name=name,
         display_name=name,
@@ -44,7 +44,6 @@ def _decided(name: str) -> SearchOverview:
         description="",
         parameter_names=[],
         required_params=[],
-        decided=True,
     )
 
 
@@ -59,7 +58,7 @@ def _stub_client(monkeypatch: pytest.MonkeyPatch, fixture: str) -> MagicMock:
 
 
 class TestSearchForSearchesGate:
-    async def test_it_records_the_names_and_hides_the_decided(
+    async def test_it_records_every_name_it_returns(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         matches = [
@@ -84,7 +83,7 @@ class TestSearchForSearchesGate:
 
         monkeypatch.setattr(catalog_service, "search_for_searches", _ranked)
         state = AgentToolState()
-        state.register_search("GenesByGoTerm", _decided("GenesByGoTerm"))
+        state.register_search("GenesByGoTerm", _inspected("GenesByGoTerm"))
 
         result = (
             await catalog_tools.search_for_searches(
@@ -94,11 +93,14 @@ class TestSearchForSearchesGate:
 
         assert [row.get("name") for row in result] == [
             "GenesByTaxon",
+            "GenesByGoTerm",
             "GenesByText",
-            None,
         ]
-        assert state.catalog_search_names == {"GenesByTaxon", "GenesByText"}
-        assert "already-decided" in str(result[-1]["note"])
+        assert state.catalog_search_names == {
+            "GenesByTaxon",
+            "GenesByGoTerm",
+            "GenesByText",
+        }
 
 
 class TestListSearchesGate:
@@ -113,12 +115,12 @@ class TestListSearchesGate:
 
         monkeypatch.setattr(catalog_service, "list_searches", _rows)
         state = AgentToolState()
-        state.register_search("GenesByGoTerm", _decided("GenesByGoTerm"))
+        state.register_search("GenesByGoTerm", _inspected("GenesByGoTerm"))
 
         result = (await catalog_tools.list_searches(_ctx(state))).return_value
 
-        assert [row["name"] for row in result] == ["GenesByTaxon"]
-        assert state.catalog_search_names == {"GenesByTaxon"}
+        assert [row["name"] for row in result] == ["GenesByTaxon", "GenesByGoTerm"]
+        assert state.catalog_search_names == {"GenesByTaxon", "GenesByGoTerm"}
 
 
 class TestSearchOverviewGate:

@@ -19,6 +19,9 @@ import { EditComposerBranchOrRevert } from "./EditComposerSend";
 import { RegenerateAction } from "./RegenerateAction";
 import { motion } from "motion/react";
 import { toast } from "sonner";
+import { z } from "zod";
+
+import { toUserMessage } from "@/lib/api/errors";
 
 import {
   Message,
@@ -40,6 +43,7 @@ import { SupersededBadge } from "./SupersededBadge";
 import { ConsultCarousel } from "./parts/ConsultCarousel";
 import { StoppedNotice } from "./StoppedNotice";
 import { dataPartRenderers } from "./dataPartRegistry";
+import { messageAnchorId } from "../thread/taskResult";
 import { TraceAnchor } from "../thread/TraceAnchor";
 
 const markdownRemarkPlugins = [remarkGfm];
@@ -164,23 +168,20 @@ function isFailedPart(part: { type: string; name?: string }): boolean {
   );
 }
 
+const rawErrorSchema = z.union([
+  z.string().min(1),
+  z.object({ message: z.string().min(1) }).transform((value) => value.message),
+]);
+
 /** The live error, or null when the turn already carries its durable
  * `data-turn-failed` part, which says the same thing and survives a reload. */
 export function selectAssistantErrorDetail(m: FailureCarrier): string | null {
   if (m.status?.type !== "incomplete") return null;
   if (m.status.reason === "cancelled") return null;
   if (m.content.some(isFailedPart)) return null;
-  const raw = m.status.error;
-  if (typeof raw === "string" && raw.length > 0) return raw;
-  if (
-    raw !== null &&
-    typeof raw === "object" &&
-    "message" in raw &&
-    typeof (raw as { message?: unknown }).message === "string"
-  ) {
-    return (raw as { message: string }).message;
-  }
-  return ASSISTANT_ERROR_DEFAULT;
+  const raw = rawErrorSchema.safeParse(m.status.error);
+  if (!raw.success) return ASSISTANT_ERROR_DEFAULT;
+  return toUserMessage(new Error(raw.data), ASSISTANT_ERROR_DEFAULT);
 }
 
 function AssistantErrorCard() {
@@ -200,9 +201,10 @@ function AssistantStoppedNotice() {
 }
 
 export function AssistantMessage() {
+  const messageId = useAuiState((s) => s.message.id);
   return (
     <motion.div {...MESSAGE_FADE_IN}>
-      <Message from="assistant">
+      <Message from="assistant" id={messageAnchorId(messageId)}>
         <MessageContent>
           <ModelBadge />
           <SupersededBadge />

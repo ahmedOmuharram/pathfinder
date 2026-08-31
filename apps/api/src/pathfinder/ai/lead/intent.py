@@ -5,7 +5,7 @@ from enum import StrEnum
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
-from pathfinder.domain.strategy.constraints import Constraint
+from pathfinder.domain.strategy.constraints import Constraint, ConstraintKind
 
 
 class IntentClassification(StrEnum):
@@ -18,6 +18,36 @@ class IntentClassification(StrEnum):
     APPROVAL = "approval"
     DENIAL = "denial"
     OFF_TOPIC = "off_topic"
+    CONTEXT_STATEMENT = "context_statement"
+    MEMORY_REQUEST = "memory_request"
+
+
+# The classifications that ask for a change to the strategy. Only these turns
+# are offered the tools that frame, build, edit or verify one.
+BUILDING_INTENTS: frozenset[IntentClassification] = frozenset(
+    {
+        IntentClassification.NEW_STRATEGY,
+        IntentClassification.EXTEND_STRATEGY,
+        IntentClassification.EDIT_STRATEGY,
+        IntentClassification.CLARIFICATION_RESPONSE,
+        IntentClassification.SLOT_ANSWER,
+        IntentClassification.APPROVAL,
+    }
+)
+
+# The classifications that state a request of their own. An answer to a
+# question the assistant asked is not one of them.
+REQUEST_INTENTS: frozenset[IntentClassification] = frozenset(
+    {
+        IntentClassification.NEW_STRATEGY,
+        IntentClassification.EXTEND_STRATEGY,
+        IntentClassification.EDIT_STRATEGY,
+    }
+)
+
+
+# The classifier reads the kinds from the enum, so a new one needs no edit here.
+_CONSTRAINT_KINDS = ", ".join(kind.value for kind in ConstraintKind)
 
 
 class UserIntent(CamelModel):
@@ -48,11 +78,10 @@ class UserIntent(CamelModel):
     explicit_constraints: list[Constraint] = Field(
         default_factory=list,
         description=(
-            "Typed constraints the user STATED in this message (data_type, "
-            "statistical_threshold, fold_change, comparator, organism, "
-            "record_type). Captured fresh each turn from the literal message — "
-            "these are user-explicit by construction and override scoping's "
-            "provisional assumptions for the same dimension."
+            "Typed constraints the user STATED in this message. One of "
+            f"{_CONSTRAINT_KINDS}. Captured fresh each turn from the literal "
+            "message - these are user-explicit by construction and override "
+            "scoping's provisional assumptions for the same dimension."
         ),
     )
     last_classified_at_turn: str | None = None

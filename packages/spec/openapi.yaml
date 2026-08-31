@@ -1796,7 +1796,7 @@ paths:
       tags:
       - conversations
       summary: Insert Saved
-      description: Insert a saved WDK strategy as a combine input next to a target step.
+      description: Insert a saved WDK strategy beside a target step, or as the thread's root.
       operationId: insert_saved_api_v1_conversations__conversation_id__insert_saved_post
       security:
       - APIKeyCookie: []
@@ -3366,7 +3366,9 @@ paths:
 
         Use this when the internal token is absent or expired, and to relink a
 
-        session whose VEuPathDB cookie now names another account.'
+        session whose VEuPathDB cookie now names another account. A dev-login
+
+        session names no VEuPathDB account, so no token can move it.'
       operationId: refresh_internal_auth_api_v1_veupathdb_auth_refresh_post
       parameters:
       - name: siteId
@@ -10088,8 +10090,8 @@ components:
         targetStepId:
           type: string
           maxLength: 64
-          minLength: 1
           title: Targetstepid
+          default: ''
         savedWdkStrategyId:
           type: integer
           title: Savedwdkstrategyid
@@ -10106,7 +10108,6 @@ components:
           default: INTERSECT
       type: object
       required:
-      - targetStepId
       - savedWdkStrategyId
       title: InsertSavedRequest
     InsertSavedResponse:
@@ -11556,6 +11557,7 @@ components:
           - pathfinder-cookie
           - pathfinder-bearer
           - veupathdb-bearer
+          - dev-login
           title: Credential
       type: object
       required:
@@ -12365,6 +12367,11 @@ components:
           - type: string
           - type: 'null'
           title: Error
+        controlHits:
+          items:
+            type: string
+          type: array
+          title: Controlhits
       type: object
       required:
       - label
@@ -15302,12 +15309,19 @@ components:
       prefixItems:
       - type: string
       - type: string
-      - type: 'null'
+      - anyOf:
+        - type: string
+        - type: 'null'
       type: array
       maxItems: 3
       minItems: 3
       title: WDKVocabTerm
-      description: A standard enum vocabulary entry as a term, display, null triple.
+      description: 'A standard enum vocabulary entry as a term, display, parent triple.
+
+
+        The third element is the term of the entry above this one, and is null for
+
+        an entry at the top of the vocabulary.'
     WireInputOp:
       properties:
         kind:
@@ -15473,6 +15487,7 @@ components:
       - EXTERNAL_SERVICE_ERROR
       - DATA_PARSING_ERROR
       - CONVERSATION_NOT_FOUND
+      - FORK_REFUSED
       - ASSISTANT_NOT_FOUND
       - ASSISTANT_MISMATCH
       - EDA_NO_OPEN_ANALYSIS

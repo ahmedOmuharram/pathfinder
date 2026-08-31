@@ -11,16 +11,21 @@ import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/u
 
 import { SavedStrategiesPage } from "./SavedStrategiesPage";
 import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
+import { startChatFromSavedStrategy } from "@/lib/api/conversations";
 import { chatRoot, chatUrl } from "@/lib/routes";
 
 vi.mock("@pathfinder/shared/generated/hooks/useDeleteStrategy", () => ({
   deleteStrategy: vi.fn(() => Promise.resolve({})),
+}));
+vi.mock("@/lib/api/conversations", () => ({
+  startChatFromSavedStrategy: vi.fn(() => Promise.resolve("new-conv")),
 }));
 const routerPushMock = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: routerPushMock }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockDelete = vi.mocked(deleteStrategy);
+const mockStartChat = vi.mocked(startChatFromSavedStrategy);
 
 function conv(over: Partial<ConversationResponse>): ConversationResponse {
   return {
@@ -56,6 +61,7 @@ function renderPage(
 afterEach(cleanup);
 beforeEach(() => {
   mockDelete.mockClear();
+  mockStartChat.mockClear();
   routerPushMock.mockClear();
 });
 
@@ -145,6 +151,22 @@ describe("SavedStrategiesPage", () => {
       expect(mockDelete.mock.calls).toEqual([
         ["k1", { deleteFromWdk: true, cascade: true }],
       ]),
+    );
+  });
+
+  it("Use in new chat opens a chat that starts from the saved strategy", async () => {
+    renderPage([KINASES], { 101: 0 });
+    await screen.findByTestId("saved-strategy-k1");
+
+    await userEvent.click(screen.getByTestId("saved-strategy-use-k1"));
+
+    await waitFor(() =>
+      expect(mockStartChat.mock.calls).toEqual([
+        [{ siteId: "plasmodb", name: "Kinase sweep", savedWdkStrategyId: 101 }],
+      ]),
+    );
+    await waitFor(() =>
+      expect(routerPushMock.mock.calls).toEqual([[chatUrl("plasmodb", "new-conv")]]),
     );
   });
 });

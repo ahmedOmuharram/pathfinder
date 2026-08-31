@@ -1,15 +1,13 @@
 """Persist a strategy graph's AST to its conversation row.
 
-Extracted from the legacy auto-build hook so the new declarative build
-service can persist without depending on the doomed hook chain. Takes the
-strategy advisory lock for the merge+commit window only — not for any
-WDK push above the call site.
+Writes under the thread's strategy lock. A caller that already owns that
+lock passes its session on the context, so its read and this write are one
+transaction; a caller that does not takes the lock for the write alone.
 """
 
 from __future__ import annotations
 
 from assistant_core.platform.logging import get_logger
-from sqlalchemy import text
 
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.session import StrategyGraph
@@ -22,6 +20,7 @@ from pathfinder.persistence.repositories.conversation_update import (
 from pathfinder.platform.errors import AppError
 from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.sync import SyncResult
+from pathfinder.services.strategies.write_lock import strategy_write_scope
 
 logger = get_logger(__name__)
 
@@ -34,15 +33,14 @@ async def persist_strategy_ast_to_conversation(
 ) -> None:
     """Write ``conversation_strategies.strategy_ast`` from the current graph.
 
-    Inside an advisory lock keyed on the conversation id so concurrent
-    user PATCHes don't race. Re-fetches the row inside the lock to merge
-    any persisted ``wdk_step_ids`` the agent didn't see this turn.
+    Re-fetches the row inside the lock to merge any persisted
+    ``wdk_step_ids`` the agent didn't see this turn.
 
     On a partial WDK push the caller passes ``sync_result=None`` so the
     new ``wdk_strategy_id`` is not written; only the incremental
     ``wdk_step_ids`` land.
     """
-    if deps.conversation_id is None or deps.db_session_factory is None:
+    if deps.conversation_id is None:
         return
     sync_state = deps.strategy_session.sync_state
     agent_ast = graph.to_strategy_ast(sync_state=sync_state)
@@ -51,12 +49,11 @@ async def persist_strategy_ast_to_conversation(
         # carried in ``detached_roots``, not skipped.
         await _clear_persisted_strategy(deps)
         return
+    scope = strategy_write_scope(deps)
+    if scope is None:
+        return
     try:
-        async with deps.db_session_factory() as session:
-            await session.execute(
-                text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
-                {"k": f"strategy:{deps.conversation_id}"},
-            )
+        async with scope as session:
             repo = ConversationRepository(session)
             current = await repo.get_strategy(deps.conversation_id)
             merged_ast = _merge_agent_ast_into_current(current, agent_ast)
@@ -75,7 +72,6 @@ async def persist_strategy_ast_to_conversation(
                     step_count=_total_step_count(merged_ast),
                 ),
             )
-            await session.commit()
     except (AppError, OSError, RuntimeError) as exc:
         logger.warning(
             "Failed to persist strategy AST to conversation",
@@ -94,18 +90,14 @@ def _total_step_count(ast: StrategyAst) -> int:
 
 async def _clear_persisted_strategy(deps: StrategyMutationContext) -> None:
     """Blank the built strategy after the last step is deleted."""
-    if deps.conversation_id is None or deps.db_session_factory is None:
+    scope = strategy_write_scope(deps)
+    if scope is None or deps.conversation_id is None:
         return
     try:
-        async with deps.db_session_factory() as session:
-            await session.execute(
-                text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
-                {"k": f"strategy:{deps.conversation_id}"},
-            )
+        async with scope as session:
             await ConversationRepository(session).clear_strategy(
                 deps.conversation_id,
             )
-            await session.commit()
     except (AppError, OSError, RuntimeError) as exc:
         logger.warning(
             "Failed to clear strategy AST on conversation",

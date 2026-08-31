@@ -6,7 +6,7 @@ pass that cannot see them re-derives them from a sentence.
 
 from __future__ import annotations
 
-from pathfinder.domain.parameters.values import to_wire
+from pathfinder.domain.parameters.value_codec import to_wire
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 
 __all__ = [

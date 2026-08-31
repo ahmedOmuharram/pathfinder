@@ -9,6 +9,17 @@
 > [fork-log-rows-cascade-with-the-parents-task-rows](../knowledge/backlog/fork-log-rows-cascade-with-the-parents-task-rows.md),
 > [revert-leaves-the-strategy-at-post-turn-state](../knowledge/backlog/revert-leaves-the-strategy-at-post-turn-state.md),
 > plus mechanism corrections written into the four previously filed items.
+>
+> **Resolved 2026-08-30 (batch 2).** I2, I4, I6, I7 and I8 now hold for fork, and
+> I7 holds for revert and for a stopped turn: the strategy has a revision history
+> and each operation reads the snapshot in force at its message, a fork rewrites
+> every copied message id through one id map, copies `assistant_id` and
+> `application_id`, nulls `task_id` on copied log rows, and is refused while a
+> durable task runs in the copied prefix. See
+> [a-strategy-has-a-revision-history](../knowledge/decisions/a-strategy-has-a-revision-history.md).
+> Decision point B (what revert *is*) and decision point D (the durable resume
+> seam) are untouched. The line numbers and file names below describe the code
+> as it was; `test_fork_wdk_remap.py` went with the WDK duplication it pinned.
 
 ## 0. The answer in one page
 
@@ -130,9 +141,11 @@ What fork does, line by line, against each invariant:
 - **I1/I3 violated by design, invisibly.** Revert deletes log rows
   (`revert.py:117-124`). PROTOCOL 1 has no truncation or replacement signal, so a
   conforming client that holds a cursor keeps the deleted prefix forever - the
-  filed [revert-does-not-truncate-client-thread](../knowledge/backlog/revert-does-not-truncate-client-thread.md)
-  bug is the protocol gap wearing a UI face. Snapshot/tail equivalence (I3) breaks
-  for any reader connected across the revert.
+  filed revert-does-not-truncate-client-thread bug is the protocol gap wearing a
+  UI face. PathFinder's own client closed the UI face on 2026-08-30 by
+  re-snapshotting after the 204; the protocol still names no truncation signal,
+  so a conforming client that only tails is unchanged. Snapshot/tail equivalence
+  (I3) breaks for any reader connected across the revert.
 - **I2 interacts subtly.** Deleting the target envelope lets the same id be
   re-posted (edit flow), and `append_user_message_once` will re-append it - one id
   now names, across time, two different messages. The reducer's first-wins rule

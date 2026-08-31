@@ -49,3 +49,109 @@ async def test_search_not_found_detail_includes_did_you_mean(
     err = excinfo.value
     assert "GenesByText" in err.detail
     assert "GeneByTextSearch" in err.detail
+
+
+@pytest.mark.asyncio
+async def test_a_listed_search_that_cannot_be_read_names_the_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A search WDK lists but whose definition fails to parse is a read failure.
+
+    Reproduces ``GenesByOrthologPattern`` on plasmodb: the search is in the
+    transcript listing, and reading it raised.
+    """
+    discovery = MagicMock()
+    discovery.get_search_details = AsyncMock(
+        side_effect=AppError(
+            code=ErrorCode.DATA_PARSING_ERROR,
+            title="Data parsing failed",
+            status=502,
+            detail="1802 validation errors for WDKSearchResponse",
+        )
+    )
+    discovery.get_searches = AsyncMock(
+        return_value=[
+            _search("GenesByOrthologPattern"),
+            _search("GenesByOrthologs"),
+        ]
+    )
+    monkeypatch.setattr(param_discovery, "get_discovery_service", lambda: discovery)
+
+    ctx = SearchContext(
+        site_id="plasmodb",
+        record_type="transcript",
+        search_name="GenesByOrthologPattern",
+    )
+
+    with pytest.raises(AppError) as excinfo:
+        await param_discovery.fetch_search_details(ctx, record_types=[])
+
+    err = excinfo.value
+    assert "Search not found" not in str(err)
+    assert "reading GenesByOrthologPattern failed" in err.detail
+    assert "1802 validation errors" in err.detail
+
+
+@pytest.mark.asyncio
+async def test_a_read_failure_under_another_record_type_names_the_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    discovery = MagicMock()
+    discovery.get_search_details = AsyncMock(
+        side_effect=AppError(
+            code=ErrorCode.DATA_PARSING_ERROR,
+            title="Data parsing failed",
+            status=502,
+            detail="1802 validation errors",
+        )
+    )
+    discovery.get_searches = AsyncMock(
+        return_value=[_search("GenesByText"), _search("GenesByOrthologPattern")]
+    )
+    monkeypatch.setattr(param_discovery, "get_discovery_service", lambda: discovery)
+
+    rt = MagicMock()
+    rt.url_segment = "transcript"
+    ctx = SearchContext(
+        site_id="plasmodb",
+        record_type="organism",
+        search_name="GenesByOrthologPattern",
+    )
+
+    with pytest.raises(AppError) as excinfo:
+        await param_discovery.fetch_search_details(ctx, record_types=[rt])
+
+    assert (
+        "reading GenesByOrthologPattern failed: Data parsing failed: "
+        "1802 validation errors" in excinfo.value.detail
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_absent_search_is_never_its_own_suggestion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    discovery = MagicMock()
+    discovery.get_search_details = AsyncMock(
+        side_effect=AppError(
+            code=ErrorCode.WDK_ERROR, title="x", status=404, detail="404"
+        )
+    )
+    discovery.get_searches = AsyncMock(
+        return_value=[_search("GenesByText"), _search("GenesByOrthologs")]
+    )
+    monkeypatch.setattr(param_discovery, "get_discovery_service", lambda: discovery)
+
+    ctx = SearchContext(
+        site_id="plasmodb",
+        record_type="transcript",
+        search_name="GenesByOrthologPattern",
+    )
+
+    with pytest.raises(CoreValidationError) as excinfo:
+        await param_discovery.fetch_search_details(ctx, record_types=[])
+
+    detail = excinfo.value.detail
+    assert "Search not found: GenesByOrthologPattern." in detail
+    assert "'GenesByOrthologs'" in detail
+    assert "'GenesByOrthologPattern'" not in detail

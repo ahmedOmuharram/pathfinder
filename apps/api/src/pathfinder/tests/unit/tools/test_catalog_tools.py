@@ -114,17 +114,15 @@ async def test_search_for_searches_returns_matches_with_universal(
     "pathfinder.ai.tools.standalone.catalog.catalog.search_for_searches",
     new_callable=AsyncMock,
 )
-async def test_search_for_searches_hides_already_decided(
+async def test_search_for_searches_hides_nothing(
     mock_search: AsyncMock,
 ) -> None:
-    """A search the model has already recorded a decision on must be
-    filtered out of the catalog so it can't resurface and trigger another
-    round of evaluation — with a note flagging how many were hidden."""
+    """An inspected search stays in the results and no note is appended."""
     mock_search.return_value = [
         SearchMatch(
             name="GenesByTaxon",
             display_name="Genes by Taxon",
-            description="Find genes by organism taxonomy",
+            description="Find genes by organism",
             record_type="transcript",
             category="general",
             returns="transcript",
@@ -147,11 +145,9 @@ async def test_search_for_searches_hides_already_decided(
             search_name="GenesByTaxon",
             display_name="Genes by Taxon",
             record_type="transcript",
-            description="decided already",
+            description="already inspected",
             parameter_names=["taxon"],
             required_params=["taxon"],
-            selection_status="selected",
-            decided=True,
         ),
     )
     ctx = _make_ctx(deps)
@@ -164,12 +160,9 @@ async def test_search_for_searches_hides_already_decided(
     ).return_value
 
     names = [str(r.get("name")) for r in result]
-    assert "GenesByTaxon" not in names  # decided → hidden
-    assert "GenesByGoTerm" in names  # undecided → still shown
-
-    notes = [str(r["note"]) for r in result if "note" in r]
-    assert len(notes) == 1
-    assert "GenesByTaxon" in notes[0]
+    assert "GenesByTaxon" in names
+    assert "GenesByGoTerm" in names
+    assert [r for r in result if "note" in r] == []
 
 
 @pytest.mark.asyncio
@@ -212,11 +205,10 @@ async def test_list_searches_for_record_type(
     "pathfinder.ai.tools.standalone.catalog.catalog.list_searches",
     new_callable=AsyncMock,
 )
-async def test_list_searches_hides_already_decided(
+async def test_list_searches_keeps_an_inspected_search(
     mock_list: AsyncMock,
 ) -> None:
-    """Decided searches are also stripped from the names-only fallback so
-    they can't resurface through any catalog path."""
+    """The names-only listing shows every search, inspected or not."""
     mock_list.return_value = [
         {"name": "GenesByTaxon", "displayName": "Genes by Taxon"},
         {"name": "GenesByText", "displayName": "Gene Text Search"},
@@ -228,11 +220,9 @@ async def test_list_searches_hides_already_decided(
             search_name="GenesByTaxon",
             display_name="Genes by Taxon",
             record_type="transcript",
-            description="decided already",
+            description="already inspected",
             parameter_names=["taxon"],
             required_params=["taxon"],
-            selection_status="rejected",
-            decided=True,
         ),
     )
     ctx = _make_ctx(deps)
@@ -240,4 +230,4 @@ async def test_list_searches_hides_already_decided(
     result = (await list_searches(ctx, record_type="transcript")).return_value
 
     names = [r["name"] for r in result]
-    assert names == ["GenesByText"]
+    assert names == ["GenesByTaxon", "GenesByText"]

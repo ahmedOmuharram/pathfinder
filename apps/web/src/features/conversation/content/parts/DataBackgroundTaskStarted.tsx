@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import type {
   BackgroundTaskStarted,
   TaskCompleted,
@@ -14,32 +15,49 @@ import { useConversationId } from "@/lib/hooks/useConversationId";
 import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { useChatHelpersOptional } from "../../runtime/chatHelpersContext";
+import { taskResultHref } from "../../thread/taskResult";
+import { traceRenderingKinds } from "../../thread/traceRenderingKinds";
 
 interface MessageWithParts {
-  readonly parts: readonly { readonly type: string; readonly data?: unknown }[];
+  readonly id: string;
+  readonly parts: readonly {
+    readonly type: string;
+    readonly text?: string | undefined;
+    readonly data?: unknown;
+  }[];
 }
 
+const laneSchema = z.object({ variantId: z.string() });
+
+type Lane = readonly [string | null, TaskProgressChunk | null];
+
 interface TaskLifecycle {
-  progress: TaskProgressChunk | null;
+  lanes: Map<string | null, TaskProgressChunk>;
   completed: TaskCompleted | null;
+}
+
+/** The lane a progress payload names, or null when the task runs one sequence. */
+function laneOf(progress: TaskProgressChunk): string | null {
+  return laneSchema.safeParse(progress.toolSpecific).data?.variantId ?? null;
 }
 
 /**
  * Read one task's progress and outcome from the thread's own parts. The log
  * carries both on the message that started the task, so the card survives a
- * reload with no subscription.
+ * reload with no subscription. A fan-out reports one lane per variant, and
+ * each lane keeps its own newest update.
  */
 function collectTaskLifecycle(
   messages: readonly MessageWithParts[],
   taskId: string,
 ): TaskLifecycle {
-  const lifecycle: TaskLifecycle = { progress: null, completed: null };
+  const lifecycle: TaskLifecycle = { lanes: new Map(), completed: null };
   for (const message of messages) {
     for (const part of message.parts) {
       if (part.type === "data-task-progress") {
         const parsed = taskProgressSchema.safeParse(part.data);
         if (parsed.success && parsed.data.taskId === taskId) {
-          lifecycle.progress = parsed.data;
+          lifecycle.lanes.set(laneOf(parsed.data), parsed.data);
         }
       } else if (part.type === "data-task-completed") {
         const parsed = taskCompletedSchema.safeParse(part.data);
@@ -52,13 +70,17 @@ function collectTaskLifecycle(
   return lifecycle;
 }
 
+function orderedLanes(lanes: Map<string | null, TaskProgressChunk>): readonly Lane[] {
+  const ordered: Lane[] = [...lanes.entries()].sort(([left], [right]) =>
+    (left ?? "").localeCompare(right ?? ""),
+  );
+  return ordered.length > 0 ? ordered : [[null, null]];
+}
+
 export function DataBackgroundTaskStarted({ data }: { data: BackgroundTaskStarted }) {
   const conversationId = useConversationId();
   const chat = useChatHelpersOptional();
-  const { progress, completed } = collectTaskLifecycle(
-    chat?.messages ?? [],
-    data.taskId,
-  );
+  const { lanes, completed } = collectTaskLifecycle(chat?.messages ?? [], data.taskId);
 
   // A suspended turn closes its own stream, so the task's progress, its outcome
   // and the continuation reach this page only on a fresh tail of the thread.
@@ -74,19 +96,26 @@ export function DataBackgroundTaskStarted({ data }: { data: BackgroundTaskStarte
     retry: false,
   });
 
-  const row = (
+  const tool = humanizeToolName(data.toolName);
+  const resultHref =
+    completed?.status === "success"
+      ? taskResultHref(chat?.messages ?? [], data.taskId, traceRenderingKinds())
+      : null;
+  const rows = orderedLanes(lanes).map(([lane, progress], index) => (
     <TaskRow
-      label={humanizeToolName(data.toolName)}
+      key={lane ?? "task"}
+      label={lane === null ? tool : `${tool} - ${lane}`}
       percent={completed === null ? (progress?.percent ?? null) : 1}
       message={progress?.message ?? null}
-      estimatedSeconds={data.estimatedDurationSeconds}
+      estimatedSeconds={lane === null ? data.estimatedDurationSeconds : null}
       outcome={outcomeOf(completed)}
-      error={completed?.error ?? null}
+      error={index === 0 ? (completed?.error ?? null) : null}
+      resultHref={index === 0 ? resultHref : null}
     />
-  );
+  ));
   return (
     <div data-testid="data-background-task-started">
-      {completed === null ? row : <div data-testid="data-task-completed">{row}</div>}
+      {completed === null ? rows : <div data-testid="data-task-completed">{rows}</div>}
     </div>
   );
 }

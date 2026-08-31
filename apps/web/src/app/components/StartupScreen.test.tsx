@@ -44,6 +44,38 @@ describe("startupStatus", () => {
     ).toEqual({ kind: "unreachable" });
   });
 
+  it("reports a busy worker without waiting out the grace window", () => {
+    expect(
+      startupStatus({
+        data: {
+          ready: false,
+          apiReady: true,
+          workerAlive: false,
+          notReady: ["worker"],
+        },
+        isError: false,
+        elapsedMs: 1000,
+        graceMs: 20000,
+      }),
+    ).toEqual({ kind: "busy-worker" });
+  });
+
+  it("keeps the fatal screen when another subsystem joins the worker", () => {
+    expect(
+      startupStatus({
+        data: {
+          ready: false,
+          apiReady: false,
+          workerAlive: false,
+          notReady: ["worker", "database"],
+        },
+        isError: false,
+        elapsedMs: 25000,
+        graceMs: 20000,
+      }),
+    ).toEqual({ kind: "degraded", notReady: ["worker", "database"] });
+  });
+
   it("reports degraded with the failing subsystems when stalled but reachable", () => {
     expect(
       startupStatus({

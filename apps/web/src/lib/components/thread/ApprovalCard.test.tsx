@@ -16,7 +16,7 @@ function draw(patch: {
 }) {
   return render(
     <ApprovalCard
-      title="Optimize parameters"
+      prompt="Optimize parameters needs your approval before it runs."
       input={INPUT}
       showRaw={patch.showRaw ?? false}
       onApprove={patch.onApprove ?? (() => {})}
@@ -27,7 +27,7 @@ function draw(patch: {
 }
 
 describe("ApprovalCard", () => {
-  it("names the tool in the one sentence the thread has always used", () => {
+  it("asks exactly the question its caller wrote", () => {
     draw({});
     expect(screen.getByTestId("approval-card-title")).toHaveTextContent(
       "Optimize parameters needs your approval before it runs.",

@@ -25,6 +25,9 @@ from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.persistence.models import ConversationStrategy, User
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
+from pathfinder.persistence.repositories.strategy_revision import (
+    StrategyRevisionRepository,
+)
 from pathfinder.platform.config import get_settings
 from pathfinder.services.conversations.fork import (
     ForkError,
@@ -1629,6 +1632,10 @@ async def _seed_conversation_with_ast(
         ),
     )
     await session.flush()
+    await StrategyRevisionRepository(session).record(
+        conversation_id,
+        await ConversationRepository(session).get_strategy(conversation_id),
+    )
 
 
 async def test_fork_copies_ast_as_independent_deep_structure(

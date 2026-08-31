@@ -11,12 +11,14 @@ to WDK → record consumer reference).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from uuid import UUID
 
-from assistant_core.platform.db import DBSessionFactory
 from assistant_core.platform.logging import get_logger
 
-from pathfinder.domain.strategy.ast import StrategyStepNode, generate_step_id
+from pathfinder.domain.strategy.ast import (
+    StrategyStepNode,
+    deep_clone_with_fresh_ids,
+    generate_step_id,
+)
 from pathfinder.domain.strategy.graph_model import (
     StepKind,
     StrategyStep,
@@ -24,7 +26,7 @@ from pathfinder.domain.strategy.graph_model import (
     rebuild_tree,
 )
 from pathfinder.domain.strategy.ops import CombineOp
-from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
+from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.persistence.repositories.conversation_update import (
@@ -37,9 +39,6 @@ from pathfinder.platform.errors import (
     ValidationError,
 )
 from pathfinder.services.strategies.context import StrategyMutationContext
-from pathfinder.services.strategies.save_substrategy import (
-    deep_clone_with_fresh_ids,
-)
 from pathfinder.services.strategies.spec_build import (
     build_strategy_from_spec,
 )
@@ -47,6 +46,7 @@ from pathfinder.services.strategies.wdk_conversion import (
     build_snapshot_from_wdk,
     canonicalize_synced_parameters,
 )
+from pathfinder.services.strategies.write_lock import strategy_write_scope
 
 logger = get_logger(__name__)
 
@@ -56,7 +56,48 @@ class InsertSavedResult:
     wdk_strategy_id: int
     inserted_saved_wdk_strategy_id: int
     inserted_saved_name: str
+    # The step the insert produced: the new combine, or the inserted root when
+    # the thread had no steps to combine with.
     combine_step_id: str
+
+
+@dataclass(frozen=True)
+class ClonedSavedStrategy:
+    """A saved strategy read from WDK and cloned with fresh local step ids."""
+
+    root: StrategyStepNode
+    name: str
+    record_type: str
+    wdk_strategy_id: int
+
+
+async def clone_saved_strategy(
+    site_id: str, saved_wdk_strategy_id: int
+) -> ClonedSavedStrategy:
+    """Read a saved WDK strategy and clone its tree with fresh local ids.
+
+    Every reuse of a saved strategy goes through this: WDK steps belong to one
+    strategy, so a thread that reuses one pushes steps of its own.
+    """
+    api = get_strategy_api(site_id)
+    try:
+        saved = await api.get_strategy(saved_wdk_strategy_id)
+    except AppError as exc:
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND,
+            title="saved strategy not found",
+            detail=(
+                f"could not load saved WDK strategy {saved_wdk_strategy_id}: {exc}"
+            ),
+        ) from exc
+    saved_ast, wire_by_step_id = build_snapshot_from_wdk(saved)
+    await canonicalize_synced_parameters(saved_ast, api, wire_by_step_id)
+    return ClonedSavedStrategy(
+        root=deep_clone_with_fresh_ids(saved_ast.root),
+        name=saved.name or f"Saved strategy {saved_wdk_strategy_id}",
+        record_type=saved_ast.record_type,
+        wdk_strategy_id=saved_wdk_strategy_id,
+    )
 
 
 def _build_new_root(
@@ -75,6 +116,9 @@ def _build_new_root(
     up, because changing a child meant constructing a new parent to hold it.
     """
     graph.steps.update(flatten_tree(cloned_secondary))
+    # The parent is read before the combine joins the graph, because the
+    # combine consumes the target step and would answer as its own parent.
+    parent_info = graph.find_parent(target_step_id)
     combine = StrategyStep(
         id=generate_step_id(),
         kind=StepKind.COMBINE,
@@ -86,7 +130,6 @@ def _build_new_root(
     )
     graph.steps[combine.id] = combine
 
-    parent_info = graph.find_parent(target_step_id)
     if parent_info is not None:
         parent, slot = parent_info
         if slot == "primary":
@@ -99,12 +142,9 @@ def _build_new_root(
     return rebuild_tree(root_id, graph.steps), combine.id
 
 
-async def insert_saved_into_conversation(  # noqa: PLR0913
+async def insert_saved_into_conversation(
     *,
-    session: StrategySession,
-    site_id: str,
-    conversation_id: UUID,
-    db_session_factory: DBSessionFactory,
+    deps: StrategyMutationContext,
     target_step_id: str,
     saved_wdk_strategy_id: int,
     operator: CombineOp,
@@ -116,13 +156,13 @@ async def insert_saved_into_conversation(  # noqa: PLR0913
     step in a new combine carrying ``expanded_*`` fields, then build via
     ``build_strategy_from_spec`` so per-step pushes are retryable.
     """
-    graph = session.get_graph(None)
+    graph = deps.strategy_session.get_graph(None)
     if graph is None:
         raise ValidationError(
             title="no active strategy",
             detail="cannot insert into a conversation with no active graph",
         )
-    if target_step_id not in graph.steps:
+    if target_step_id and target_step_id not in graph.steps:
         raise NotFoundError(
             code=ErrorCode.STEP_NOT_FOUND,
             title="step not found",
@@ -131,38 +171,32 @@ async def insert_saved_into_conversation(  # noqa: PLR0913
                 f"(available: {sorted(graph.steps)[:20]})"
             ),
         )
-
-    api = get_strategy_api(site_id)
-    try:
-        saved = await api.get_strategy(saved_wdk_strategy_id)
-    except AppError as exc:
-        raise NotFoundError(
-            code=ErrorCode.STRATEGY_NOT_FOUND,
-            title="saved strategy not found",
+    if not target_step_id and graph.steps:
+        raise ValidationError(
+            title="target step required",
             detail=(
-                f"could not load saved WDK strategy {saved_wdk_strategy_id}: {exc}"
+                "this strategy already has steps; name the step the saved "
+                "strategy combines with"
             ),
-        ) from exc
+        )
 
-    saved_ast, wire_by_step_id = build_snapshot_from_wdk(saved)
-    await canonicalize_synced_parameters(saved_ast, api, wire_by_step_id)
-    cloned_secondary = deep_clone_with_fresh_ids(saved_ast.root)
-    new_full_root, combine_step_id = _build_new_root(
-        graph=graph,
-        target_step_id=target_step_id,
-        cloned_secondary=cloned_secondary,
-        operator=operator,
-        expanded_strategy_id=saved_wdk_strategy_id,
-        expanded_name=saved.name or f"Saved strategy {saved_wdk_strategy_id}",
-    )
+    cloned = await clone_saved_strategy(deps.site_id, saved_wdk_strategy_id)
+    if target_step_id:
+        new_full_root, combine_step_id = _build_new_root(
+            graph=graph,
+            target_step_id=target_step_id,
+            cloned_secondary=cloned.root,
+            operator=operator,
+            expanded_strategy_id=saved_wdk_strategy_id,
+            expanded_name=cloned.name,
+        )
+    else:
+        # A thread with no steps adopts the saved strategy as its own root:
+        # there is no step to combine with, so nothing is collapsed.
+        graph.record_type = cloned.record_type
+        new_full_root, combine_step_id = cloned.root, cloned.root.id
 
-    saved_label = saved.name or f"Saved strategy {saved_wdk_strategy_id}"
-    deps = StrategyMutationContext(
-        site_id=site_id,
-        strategy_session=session,
-        conversation_id=conversation_id,
-        db_session_factory=db_session_factory,
-    )
+    saved_label = cloned.name
     outcome = await build_strategy_from_spec(
         deps=deps,
         root=new_full_root,
@@ -179,11 +213,7 @@ async def insert_saved_into_conversation(  # noqa: PLR0913
             ),
         )
 
-    await _record_consumer(
-        db_session_factory=db_session_factory,
-        conversation_id=conversation_id,
-        wdk_strategy_id=saved_wdk_strategy_id,
-    )
+    await _record_consumer(deps=deps, wdk_strategy_id=saved_wdk_strategy_id)
 
     return InsertSavedResult(
         wdk_strategy_id=outcome.wdk_strategy_id or 0,
@@ -195,16 +225,23 @@ async def insert_saved_into_conversation(  # noqa: PLR0913
 
 async def _record_consumer(
     *,
-    db_session_factory: DBSessionFactory,
-    conversation_id: UUID,
+    deps: StrategyMutationContext,
     wdk_strategy_id: int,
 ) -> None:
-    async with db_session_factory() as db:
+    """Add the saved strategy to the thread's consumer list.
+
+    This write shares the transaction that owns the thread's strategy, so it
+    never waits on a row the caller's own transaction holds.
+    """
+    scope = strategy_write_scope(deps)
+    if scope is None or deps.conversation_id is None:
+        return
+    async with scope as db:
         repo = ConversationRepository(db)
-        conv = await repo.get_by_id(conversation_id)
+        conv = await repo.get_by_id(deps.conversation_id)
         if conv is None:
             return
-        strategy = await repo.get_strategy(conversation_id)
+        strategy = await repo.get_strategy(deps.conversation_id)
         existing = list(strategy.imported_saved_strategy_ids)
         if wdk_strategy_id in existing:
             return
@@ -213,4 +250,3 @@ async def _record_consumer(
             conv.id,
             ConversationUpdate(imported_saved_strategy_ids=existing),
         )
-        await db.commit()

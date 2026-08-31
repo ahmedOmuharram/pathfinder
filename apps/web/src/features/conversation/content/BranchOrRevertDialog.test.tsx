@@ -13,6 +13,7 @@ describe("BranchOrRevertDialog", () => {
         open
         canBranch
         pending={false}
+        error={null}
         onBranch={onBranch}
         onRevert={vi.fn()}
         onCancel={vi.fn()}
@@ -29,6 +30,7 @@ describe("BranchOrRevertDialog", () => {
         open
         canBranch
         pending={false}
+        error={null}
         onBranch={vi.fn()}
         onRevert={onRevert}
         onCancel={vi.fn()}
@@ -44,6 +46,7 @@ describe("BranchOrRevertDialog", () => {
         open
         canBranch={false}
         pending={false}
+        error={null}
         onBranch={vi.fn()}
         onRevert={vi.fn()}
         onCancel={vi.fn()}
@@ -59,6 +62,7 @@ describe("BranchOrRevertDialog", () => {
         open
         canBranch
         pending
+        error={null}
         onBranch={vi.fn()}
         onRevert={vi.fn()}
         onCancel={vi.fn()}
@@ -66,5 +70,39 @@ describe("BranchOrRevertDialog", () => {
     );
     expect(screen.getByTestId("edit-branch-button")).toBeDisabled();
     expect(screen.getByTestId("edit-revert-button")).toBeDisabled();
+  });
+
+  it("renders the server's refusal and keeps both actions clickable", () => {
+    render(
+      <BranchOrRevertDialog
+        open
+        canBranch
+        pending={false}
+        error="Target message not found"
+        onBranch={vi.fn()}
+        onRevert={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("edit-dialog-error")).toHaveTextContent(
+      "Target message not found",
+    );
+    expect(screen.getByTestId("edit-revert-button")).toBeEnabled();
+    expect(screen.getByTestId("edit-branch-button")).toBeEnabled();
+  });
+
+  it("shows no error line when there is no error", () => {
+    render(
+      <BranchOrRevertDialog
+        open
+        canBranch
+        pending={false}
+        error={null}
+        onBranch={vi.fn()}
+        onRevert={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("edit-dialog-error")).not.toBeInTheDocument();
   });
 });

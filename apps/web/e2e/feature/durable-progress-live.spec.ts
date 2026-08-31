@@ -4,6 +4,7 @@ import type { BrowserContext, Page } from "@playwright/test";
 
 const TASK_ID = "00000000-0000-0000-0000-0000000000bb";
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
+const SITE_ID = "veupathdb";
 
 interface OpenStrategyResponse {
   conversationId?: string;
@@ -13,7 +14,7 @@ interface OpenStrategyResponse {
 
 async function openStrategy(context: BrowserContext): Promise<string> {
   const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
-    data: { siteId: "veupathdb" },
+    data: { siteId: SITE_ID },
     headers: { "X-Requested-With": "XMLHttpRequest" },
   });
   if (!resp.ok()) {
@@ -119,7 +120,7 @@ test.describe("Durable task live progress", () => {
       },
     );
 
-    await page.goto(`/conversation/${strategyId}`);
+    await page.goto(`/${SITE_ID}/conversation/${strategyId}`);
     await sendPrompt(page, "kick off durable verification");
 
     const started = page.getByTestId("data-background-task-started");
@@ -171,19 +172,25 @@ test.describe("Durable task live progress", () => {
       ].join(""),
     );
 
-    await page.goto(`/conversation/${strategyId}`);
+    await page.goto(`/${SITE_ID}/conversation/${strategyId}`);
     await sendPrompt(page, "optimize the search parameters");
 
     await expect(page.getByTestId("data-background-task-started")).toBeVisible({
       timeout: 20_000,
     });
-    await expect(page.getByTestId("data-task-completed")).toContainText(
-      "Task completed",
-      { timeout: 15_000 },
-    );
+    // The outcome is the task row's own state: the label names the tool, the
+    // status reads Completed and the bar the row keeps is full.
+    const completedTask = page.getByTestId("data-task-completed");
+    await expect(completedTask.getByTestId("task-row-status")).toHaveText("Completed", {
+      timeout: 15_000,
+    });
+    await expect(completedTask).toContainText("Optimize parameters");
     await expect(page.getByText("Variant B scored best.")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("progress-bar-fill")).toHaveCount(0);
+    await expect(page.getByTestId("progress-bar-fill")).toHaveAttribute(
+      "style",
+      /width:\s*100%/,
+    );
   });
 });

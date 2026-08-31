@@ -191,13 +191,14 @@ Manages site URL mappings.
    :undoc-members:
    :show-inheritance:
 
-Site Search
------------
+Site Search Client
+------------------
 
-**Purpose:** Site-level search across VEuPathDB. Used for gene lookup
-and catalog discovery.
+**Purpose:** HTTP client for VEuPathDB's site search. The gene-lookup service
+(:py:mod:`pathfinder.services.gene_lookup.site_search`) parses what it
+returns.
 
-.. automodule:: pathfinder.integrations.veupathdb.site_search
+.. automodule:: pathfinder.integrations.veupathdb.site_search_client
    :members:
    :undoc-members:
    :show-inheritance:

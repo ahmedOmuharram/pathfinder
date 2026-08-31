@@ -1,10 +1,10 @@
 ---
 type: Reference
 title: The EDA-WDK bridge
-description: How an EDA analysis becomes a WDK step through the eda_analysis_spec parameter and the WSF gene plugins, proven live on PlasmoDB with real counts.
+description: How an EDA analysis becomes a WDK step through the eda_analysis_spec parameter and the WSF gene plugins, proven live on PlasmoDB with real counts, including the measurement that the generic and the per-dataset subset searches count the same genes.
 tags: [eda, wdk, bridge, steps, strategies, eda_analysis_spec, wsf]
 generated: { by: claude-code/fable-5, at: 2026-08-27T00:00:00Z }
-verified: { by: claude-code/fable-5, at: 2026-08-27T00:00:00Z }
+verified: { by: claude-code/opus-5, at: 2026-08-30T00:00:00Z }
 status: stable
 ---
 
@@ -25,8 +25,10 @@ Defined in `ApiCommonModel/Model/lib/wdk/model/questions/params/geneParams.xml`:
   (`DS_xxx`). Per-dataset generated searches default it to the dataset
   presenter id and hide it.
 - `eda_analysis_spec`: a multiline `stringParam` holding the JSON of an EDA
-  `NewAnalysis` (see [what-eda-is.md](what-eda-is.md), Analyses). Empty is
-  allowed and means "no filters": the plugin synthesizes an empty descriptor.
+  `NewAnalysis` (see [what-eda-is.md](what-eda-is.md), Analyses). The plugin
+  synthesizes an empty descriptor for an empty value, but only the searches
+  whose question sets `allowEmpty="true"` accept one; the generic search does
+  not (see the count section below).
 
 ## The searches
 
@@ -145,3 +147,41 @@ entity `GENE_PHENOTYPE_DATA_ENTITY` with 13 string variables including
 
 Same transport PathFinder already speaks; nothing about the EDA bridge needs a
 browser.
+
+## The generic and the per-dataset search count the same genes (2026-08-30)
+
+Both searches were run on plasmodb.org on the same day, through the same answer
+API, with one spec: the analysis document above with the single filter
+`{"entityId": "GENE_PHENOTYPE_DATA_ENTITY", "variableId": "VAR_035294d0",
+"type": "stringSet", "stringSet": ["P. berghei"]}` and `eda_dataset_id`
+`DS_53f554ec6a`.
+
+| Search | `totalCount` | `displayTotalCount` |
+|---|---|---|
+| `GenesByPhenotypeEdaSubset_PlasmoDB_Rod_Mal_Phenotype_RSRC` | 5602 | 5556 |
+| `GenesByEdaSubset` | **5602** | **5556** |
+
+**They agree exactly. The 46 that once separated them is the transcript/gene
+axis, not the search.** `totalCount` counts transcripts and `displayTotalCount`
+counts genes, and a strategy's `estimatedSize` tracks `displayTotalCount`
+([WDK-FILTER-005](../wdk/rules/filters.md)). So an answer-API reading of 5602
+and a strategy reading of 5556 are one result reported twice, and any
+comparison between the two searches must read the same one of the two numbers.
+
+The model says the same. `GenesByEdaSubset` and `GenesByEdaSubsetGeneric` are
+[the same plugin with the same four `wsColumn`s](https://github.com/VEuPathDB/ApiCommonModel/blob/7aa7d662b2501ff4d18a1f50ac5a2e16abd884c4/Model/lib/wdk/model/questions/queries/geneQueries.xml#L147-L153),
+differing only in `visible="false"` on `eda_dataset_id`; there is no project or
+organism scoping on either.
+
+**One real difference: the empty spec.** `geneParams.eda_analysis_spec` declares
+no `allowEmpty`, so WDK's default of false applies. The per-dataset template
+overrides it -
+[`phenotype.dst`](https://github.com/VEuPathDB/ApiCommonModel/blob/7aa7d662b2501ff4d18a1f50ac5a2e16abd884c4/Model/lib/dst/phenotype.dst#L47-L54)
+stamps `<paramRef ref="geneParams.eda_analysis_spec" allowEmpty="true" .../>`
+beside `default="${presenterId}"` on the hidden dataset id - and the bare
+`GenesByEdaSubset` question adds no overrides. Measured the same day: the
+per-dataset search with an empty spec answered `totalCount` 5810 /
+`displayTotalCount` 5764, and the generic search answered
+`HTTP 422 {"byKey":{"eda_analysis_spec":["Cannot be empty."]}}`. PathFinder
+exports through the generic search, so an analysis with no filters and no
+computation has no step to export.

@@ -2,7 +2,8 @@
 
 The signature drops step ids and parameter values, so two builds of the same
 shape compare equal. A failing case reports every difference it found, each
-naming the field, the expectation and what the run produced.
+naming the field, the expectation and what the run produced, and carries the
+graded distance beside the verdict.
 """
 
 from __future__ import annotations
@@ -13,6 +14,12 @@ from pydantic import ConfigDict, Field
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.evals.case import EvalCase
+from pathfinder.evals.distance import (
+    ComparisonNode,
+    StrategyDistance,
+    strategy_distance,
+    tree_from_signature,
+)
 
 NO_STRATEGY = "(none)"
 
@@ -45,6 +52,8 @@ class ObservedOutcome(CamelModel):
     record_type: str | None = None
     step_count: int | None = None
     verified: bool | None = None
+    step_ids_unchanged: bool | None = None
+    tree: ComparisonNode | None = None
     reply_text: str = ""
 
 
@@ -59,13 +68,14 @@ class CaseDifference(CamelModel):
 
 
 class CaseScore(CamelModel):
-    """The verdict on one case, and every difference behind it."""
+    """The verdict on one case, the differences behind it, and how far off it is."""
 
     model_config = ConfigDict(frozen=True)
 
     name: str
     passed: bool
     differences: list[CaseDifference] = Field(default_factory=list)
+    distance: StrategyDistance | None = None
 
 
 def _build_difference(
@@ -91,6 +101,11 @@ def _value_differences(
         ("recordType", expected.record_type, observed.record_type),
         ("stepCount", expected.step_count, observed.step_count),
         ("verified", expected.verified, observed.verified),
+        (
+            "stepIdsUnchanged",
+            expected.step_ids_unchanged,
+            observed.step_ids_unchanged,
+        ),
     )
     return [
         CaseDifference(field=field, expected=str(want), actual=str(got))
@@ -126,19 +141,91 @@ def _phrase_differences(
     return differences
 
 
+def _expected_tree(case: EvalCase) -> ComparisonNode | None:
+    """The shape the case states, carrying the parameters it names."""
+    if case.expected.structure is None:
+        return None
+    return _with_parameters(
+        tree_from_signature(case.expected.structure),
+        case.expected.parameters,
+    )
+
+
+def _with_parameters(
+    node: ComparisonNode,
+    by_search: dict[str, dict[str, str]],
+) -> ComparisonNode:
+    return node.model_copy(
+        update={
+            "parameters": dict(by_search.get(node.search_name, {})),
+            "children": tuple(
+                _with_parameters(child, by_search) for child in node.children
+            ),
+        },
+    )
+
+
+def _parameter_differences(
+    case: EvalCase,
+    observed: ObservedOutcome,
+) -> list[CaseDifference]:
+    """One difference per named parameter the produced strategy disagrees on."""
+    if not case.expected.parameters or observed.tree is None:
+        return []
+    produced = _parameters_by_search(observed.tree)
+    differences: list[CaseDifference] = []
+    for search, wanted in sorted(case.expected.parameters.items()):
+        carried = produced.get(search)
+        for name, value in sorted(wanted.items()):
+            got = (
+                "(no such search)" if carried is None else carried.get(name, "(unset)")
+            )
+            if got != value:
+                differences.append(
+                    CaseDifference(
+                        field=f"parameters.{search}.{name}",
+                        expected=value,
+                        actual=got,
+                    ),
+                )
+    return differences
+
+
+def _parameters_by_search(node: ComparisonNode) -> dict[str, dict[str, str]]:
+    carried = {node.search_name: dict(node.parameters)} if node.parameters else {}
+    for child in node.children:
+        carried.update(_parameters_by_search(child))
+    return carried
+
+
+def _distance(case: EvalCase, observed: ObservedOutcome) -> StrategyDistance | None:
+    wanted = _expected_tree(case)
+    if wanted is None or observed.tree is None:
+        return None
+    return strategy_distance(wanted, observed.tree)
+
+
 def score_case(case: EvalCase, observed: ObservedOutcome) -> CaseScore:
     """Compare one run against its case. Every difference is reported."""
+    distance = _distance(case, observed)
     build = _build_difference(case, observed)
     if build is not None:
-        return CaseScore(name=case.name, passed=False, differences=[build])
-    differences = _value_differences(case, observed) + _phrase_differences(
-        case,
-        observed,
+        return CaseScore(
+            name=case.name,
+            passed=False,
+            differences=[build],
+            distance=distance,
+        )
+    differences = (
+        _value_differences(case, observed)
+        + _parameter_differences(case, observed)
+        + _phrase_differences(case, observed)
     )
     return CaseScore(
         name=case.name,
         passed=not differences,
         differences=differences,
+        distance=distance,
     )
 
 

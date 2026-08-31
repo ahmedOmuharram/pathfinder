@@ -16,16 +16,23 @@ from itertools import combinations
 
 import httpx
 from assistant_core.platform.pydantic_base import CamelModel
+from assistant_core.platform.types import JSONObject
 
-from pathfinder.domain.parameters.values import ParamValue, wire_map
+from pathfinder.domain.parameters.value_codec import wire_map
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.integrations.veupathdb.factory import get_wdk_client
-from pathfinder.integrations.veupathdb.wdk_models import WDKSearchConfig
+from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer, WDKSearchConfig
 from pathfinder.platform.errors import WDKError
 from pathfinder.services.wdk.helpers import extract_record_ids
 
 _CONCURRENCY = 4
 _MAX_RECORDS = 50_000
 _SAMPLE_UNIQUE = 8
+
+_ALL_IDS_REPORT: JSONObject = {
+    "attributes": [],
+    "pagination": {"offset": 0, "numRecords": _MAX_RECORDS},
+}
 
 
 class VariantSpec(CamelModel):
@@ -59,21 +66,23 @@ class VariantComparison(CamelModel):
     truncated: bool = False
 
 
+async def run_variant_search(site_id: str, spec: VariantSpec) -> WDKAnswer:
+    """One variant's answer, capped at ``_MAX_RECORDS`` ids and creating no step."""
+    client = get_wdk_client(site_id)
+    return await client.run_search_report(
+        spec.record_type,
+        spec.search_name,
+        WDKSearchConfig(parameters=wire_map(spec.parameters)),
+        report_config=_ALL_IDS_REPORT,
+    )
+
+
 async def _run_one(
     site_id: str, spec: VariantSpec, sem: asyncio.Semaphore
 ) -> tuple[VariantSpec, set[str], int, str | None]:
-    client = get_wdk_client(site_id)
     try:
         async with sem:
-            answer = await client.run_search_report(
-                spec.record_type,
-                spec.search_name,
-                WDKSearchConfig(parameters=wire_map(spec.parameters)),
-                report_config={
-                    "attributes": [],
-                    "pagination": {"offset": 0, "numRecords": _MAX_RECORDS},
-                },
-            )
+            answer = await run_variant_search(site_id, spec)
     except (WDKError, httpx.HTTPError) as exc:
         return spec, set(), 0, str(exc)
     ids = set(extract_record_ids(answer.records))

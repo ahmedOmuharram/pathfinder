@@ -6,7 +6,12 @@
 
 import { readTypedEvents } from "@pathfinder/assistant-client/legacy";
 
-import { extractErrorMessage, getAuthHeaders, parseResponseBody } from "@/lib/api/http";
+import {
+  APIError,
+  extractErrorMessage,
+  getAuthHeaders,
+  parseResponseBody,
+} from "@/lib/api/http";
 
 export interface TypedEventStreamOptions {
   /** Abort signal forwarded to `fetch` and the body reader. */
@@ -41,9 +46,15 @@ export async function* streamTypedEvents<T>(
   const resp = await fetch(url, init);
 
   if (!resp.ok) {
-    const detail = extractErrorMessage(await parseResponseBody(resp));
-    const reason = detail === null ? "" : `: ${detail}`;
-    throw new Error(`stream failed: ${resp.status}${reason}`);
+    const data = await parseResponseBody(resp);
+    const message =
+      extractErrorMessage(data) ?? `HTTP ${resp.status} ${resp.statusText}`;
+    throw new APIError(message, {
+      status: resp.status,
+      statusText: resp.statusText,
+      url,
+      data,
+    });
   }
   const respBody = resp.body;
   if (respBody === null) throw new Error("no response body");

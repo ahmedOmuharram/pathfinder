@@ -1,1 +1,1 @@
-"""AI/Kani agent for strategy building."""
+"""PathFinder's agents, tools, conversation runtime and graph."""

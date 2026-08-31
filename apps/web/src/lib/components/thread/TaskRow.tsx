@@ -12,6 +12,8 @@ export interface TaskRowProps {
   estimatedSeconds: number | null;
   outcome: TaskOutcome;
   error: string | null;
+  /** In-page link to the turn that carries what the task produced. */
+  resultHref?: string | null;
 }
 
 function amountOf(outcome: TaskOutcome, pct: number): string {
@@ -43,6 +45,7 @@ export function TaskRow({
   estimatedSeconds,
   outcome,
   error,
+  resultHref = null,
 }: TaskRowProps): ReactElement {
   const pct = Math.round((percent ?? 0) * 100);
   const running = outcome === "running";
@@ -65,6 +68,15 @@ export function TaskRow({
         >
           {amountOf(outcome, pct)}
         </span>
+        {resultHref !== null && (
+          <a
+            href={resultHref}
+            data-testid="task-row-result-link"
+            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+          >
+            View result
+          </a>
+        )}
       </div>
       <div data-testid="data-task-progress" className="text-xs">
         {running && message !== null && (

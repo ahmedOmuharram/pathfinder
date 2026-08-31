@@ -1,212 +1,275 @@
 AI Tools
 ========
 
-Tool registration mixins and registries exposed to the agent. These define
-the catalog, research, validation, and execution tools available during chat.
-Each tool is an ``@ai_function()`` that the LLM can call.
+Every tool the agents can call. A tool is a plain async function registered on
+a pydantic-ai ``FunctionToolset``; the toolset a phase gets decides what that
+phase is allowed to do. Tools are thin: they call services, never integrations
+or persistence directly.
 
 Overview
 --------
 
-- **Unified Registry** — Combines all tool mixins (catalog, strategy, research,
-  validation, optimization, artifacts) into a single registry for the unified agent.
-- **Catalog & Registry** — Catalog discovery and graph-building tools.
-- **Research Registry** — Web search and literature search (shared tools).
-- **Execution Tools** — Parse tool args, apply graph snapshots, build strategy.
+- **Toolsets** — One ``FunctionToolset`` per phase. FRAME, BUILD, VERIFY and
+  EDA each see a different set.
+- **Standalone tools** — The tool functions themselves, grouped by subject.
+- **Durable tools** — Long-running tools that defer their work to the worker
+  and answer on a later turn.
 
-Unified Registry
-----------------
+.. important::
 
-**Purpose:** Combined tool registry for the unified agent. Merges the catalog,
-strategy, research, validation, optimization, and artifact tools into a single
-mixin so the agent can use all capabilities per-turn.
+   A phase can only call what its toolset carries. Widening a phase means
+   editing its toolset module, not adding a decorator to a function.
 
-.. automodule:: pathfinder.ai.tools.unified_registry
+Toolsets
+--------
+
+**Purpose:** Build the phase-scoped toolsets. Each module assembles the tools
+one pipeline phase may call, and ``_dynamic`` narrows a tool's schema for the
+run it is about to make.
+
+.. automodule:: pathfinder.ai.tools.toolsets.frame
    :members:
    :undoc-members:
    :show-inheritance:
 
-Catalog & Registry
-------------------
-
-**Purpose:** Base tool registry. Provides catalog discovery (record types,
-searches, parameters), dependent vocab, and graph-building tools.
-Each tool queries WDK directly for live results.
-
-**Key methods (on AgentToolRegistryMixin):** ``list_sites``, ``get_record_types``,
-``list_searches``, ``get_search_parameters``, ``get_dependent_vocab``, plus
-strategy tools for create_step, list_current_steps, build_strategy, etc.
-
-.. automodule:: pathfinder.ai.tools.registry
+.. automodule:: pathfinder.ai.tools.toolsets.execution
    :members:
    :undoc-members:
    :show-inheritance:
 
-Research Registry
------------------
-
-**Purpose:** Research tools mixin: web search and literature search. Provides
-``web_search`` and ``literature_search`` tools.
-
-.. automodule:: pathfinder.ai.tools.research_registry
+.. automodule:: pathfinder.ai.tools.toolsets.verification
    :members:
    :undoc-members:
    :show-inheritance:
 
-Result Tools
-------------
-
-**Purpose:** Tools for retrieving step results from VEuPathDB -- sample records,
-download URLs, and result summaries. Includes WDK error handling for common
-API failures.
-
-.. automodule:: pathfinder.ai.tools.result_tools
+.. automodule:: pathfinder.ai.tools.toolsets.eda
    :members:
    :undoc-members:
    :show-inheritance:
 
-Strategy Tool Registry
-----------------------
-
-**Purpose:** Strategy, execution, result, and conversation tool delegation
-mixin. Auto-discovers ``@ai_function`` methods on composed tool instances via
-``__getattr__`` and ``__dir__`` delegation pattern.
-
-.. automodule:: pathfinder.ai.tools.strategy_registry
+.. automodule:: pathfinder.ai.tools.toolsets._dynamic
    :members:
    :undoc-members:
    :show-inheritance:
 
-Execution Tools
----------------
-
-**Purpose:** Tools for retrieving strategy execution results (e.g. result
-counts for built steps). Includes WDK error handling for common API failures.
-
-**Key class:** :py:class:`ExecutionTools`
-
-.. automodule:: pathfinder.ai.tools.execution_tools
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Catalog Tools
+Durable Tools
 -------------
 
-**Purpose:** Catalog discovery tools: site listing, record types, search queries,
-parameter specs. Called by the agent to explore VEuPathDB data.
+**Purpose:** A durable tool is a deferred tool. At call time it writes a
+``background_tasks`` row, defers a Procrastinate job, emits
+``data-background-task-started`` and raises ``CallDeferred``. The worker runs
+the real implementation and opens a new turn carrying the result.
 
-.. automodule:: pathfinder.ai.tools.catalog_tools
+.. automodule:: pathfinder.ai.tools.durable
    :members:
    :undoc-members:
    :show-inheritance:
 
-Conversation Tools
-------------------
+Catalog Discovery
+-----------------
 
-**Purpose:** Conversation management tools: save/load strategy, update name,
-session control. Used by the agent to manage the user's session.
+**Purpose:** Find what a site offers: record types, searches, categories, and
+the parameters and vocabularies a search takes. Every answer is read live from
+WDK through the catalog service.
 
-.. automodule:: pathfinder.ai.tools.conversation_tools
+.. automodule:: pathfinder.ai.tools.standalone.catalog
    :members:
    :undoc-members:
    :show-inheritance:
 
-Query Validation
-----------------
-
-**Purpose:** Validate tool arguments and queries before execution. Catch
-malformed inputs before they reach WDK.
-
-.. automodule:: pathfinder.ai.tools.query_validation
+.. automodule:: pathfinder.ai.tools.standalone.catalog_discovery
    :members:
    :undoc-members:
    :show-inheritance:
 
-Agent Tool Submodules
+FRAME Tools
+-----------
+
+**Purpose:** Turn the request into an operational spec: state the criteria,
+bind each one to a search with resolved parameters, fold them into a tree, and
+reuse a strategy the user already saved.
+
+.. automodule:: pathfinder.ai.tools.standalone.frame_spec
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.frame_structure
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.saved_strategies
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Strategy Tools
+--------------
+
+**Purpose:** Build the strategy declaratively, edit an existing one step by
+step, inspect the graph, and attach a filter, analysis or report to a step.
+
+.. automodule:: pathfinder.ai.tools.standalone.strategy
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.strategy_edits
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.strategy_graph
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.strategy_attach
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Execution and Results
 ---------------------
 
-Individual tool modules for artifact management, gene lookup, optimization,
-and experiment tools. These are mixed into the unified agent via
-:py:class:`~pathfinder.ai.tools.unified_registry.UnifiedToolRegistryMixin`.
+**Purpose:** Read what a built step returns: counts, sample records, download
+URLs, and single-gene detail.
 
-.. automodule:: pathfinder.ai.tools.planner.artifact_tools
+.. automodule:: pathfinder.ai.tools.standalone.execution
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.planner.experiment_tools
+.. automodule:: pathfinder.ai.tools.standalone.results
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.planner.gene_tools
+.. automodule:: pathfinder.ai.tools.standalone.gene
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.planner.optimization_tools
+Verification Tools
+------------------
+
+**Purpose:** Test a strategy. Control tests against positive and negative
+gene sets, parameter optimization, variant comparison, and scored comparison
+against a saved control set.
+
+.. automodule:: pathfinder.ai.tools.standalone.experiment
    :members:
    :undoc-members:
    :show-inheritance:
 
-Strategy Tool Submodules
-------------------------
-
-Individual strategy tool modules for step creation, graph building,
-attachment operations, discovery, and editing.
-
-.. automodule:: pathfinder.ai.tools.strategy_tools.step_ops
+.. automodule:: pathfinder.ai.tools.standalone.control_sets
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.strategy_tools.graph_ops
+.. automodule:: pathfinder.ai.tools.standalone.optimization
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.strategy_tools.edit_ops
+.. automodule:: pathfinder.ai.tools.standalone.variant_comparison
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.strategy_tools.discovery_ops
+.. automodule:: pathfinder.ai.tools.standalone.scored_comparison
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.strategy_tools.attachment_ops
+EDA Tools
+---------
+
+**Purpose:** Explore a study in conversation: find it, read its shape, open an
+analysis, subset it, run the durable differential-expression compute, and
+export the result into the strategy as a WDK step.
+
+.. automodule:: pathfinder.ai.tools.standalone.eda_catalog
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.strategy_tools.operations
+.. automodule:: pathfinder.ai.tools.standalone.eda_analysis
    :members:
    :undoc-members:
    :show-inheritance:
 
-Export Tools
-------------
-
-**Purpose:** Data export tools for strategies, gene sets, and experiment results.
-
-.. automodule:: pathfinder.ai.tools.export_tools
+.. automodule:: pathfinder.ai.tools.standalone.eda_compute
    :members:
    :undoc-members:
    :show-inheritance:
 
-Workbench Tools
----------------
-
-**Purpose:** Workbench data access and analysis tools.
-
-.. automodule:: pathfinder.ai.tools.workbench_read_tools
+.. automodule:: pathfinder.ai.tools.standalone.eda_step
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.ai.tools.planner.workbench_tools
+Gene Sets and Export
+--------------------
+
+**Purpose:** Read and write workbench gene sets, and export a strategy, a gene
+set or an experiment result.
+
+.. automodule:: pathfinder.ai.tools.standalone.workbench
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.workbench_read
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.export
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Research Tools
+--------------
+
+**Purpose:** Web search and literature search, shared by every phase that may
+need outside evidence.
+
+.. automodule:: pathfinder.ai.tools.standalone.research
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Conversation and Memory
+-----------------------
+
+**Purpose:** Save and load a strategy on the thread, search cross-thread
+memory, and write a memory the user asked to keep.
+
+.. automodule:: pathfinder.ai.tools.standalone.conversation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.memory_tools
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Reasoning and Escape
+--------------------
+
+**Purpose:** An explicit reasoning scratchpad between tool calls, and the exit
+ramp a phase takes when its toolset cannot express what the turn needs.
+
+.. automodule:: pathfinder.ai.tools.standalone.think
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.tools.standalone.escape_hatch
    :members:
    :undoc-members:
    :show-inheritance:
@@ -214,10 +277,10 @@ Workbench Tools
 WDK Error Handler
 -----------------
 
-**Purpose:** Error handling and formatting for WDK API errors during tool execution.
+**Purpose:** Shared WDK step error handling for the result-fetching tools.
+Turns a WDK failure into a typed tool-error payload the model can act on.
 
 .. automodule:: pathfinder.ai.tools.wdk_error_handler
    :members:
    :undoc-members:
    :show-inheritance:
-

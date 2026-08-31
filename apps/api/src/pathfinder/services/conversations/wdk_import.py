@@ -7,6 +7,9 @@ from shared_py.defaults import DEFAULT_STREAM_NAME
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.repositories import ConversationRepository
+from pathfinder.persistence.repositories.saved_strategy import (
+    SavedStrategyRepository,
+)
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -149,7 +152,8 @@ async def sync_all_wdk_strategies(
     if wdk_items:
         try:
             async with conv_repo.session.begin_nested():
-                pruned = await conv_repo.prune_wdk_orphans(
+                saved = SavedStrategyRepository(conv_repo.session)
+                pruned = await saved.prune_wdk_orphans(
                     user_id,
                     site.id,
                     synced_wdk_ids,

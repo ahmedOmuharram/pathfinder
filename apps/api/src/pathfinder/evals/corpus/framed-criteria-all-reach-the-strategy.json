@@ -1,6 +1,8 @@
 {
   "name": "framed-criteria-all-reach-the-strategy",
-  "prompt": "Build a comprehensive kinase strategy for Plasmodium.",
+  "turns": [
+    "Build a comprehensive kinase strategy for Plasmodium."
+  ],
   "siteId": "plasmodb",
   "assistantId": "pathfinder",
   "rationale": "Every framed criterion must reach the persisted strategy. The cataloged run framed three and built two, then reported the rest preserved. Three criteria over two operators must sign as five nodes.",
@@ -10,6 +12,7 @@
     "recordType": null,
     "stepCount": 5,
     "verified": null,
+    "stepIdsUnchanged": null,
     "replyMentions": [],
     "replyOmits": []
   },

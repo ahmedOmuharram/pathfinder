@@ -1,9 +1,8 @@
 """A job whose worker stopped sending a heartbeat fails on the next sweep.
 
-The sweep runs every minute and the window is 300 seconds, which clears the
-gap a busy worker starves its own heartbeat by. The started-age backstop is an
-hour wide, so a killed worker held its lock and its stream open for an hour
-before this.
+The sweep runs every minute and the window is many beats of the heartbeat
+thread. The started-age backstop is an hour wide, so a killed worker held its
+lock and its stream open for an hour before this.
 """
 
 from __future__ import annotations
@@ -19,16 +18,14 @@ from pathfinder.jobs.maintenance import release_stalled_jobs
 from pathfinder.persistence.models import User
 from pathfinder.tests.integration.jobs._dead_worker import (
     TOOL_CALL_ID,
+    dead_age,
+    dead_window_seconds,
+    fresh_beat_age,
     open_a_tool_call,
     stage_chat_turn_job,
+    starved_age,
     turn_chunks,
 )
-
-_DEAD_SECONDS = 600
-_ALIVE_SECONDS = 5
-
-# A live worker starved its own heartbeat by this much during one long turn.
-_STARVED_SECONDS = 153
 
 
 async def _seed_conversation() -> tuple[UUID, UUID]:
@@ -62,7 +59,7 @@ async def test_a_dead_workers_turn_fails_and_its_open_call_gets_an_error(
         user_id=user_id,
         conversation_id=conversation_id,
         turn_id=turn_id,
-        heartbeat_age_seconds=_DEAD_SECONDS,
+        heartbeat_age_seconds=dead_age(),
     )
 
     await release_stalled_jobs()
@@ -96,7 +93,7 @@ async def test_a_live_workers_job_is_left_alone(
         user_id=user_id,
         conversation_id=conversation_id,
         turn_id=turn_id,
-        heartbeat_age_seconds=_ALIVE_SECONDS,
+        heartbeat_age_seconds=fresh_beat_age(),
     )
 
     await release_stalled_jobs()
@@ -114,17 +111,19 @@ async def test_a_starved_heartbeat_does_not_fail_a_running_turn(
     db_cleaner: None,
     in_memory_jobs: InMemoryConnector,
 ) -> None:
-    """A busy worker misses beats. The window clears the worst measured gap."""
+    """A busy worker misses beats. The sweep leaves the window alone."""
     del patch_app_db_engine, db_cleaner
     user_id, conversation_id = await _seed_conversation()
     turn_id = uuid4()
     await open_a_tool_call(conversation_id, turn_id)
+    starved = starved_age()
+    assert 0 < starved < dead_window_seconds()
     job_id = await stage_chat_turn_job(
         in_memory_jobs,
         user_id=user_id,
         conversation_id=conversation_id,
         turn_id=turn_id,
-        heartbeat_age_seconds=_STARVED_SECONDS,
+        heartbeat_age_seconds=starved,
     )
 
     await release_stalled_jobs()
@@ -159,7 +158,7 @@ async def test_a_closed_call_gets_no_second_error(
         user_id=user_id,
         conversation_id=conversation_id,
         turn_id=turn_id,
-        heartbeat_age_seconds=_DEAD_SECONDS,
+        heartbeat_age_seconds=dead_age(),
     )
 
     await release_stalled_jobs()

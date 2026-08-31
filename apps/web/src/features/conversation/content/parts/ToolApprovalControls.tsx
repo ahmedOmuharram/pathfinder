@@ -8,7 +8,7 @@ import {
   ApprovalCard,
   type ApprovalDecision,
 } from "@/lib/components/thread/ApprovalCard";
-import { humanizeToolName } from "@/lib/utils/toolNames";
+import { approvalPromptFor } from "@/lib/utils/toolNames";
 
 import { useChatHelpersOptional } from "../../runtime/chatHelpersContext";
 import { useThreadDevMode } from "../../thread/useThreadDevMode";
@@ -73,7 +73,7 @@ export function ToolApprovalControls({
 
   return (
     <ApprovalCard
-      title={humanizeToolName(approval.toolName)}
+      prompt={approvalPromptFor(approval.toolName)}
       input={approval.input}
       showRaw={showRaw}
       onApprove={() => respond(true)}

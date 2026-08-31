@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from pathfinder.domain.parameters.values import SinglePickValue, to_wire
+from pathfinder.domain.parameters.value_codec import to_wire
+from pathfinder.domain.parameters.values import SinglePickValue
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.services.catalog.param_dag import resolve_params_with_intent
 from pathfinder.services.catalog.param_formatting import ParameterInfo

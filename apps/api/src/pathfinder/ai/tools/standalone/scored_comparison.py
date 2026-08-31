@@ -23,24 +23,39 @@ from pathfinder.services.experiment.variant_comparison import VariantSpec
 _MIN_VARIANTS = 2
 
 
+def _membership(comparison: ScoredComparison) -> str:
+    """Which of the control ids each variant's result holds."""
+    return "; ".join(
+        f"{v.label} contains {', '.join(v.control_hits) or 'none of them'}"
+        for v in comparison.variants
+    )
+
+
 def _summary(comparison: ScoredComparison) -> str:
-    rows = "; ".join(
-        f"{v.label}: MCC={v.mcc}, F1={v.f1}, prec={v.precision}"
-        for v in comparison.variants
-        if v.error is None
+    scored = [v for v in comparison.variants if v.error is None]
+    failed = [v for v in comparison.variants if v.error is not None]
+    parts = [f"Ran {len(comparison.variants)} variants against the control set."]
+    if scored:
+        rows = "; ".join(
+            f"{v.label}: MCC={v.mcc}, F1={v.f1}, prec={v.precision}" for v in scored
+        )
+        winner = comparison.winner_label or "none"
+        parts.append(f"Ranked by {comparison.objective}: {rows}. Winner: {winner}.")
+    if failed:
+        lines = "; ".join(f"{v.label}: {v.error}" for v in failed)
+        parts.append(
+            f"The scoring failed for {len(failed)} of them - {lines}. "
+            "Tell the user the scoring failed and why; do not name another "
+            "reason and do not report a score for those variants."
+        )
+    parts.append(f"Control ids per variant: {_membership(comparison)}.")
+    parts.append(
+        "Report the winner and the metric trade-offs, then proceed with the "
+        "chosen variant."
+        if scored
+        else "Answer the membership question from the ids above."
     )
-    failed = "; ".join(
-        f"{v.label} failed: {v.error}"
-        for v in comparison.variants
-        if v.error is not None
-    )
-    fail_note = f" Some variants failed - {failed}." if failed else ""
-    winner = comparison.winner_label or "none (no variant scored)"
-    return (
-        f"Scored {len(comparison.variants)} variants by {comparison.objective}. "
-        f"{rows}. Winner: {winner}.{fail_note} Report the winner and the "
-        "metric trade-offs, then proceed with the chosen variant."
-    )
+    return " ".join(parts)
 
 
 async def compare_variants_scored(
@@ -53,7 +68,10 @@ async def compare_variants_scored(
     set and rank them by ``objective`` (mcc | balanced_accuracy | f1 |
     precision | sensitivity). Use after the user has chosen/built a control
     set (see build_control_set / list_control_sets). Returns per-variant
-    metrics + the winning variant as a card.
+    metrics + the winning variant as a card. A variant that carries an error
+    scored nothing: report that its scoring failed and quote the one line,
+    never a different reason. Every variant also carries the control ids its
+    result contains, so a membership question is answerable either way.
     """
     runtime = ctx.deps.runtime
     if len(variants) < _MIN_VARIANTS:
@@ -91,14 +109,15 @@ async def compare_variants_scored(
 
 def _scored_line(comparison: ScoredComparison) -> str:
     """How many variants scored, and which one won."""
+    total = len(comparison.variants)
+    failed = sum(1 for v in comparison.variants if v.error is not None)
     winner = next(
         (v for v in comparison.variants if v.label == comparison.winner_label),
         None,
     )
     if winner is None:
-        return f"{len(comparison.variants)} variants scored, no winner"
+        if failed:
+            return f"scoring failed for {failed} of {total} variants"
+        return f"{total} variants scored, no winner"
     score = winner.mcc or 0.0
-    return (
-        f"{len(comparison.variants)} variants scored, "
-        f"winner {winner.label} at {score:.3f}"
-    )
+    return f"{total} variants scored, winner {winner.label} at {score:.3f}"

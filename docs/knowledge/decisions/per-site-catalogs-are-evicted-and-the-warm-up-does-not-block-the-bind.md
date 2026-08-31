@@ -57,7 +57,10 @@ and nothing encoded, and the api settled at 2.21 GiB against the 5.66 to
 8.83 GiB read off the same container before. The container healthcheck is
 `/health`, because what a compose dependent needs is a server that answers and
 a catalog now loads on demand. `/health/ready` keeps reporting per-subsystem
-and per-site progress for the UI's startup gate.
+and per-site progress for the UI's startup gate, and the spawned task carries a
+done callback that fails every subsystem still loading with the exception's
+text, so a warm-up death outside a step's own handlers reads on the endpoint
+instead of sitting at "loading" forever.
 
 **The precedent pass asks whether its caller is still there.** A stateless
 streamable-HTTP call runs in the session manager's own task group

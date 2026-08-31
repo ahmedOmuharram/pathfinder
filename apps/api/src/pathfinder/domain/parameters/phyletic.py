@@ -99,12 +99,15 @@ class PhyleticTree(BaseModel):
     ) -> PhyleticTree:
         """Build the tree from the two vocabularies.
 
-        The term map is a depth-first walk, so a code attaches to the last node
-        shallower than itself. The synthetic root ``ALL`` is not a selectable node.
+        Each entry states its parent term, which is the structure WDK publishes.
+        An entry that names no parent, or one the map has not listed yet,
+        attaches to the last node shallower than itself in the indent map. The
+        synthetic root ``ALL`` is not a selectable node.
         """
         depths = {entry.term: _depth_of(entry.display) for entry in indent_map}
         roots: list[PhyleticNode] = []
         stack: list[PhyleticNode] = []
+        by_code: dict[str, PhyleticNode] = {}
         for entry in term_map:
             if not entry.term or entry.term == _ROOT_CODE:
                 continue
@@ -116,10 +119,13 @@ class PhyleticTree(BaseModel):
             )
             while stack and stack[-1].depth >= depth:
                 stack.pop()
-            if stack:
-                stack[-1].children.append(node)
-            else:
+            stated = by_code.get(entry.parent) if entry.parent else None
+            parent = stated or (stack[-1] if stack else None)
+            if parent is None:
                 roots.append(node)
+            else:
+                parent.children.append(node)
+            by_code[node.code] = node
             stack.append(node)
         return cls(roots=roots)
 

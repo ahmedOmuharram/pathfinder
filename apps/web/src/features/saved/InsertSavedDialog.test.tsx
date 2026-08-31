@@ -48,7 +48,7 @@ const ELIGIBLE = [
   conv({ id: "u", name: "Unsaved", isSaved: false, wdkStrategyId: 33 }),
 ];
 
-function renderDialog(convs = ELIGIBLE): void {
+function renderDialog(convs = ELIGIBLE, targetStepId = "step-x"): void {
   const qc = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
@@ -62,7 +62,7 @@ function renderDialog(convs = ELIGIBLE): void {
         onOpenChange={vi.fn()}
         conversationId="current"
         siteId="plasmodb"
-        targetStepId="step-x"
+        targetStepId={targetStepId}
       />
     </QueryClientProvider>
   );
@@ -133,5 +133,27 @@ describe("InsertSavedDialog", () => {
     expect(picks.map((p) => p.getAttribute("data-testid"))).toEqual([
       "insert-saved-pick-22",
     ]);
+  });
+
+  it("drops the operator picker when there is no step to combine with", async () => {
+    renderDialog(ELIGIBLE, "");
+    expect(await screen.findByTestId("insert-saved-pick-11")).toBeVisible();
+    expect(screen.queryByLabelText("Operator")).toBeNull();
+  });
+
+  it("posts an empty target and no operator when it becomes the root", async () => {
+    renderDialog(ELIGIBLE, "");
+    await screen.findByTestId("insert-saved-pick-11");
+
+    await userEvent.click(screen.getByTestId("insert-saved-pick-11"));
+    await userEvent.click(screen.getByTestId("insert-saved-confirm"));
+
+    await waitFor(() => expect(mockClient).toHaveBeenCalledTimes(1));
+    expect(mockClient).toHaveBeenCalledWith({
+      method: "post",
+      url: "/api/v1/conversations/current/insert-saved",
+      params: { siteId: "plasmodb" },
+      data: { targetStepId: "", savedWdkStrategyId: 11 },
+    });
   });
 });

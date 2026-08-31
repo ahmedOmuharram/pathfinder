@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from assistant_core.platform.db import DBSessionFactory
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.domain.strategy.session import StrategySession
 
@@ -20,3 +21,9 @@ class StrategyMutationContext:
     strategy_session: StrategySession
     conversation_id: UUID | None = None
     db_session_factory: DBSessionFactory | None = None
+    locked_session: AsyncSession | None = None
+    """A session that already owns the thread's strategy lock.
+
+    The caller that read the AST holds the lock across the whole edit, so the
+    persist step joins that transaction instead of opening one of its own.
+    """

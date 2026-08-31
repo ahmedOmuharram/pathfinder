@@ -29,6 +29,7 @@ class ChunkPart(CamelModel):
 class ChunkMessage(CamelModel):
     model_config = ConfigDict(extra="ignore")
 
+    id: str = ""
     role: str = ""
     parts: list[ChunkPart] = Field(default_factory=list)
 
@@ -80,15 +81,20 @@ def read_turns(rows: Sequence[LoggedChunk]) -> list[ExtractedTurn]:
     """The exchanges in the log, in order, redacted.
 
     A user message opens a turn; the text deltas that follow are its reply.
+    One id names one message, so a repeated envelope keeps the first.
     """
     requests: list[str] = []
     replies: list[list[str]] = []
+    seen: set[str] = set()
     for row in rows:
         chunk = row.chunk
         if chunk.type == USER_MESSAGE_CHUNK_TYPE and chunk.message is not None:
-            if chunk.message.role != "user":
+            message = chunk.message
+            if message.role != "user" or message.id in seen:
                 continue
-            requests.append(redact_text(chunk.message.text()))
+            if message.id:
+                seen.add(message.id)
+            requests.append(redact_text(message.text()))
             replies.append([])
         elif chunk.type == TEXT_DELTA and chunk.delta and replies:
             replies[-1].append(chunk.delta)

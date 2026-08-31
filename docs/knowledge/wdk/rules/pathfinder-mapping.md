@@ -27,7 +27,7 @@ see is in [layer-ownership](../pathfinder/layer-ownership.md).
 
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/param/ParamFormatterFactory.java#L18-L55
-- anchor: apps/api/src/pathfinder/domain/parameters/values.py:_WIRE_BUILDERS
+- anchor: apps/api/src/pathfinder/domain/parameters/value_codec.py:_WIRE_BUILDERS
 - status: ENFORCED by apps/api/src/pathfinder/tests/unit/domain/parameters/test_wdk_param_kinds.py::test_wdk_map_001_a_twelfth_kind_has_no_wire_form
 
 That there are eleven types, and that `ParamKind` is exactly those eleven, is
@@ -224,7 +224,7 @@ socket to a WDK host, and nothing objects.
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/web-monorepo/blob/63d1705463d553c0ac19ee577c1b09666597b903/packages/libs/wdk-client/src/Utils/WdkUser.ts#L145-L150
 - anchor: apps/api/src/pathfinder/services/strategies/schemas.py:wdk_step_id
-- status: PARTIAL by apps/api/src/pathfinder/tests/unit/services/conversations/test_fork_wdk_remap.py::test_remap_three_step_combine_pins_exact_new_ids
+- status: PARTIAL by apps/api/src/pathfinder/tests/unit/services/strategies/test_materialize_snapshot.py::test_the_snapshot_is_pushed_with_no_wdk_ids_of_its_own
 
 Every WDK id is a number - `StepTree.stepId`, `Step.id`, `Strategy.rootStepId` -
 and an `input-step` value is that number stringified
@@ -234,11 +234,11 @@ therefore carries `id: str` and `wdk_step_id: int | None` as separate fields, an
 `StrategyAst.wdk_step_ids` is the map between them.
 
 The two spaces must not merge, and forking is where they nearly did. The named
-test builds a three-step combine whose source WDK ids are 9000/9001/9002 and whose
-copy gets 7000/7001/7002, asserts the three local keys are unchanged and now point
-at the copied ids, and then asserts the old and new id sets are **disjoint**. It
-fails if a fork ever lets a parent's WDK id survive into a child, which is exactly
-the aliasing this rule exists to prevent.
+test materializes a three-step snapshot whose source WDK ids are 15/13/14, pushes
+it as a strategy of its own, asserts the three local keys are unchanged and now
+point at the pushed ids 7000/7001/7002, and then asserts the old and new id sets
+are **disjoint**. It fails if a fork ever lets a parent's WDK id survive into a
+child, which is exactly the aliasing this rule exists to prevent.
 
 **The uncovered half is the reverse reading.**
 `step_response_from_strategy_ast` treats a local id as a WDK id when the map has

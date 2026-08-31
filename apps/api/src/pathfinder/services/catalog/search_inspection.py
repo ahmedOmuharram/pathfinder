@@ -10,7 +10,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from difflib import get_close_matches
 
-from pathfinder.domain.parameters.values import ParamValue, coerce_context_values
+from pathfinder.domain.parameters.value_codec import coerce_context_values
+from pathfinder.domain.parameters.values import ParamValue
+from pathfinder.domain.parameters.wdk_vocab import WDKTreeBoxVocabNode
 from pathfinder.integrations.veupathdb.factory import get_wdk_client
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch, encode_wdk_params
 from pathfinder.integrations.veupathdb.wdk_parameters import (
@@ -88,24 +90,50 @@ def _auto_resolved_record_type(record_type: str | None) -> str | None:
     return record_type
 
 
+def _entry_matches(term: str, display: str, query: str) -> bool:
+    return query in term.casefold() or query in display.casefold()
+
+
+def _matching_branches(
+    node: WDKTreeBoxVocabNode,
+    query: str,
+) -> WDKTreeBoxVocabNode | None:
+    """The node when it or a descendant matches, carrying only those branches.
+
+    A node that matches keeps its whole subtree, because its children are the
+    submittable terms under it.
+    """
+    if _entry_matches(node.data.term, node.data.display, query):
+        return node
+    kept = [
+        branch
+        for branch in (_matching_branches(child, query) for child in node.children)
+        if branch is not None
+    ]
+    if not kept:
+        return None
+    return node.model_copy(update={"children": kept})
+
+
 def _filter_vocab(param: WDKParameter, query: str) -> WDKParameter:
-    """Filter a parameter vocabulary by a case-insensitive substring."""
-    q = query.lower()
+    """Filter a parameter vocabulary by a case-insensitive substring.
+
+    A list keeps the entries whose term or label carries the text; a tree keeps
+    the branches that reach one.
+    """
     vocab = param.vocabulary
     if vocab is None:
         return param
+    q = query.casefold()
 
-    if isinstance(vocab, list):
-        filtered = [v for v in vocab if q in str(v).lower()]
-        return param.model_copy(update={"vocabulary": filtered})
+    if isinstance(vocab, WDKTreeBoxVocabNode):
+        pruned = _matching_branches(vocab, q)
+        return param.model_copy(
+            update={"vocabulary": pruned or vocab.model_copy(update={"children": []})},
+        )
 
-    if isinstance(vocab, dict):
-        filtered_dict = {
-            k: v for k, v in vocab.items() if q in str(k).lower() or q in str(v).lower()
-        }
-        return param.model_copy(update={"vocabulary": filtered_dict})
-
-    return param
+    kept = [term for term in vocab if _entry_matches(term.term, term.display, q)]
+    return param.model_copy(update={"vocabulary": kept})
 
 
 def _unbound_parents(

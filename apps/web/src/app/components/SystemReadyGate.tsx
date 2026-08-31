@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useInterval } from "usehooks-ts";
 import { systemReadyQueryOptions } from "@pathfinder/shared/generated/hooks/useSystemReady";
 
+import { BusyWorkerBanner } from "./BusyWorkerBanner";
 import { StartupScreen, startupStatus } from "./StartupScreen";
 
 const STARTUP_GRACE_MS = 20_000;
@@ -31,6 +32,15 @@ export function SystemReadyGate({ children }: { children: React.ReactNode }) {
     elapsedMs: now - mountedAt,
     graceMs: STARTUP_GRACE_MS,
   });
+
+  if (status.kind === "busy-worker") {
+    return (
+      <div className="flex h-full flex-col">
+        <BusyWorkerBanner />
+        <div className="min-h-0 flex-1">{children}</div>
+      </div>
+    );
+  }
 
   return <StartupScreen status={status} />;
 }

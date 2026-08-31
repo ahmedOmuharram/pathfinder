@@ -9,11 +9,12 @@ isolation for a real INTERSECT-over-two-leaves subtree.
 """
 
 from pathfinder.domain.parameters.values import MultiPickValue, StringValue
-from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
-from pathfinder.domain.strategy.ops import CombineOp
-from pathfinder.services.strategies.save_substrategy import (
+from pathfinder.domain.strategy.ast import (
+    StrategyStepNode,
     deep_clone_with_fresh_ids,
+    walk_step_tree,
 )
+from pathfinder.domain.strategy.ops import CombineOp
 
 
 def _combine_subtree() -> StrategyStepNode:

@@ -36,7 +36,7 @@
     ["wsuc", "3"],
     ["ecol", "3"]
   ],
-  "_indent_map_doc": "One entry shorter than the term map, because the root carries no depth. Live on plasmodb.org the two vocabularies are 865 and 864 for the same reason.",
+  "_indent_map_doc": "One entry shorter than the term map, because the root carries no depth. Live on plasmodb.org on 2026-08-30 both vocabularies are 903 rows and neither carries a root row, and each entry names its parent in a third column the fixture leaves null.",
   "cases": [
     {
       "name": "a single species is one include token",

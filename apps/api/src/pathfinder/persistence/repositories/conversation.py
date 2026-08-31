@@ -25,6 +25,9 @@ from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
     collect_strategy_values,
 )
+from pathfinder.persistence.repositories.strategy_revision import (
+    StrategyRevisionRepository,
+)
 
 
 class ConversationRepository:
@@ -202,75 +205,6 @@ class ConversationRepository:
         result = await self.session.execute(stmt)
         return paired(result.unique().all())
 
-    async def get_by_wdk_strategy_id(
-        self, user_id: UUID, wdk_strategy_id: int
-    ) -> ConversationWithStrategy | None:
-        result = await self.session.execute(
-            with_strategy()
-            .where(
-                Conversation.user_id == user_id,
-                Conversation.application_id == calling_application(),
-                ConversationStrategy.wdk_strategy_id == wdk_strategy_id,
-            )
-            .execution_options(populate_existing=True)
-        )
-        rows = paired(result.all())
-        return rows[0] if rows else None
-
-    async def count_consumers_per_saved_strategy(
-        self,
-        user_id: UUID,
-        site_id: str,
-    ) -> dict[int, int]:
-        """Return the consumer count for each saved WDK strategy id."""
-        result = await self.session.execute(
-            select(ConversationStrategy.imported_saved_strategy_ids)
-            .join(
-                Conversation,
-                Conversation.id == ConversationStrategy.conversation_id,
-            )
-            .where(
-                Conversation.user_id == user_id,
-                Conversation.application_id == calling_application(),
-                Conversation.site_id == site_id,
-                Conversation.dismissed_at.is_(None),
-            ),
-        )
-        counts: dict[int, int] = {}
-        for (ids,) in result.all():
-            for sid in ids or []:
-                if isinstance(sid, int):
-                    counts[sid] = counts.get(sid, 0) + 1
-        return counts
-
-    async def list_consumers_of_saved_strategy(
-        self,
-        user_id: UUID,
-        wdk_strategy_id: int,
-        *,
-        exclude_conversation_id: UUID | None = None,
-    ) -> list[Conversation]:
-        """Return conversations that import the given saved WDK strategy. A
-        strategy with consumers cannot be hard-deleted."""
-        stmt = (
-            select(Conversation)
-            .join(
-                ConversationStrategy,
-                ConversationStrategy.conversation_id == Conversation.id,
-            )
-            .where(
-                Conversation.user_id == user_id,
-                Conversation.application_id == calling_application(),
-                ConversationStrategy.imported_saved_strategy_ids.contains(
-                    [wdk_strategy_id],
-                ),
-            )
-        )
-        if exclude_conversation_id is not None:
-            stmt = stmt.where(Conversation.id != exclude_conversation_id)
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
-
     async def update_conversation(
         self, conversation_id: UUID, upd: ConversationUpdate
     ) -> None:
@@ -330,6 +264,14 @@ class ConversationRepository:
                 set_=values,
             ),
         )
+        await self._record_revision(conversation_id)
+
+    async def _record_revision(self, conversation_id: UUID) -> None:
+        """Append the resulting state to the thread's revision history."""
+        await StrategyRevisionRepository(self.session).record(
+            conversation_id,
+            await self.get_strategy(conversation_id),
+        )
 
     async def clear_strategy(self, conversation_id: UUID) -> None:
         """Blank the built strategy, keeping the thread's other links.
@@ -344,8 +286,15 @@ class ConversationRepository:
         await self.session.execute(
             update(ConversationStrategy)
             .where(ConversationStrategy.conversation_id == conversation_id)
-            .values(strategy_ast={}, wdk_strategy_id=None, step_count=0)
+            .values(
+                strategy_ast={},
+                record_type=None,
+                wdk_strategy_id=None,
+                step_count=0,
+                estimated_size=None,
+            )
         )
+        await self._record_revision(conversation_id)
         await self.session.flush()
 
     async def dismiss(self, conversation_id: UUID) -> None:
@@ -369,44 +318,5 @@ class ConversationRepository:
             .where(ConversationStrategy.conversation_id == conversation_id)
             .values(strategy_ast={})
         )
+        await self._record_revision(conversation_id)
         await self.session.flush()
-
-    async def prune_wdk_orphans(
-        self,
-        user_id: UUID,
-        site_id: str,
-        live_wdk_ids: set[int],
-    ) -> int:
-        """Delete chats whose WDK strategy id is not in the live set and
-        return how many are deleted."""
-        stmt = (
-            select(Conversation.id, ConversationStrategy.wdk_strategy_id)
-            .join(
-                ConversationStrategy,
-                ConversationStrategy.conversation_id == Conversation.id,
-            )
-            .where(
-                Conversation.user_id == user_id,
-                Conversation.application_id == calling_application(),
-                Conversation.site_id == site_id,
-                ConversationStrategy.wdk_strategy_id.is_not(None),
-                Conversation.dismissed_at.is_(None),
-            )
-        )
-        result = await self.session.execute(stmt)
-        rows = result.all()
-
-        orphan_ids = [
-            conversation_id
-            for conversation_id, wdk_id in rows
-            if wdk_id not in live_wdk_ids
-        ]
-
-        if not orphan_ids:
-            return 0
-
-        await self.session.execute(
-            delete(Conversation).where(Conversation.id.in_(orphan_ids))
-        )
-        await self.session.flush()
-        return len(orphan_ids)

@@ -17,11 +17,8 @@ alphabetical index of all documented objects.
    overview
    experiments
    agents
-   subkani
-   delegation
    ai_functions
    ai
-   engines
    tools
    services
    gene_sets

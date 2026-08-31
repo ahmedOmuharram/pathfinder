@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -11,8 +10,6 @@ from pathfinder.domain.strategy.operational_spec import (
     OperationalSpec,
     SpecStructure,
 )
-
-SearchSelectionStatus = Literal["candidate", "selected", "rejected"]
 
 
 class ParamVocabSnapshot(BaseModel):
@@ -41,13 +38,7 @@ class SearchOverview(BaseModel):
     parameter_names: list[str]
     required_params: list[str]
 
-    selection_status: SearchSelectionStatus = "candidate"
-    rationale: str = ""
-    selection_reason: str = ""
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
-    param_hints: dict[str, str | list[str]] = Field(default_factory=dict)
     param_vocab: dict[str, ParamVocabSnapshot] = Field(default_factory=dict)
-    decided: bool = False
 
 
 @dataclass
@@ -146,9 +137,6 @@ class AgentToolState:
     def was_param_read(self, key: str) -> bool:
         return key in self.read_param_options
 
-    def decided_search_names(self) -> set[str]:
-        return {n for n, ov in self.discovered_searches.items() if ov.decided}
-
     def register_search(self, name: str, overview: SearchOverview) -> None:
         self.discovered_searches[name] = overview
 
@@ -168,10 +156,3 @@ class AgentToolState:
         """Inspectable searches: catalog results plus already-inspected ones
         (re-inspection must not be masked)."""
         return self.catalog_search_names | set(self.discovered_searches)
-
-    def selected_search_names(self) -> set[str]:
-        return {
-            name
-            for name, ov in self.discovered_searches.items()
-            if ov.selection_status == "selected"
-        }

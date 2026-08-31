@@ -9,8 +9,7 @@ from assistant_core.platform.logging import get_logger
 from assistant_core.platform.pydantic_base import CamelModel
 
 from pathfinder.domain.search import SearchContext
-from pathfinder.domain.strategy.ast import StrategyStepNode
-from pathfinder.domain.strategy.tree import collect_plan_leaves
+from pathfinder.domain.strategy.graph_model import StrategyStep
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
@@ -294,13 +293,18 @@ async def make_record_type_resolver(site_id: str) -> ResolveRecordType:
     return resolve
 
 
-async def resolve_record_type_from_steps(
-    root_step: StrategyStepNode,
+async def assign_step_record_classes(
+    steps: dict[str, StrategyStep],
     resolver: ResolveRecordType,
-) -> str | None:
-    """Resolve the record type from the first leaf search that resolves."""
-    for leaf in collect_plan_leaves(root_step):
-        resolved = await resolver(leaf.search_name)
+) -> None:
+    """Give each step that states a search the record class WDK lists it under.
+
+    A combine states no search, so its class is left for ``record_class_of`` to
+    read off the steps it consumes.
+    """
+    for step in steps.values():
+        if not step.search_name:
+            continue
+        resolved = await resolver(step.search_name)
         if resolved:
-            return resolved
-    return None
+            step.record_class = resolved

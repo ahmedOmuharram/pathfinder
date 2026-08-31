@@ -9,7 +9,7 @@ and its test suite is the protocol's consumer-side conformance suite.
 | Import                                | Dependencies         | Holds                                                                       |
 | ------------------------------------- | -------------------- | --------------------------------------------------------------------------- |
 | `@pathfinder/assistant-client`        | none                 | Frame reader, cursors, reduction, snapshot, request body, `AssistantClient` |
-| `@pathfinder/assistant-client/ai-sdk` | `ai` (optional peer) | `DurableChatTransport` for `useChat`                                        |
+| `@pathfinder/assistant-client/ai-sdk` | `ai` (optional peer) | `DurableChatTransport` and `resumeDurableThread` for `useChat`              |
 | `@pathfinder/assistant-client/legacy` | none                 | **Deprecated.** The per-task progress dialect                               |
 
 No entry point imports React. A host supplies its own hooks, storage and

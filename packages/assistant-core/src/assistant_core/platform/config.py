@@ -43,6 +43,12 @@ class RuntimeSettings(BaseSettings):
     # Characters of one input the embedder reads. A longer text is cut.
     embedding_input_char_limit: int = Field(default=2000, ge=1)
 
+    # Seconds one memory-store call of a turn may take before it fails.
+    memory_store_timeout_seconds: float = Field(default=30.0, gt=0)
+
+    # Seconds one checkpoint call of a turn may take before it fails.
+    checkpoint_timeout_seconds: float = Field(default=30.0, gt=0)
+
 
 @lru_cache
 def _default_settings() -> RuntimeSettings:

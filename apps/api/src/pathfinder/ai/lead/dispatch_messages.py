@@ -123,7 +123,8 @@ def build_would_replace_the_strategy(step_count: int) -> str:
         f"the researcher edited on the canvas is lost. Call edit_strategy to "
         f"change what this strategy asks, which patches only the steps the "
         f"request names. If the request really is to throw this strategy away "
-        f"and start over, say so in your reply and ask the user first."
+        f"and start over, call clear_strategy, which asks the user to approve "
+        f"the deletion before anything is removed."
     )
 
 

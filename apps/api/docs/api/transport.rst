@@ -59,10 +59,11 @@ injection, and experiment ownership checks. Used by routers.
 SSE Helpers
 -----------
 
-**Purpose:** SSE event formatting utilities. Encode events as SSE-formatted
-strings with proper ``data:`` prefixes and newline terminators.
+**Purpose:** Format a typed event as an SSE frame for the experiment, sweep
+and seed progress streams. Conversation does not use these; it goes through
+the LangGraph stream-event pipeline.
 
-.. automodule:: pathfinder.transport.http.sse
+.. automodule:: pathfinder.transport.http.sse_utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -133,12 +134,7 @@ specific domain area.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.transport.http.routers.operations
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.transport.http.routers.tools
+.. automodule:: pathfinder.transport.http.routers.conversations.operations
    :members:
    :undoc-members:
    :show-inheritance:
@@ -148,22 +144,22 @@ specific domain area.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.transport.http.routers.strategies.crud
+.. automodule:: pathfinder.transport.http.routers.conversations.crud
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.transport.http.routers.strategies.plan
+.. automodule:: pathfinder.transport.http.routers.conversations.strategy_ast
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.transport.http.routers.strategies.counts
+.. automodule:: pathfinder.transport.http.routers.conversations.counts
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.transport.http.routers.strategies.wdk_import
+.. automodule:: pathfinder.transport.http.routers.conversations.wdk_import
    :members:
    :undoc-members:
    :show-inheritance:
@@ -203,23 +199,7 @@ specific domain area.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.transport.http.routers.experiments.chat
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: pathfinder.transport.http.routers.experiments.results
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Workbench Chat
---------------
-
-**Purpose:** Workbench chat orchestration. Mirrors the main chat orchestrator
-but scoped to (user_id, experiment_id) pairs for experiment-context conversations.
-
-.. automodule:: pathfinder.services.workbench_chat.orchestrator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -229,17 +209,12 @@ Schemas
 
 Pydantic request/response models (DTOs) for the HTTP API.
 
-.. automodule:: pathfinder.transport.http.schemas.chat
+.. automodule:: pathfinder.transport.http.schemas.conversations
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.transport.http.schemas.strategies
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.transport.http.schemas.plan
+.. automodule:: pathfinder.transport.http.schemas.strategy_ast
    :members:
    :undoc-members:
    :show-inheritance:
@@ -274,17 +249,7 @@ Pydantic request/response models (DTOs) for the HTTP API.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.transport.http.schemas.workbench_chat
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: pathfinder.transport.http.schemas.optimization
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.transport.http.schemas.sse
    :members:
    :undoc-members:
    :show-inheritance:

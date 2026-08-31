@@ -16,7 +16,16 @@ from pydantic_ai.messages import (
 
 
 def _ends_an_exchange(message: ModelMessage) -> bool:
-    return isinstance(message, ModelResponse) and not message.tool_calls
+    """True when pydantic-ai accepts a new prompt over ``message`` as the tail.
+
+    ``UserPromptNode`` refuses two tails: a response holding tool calls, and a
+    response the provider paused.
+    """
+    return (
+        isinstance(message, ModelResponse)
+        and not message.tool_calls
+        and message.state != "suspended"
+    )
 
 
 def settled_history(messages: list[ModelMessage]) -> list[ModelMessage]:

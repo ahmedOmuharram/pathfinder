@@ -16,16 +16,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathfinder.tests.integration.http.conftest import client_for, make_user
 from pathfinder.tests.integration.jobs._dead_worker import (
     TOOL_CALL_ID,
+    dead_age,
+    dead_window_seconds,
+    fresh_beat_age,
     open_a_tool_call,
     stage_chat_turn_job,
+    starved_age,
     turn_chunks,
 )
 
-_DEAD_SECONDS = 600
-_ALIVE_SECONDS = 5
-
-# A live worker starved its own heartbeat by this much during one long turn.
-_STARVED_SECONDS = 153
 _NO_CONTENT = 204
 
 
@@ -53,7 +52,7 @@ async def test_stop_on_a_dead_worker_ends_the_turn_and_finishes_the_job(
         user_id=owner.id,
         conversation_id=conversation_id,
         turn_id=turn_id,
-        heartbeat_age_seconds=_DEAD_SECONDS,
+        heartbeat_age_seconds=dead_age(),
     )
 
     async with client_for(app, owner.id) as client:
@@ -90,7 +89,7 @@ async def test_stop_on_a_live_worker_only_asks(
         user_id=owner.id,
         conversation_id=conversation_id,
         turn_id=turn_id,
-        heartbeat_age_seconds=_ALIVE_SECONDS,
+        heartbeat_age_seconds=fresh_beat_age(),
     )
 
     async with client_for(app, owner.id) as client:
@@ -113,18 +112,20 @@ async def test_stop_on_a_starved_but_live_worker_only_asks(
     db_session: AsyncSession,
     in_memory_jobs: InMemoryConnector,
 ) -> None:
-    """Stop never ends a turn a busy worker is still running."""
+    """Stop leaves the turn alone while the last beat is inside the window."""
     del patch_app_db_engine
     owner = await make_user(db_session)
     conversation_id = await _make_conversation(db_session, owner.id)
     turn_id = uuid4()
     await open_a_tool_call(conversation_id, turn_id)
+    starved = starved_age()
+    assert 0 < starved < dead_window_seconds()
     job_id = await stage_chat_turn_job(
         in_memory_jobs,
         user_id=owner.id,
         conversation_id=conversation_id,
         turn_id=turn_id,
-        heartbeat_age_seconds=_STARVED_SECONDS,
+        heartbeat_age_seconds=starved,
     )
 
     async with client_for(app, owner.id) as client:
@@ -157,7 +158,7 @@ async def test_stopping_the_active_turn_of_a_dead_worker_ends_it(
         user_id=owner.id,
         conversation_id=conversation_id,
         turn_id=turn_id,
-        heartbeat_age_seconds=_DEAD_SECONDS,
+        heartbeat_age_seconds=dead_age(),
     )
 
     async with client_for(app, owner.id) as client:

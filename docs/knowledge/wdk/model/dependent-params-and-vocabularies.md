@@ -18,9 +18,11 @@ writes `displayType`, `maxSelectedCount`, `minSelectedCount` and `vocabulary`,
 and the flat form is an array of three-element rows - `term`, `display`,
 `parent` - built from `getFullVocab()` with an explicit three-column assertion.
 `wdk-client` types it as
-[`[VocabTerm, VocabDisplay, null][]`](https://github.com/VEuPathDB/web-monorepo/blob/63d1705463d553c0ac19ee577c1b09666597b903/packages/libs/wdk-client/src/Utils/WdkModel.ts#L103-L109),
-and live on both sites the third element is indeed always `null` for flat
-vocabularies.
+[`[VocabTerm, VocabDisplay, null][]`](https://github.com/VEuPathDB/web-monorepo/blob/63d1705463d553c0ac19ee577c1b09666597b903/packages/libs/wdk-client/src/Utils/WdkModel.ts#L103-L109)
+and that type is wrong: the third column is the parent term, populated whenever
+the vocabulary is nested, and the client's own unused `VocabParent` alias says so
+([WDK-VOCAB-007](../rules/parameters-and-vocabularies.md)). `GenesByOrthologPattern`
+sends 903 rows with parents on plasmodb.org and toxodb.org.
 
 **The term is what goes on the wire; the display is what goes on the screen.**
 The two differ often enough to matter - `bq_operator` sends `MINUS` and displays

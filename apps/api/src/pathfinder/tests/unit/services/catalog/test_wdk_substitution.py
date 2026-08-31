@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.value_codec import from_wire
 from pathfinder.domain.parameters.values import (
+    FilterTermClause,
+    FilterValue,
+    InputStepValue,
     MultiPickValue,
     NumberValue,
     SinglePickValue,
@@ -178,3 +182,145 @@ class TestADefinitionBuiltWithoutOurValues:
         )
 
         assert filled == ["min_weight"]
+
+
+_FILTER_SPECS = {
+    "variation_sample_meta": _spec("variation_sample_meta", "filter"),
+    "transcript_result": _spec("transcript_result", "input-step"),
+}
+
+_WDK_FILTER_ECHO = (
+    '{"filters": [{"value": ["Thailand", "Cambodia"], "includeUnknown": false, '
+    '"isRange": false, "type": "string", "field": "VAR_8e68b3e5", '
+    '"fieldDisplayName": "Country"}]}'
+)
+"""What plasmodb echoed for ``GenesByNgsSnps.variation_sample_meta``.
+
+WDK stores the stable value as the caller wrote it, so the echo carries the
+key order and the ``fieldDisplayName`` that ``FilterValue.to_wire`` drops::
+
+    curl -X POST -d @context.json 'https://plasmodb.org/plasmo/service/record-types/transcript/searches/GenesByNgsSnps?expandParams=true'
+"""
+
+
+class TestAFilterIsComparedAsItsClauses:
+    def test_a_reserialized_filter_is_not_substituted(self) -> None:
+        filled = substituted_params(
+            sent={"variation_sample_meta": from_wire("filter", _WDK_FILTER_ECHO)},
+            echoed={"variation_sample_meta": _WDK_FILTER_ECHO},
+            specs=_FILTER_SPECS,
+            values_were_read=True,
+        )
+
+        assert filled == []
+
+    def test_reordered_clauses_are_not_substituted(self) -> None:
+        ours = FilterValue(
+            filters=[
+                FilterTermClause(field="VAR_country", value=["Thailand"]),
+                FilterTermClause(field="VAR_year", value=["2014"]),
+            ]
+        )
+        echoed = (
+            '{"filters":[{"field":"VAR_year","value":["2014"]},'
+            '{"field":"VAR_country","value":["Thailand"]}]}'
+        )
+
+        filled = substituted_params(
+            sent={"variation_sample_meta": ours},
+            echoed={"variation_sample_meta": echoed},
+            specs=_FILTER_SPECS,
+            values_were_read=True,
+        )
+
+        assert filled == []
+
+    def test_a_reordered_value_set_is_not_substituted(self) -> None:
+        ours = FilterValue(
+            filters=[FilterTermClause(field="VAR_country", value=["Thailand", "Mali"])]
+        )
+        echoed = '{"filters":[{"field":"VAR_country","value":["Mali","Thailand"]}]}'
+
+        filled = substituted_params(
+            sent={"variation_sample_meta": ours},
+            echoed={"variation_sample_meta": echoed},
+            specs=_FILTER_SPECS,
+            values_were_read=True,
+        )
+
+        assert filled == []
+
+    def test_a_dropped_clause_is_substituted(self) -> None:
+        ours = FilterValue(
+            filters=[
+                FilterTermClause(field="VAR_country", value=["Thailand"]),
+                FilterTermClause(field="VAR_year", value=["2014"]),
+            ]
+        )
+        echoed = '{"filters":[{"field":"VAR_country","value":["Thailand"]}]}'
+
+        filled = substituted_params(
+            sent={"variation_sample_meta": ours},
+            echoed={"variation_sample_meta": echoed},
+            specs=_FILTER_SPECS,
+            values_were_read=True,
+        )
+
+        assert filled == ["variation_sample_meta"]
+
+    def test_a_narrowed_value_set_is_substituted(self) -> None:
+        ours = FilterValue(
+            filters=[FilterTermClause(field="VAR_country", value=["Thailand", "Mali"])]
+        )
+        echoed = '{"filters":[{"field":"VAR_country","value":["Mali"]}]}'
+
+        filled = substituted_params(
+            sent={"variation_sample_meta": ours},
+            echoed={"variation_sample_meta": echoed},
+            specs=_FILTER_SPECS,
+            values_were_read=True,
+        )
+
+        assert filled == ["variation_sample_meta"]
+
+    def test_a_flipped_include_unknown_is_substituted(self) -> None:
+        ours = FilterValue(
+            filters=[FilterTermClause(field="VAR_country", value=["Thailand"])]
+        )
+        echoed = (
+            '{"filters":[{"field":"VAR_country","includeUnknown":true,'
+            '"value":["Thailand"]}]}'
+        )
+
+        filled = substituted_params(
+            sent={"variation_sample_meta": ours},
+            echoed={"variation_sample_meta": echoed},
+            specs=_FILTER_SPECS,
+            values_were_read=True,
+        )
+
+        assert filled == ["variation_sample_meta"]
+
+
+class TestAnInputStepIsNotReported:
+    """The wiring of a step to its input is structural, never a WDK choice."""
+
+    def test_an_echoed_step_id_the_caller_never_sent_is_not_substituted(self) -> None:
+        filled = substituted_params(
+            sent={},
+            echoed={"transcript_result": "330423363"},
+            specs=_FILTER_SPECS,
+            values_were_read=True,
+        )
+
+        assert filled == []
+
+    def test_a_step_id_wdk_echoes_differently_is_not_substituted(self) -> None:
+        filled = substituted_params(
+            sent={"transcript_result": InputStepValue(step_id="1")},
+            echoed={"transcript_result": "2"},
+            specs=_FILTER_SPECS,
+            values_were_read=True,
+        )
+
+        assert filled == []

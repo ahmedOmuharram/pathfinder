@@ -99,7 +99,7 @@ function ChatViewBody({
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <ChatHelpersProvider value={chat}>
-        <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1">
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
             <ChatThread conversationId={conversationId} />
           </div>

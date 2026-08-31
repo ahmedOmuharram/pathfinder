@@ -11,7 +11,6 @@ import pytest
 from assistant_core.persistence.models import Conversation
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.graph_model import flatten_tree
@@ -50,6 +49,7 @@ from pathfinder.services.strategies.commit import (
     apply_and_commit,
     apply_operations_and_commit,
 )
+from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.sync import SyncResult
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
@@ -291,7 +291,7 @@ def _build_deps(
     root: StrategyStepNode,
     wdk_step_ids: dict[str, int],
     db_session_factory: Any,
-) -> AgentDeps:
+) -> StrategyMutationContext:
     session = StrategySession(site_id="plasmodb")
     graph = StrategyGraph(
         graph_id=str(conv_id), name="Test strategy", site_id="plasmodb"
@@ -304,7 +304,7 @@ def _build_deps(
         wdk_step_ids=dict(wdk_step_ids),
         wdk_strategy_id=555,
     )
-    return AgentDeps(
+    return StrategyMutationContext(
         site_id="plasmodb",
         strategy_session=session,
         conversation_id=conv_id,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from pathfinder.evals.case import CaseProvenance, EvalCase, ExpectedOutcome
 from pathfinder.evals.store import (
@@ -19,7 +20,7 @@ from pathfinder.evals.store import (
 def _case(name: str) -> EvalCase:
     return EvalCase(
         name=name,
-        prompt="find kinases",
+        turns=["find kinases"],
         site_id="plasmodb",
         assistant_id="pathfinder",
         rationale="pins the build path",
@@ -76,3 +77,28 @@ def test_names_are_sorted(tmp_path: Path) -> None:
     write_case(_case("a-case"), directory=tmp_path)
 
     assert case_names(directory=tmp_path) == ["a-case", "b-case"]
+
+
+def test_a_case_names_at_least_one_turn() -> None:
+    with pytest.raises(ValidationError, match="turns"):
+        EvalCase(
+            name="a-case",
+            turns=[],
+            site_id="plasmodb",
+            assistant_id="pathfinder",
+            rationale="pins the build path",
+            expected=ExpectedOutcome(builds_strategy=True),
+            provenance=CaseProvenance(
+                site="plasmodb",
+                assistant="pathfinder",
+                origin="promoted",
+                staging_id="0f0f",
+                added_at="2026-08-23",
+            ),
+        )
+
+
+def test_every_shipped_case_states_its_turns() -> None:
+    for case in load_corpus():
+        assert case.turns
+        assert all(turn.strip() for turn in case.turns)

@@ -16,6 +16,7 @@ from assistant_core.models.scripted import (
     ScriptedModel,
     called_tool_parts,
     current_scope_id,
+    current_turn,
     current_user_text,
     deferred_tool_resolved,
     has_any,
@@ -86,6 +87,14 @@ _EDIT_PROSE = (
     "**Substituted the organism** on the seed criterion. Every other criterion "
     "is unchanged, and the steps behind them keep the ids they had."
 )
+_REMEMBER_PROSE = (
+    "Stored for future sessions: your default organism. I built nothing - say "
+    "the word and I will turn it into a strategy."
+)
+_CONTEXT_PROSE = (
+    "Good area to be in. I have not built anything yet. Want me to put a "
+    "candidate strategy together for it?"
+)
 
 LEAD = "lead"
 FRAME = "frame"
@@ -134,7 +143,13 @@ _CONSULT_MARKERS = ("consult me before planning", "ask me design questions")
 _LOOP_MARKERS = ("read the catalog again and again",)
 # An edit turn names a substitution and asks for the rest to stand.
 _EDIT_MARKERS = ("keep the rest", "swap the organism", "substitute the organism")
+# A request to store a preference, and a bare statement of what the user works
+# on. Neither asks for a strategy.
+_REMEMBER_MARKERS = ("please remember", "remember for future sessions")
+_CONTEXT_MARKERS = ("i'm investigating", "i am investigating")
 _LOOP_CALL_ARGS = {"record_type": "transcript"}
+
+CLASSIFY = "classify_user_intent"
 
 
 def _variant_text_params(expression: str) -> dict[str, Any]:
@@ -237,8 +252,28 @@ def _lead_final(prose: str, next_state: LeadTurnState) -> ToolCallPart:
     return terminal_call({"prose": prose, "nextState": next_state})
 
 
+def _classify(classification: str) -> ToolCallPart:
+    return scripted_call(
+        CLASSIFY,
+        {
+            "intent": {
+                "rawText": current_user_text.get(),
+                "classification": classification,
+                "inferredGoal": f"[mock] {classification}",
+            },
+        },
+    )
+
+
+def _classified_this_turn(messages: list[ModelMessage]) -> bool:
+    return any(
+        part.tool_name == CLASSIFY for part in called_tool_parts(current_turn(messages))
+    )
+
+
 def _build_sequence(prose: str, next_state: LeadTurnState) -> list[ToolCallPart]:
     return [
+        _classify("new_strategy"),
         scripted_call("frame_problem", {"reason": "mock frame"}),
         scripted_call("build_strategy", {}),
         scripted_call("verify_strategy", {"reason": "mock verification"}),
@@ -268,6 +303,11 @@ def _prose_only_sequence(lowered: str) -> list[ToolCallPart] | None:
         return [_lead_final(_IMPACT_PROSE, "await_user")]
     if has_any(lowered, _CLARIFY_MARKERS):
         return [_lead_final(_CLARIFY_PROSE, "await_user")]
+    if has_any(lowered, _CONTEXT_MARKERS):
+        return [
+            _classify("context_statement"),
+            _lead_final(_CONTEXT_PROSE, "await_user"),
+        ]
     return None
 
 
@@ -275,11 +315,27 @@ def _one_tool_sequence(lowered: str) -> list[ToolCallPart] | None:
     """The arcs that dispatch one tool and then answer."""
     if has_any(lowered, _EDIT_MARKERS):
         return [
+            _classify("edit_strategy"),
             scripted_call("edit_strategy", {"reason": "mock edit: swap the organism"}),
             _lead_final(_EDIT_PROSE, "await_user"),
         ]
+    if has_any(lowered, _REMEMBER_MARKERS):
+        return [
+            _classify("memory_request"),
+            scripted_call(
+                "remember",
+                {
+                    "kind": "preference",
+                    "name": "default organism",
+                    "summary": "The user works with Plasmodium falciparum 3D7.",
+                    "content": {"organism": "Plasmodium falciparum 3D7"},
+                },
+            ),
+            _lead_final(_REMEMBER_PROSE, "await_user"),
+        ]
     if has_any(lowered, _LOOP_MARKERS):
         return [
+            _classify("new_strategy"),
             scripted_call("frame_problem", {"reason": "mock loop"}),
             _lead_final(_LOOP_PROSE, "await_user"),
         ]
@@ -320,7 +376,18 @@ def _build_branch(raw: str) -> list[ToolCallPart]:
 
 
 def _lead_script(messages: list[ModelMessage]) -> ToolCallPart:
-    return next_unmade_call(_lead_sequence(messages), messages)
+    """The next call of this turn's arc.
+
+    The classification is the turn's own: an arc that opens with it re-runs it
+    on every turn, so the intent the Lead gates its tools on is never a
+    previous turn's.
+    """
+    sequence = _lead_sequence(messages)
+    if sequence[0].tool_name != CLASSIFY:
+        return next_unmade_call(sequence, messages)
+    if not _classified_this_turn(messages):
+        return sequence[0]
+    return next_unmade_call(sequence[1:], messages)
 
 
 def _criterion_replies(messages: list[ModelMessage]) -> list[CriterionReply]:

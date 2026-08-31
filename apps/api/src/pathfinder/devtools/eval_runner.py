@@ -1,8 +1,8 @@
 """Running the corpus against the pipeline, and writing the run summary.
 
-Each case is one fresh thread driven end to end, exactly as a chat turn runs.
-What the run produced is read back from the two durable records: the strategy
-projection, and the checkpoint the turn left.
+Each case is one fresh thread, driven turn by turn end to end, exactly as a
+chat turn runs. What the run produced is read back from the two durable
+records: the strategy projection, and the checkpoint the turn left.
 
 The harness is ``pydantic-evals``: it owns the dataset, the case loop and the
 evaluator protocol. The summary shape is ours, so a change of harness does not
@@ -34,6 +34,7 @@ from pathfinder.assistants.registry import get_assistant_registry
 from pathfinder.devtools.chat import RunArgs, drive_run, resolve_run_assistant
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.evals.case import EvalCase
+from pathfinder.evals.distance import tree_from_ast
 from pathfinder.evals.scoring import (
     ObservedOutcome,
     score_case,
@@ -64,22 +65,35 @@ async def _verification_verdict(conversation_id: UUID) -> bool | None:
     return None if digest is None else digest.success
 
 
-async def observe(conversation_id: UUID, reply_text: str) -> ObservedOutcome:
+async def persisted_wdk_step_ids(conversation_id: UUID) -> set[int]:
+    """The WDK step ids the thread's persisted strategy carries right now."""
+    async with async_session_factory() as session:
+        strategy = await ConversationRepository(session).get_strategy(conversation_id)
+    if not strategy.strategy_ast:
+        return set()
+    ast = StrategyAst.model_validate(strategy.strategy_ast)
+    return set((ast.wdk_step_ids or {}).values())
+
+
+async def observe(
+    conversation_id: UUID,
+    reply_text: str,
+    *,
+    step_ids_unchanged: bool | None = None,
+) -> ObservedOutcome:
     """What the finished turn left behind, as the scorer reads it."""
     async with async_session_factory() as session:
         strategy = await ConversationRepository(session).get_strategy(conversation_id)
     built = bool(strategy.strategy_ast)
-    structure = (
-        structure_signature(StrategyAst.model_validate(strategy.strategy_ast))
-        if built
-        else ""
-    )
+    ast = StrategyAst.model_validate(strategy.strategy_ast) if built else None
     return ObservedOutcome(
         built_strategy=built,
-        structure=structure or None,
+        structure=structure_signature(ast) if ast is not None else None,
         record_type=strategy.record_type or None,
         step_count=strategy.step_count if built else None,
         verified=await _verification_verdict(conversation_id),
+        step_ids_unchanged=step_ids_unchanged,
+        tree=tree_from_ast(ast) if ast is not None else None,
         reply_text=reply_text,
     )
 
@@ -90,21 +104,37 @@ async def run_one_case(
     run_root: Path,
     mock: bool = True,
 ) -> ObservedOutcome:
-    """Drive one case on a fresh thread and read what it left behind."""
+    """Drive every turn of one case on a fresh thread, in order.
+
+    The step ids are read on both sides of the last turn. A thread that held
+    none before it observes nothing, because there was nothing to keep.
+    """
     conversation_id = uuid4()
-    capture, _gate = await drive_run(
-        RunArgs(
-            prompt=case.prompt,
-            site=case.site_id,
-            conversation_id=conversation_id,
-            run_dir=run_root / case.name,
-            mock=mock,
-            approve="auto",
-            quiet=True,
-            assistant=case.assistant_id,
-        ),
+    last = len(case.turns) - 1
+    before: set[int] = set()
+    reply = ""
+    for index, prompt in enumerate(case.turns):
+        capture, _gate = await drive_run(
+            RunArgs(
+                prompt=prompt,
+                site=case.site_id,
+                conversation_id=conversation_id,
+                run_dir=run_root / case.name / f"turn-{index + 1}",
+                mock=mock,
+                approve="auto",
+                quiet=True,
+                assistant=case.assistant_id,
+            ),
+        )
+        reply = capture.assistant_text()
+        if index == last - 1:
+            before = await persisted_wdk_step_ids(conversation_id)
+    after = await persisted_wdk_step_ids(conversation_id)
+    return await observe(
+        conversation_id,
+        reply,
+        step_ids_unchanged=(before == after) if before else None,
     )
-    return await observe(conversation_id, capture.assistant_text())
 
 
 class CaseExpectation(Evaluator[EvalCase, ObservedOutcome, None]):
@@ -147,19 +177,16 @@ async def run_corpus(
     by_name = {case.name: case for case in cases}
     results: list[CaseResult] = []
     for reported in report.cases:
-        # The harness's own assertion decides; the differences are computed
-        # only for the case that has some.
+        # The harness's own assertion decides the verdict; the score is read
+        # for the distance either way, and for the differences of a failure.
         passed = all(result.value for result in reported.assertions.values())
-        differences = (
-            []
-            if passed
-            else score_case(by_name[reported.name], reported.output).differences
-        )
+        score = score_case(by_name[reported.name], reported.output)
         results.append(
             CaseResult(
                 name=reported.name,
                 passed=passed,
-                differences=differences,
+                differences=[] if passed else score.differences,
+                distance=score.distance,
                 duration_seconds=round(reported.task_duration, 3),
             ),
         )
@@ -176,4 +203,11 @@ async def run_corpus(
     )
 
 
-__all__ = ["HARNESS", "build_dataset", "observe", "run_corpus", "run_one_case"]
+__all__ = [
+    "HARNESS",
+    "build_dataset",
+    "observe",
+    "persisted_wdk_step_ids",
+    "run_corpus",
+    "run_one_case",
+]

@@ -29,6 +29,7 @@ def _names(seq: list[ToolCallPart]) -> list[str]:
 def test_build_journey_frames_builds_verifies() -> None:
     msgs: list[ModelMessage] = [_user("...3d7...interpro...")]
     assert _names(mock._lead_sequence(msgs)) == [
+        "classify_user_intent",
         "frame_problem",
         "build_strategy",
         "verify_strategy",
@@ -57,6 +58,7 @@ def test_consult_resume_runs_the_build_journey() -> None:
         ),
     ]
     assert _names(mock._lead_sequence(msgs)) == [
+        "classify_user_intent",
         "frame_problem",
         "build_strategy",
         "verify_strategy",
@@ -91,6 +93,7 @@ def test_a_broadening_request_builds_and_reports_the_zero_result() -> None:
     seq = mock._lead_sequence([_user(_BROADEN)])
 
     assert _names(seq) == [
+        "classify_user_intent",
         "frame_problem",
         "build_strategy",
         "verify_strategy",
@@ -167,4 +170,60 @@ def test_an_edit_marker_routes_to_the_edit_dispatch() -> None:
     msgs: list[ModelMessage] = [
         _user("Swap the organism on the taxon criterion and keep the rest.")
     ]
-    assert _names(mock._lead_sequence(msgs)) == ["edit_strategy", "final_result"]
+    assert _names(mock._lead_sequence(msgs)) == [
+        "classify_user_intent",
+        "edit_strategy",
+        "final_result",
+    ]
+
+
+def test_a_remember_request_stores_the_preference_and_builds_nothing() -> None:
+    msgs: list[ModelMessage] = [
+        _user("Please remember for future sessions: I work with P. falciparum 3D7.")
+    ]
+
+    assert _names(mock._lead_sequence(msgs)) == [
+        "classify_user_intent",
+        "remember",
+        "final_result",
+    ]
+
+
+def test_a_context_statement_answers_in_prose_and_builds_nothing() -> None:
+    msgs: list[ModelMessage] = [
+        _user("I'm investigating virulence factors in Leishmania major")
+    ]
+
+    assert _names(mock._lead_sequence(msgs)) == [
+        "classify_user_intent",
+        "final_result",
+    ]
+
+
+def test_the_classification_is_made_once_per_turn() -> None:
+    """A second turn re-classifies; the run's first classification is not reused."""
+    first_turn = [
+        _user("...3d7...interpro..."),
+        ModelResponse(
+            parts=[
+                ToolCallPart(
+                    tool_name="classify_user_intent", args={}, tool_call_id="c0"
+                )
+            ]
+        ),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="classify_user_intent",
+                    content="ok",
+                    tool_call_id="c0",
+                )
+            ]
+        ),
+    ]
+    second_turn: list[ModelMessage] = [
+        *first_turn,
+        _user("Swap the organism on the taxon criterion and keep the rest."),
+    ]
+
+    assert mock._lead_script(second_turn).tool_name == "classify_user_intent"

@@ -9,9 +9,8 @@ Overview
 --------
 
 - **ORM Models** — User, ControlSet, and related models. Map to PostgreSQL tables.
-- **Session** — Async engine, session factory, init/close lifecycle.
-- **Repositories** — UserRepository, StreamRepository, ControlSetRepository.
-  Encapsulate queries and CRUD.
+- **Session** — Async engine and session factory, owned by the runtime package.
+- **Repositories** — One repository per entity. Encapsulate queries and CRUD.
 
 Design Decisions
 ~~~~~~~~~~~~~~~~
@@ -69,12 +68,11 @@ gene sets, and operations. Define the schema and relationships.
 Session Management
 ------------------
 
-**Purpose:** Async engine, session factory, and lifecycle hooks (init, close).
-Used by FastAPI dependency injection and background tasks.
+**Purpose:** The async database engine and the session factory every layer
+uses. Owned by the ``assistant_core`` runtime package, which also owns the
+declarative ``Base`` the application maps on.
 
-**Key functions:** :py:func:`get_db_session`, :py:func:`init_db`, :py:func:`close_db`
-
-.. automodule:: pathfinder.persistence.session
+.. automodule:: assistant_core.platform.db
    :members:
    :undoc-members:
    :show-inheritance:
@@ -90,7 +88,22 @@ Split into domain-specific repository modules.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.persistence.repositories.stream
+.. automodule:: pathfinder.persistence.repositories.conversation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.persistence.repositories.conversation_strategy
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.persistence.repositories.saved_strategy
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.persistence.repositories.background_tasks
    :members:
    :undoc-members:
    :show-inheritance:

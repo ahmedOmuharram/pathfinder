@@ -162,6 +162,8 @@ that raw shell can't do trivially. Run it anywhere the files are reachable
 ```
 <run-dir>/
   summary.json        # shape + headline counts + pointers
+                      # toolcalls = every call the log announces, whether the
+                      # turn ran one agent or a Lead with sub-agents
   diagnosis.json      # detected anomalies (see below)
   events.jsonl        # every chunk, raw, untruncated — the SSOT
   tools/NN-<tool>.json# per tool call: phase, FULL args, status, FULL result,
@@ -219,14 +221,16 @@ The engine (`diagnosis.py`) flags PathFinder's recurring failure modes:
 
 The same turn pipeline, driven from the corpus instead of from a prompt. It
 shares `chat.py`'s `drive_run`, so a case runs exactly as a chat turn does, and
-its artifacts land under `/data/pf-runs/evals/<case-name>/` where `inspect`
-reads them.
+its artifacts land under `/data/pf-runs/evals/<case-name>/turn-<n>/` where
+`inspect` reads them. A case states `turns`, a list driven in order on one
+conversation id, so an edit case is one file with two entries.
 
 ```bash
 docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals staged
 docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals show <staging-id>
 docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals promote <staging-id> \
   --name a-case-name --rationale "what this pins" --expect '{"buildsStrategy": false}'
+  # --turn "first message" --turn "second message" overrides the staged requests
 docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals corpus
 docker compose --env-file .env.dev exec -T api uv run python -m pathfinder.devtools.evals run \
   --out /data/pf-runs/evals/summary.json
@@ -249,7 +253,7 @@ different provider.
 |------|----------------|
 | `chat.py` | CLI: `run`/`inspect`/`diff`, bootstrap, turn loop, approval resume |
 | `evals.py` | CLI: `staged`/`show`/`promote`/`corpus`/`extract`/`run` |
-| `eval_runner.py` | one case per fresh thread, read back from the projection and the checkpoint |
+| `eval_runner.py` | one case per fresh thread, every turn in order, read back from the projection and the checkpoint |
 | `capture.py` | `RunCapture` (chunk → artifacts writer) + `capture_tracebacks` |
 | `models.py` | artifact schema + chunk parsers + validation-error decoder |
 | `diagnosis.py` | the fingerprint engine |

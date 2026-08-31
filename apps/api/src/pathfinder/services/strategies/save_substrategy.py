@@ -22,7 +22,7 @@ from assistant_core.platform.logging import get_logger
 
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
-    generate_step_id,
+    deep_clone_with_fresh_ids,
 )
 from pathfinder.domain.strategy.graph_model import (
     flatten_tree,
@@ -48,33 +48,6 @@ class SavedSubstrategyResult:
     record_type: str
     root_step_id: int
     cloned_root: StrategyStepNode
-
-
-def deep_clone_with_fresh_ids(node: StrategyStepNode) -> StrategyStepNode:
-    """Recursively clone a subtree, assigning a fresh ``id`` to every node.
-
-    Used by the save flow (so cloned WDK steps don't collide with the source
-    graph's local ids) and by the insert-saved-strategy tool (so the inserted
-    subtree gets fresh ids that won't clash with the destination graph).
-    """
-    primary = (
-        deep_clone_with_fresh_ids(node.primary_input)
-        if node.primary_input is not None
-        else None
-    )
-    secondary = (
-        deep_clone_with_fresh_ids(node.secondary_input)
-        if node.secondary_input is not None
-        else None
-    )
-    return node.model_copy(
-        deep=True,
-        update={
-            "id": generate_step_id(),
-            "primary_input": primary,
-            "secondary_input": secondary,
-        },
-    )
 
 
 async def save_subtree_as_strategy(

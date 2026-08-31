@@ -16,7 +16,10 @@ import type { TraceGroupView, TraceRowView } from "@/lib/components/thread/trace
 import { humanizeToolName } from "@/lib/utils/toolNames";
 
 import { ToolApprovalControls } from "../content/parts/ToolApprovalControls";
-import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
+import {
+  useChatHelpersOptional,
+  type ChatHelpers,
+} from "../runtime/chatHelpersContext";
 import { traceRenderingKinds } from "./traceRenderingKinds";
 import { toTraceParts } from "./traceParts";
 import { toolUIState } from "./toolUIState";
@@ -26,6 +29,7 @@ type Run = ReturnType<typeof buildTrace>[number];
 
 const LEAD = "lead";
 const SUB_AGENT_KIND = "data-sub-agent-call";
+const LIVE: readonly ChatHelpers["status"][] = ["submitted", "streaming"];
 
 const ROW_STATUS: Record<ToolUIPart["state"], TraceRowStatus> = {
   "input-streaming": "running",
@@ -100,21 +104,28 @@ function drawRun(run: TraceRunView, dev: ThreadDevMode): ReactElement {
   );
 }
 
+/** Every turn is over but the live one, which is the thread's last message. */
+function turnEnded(chat: ChatHelpers, message: UIMessage): boolean {
+  if (!LIVE.includes(chat.status)) return true;
+  return chat.messages.at(-1) !== message;
+}
+
 /**
  * Draw the whole run the anchored part belongs to, and only at the run's first
  * row-bearing part, so a turn's calls read as one block wherever they arrived.
  */
 function anchored(
-  messages: readonly UIMessage[],
+  chat: ChatHelpers,
   anchorId: string,
   dev: ThreadDevMode,
 ): ReactElement | null {
-  for (const message of messages) {
+  for (const message of chat.messages) {
     const parts = toTraceParts(message.parts);
     if (!parts.some((part) => anchorIdOf(part) === anchorId)) continue;
-    const run = buildTrace(parts, { renderingKinds: traceRenderingKinds() }).find(
-      (each) => idsOf(each).has(anchorId),
-    );
+    const run = buildTrace(parts, {
+      renderingKinds: traceRenderingKinds(),
+      turnEnded: turnEnded(chat, message),
+    }).find((each) => idsOf(each).has(anchorId));
     if (run === undefined) return null;
     if (firstAnchorOf(parts, idsOf(run)) !== anchorId) return null;
     return drawRun(run, dev);
@@ -166,7 +177,7 @@ export function TraceAnchor(props: TraceAnchorProps): ReactElement | null {
   const chat = useChatHelpersOptional();
   const dev = useThreadDevMode();
   if (chat === null) return drawRun(loneRun(props), dev);
-  return anchored(chat.messages, props.toolCallId, dev);
+  return anchored(chat, props.toolCallId, dev);
 }
 
 export function SubAgentTraceAnchor({
@@ -189,5 +200,5 @@ export function SubAgentTraceAnchor({
       />
     );
   }
-  return anchored(chat.messages, call.toolCallId, dev);
+  return anchored(chat, call.toolCallId, dev);
 }

@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from pathfinder.devtools.wdk_fixtures import load_recorded
+from pathfinder.domain.parameters.value_codec import wire_map
 from pathfinder.domain.parameters.values import (
     DateRangeValue,
     DateValue,
@@ -26,7 +27,6 @@ from pathfinder.domain.parameters.values import (
     SinglePickValue,
     StringValue,
     TimestampValue,
-    wire_map,
 )
 from pathfinder.domain.parameters.wdk_vocab import vocab_keys
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse

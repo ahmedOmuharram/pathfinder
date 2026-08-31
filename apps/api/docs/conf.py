@@ -1,9 +1,20 @@
 """Sphinx configuration for Pathfinder API documentation."""
 
+import importlib
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+# Autodoc copies source annotation text onto every class in a documented
+# class's MRO, which restores BaseModel.__pydantic_extra__. A model with
+# extra="allow" must be built before that happens.
+for _early in (
+    "fastapi.openapi.models",
+    "langchain_core.messages",
+    "pathfinder.transport.http.schemas.sites",
+):
+    importlib.import_module(_early)
 
 # -- Project information -----------------------------------------------------
 
@@ -17,6 +28,7 @@ release = "0.1.0-alpha"
 
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
@@ -35,6 +47,9 @@ autodoc_default_options = {
 }
 python_use_unqualified_type_names = True
 
+# A third-party base class docstring is not this project's API contract.
+autodoc_inherit_docstrings = False
+
 # Include type hints in parameter descriptions for clarity.
 autodoc_typehints = "description"
 autodoc_typehints_description_target = "documented_params"
@@ -46,7 +61,6 @@ exclude_patterns = []
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "kani": ("https://kani.readthedocs.io/en/latest/", None),
     "sqlalchemy": ("https://docs.sqlalchemy.org/en/20/", None),
 }
 

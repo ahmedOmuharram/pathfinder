@@ -343,9 +343,10 @@ items-center gap-2 text-xs`:
 still draws a bordered box, because the user must act:
 `rounded-md border border-warning/40 bg-warning/10 p-3`.
 
-- `data-testid="approval-card-title"` reads
-  `` `${title} needs your approval before it runs.` `` - the exact string
-  `ToolApprovalControls.tsx` line 94 renders today.
+- `data-testid="approval-card-title"` reads the whole `prompt` its caller
+  passed. `approvalPromptFor` writes it: `` `${label} needs your approval
+  before it runs.` `` for every tool but the destructive ones, which name what
+  they destroy.
 - The input, only when `showRaw` is true. Today it is always shown; that is the
   JSON the calm default removes.
 - Buttons `Deny` (`variant="outline"`, `data-testid="tool-approval-deny"`) and

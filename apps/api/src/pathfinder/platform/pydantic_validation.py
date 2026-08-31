@@ -1,9 +1,7 @@
-"""Utilities for parsing Pydantic validation error text.
+"""Parses Pydantic validation error text into structured items.
 
-Some tool frameworks (including Kani) surface tool-argument validation failures as
-plain text (Pydantic's human-readable format) rather than structured JSON. This
-module provides a best-effort parser so we can return consistent, machine-readable
-error payloads to the client.
+A tool-argument failure can arrive as Pydantic's human-readable text; the
+parser turns it into machine-readable error payloads for the client.
 """
 
 import re

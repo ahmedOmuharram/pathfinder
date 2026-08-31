@@ -143,9 +143,9 @@ test.describe("EDA data parts render in the thread", () => {
       timeout: 20_000,
     });
 
-    // The rail auto-opens the ledger on the first user message, so the EDA
-    // toggle reads "Open EDA" until it is clicked.
-    await page.getByRole("button", { name: /^(Open|Close) EDA$/ }).click();
+    // The rail auto-opens the Progress panel on the first user message, so the
+    // Studies toggle reads "Open Studies" until it is clicked.
+    await page.getByRole("button", { name: /^(Open|Close) Studies$/ }).click();
     await expect(page.getByTestId("rail-eda-panel")).toContainText(STUDY_TITLE);
     await expect(page.getByTestId("rail-eda-panel")).toContainText(
       "0 filters - 0 computations",
@@ -198,7 +198,7 @@ test.describe("EDA data parts render in the thread", () => {
     });
     // The dev server compiles the tab route on first request, so the
     // navigation assertion waits longer than the default.
-    await page.getByRole("button", { name: "Open in EDA tab" }).click();
+    await page.getByRole("button", { name: "Open study", exact: true }).click();
     await expect(page).toHaveURL(
       new RegExp(`/${SITE_ID}/conversation/${conversationId}/eda$`),
       { timeout: 60_000 },

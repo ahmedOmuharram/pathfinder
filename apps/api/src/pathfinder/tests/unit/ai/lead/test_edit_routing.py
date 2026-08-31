@@ -116,7 +116,7 @@ async def test_build_strategy_dispatch_refuses_a_non_empty_strategy() -> None:
 
     message = str(excinfo.value)
     assert "edit_strategy" in message
-    assert "ask the user first" in message
+    assert "clear_strategy" in message
     # A camelCase name in a retry sends the model round a loop it cannot exit.
     assert "editStrategy" not in message
 

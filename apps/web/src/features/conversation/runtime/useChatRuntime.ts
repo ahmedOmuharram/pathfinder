@@ -1,12 +1,13 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { useState } from "react";
 import {
   type UIMessage,
   lastAssistantMessageIsCompleteWithApprovalResponses,
 } from "ai";
 import { useAISDKRuntime } from "@assistant-ui/react-ai-sdk";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { Strategy } from "@pathfinder/shared";
 import { geneSetSchema } from "@pathfinder/shared/generated/zod/geneSetSchema";
@@ -15,7 +16,10 @@ import { graphSnapshotSchema } from "@pathfinder/shared/generated/zod/graphSnaps
 import { strategyMetaSchema } from "@pathfinder/shared/generated/zod/strategyMetaSchema";
 import { turnUsageSchema } from "@pathfinder/shared/generated/zod/turnUsageSchema";
 
-import { DurableChatTransport } from "@pathfinder/assistant-client/ai-sdk";
+import {
+  DurableChatTransport,
+  resumeDurableThread,
+} from "@pathfinder/assistant-client/ai-sdk";
 
 import { getAuthHeaders } from "@/lib/api/http";
 import { beginStrategy } from "@pathfinder/shared/generated/hooks/useBeginStrategy";
@@ -55,37 +59,41 @@ export function useChatRuntime({
       queryKey: listStrategiesQueryOptions({ siteId }).queryKey,
     });
   };
-  const transport = new DurableChatTransport({
-    conversationId,
-    eventsUrlFor: (id) => `/api/v1/conversations/${id}/events`,
-    api: "/api/v1/chat",
-    headers: () =>
-      getAuthHeaders({
-        accept: "text/event-stream",
-        contentType: "application/json",
+  const openMessageId = openAssistantMessageId(initialMessages);
+  const [transport] = useState(
+    () =>
+      new DurableChatTransport({
+        conversationId,
+        eventsUrlFor: (id) => `/api/v1/conversations/${id}/events`,
+        api: "/api/v1/chat",
+        ...(openMessageId === undefined ? {} : { openMessageId }),
+        headers: () =>
+          getAuthHeaders({
+            accept: "text/event-stream",
+            contentType: "application/json",
+          }),
+        prepareSendMessagesRequest: async ({ id, messages, trigger, body }) => {
+          const siteId = useSessionStore.getState().selectedSite;
+          const { phaseModels, phaseReasoning } = useSettingsStore.getState();
+          await beginStrategy(conversationId, { siteId });
+          return {
+            body: buildChatRequestBody({
+              conversationId,
+              siteId,
+              id,
+              trigger,
+              messages,
+              baseBody: body as Record<string, unknown> | undefined,
+              phaseModels,
+              phaseReasoning,
+            }),
+          };
+        },
       }),
-    prepareSendMessagesRequest: async ({ id, messages, trigger, body }) => {
-      const siteId = useSessionStore.getState().selectedSite;
-      const { phaseModels, phaseReasoning } = useSettingsStore.getState();
-      await beginStrategy(conversationId, { siteId });
-      return {
-        body: buildChatRequestBody({
-          conversationId,
-          siteId,
-          id,
-          trigger,
-          messages,
-          baseBody: body as Record<string, unknown> | undefined,
-          phaseModels,
-          phaseReasoning,
-        }),
-      };
-    },
-  });
+  );
 
-  const chat = useChat<UIMessage>({
+  const chatApi = useChat<UIMessage>({
     id: conversationId,
-    resume,
     generateId: () => crypto.randomUUID(),
     ...(initialMessages !== undefined && { messages: initialMessages }),
     transport,
@@ -111,9 +119,9 @@ export function useChatRuntime({
           // Surface the freshly built strategy: switch the rail to the
           // Strategy panel so the user sees the result of the auto-build.
           if (snapshot.nodes.length > 0) {
-            useRightRailStore
-              .getState()
-              .openPanelId("strategy", { strategyStepCount: snapshot.nodes.length });
+            useRightRailStore.getState().openPanelId(conversationId, "strategy", {
+              strategyStepCount: snapshot.nodes.length,
+            });
           }
           break;
         }
@@ -156,12 +164,37 @@ export function useChatRuntime({
     },
   });
 
-  const runtime = useAISDKRuntime(chat, {
+  // A turn the log still holds is read across its turn boundaries: the SDK
+  // builds one message per stream, so each turn the tail opens is its own read.
+  useQuery({
+    queryKey: ["conversations", conversationId, "reattach"],
+    queryFn: async () => {
+      await resumeDurableThread(chatApi, transport);
+      return conversationId;
+    },
+    enabled: resume,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+  });
+
+  const runtime = useAISDKRuntime(chatApi, {
     adapters: {
       feedback: createFeedbackAdapter(),
       attachments: new GeneIdAttachmentAdapter(),
     },
   });
 
+  const chat: ChatHelpers = {
+    ...chatApi,
+    resumeStream: () => resumeDurableThread(chatApi, transport),
+  };
+
   return { runtime, chat };
+}
+
+/** The assistant message a reload already holds, which a resume continues. */
+function openAssistantMessageId(messages: UIMessage[] | undefined): string | undefined {
+  const last = messages?.at(-1);
+  return last?.role === "assistant" ? last.id : undefined;
 }

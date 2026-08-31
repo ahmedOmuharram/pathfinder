@@ -50,9 +50,8 @@ internal ``StrategyAST``, extracts field values, and normalizes parameters.
    :class: note
 
    WDK stores multi-pick parameter values as **JSON-encoded strings** (e.g.
-   ``'["Plasmodium falciparum 3D7"]'`` rather than a native array). When
-   strategies are synced from WDK via :py:func:`fetch_and_convert`, the
-   ``ParameterNormalizer`` preserves this wire format in the stored plan.
+   ``'["Plasmodium falciparum 3D7"]'`` rather than a native array). The wire
+   format is preserved in the stored plan when a strategy is synced from WDK.
 
    The frontend step editor automatically coerces these JSON strings into
    native arrays when parameter specs load, so widgets (TreeBox, Select,
@@ -99,13 +98,23 @@ creation and graph assembly.
    :undoc-members:
    :show-inheritance:
 
-Step Creation
--------------
+Step Push
+---------
 
-**Purpose:** Create individual strategy steps with parameter validation
-and WDK integration.
+**Purpose:** Plan the WDK calls one step needs, then make them. A failed push
+leaves the step in the local graph for the sync service to retry.
 
-.. automodule:: pathfinder.services.strategies.step_creation
+.. automodule:: pathfinder.services.strategies.step_push_planner
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.strategies.step_wdk_push
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.strategies.wdk_step_cleanup
    :members:
    :undoc-members:
    :show-inheritance:
@@ -120,13 +129,24 @@ Auto Import
    :undoc-members:
    :show-inheritance:
 
-Auto Push
----------
+Sync and Reconcile
+------------------
 
-**Purpose:** Best-effort auto-push: sync a local strategy back to VEuPathDB
-WDK after mutations. Runs as a background task with per-strategy locking.
+**Purpose:** Push local graph state to WDK — step tree, strategy, counts,
+decorations — and read live WDK state back to self-heal ``sync_state`` after
+a partial push.
 
-.. automodule:: pathfinder.services.strategies.auto_push
+.. automodule:: pathfinder.services.strategies.sync
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.strategies.sync_state
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.strategies.reconcile
    :members:
    :undoc-members:
    :show-inheritance:
@@ -142,54 +162,34 @@ from the database for chat context.
    :undoc-members:
    :show-inheritance:
 
-Step Builders
--------------
+Declarative Build
+-----------------
 
-**Purpose:** Build WDK step payloads from the strategy plan AST. Creates
-the correct step structure for WDK API calls.
+**Purpose:** Build a strategy from a declarative step tree: diff it against
+the tree already stored, persist the new AST to the conversation row, push
+the steps, and sync.
 
-.. automodule:: pathfinder.services.strategies.step_builders
+.. automodule:: pathfinder.services.strategies.spec_build
    :members:
    :undoc-members:
    :show-inheritance:
 
-Strategy Engine
----------------
-
-**Purpose:** Core strategy execution engine. Graph integrity checks,
-step ordering, and execution helpers.
-
-.. automodule:: pathfinder.services.strategies.engine.base
+.. automodule:: pathfinder.services.strategies.commit
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.services.strategies.engine.graph_integrity
+.. automodule:: pathfinder.services.strategies.persist
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.services.strategies.engine.helpers
+.. automodule:: pathfinder.services.strategies.input_resolution
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.services.strategies.engine.graph_ops
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.services.strategies.engine.id_mapping
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.services.strategies.engine.step_builder
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.services.strategies.engine.validation
+.. automodule:: pathfinder.services.strategies.materialize
    :members:
    :undoc-members:
    :show-inheritance:

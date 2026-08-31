@@ -14,6 +14,7 @@ from pathfinder.domain.strategy.ast import (
 from pathfinder.domain.strategy.graph_model import (
     pushable_root_id,
     rebuild_tree,
+    record_class_of,
 )
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.validate import validate_strategy
@@ -26,8 +27,8 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import AppError, StrategyCompilationError
 from pathfinder.services.catalog.searches import (
+    assign_step_record_classes,
     make_record_type_resolver,
-    resolve_record_type_from_steps,
 )
 from pathfinder.services.strategies.build import RootResolutionError, resolve_root_step
 from pathfinder.services.strategies.sync_state import WDKSyncState
@@ -304,9 +305,12 @@ async def sync_strategy(
         raise RootResolutionError(msg)
     root_step = rebuild_tree(pushable_id, graph.steps)
 
-    if not graph.record_type:
+    if any(step.search_name and not step.record_class for step in graph.steps.values()):
         resolver = await make_record_type_resolver(site_id)
-        graph.record_type = await resolve_record_type_from_steps(root_step, resolver)
+        await assign_step_record_classes(graph.steps, resolver)
+    graph.record_type = record_class_of(
+        pushable_id, graph.steps, fallback=graph.record_type or "transcript"
+    )
 
     _validate_graph(root_step, graph.record_type)
 

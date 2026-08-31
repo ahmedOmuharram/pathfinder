@@ -52,6 +52,9 @@ class StrategyStep(CamelModel):
     id: str
     kind: StepKind
     search_name: str | None = None
+    record_class: str | None = None
+    """The record type WDK lists this step's own search under. A transform
+    crosses record classes, so it is not the class of the step it consumes."""
     parameters: dict[str, ParamValue] = Field(default_factory=dict)
     primary_input_id: str | None = None
     secondary_input_id: str | None = None
@@ -179,6 +182,34 @@ def rebuild_tree(root_id: str, steps: dict[str, StrategyStep]) -> StrategyStepNo
         )
 
     return visit(root_id)
+
+
+def record_class_of(
+    step_id: str, steps: dict[str, StrategyStep], *, fallback: str
+) -> str:
+    """The record class this step is addressed under.
+
+    A combine states no search of its own, so it takes the class of the steps
+    it consumes. The strategy's own class is the root's, which is what
+    ``Strategy.getRecordClass`` returns.
+    """
+    return _own_or_inherited(step_id, steps, set()) or fallback
+
+
+def _own_or_inherited(
+    step_id: str, steps: dict[str, StrategyStep], seen: set[str]
+) -> str | None:
+    step = steps.get(step_id)
+    if step is None or step_id in seen:
+        return None
+    seen.add(step_id)
+    if step.record_class:
+        return step.record_class
+    for input_id in step.inputs():
+        inherited = _own_or_inherited(input_id, steps, seen)
+        if inherited:
+            return inherited
+    return None
 
 
 def root_ids(steps: dict[str, StrategyStep]) -> set[str]:

@@ -214,7 +214,9 @@ describe("seedExperiments", () => {
       vi.fn(async () => makeFetchResponse(false, 500, null)),
     );
 
-    await expect(seedExperiments(() => {})).rejects.toThrow(/stream failed: 500/);
+    await expect(seedExperiments(() => {})).rejects.toThrow(
+      "HTTP 500 Internal Server Error",
+    );
   });
 
   it("throws when response body is null", async () => {

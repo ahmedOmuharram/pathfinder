@@ -22,23 +22,34 @@ function clip(text: string): string {
 }
 
 /** The line beside the verb. An empty line is no line, so it draws nothing. */
-function detailOf(row: TraceRowView): string | null {
-  const text =
-    row.status === "error" && row.errorText !== null ? row.errorText : row.summary;
-  if (text === null || text === "") return null;
+function detailOf(row: TraceRowView, stoppedLabel: string | undefined): string | null {
+  const text = lineOf(row) ?? (row.status === "stopped" ? stoppedLabel : undefined);
+  if (text === undefined || text === "") return null;
   return clip(text);
+}
+
+function lineOf(row: TraceRowView): string | undefined {
+  if (row.status === "error" && row.errorText !== null) return row.errorText;
+  return row.summary ?? undefined;
 }
 
 export interface TraceRowProps {
   row: TraceRowView;
   showRaw: boolean;
   nameFor: (toolName: string) => string;
+  /** What a call reads when its turn ended before it did. */
+  stoppedLabel?: string;
 }
 
-export function TraceRow({ row, showRaw, nameFor }: TraceRowProps): ReactElement {
+export function TraceRow({
+  row,
+  showRaw,
+  nameFor,
+  stoppedLabel,
+}: TraceRowProps): ReactElement {
   const [open, setOpen] = useState(false);
   const glyph = TRACE_GLYPHS[row.status];
-  const detail = detailOf(row);
+  const detail = detailOf(row, stoppedLabel);
   return (
     <div data-testid={row.toolName === THINK_TOOL ? "tool-think" : "tool-call-part"}>
       <div data-testid="trace-row" className="flex h-6 items-center gap-2 text-xs">

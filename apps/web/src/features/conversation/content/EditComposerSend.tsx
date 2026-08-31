@@ -4,12 +4,12 @@ import { useAuiState, useEditComposer } from "@assistant-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { forkStrategy } from "@pathfinder/shared/generated/hooks/useForkStrategy";
 import { revertToMessage } from "@pathfinder/shared/generated/hooks/useRevertToMessage";
 import { submitProductAction } from "@pathfinder/shared/generated/hooks/useSubmitProductAction";
+import { conversationSnapshotOptions } from "@/lib/api/conversationSnapshot";
 import { strategyQueryKey } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
 import { chatUrl } from "@/lib/routes";
@@ -19,6 +19,12 @@ import { extractTraceId } from "../runtime/traceId";
 import { BranchOrRevertDialog } from "./BranchOrRevertDialog";
 
 const ROUTE_RE = /^\/([^/]+)\/conversation\/([^/?#]+)/;
+
+function dialogError(branchError: unknown, revertError: unknown): string | null {
+  if (branchError != null) return toUserMessage(branchError, "Could not branch");
+  if (revertError != null) return toUserMessage(revertError, "Could not revert");
+  return null;
+}
 
 export function EditComposerBranchOrRevert() {
   const messageId = useAuiState((s) => s.message.id);
@@ -53,9 +59,6 @@ export function EditComposerBranchOrRevert() {
       setDialogOpen(false);
       router.push(chatUrl(siteId, fork.id));
     },
-    onError: (err) => {
-      toast.error(toUserMessage(err, "Failed to branch"));
-    },
   });
 
   const revertMutation = useMutation({
@@ -75,7 +78,7 @@ export function EditComposerBranchOrRevert() {
       if (conversationId === null) return;
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["conversations", conversationId, "messages"],
+          queryKey: conversationSnapshotOptions(conversationId).queryKey,
         }),
         queryClient.invalidateQueries({
           queryKey: strategyQueryKey(conversationId),
@@ -91,15 +94,14 @@ export function EditComposerBranchOrRevert() {
       bumpChatResetCounter();
       setDialogOpen(false);
     },
-    onError: (err) => {
-      toast.error(toUserMessage(err, "Failed to revert"));
-    },
   });
 
   const pending = branchMutation.isPending || revertMutation.isPending;
 
   const handleClick = () => {
     if (composerText.trim() === "") return;
+    branchMutation.reset();
+    revertMutation.reset();
     setDialogOpen(true);
   };
 
@@ -118,6 +120,7 @@ export function EditComposerBranchOrRevert() {
         open={dialogOpen}
         canBranch={parentId !== null}
         pending={pending}
+        error={dialogError(branchMutation.error, revertMutation.error)}
         onBranch={() => branchMutation.mutate()}
         onRevert={() => revertMutation.mutate()}
         onCancel={() => setDialogOpen(false)}

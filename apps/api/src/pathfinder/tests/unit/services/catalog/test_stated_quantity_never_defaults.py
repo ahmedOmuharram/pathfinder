@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from pathfinder.domain.parameters.values import to_wire
+from pathfinder.domain.parameters.value_codec import to_wire
 from pathfinder.services.catalog.param_dag import (
     OverrideMap,
     ParamFetcher,

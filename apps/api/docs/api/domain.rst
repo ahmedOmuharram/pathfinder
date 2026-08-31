@@ -62,7 +62,8 @@ Parameters (Domain)
 flattening, canonicalization, and value decoding. Used by catalog and tools.
 
 **Key functions (specs):** :py:func:`extract_param_specs`, :py:func:`adapt_param_specs`
-**Key functions (normalize):** :py:class:`ParameterNormalizer`
+**Key types (values):** :py:class:`ParamValue`, the discriminated union over the
+11 WDK parameter types
 **Key functions (canonicalize):** Value coercion for WDK wire format
 
 .. automodule:: pathfinder.domain.parameters.specs
@@ -70,17 +71,17 @@ flattening, canonicalization, and value decoding. Used by catalog and tools.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.domain.parameters.normalize
+.. automodule:: pathfinder.domain.parameters.values
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.domain.parameters.value_utils
    :members:
    :undoc-members:
    :show-inheritance:
 
 .. automodule:: pathfinder.domain.parameters.canonicalize
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.domain.parameters._decode_values
    :members:
    :undoc-members:
    :show-inheritance:
@@ -109,11 +110,6 @@ validation, compilation, and analysis.
 
 Strategy — Additional Modules
 ------------------------------
-
-.. automodule:: pathfinder.domain.strategy.compile
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 .. automodule:: pathfinder.domain.strategy.explain
    :members:

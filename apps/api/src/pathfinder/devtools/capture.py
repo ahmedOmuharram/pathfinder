@@ -133,6 +133,7 @@ class RunCapture:
         self._subagent_by_call: dict[str, str] = {}
         self._tool_name_by_call: dict[str, str] = {}
         self._tool_args_by_call: dict[str, dict[str, Any]] = {}
+        self._announced_calls: set[str] = set()
         self._durable_task: tuple[str, str] | None = None
         self._current_phase = ""
         self._ledger_by_phase: dict[str, dict[str, Any]] = {}
@@ -244,6 +245,8 @@ class RunCapture:
             self._ledger_by_phase[self._current_phase or "turn"] = env.data
 
     def _on_tool_input(self, env: Chunk) -> None:
+        if env.tool_call_id:
+            self._announced_calls.add(env.tool_call_id)
         if env.tool_call_id and env.tool_name:
             self._tool_name_by_call[env.tool_call_id] = env.tool_name
         if env.tool_call_id and env.input is not None:
@@ -375,6 +378,17 @@ class RunCapture:
             self.assistant_text(),
         )
 
+    def counted_calls(self) -> set[str]:
+        """Every tool call the event log announces, whatever the assistant.
+
+        A one-agent turn announces its own with ``tool-input-available``; a
+        Lead announces its dispatches that way and its inner calls as steps.
+        """
+        settled = {
+            call.tool_call_id for call in self.tool_calls() if call.status != "started"
+        }
+        return self._announced_calls | settled
+
     def summary(self) -> RunSummary:
         calls = self.tool_calls()
         return RunSummary(
@@ -382,7 +396,7 @@ class RunCapture:
             terminal_error=self._terminal_error,
             tokens=self._tokens,
             cost_usd=self._cost,
-            tool_calls=len([c for c in calls if c.status != "started"]),
+            tool_calls=len(self.counted_calls()),
             failures=len([c for c in calls if c.status == "failed"]),
             phases=self.phases(),
             loop_detected=self._loop,

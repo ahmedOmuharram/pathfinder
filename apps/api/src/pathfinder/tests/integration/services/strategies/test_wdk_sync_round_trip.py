@@ -10,6 +10,9 @@ from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
 from pathfinder.persistence.repositories.conversation import ConversationRepository
+from pathfinder.persistence.repositories.saved_strategy import (
+    SavedStrategyRepository,
+)
 from pathfinder.services.strategies.wdk_sync import (
     WdkChatSpec,
     plan_needs_detail_fetch,
@@ -49,7 +52,7 @@ async def test_importing_a_wdk_strategy_creates_the_side_row(
         conversation_id = conversation.id
 
     async with async_session_factory() as session:
-        found = await ConversationRepository(session).get_by_wdk_strategy_id(
+        found = await SavedStrategyRepository(session).get_by_wdk_strategy_id(
             authed_user_id,
             WDK_ID,
         )
@@ -140,9 +143,9 @@ async def test_pruning_drops_a_thread_whose_wdk_strategy_is_gone(
         await session.commit()
 
     async with async_session_factory() as session:
-        repo = ConversationRepository(session)
-        pruned = await repo.prune_wdk_orphans(authed_user_id, "plasmodb", set())
+        saved = SavedStrategyRepository(session)
+        pruned = await saved.prune_wdk_orphans(authed_user_id, "plasmodb", set())
         await session.commit()
 
         assert pruned == 1
-        assert await repo.get_by_wdk_strategy_id(authed_user_id, WDK_ID) is None
+        assert await saved.get_by_wdk_strategy_id(authed_user_id, WDK_ID) is None

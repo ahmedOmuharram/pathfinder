@@ -14,6 +14,7 @@ from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import UnauthorizedError, ValidationError
 from pathfinder.platform.security import (
     create_user_token,
+    decode_session_token,
     decode_user_id,
     limiter,
 )
@@ -192,10 +193,14 @@ async def refresh_internal_auth(
     """Re-derive the internal auth token from a live VEuPathDB session.
 
     Use this when the internal token is absent or expired, and to relink a
-    session whose VEuPathDB cookie now names another account.
+    session whose VEuPathDB cookie now names another account. A dev-login
+    session names no VEuPathDB account, so no token can move it.
     """
     existing = request.cookies.get("pathfinder-auth")
-    session_user_id = decode_user_id(existing) if existing else None
+    claims = decode_session_token(existing) if existing else None
+    if claims is not None and claims.dev_login:
+        return JSONResponse({"success": True})
+    session_user_id = None if claims is None else claims.user_id
 
     veupathdb_token = (
         request.headers.get("X-VEUPATHDB-AUTH")

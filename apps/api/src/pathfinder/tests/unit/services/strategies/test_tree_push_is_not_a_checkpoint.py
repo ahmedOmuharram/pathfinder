@@ -130,6 +130,7 @@ def _graph() -> StrategyGraph:
     graph.steps = flatten_tree(
         StrategyStepNode(id="A", search_name="GenesByMolecularWeight")
     )
+    graph.steps["A"].record_class = "transcript"
     graph.record_type = "transcript"
     graph.recompute_roots()
     return graph

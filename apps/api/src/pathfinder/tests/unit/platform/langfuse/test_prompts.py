@@ -40,14 +40,6 @@ class TestLoadPromptLocalFallback:
             result = load_prompt("site-hints")
         assert len(result) > 0
 
-    def test_loads_workbench_prompt_from_local(self) -> None:
-        with patch(
-            "pathfinder.platform.langfuse.prompts.get_langfuse",
-            return_value=None,
-        ):
-            result = load_prompt("workbench")
-        assert len(result) > 0
-
     def test_load_prompt_result_tracks_local_metadata(self) -> None:
         with patch(
             "pathfinder.platform.langfuse.prompts.get_langfuse",
@@ -179,8 +171,11 @@ class TestSeedPrompts:
         ):
             seed_prompts()
 
-        assert mock_client.create_prompt.call_count == 4
-        # All create_prompt calls should include type="text"
+        seeded = [
+            call_obj.kwargs["name"]
+            for call_obj in mock_client.create_prompt.call_args_list
+        ]
+        assert seeded == ["system", "safety", "site-hints"]
         for call_obj in mock_client.create_prompt.call_args_list:
             assert call_obj.kwargs["type"] == "text"
 

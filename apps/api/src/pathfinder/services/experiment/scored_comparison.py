@@ -3,30 +3,35 @@ against positive/negative control gene lists, then rank the variants by an
 objective metric (MCC by default) and name a winner.
 
 This is the controls-based counterpart to the no-controls exploratory
-``variant_comparison`` — here every variant gets real classification metrics
+``variant_comparison`` - here every variant gets real classification metrics
 (sensitivity, precision, MCC, ...) so there's an objective "best".
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
+import httpx
 from assistant_core.platform.pydantic_base import CamelModel
+from pydantic import Field
+from pydantic import ValidationError as PydanticValidationError
 
 from pathfinder.platform.errors import WDKError
 from pathfinder.services.experiment.service import run_experiment
-from pathfinder.services.experiment.types.experiment import ExperimentConfig
-from pathfinder.services.experiment.variant_comparison import VariantSpec
+from pathfinder.services.experiment.types.experiment import (
+    Experiment,
+    ExperimentConfig,
+)
+from pathfinder.services.experiment.variant_comparison import (
+    VariantSpec,
+    run_variant_search,
+)
+from pathfinder.services.wdk.helpers import extract_record_ids
 
 CONTROLS_SEARCH_NAME = "GeneByLocusTag"
 CONTROLS_PARAM_NAME = "ds_gene_ids"
 
-# objective name -> ScoredVariant attribute to rank on
-_RANK_ATTR: dict[str, str] = {
-    "mcc": "mcc",
-    "balanced_accuracy": "balanced_accuracy",
-    "f1": "f1",
-    "precision": "precision",
-    "sensitivity": "sensitivity",
-}
+_MAX_ERROR_CHARS = 200
 
 
 class ScoredVariant(CamelModel):
@@ -39,12 +44,80 @@ class ScoredVariant(CamelModel):
     sensitivity: float | None = None
     precision: float | None = None
     error: str | None = None
+    control_hits: list[str] = Field(default_factory=list)
+    """The given control ids this variant's result contains, in the given order."""
 
 
 class ScoredComparison(CamelModel):
     variants: list[ScoredVariant]
     winner_label: str | None
     objective: str
+
+
+_RANK_BY: dict[str, Callable[[ScoredVariant], float | None]] = {
+    "mcc": lambda v: v.mcc,
+    "balanced_accuracy": lambda v: v.balanced_accuracy,
+    "f1": lambda v: v.f1,
+    "precision": lambda v: v.precision,
+    "sensitivity": lambda v: v.sensitivity,
+}
+
+
+def _one_line(text: str) -> str:
+    """One short sentence, whatever the source wrote."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= _MAX_ERROR_CHARS:
+        return collapsed
+    return collapsed[: _MAX_ERROR_CHARS - 3] + "..."
+
+
+def _first_field_error(exc: PydanticValidationError) -> str:
+    """The first rejected field and why, never the whole validation dump."""
+    errors = exc.errors()
+    if not errors:
+        return _one_line(str(exc))
+    first = errors[0]
+    location = ".".join(str(part) for part in first["loc"])
+    message = first["msg"] if not location else f"{location}: {first['msg']}"
+    if len(errors) == 1:
+        return _one_line(message)
+    return _one_line(f"{message} (and {len(errors) - 1} more)")
+
+
+async def _hits_from_search(
+    spec: VariantSpec, *, site_id: str, control_ids: list[str]
+) -> list[str]:
+    """The control ids in this variant's result, read without scoring it."""
+    if not control_ids:
+        return []
+    try:
+        answer = await run_variant_search(site_id, spec)
+    except WDKError, httpx.HTTPError:
+        return []
+    found = set(extract_record_ids(answer.records))
+    return [gene for gene in control_ids if gene in found]
+
+
+async def _failed_variant(
+    spec: VariantSpec,
+    *,
+    site_id: str,
+    control_ids: list[str],
+    error: str,
+) -> ScoredVariant:
+    return ScoredVariant(
+        label=spec.label,
+        search_name=spec.search_name,
+        error=error,
+        control_hits=await _hits_from_search(
+            spec, site_id=site_id, control_ids=control_ids
+        ),
+    )
+
+
+def _hits_from_experiment(exp: Experiment, control_ids: list[str]) -> list[str]:
+    found = exp.result_gene_ids()
+    return [gene for gene in control_ids if gene in found]
 
 
 async def _score_one(
@@ -54,6 +127,7 @@ async def _score_one(
     user_id: str | None,
     positive_controls: list[str],
     negative_controls: list[str],
+    control_ids: list[str],
 ) -> ScoredVariant:
     config = ExperimentConfig(
         site_id=site_id,
@@ -68,16 +142,28 @@ async def _score_one(
     )
     try:
         exp = await run_experiment(config, user_id=user_id)
-    except (WDKError, ValueError) as exc:
-        return ScoredVariant(
-            label=spec.label, search_name=spec.search_name, error=str(exc)
+    except PydanticValidationError as exc:
+        return await _failed_variant(
+            spec,
+            site_id=site_id,
+            control_ids=control_ids,
+            error=_first_field_error(exc),
         )
+    except (WDKError, ValueError) as exc:
+        return await _failed_variant(
+            spec,
+            site_id=site_id,
+            control_ids=control_ids,
+            error=_one_line(str(exc)),
+        )
+    hits = _hits_from_experiment(exp, control_ids)
     if exp.status == "error" or exp.metrics is None:
         return ScoredVariant(
             label=spec.label,
             search_name=spec.search_name,
             experiment_id=exp.id,
-            error=exp.error or "experiment produced no metrics",
+            error=_one_line(exp.error or "experiment produced no metrics"),
+            control_hits=hits,
         )
     m = exp.metrics
     return ScoredVariant(
@@ -89,6 +175,7 @@ async def _score_one(
         f1=m.f1_score,
         sensitivity=m.sensitivity,
         precision=m.precision,
+        control_hits=hits,
     )
 
 
@@ -103,10 +190,12 @@ async def run_scored_comparison(
 ) -> ScoredComparison:
     """Run each variant as a scored experiment and rank by *objective*.
 
-    Variants run sequentially (each is a full WDK experiment). Failed
-    variants are reported with an error and excluded from ranking.
+    Variants run sequentially (each is a full WDK experiment). A failed
+    variant carries one line saying why and is excluded from ranking; it still
+    reports which of the control ids its result contains.
     """
-    rank_attr = _RANK_ATTR.get(objective, "mcc")
+    rank_by = _RANK_BY.get(objective, _RANK_BY["mcc"])
+    control_ids = list(dict.fromkeys([*positive_controls, *negative_controls]))
     scored = [
         await _score_one(
             v,
@@ -114,11 +203,13 @@ async def run_scored_comparison(
             user_id=user_id,
             positive_controls=positive_controls,
             negative_controls=negative_controls,
+            control_ids=control_ids,
         )
         for v in variants
     ]
-    ok = [s for s in scored if s.error is None and getattr(s, rank_attr) is not None]
-    winner = max(ok, key=lambda s: getattr(s, rank_attr)) if ok else None
+    ranked = [(rank_by(s), s) for s in scored if s.error is None]
+    ok = [(score, s) for score, s in ranked if score is not None]
+    winner = max(ok, key=lambda pair: pair[0])[1] if ok else None
     return ScoredComparison(
         variants=scored,
         winner_label=winner.label if winner else None,

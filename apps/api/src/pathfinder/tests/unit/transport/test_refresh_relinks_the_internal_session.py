@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request, Response
 
 from pathfinder.platform.error_handlers import app_error_handler
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.security import create_user_token
+from pathfinder.platform.security import create_dev_login_token, create_user_token
 from pathfinder.transport.http.routers.veupathdb_auth import router
 
 TOKEN_ACCOUNT = uuid4()
@@ -145,3 +145,22 @@ async def test_no_session_at_all_is_refused(
     async with _client(app) as client:
         response = await client.post("/api/v1/veupathdb/auth/refresh")
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_a_dev_login_session_is_never_relinked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dev-login session names no VEuPathDB account, so no token can move it."""
+    app = _app(monkeypatch, resolved=TOKEN_ACCOUNT)
+    async with _client(app) as client:
+        response = await client.post(
+            "/api/v1/veupathdb/auth/refresh",
+            cookies={
+                "pathfinder-auth": create_dev_login_token(uuid4()),
+                "Authorization": "veupathdb-jwt",
+            },
+        )
+    assert response.status_code == 200
+    assert response.json() == {"success": True}
+    assert "set-cookie" not in response.headers

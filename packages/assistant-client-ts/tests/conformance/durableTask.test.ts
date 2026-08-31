@@ -96,6 +96,96 @@ describe("a turn suspended on a durable task", () => {
     ]);
   });
 
+  it("keeps one part per lane when a task fans out", () => {
+    const lanes: ProtocolChunk[] = [
+      { type: "start", messageId: SUSPENDED },
+      {
+        type: "data-task-progress",
+        id: `${TASK}:v1`,
+        data: {
+          taskId: TASK,
+          percent: 0.2,
+          message: "variant v1",
+          toolSpecific: { variantId: "v1" },
+        },
+      },
+      {
+        type: "data-task-progress",
+        id: `${TASK}:v2`,
+        data: {
+          taskId: TASK,
+          percent: 0.5,
+          message: "variant v2",
+          toolSpecific: { variantId: "v2" },
+        },
+      },
+      {
+        type: "data-task-progress",
+        id: `${TASK}:v1`,
+        data: {
+          taskId: TASK,
+          percent: 0.8,
+          message: "variant v1",
+          toolSpecific: { variantId: "v1" },
+        },
+      },
+    ];
+
+    const progress = reduceTurn(lanes).parts.filter(
+      (part) => part.type === "data-task-progress",
+    );
+
+    expect(progress).toEqual([
+      {
+        type: "data-task-progress",
+        id: `${TASK}:v1`,
+        data: {
+          taskId: TASK,
+          percent: 0.8,
+          message: "variant v1",
+          toolSpecific: { variantId: "v1" },
+        },
+      },
+      {
+        type: "data-task-progress",
+        id: `${TASK}:v2`,
+        data: {
+          taskId: TASK,
+          percent: 0.5,
+          message: "variant v2",
+          toolSpecific: { variantId: "v2" },
+        },
+      },
+    ]);
+  });
+
+  it("reads a lane from the payload and never from the id", () => {
+    const [part] = reduceTurn([
+      { type: "start", messageId: SUSPENDED },
+      {
+        type: "data-task-progress",
+        id: `${TASK}:v7`,
+        data: {
+          taskId: TASK,
+          percent: 0.1,
+          message: "variant v7",
+          toolSpecific: { variantId: "v7" },
+        },
+      },
+    ]).parts;
+
+    expect(part).toEqual({
+      type: "data-task-progress",
+      id: `${TASK}:v7`,
+      data: {
+        taskId: TASK,
+        percent: 0.1,
+        message: "variant v7",
+        toolSpecific: { variantId: "v7" },
+      },
+    });
+  });
+
   it("needs no second reader: the core client sees the task without one", () => {
     const gap = THREAD.filter((chunk) => chunk.type.startsWith("data-task-"));
 

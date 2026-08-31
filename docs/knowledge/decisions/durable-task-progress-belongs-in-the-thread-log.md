@@ -29,6 +29,18 @@ have skipped exactly the tick the rule names.
 collapses a task's progress into one part however many chunks were written. The
 cost of an extra chunk is log bytes, not a duplicated card.
 
+**A task that fans out suffixes that `id` with a lane.** A sweep derives one
+scoped emitter per variant, and every scoped emitter carries a lane
+(`<task id>:<variant id>`) and a coalescing budget of its own, so five variants
+leave five parts that each advance on their own instead of one part the
+variants overwrite in turn. The lane is also in the payload's `toolSpecific`,
+which is where a client reads it; the `id` is a reconciliation key and nothing
+parses it. A task that runs one sequence is unchanged: bare task id, one part.
+The alternative was to keep one `id` and let the client fan the lanes out of
+`toolSpecific` itself. It was rejected because the log would still hold one
+part: reconciliation happens at reduction, so every lane but the last would be
+dropped before any client saw it, and the card could not survive a reload.
+
 **The per-task route keeps working, byte for byte.** It is deprecated, its
 dialect is written down in PROTOCOL.md section 13, and one integration test
 pins its exact frames against that section.
@@ -53,9 +65,9 @@ page gets reloaded, and it was the case with no cursor.
 runs about fifteen minutes and its emitter flushes at up to 1 Hz, so an
 uncoalesced task would leave on the order of 900 rows in `conversation_events`,
 replayed on every snapshot of that thread for as long as it exists. The rule
-above bounds it to at most twenty rows from the advance clause plus one per ten
-seconds, and the reconciling `id` keeps the reduced message at one part either
-way.
+above bounds each lane to at most twenty rows from the advance clause plus one
+per ten seconds, and the reconciling `id` keeps the reduced message at one part
+per lane either way.
 
 **Coalescing on time alone.** Rejected: a task that finishes in four seconds
 would report nothing but its last state, and a task that stalls would report a

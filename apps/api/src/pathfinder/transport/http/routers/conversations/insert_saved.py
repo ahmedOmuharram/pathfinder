@@ -25,7 +25,9 @@ CombineOperatorLiteral = Literal[
 
 
 class InsertSavedRequest(CamelModel):
-    target_step_id: str = Field(min_length=1, max_length=64)
+    # Empty when the thread has no steps yet: the saved strategy becomes the
+    # root instead of a combine input.
+    target_step_id: str = Field(default="", max_length=64)
     saved_wdk_strategy_id: int
     operator: CombineOperatorLiteral = "INTERSECT"
 
@@ -34,6 +36,7 @@ class InsertSavedResponse(CamelModel):
     wdk_strategy_id: int
     inserted_saved_wdk_strategy_id: int
     inserted_saved_name: str
+    # The new combine, or the inserted root when there was no step to combine.
     combine_step_id: str
 
 
@@ -48,7 +51,7 @@ async def insert_saved(
     session: DBSession,
     user_id: CurrentUser,
 ) -> InsertSavedResponse:
-    """Insert a saved WDK strategy as a combine input next to a target step."""
+    """Insert a saved WDK strategy beside a target step, or as the thread's root."""
     result = await ConversationService(session).insert_saved(
         conversation_id,
         user_id,

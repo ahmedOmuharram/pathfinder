@@ -323,11 +323,11 @@ const CHUNKS: unknown[] = [
 ];
 
 const ROW_LABELS = [
-  "Search eda studies",
-  "Open eda analysis",
-  "Search catalog",
-  "Set criterion",
-  "Preview eda subset",
+  "Find studies",
+  "Open study",
+  "Find searches",
+  "Choose a search",
+  "Preview samples",
   "Run control tests",
   "Optimize parameters",
 ];
@@ -387,7 +387,7 @@ test.describe("Thread acceptance journey", () => {
     await expect(rows).toHaveCount(7);
     await expect(rows).toContainText(ROW_LABELS);
     const firstRow = trace.locator(
-      '[data-testid="trace-row"]:has-text("Search eda studies")',
+      '[data-testid="trace-row"]:has-text("Find studies")',
     );
     await expect(firstRow).toContainText("3 studies matched heat shock");
 

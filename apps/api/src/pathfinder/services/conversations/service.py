@@ -242,10 +242,8 @@ class ConversationService:
         is_wdk_linked = wdk_id is not None
 
         if is_wdk_linked and delete_from_wdk and wdk_id is not None:
-            consumers = await self._repo.list_consumers_of_saved_strategy(
-                user_id,
-                wdk_id,
-                exclude_conversation_id=conversation_id,
+            consumers = await strategy_ops.list_saved_strategy_consumers(
+                self._repo, user_id, wdk_id, exclude_conversation_id=conversation_id
             )
             if consumers:
                 consumer_names = ", ".join(c.name for c in consumers[:5])

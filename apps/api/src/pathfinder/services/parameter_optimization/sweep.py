@@ -7,12 +7,8 @@ from itertools import product
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.optimization import VariantResult, VariantSpec
-from pathfinder.domain.parameters.values import (
-    NumberValue,
-    ParamValue,
-    SinglePickValue,
-    to_decoded_map,
-)
+from pathfinder.domain.parameters.value_codec import to_decoded_map
+from pathfinder.domain.parameters.values import NumberValue, ParamValue, SinglePickValue
 from pathfinder.platform.errors import AppError
 from pathfinder.services.control_tests import (
     IntersectionConfig,

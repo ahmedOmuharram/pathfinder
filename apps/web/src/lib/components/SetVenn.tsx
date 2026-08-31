@@ -84,6 +84,14 @@ export function SetVenn({
     onRegionClick(geneIds, label);
   };
 
+  if (totalGenes === 0) {
+    return (
+      <p className="text-[10px] text-muted-foreground">
+        These gene sets store no gene IDs, so there is no overlap to draw.
+      </p>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center gap-1">
       <VennDiagram

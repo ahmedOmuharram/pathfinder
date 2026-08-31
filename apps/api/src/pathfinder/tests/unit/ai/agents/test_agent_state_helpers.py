@@ -9,7 +9,6 @@ from __future__ import annotations
 from pathfinder.ai.agents.state import (
     AgentToolState,
     SearchOverview,
-    SearchSelectionStatus,
 )
 from pathfinder.domain.parameters.values import ParamValue, SinglePickValue
 
@@ -18,7 +17,6 @@ def _ov(
     name: str,
     *,
     parameter_names: list[str] | None = None,
-    selection_status: SearchSelectionStatus = "candidate",
 ) -> SearchOverview:
     return SearchOverview(
         search_name=name,
@@ -27,7 +25,6 @@ def _ov(
         description="",
         parameter_names=parameter_names or ["taxon"],
         required_params=["taxon"],
-        selection_status=selection_status,
     )
 
 
@@ -43,36 +40,19 @@ def test_discovered_search_names_returns_all_inspected() -> None:
     assert s.discovered_search_names() == {"GenesByGoTerm", "GenesByText"}
 
 
-def test_selected_search_names_only_returns_selected_status() -> None:
-    """``selected_search_names`` is the planner's universe — it must only
-    include searches discovery committed to (not ``candidate`` /
-    ``rejected``)."""
-    s = AgentToolState()
-    s.register_search(
-        "GenesByGoTerm",
-        _ov("GenesByGoTerm", selection_status="selected"),
-    )
-    s.register_search(
-        "GenesByText",
-        _ov("GenesByText", selection_status="candidate"),
-    )
-    s.register_search(
-        "GenesByMicroarray",
-        _ov("GenesByMicroarray", selection_status="rejected"),
-    )
-    assert s.selected_search_names() == {"GenesByGoTerm"}
-
-
-def test_decided_defaults_false_and_decided_search_names() -> None:
-    s = AgentToolState()
-    s.register_search("A", _ov("A"))
-    s.register_search("B", _ov("B"))
-    overview_a = s.get_overview("A")
-    assert overview_a is not None
-    assert overview_a.decided is False
-    assert s.decided_search_names() == set()
-    s.register_search("A", _ov("A").model_copy(update={"decided": True}))
-    assert s.decided_search_names() == {"A"}
+def test_a_search_overview_carries_no_selection_verdict() -> None:
+    """No field records a verdict on a search: nothing writes one."""
+    absent = {
+        "selection_status",
+        "rationale",
+        "selection_reason",
+        "confidence",
+        "param_hints",
+        "decided",
+    }
+    assert absent.isdisjoint(SearchOverview.model_fields)
+    assert not hasattr(AgentToolState, "decided_search_names")
+    assert not hasattr(AgentToolState, "selected_search_names")
 
 
 def test_param_read_key_is_stable_and_context_sensitive() -> None:

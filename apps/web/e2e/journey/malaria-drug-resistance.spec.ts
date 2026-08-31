@@ -44,10 +44,11 @@ test.describe("Malaria Drug Resistance Journey", () => {
     await sitePicker.selectSite("plasmodb");
 
     // Round 1
+    // A context statement builds nothing: the reply says so and offers.
     await chatPage.send(
       "I'm investigating chloroquine resistance mechanisms in Plasmodium falciparum",
     );
-    await chatPage.expectAssistantMessage(/\[mock\]/);
+    await chatPage.expectAssistantMessage(/have not built anything yet/i);
     await chatPage.expectIdle();
 
     // Round 2

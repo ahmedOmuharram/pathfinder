@@ -83,10 +83,16 @@ export const MessageAction = ({
   size = "icon-sm",
   ...props
 }: MessageActionProps) => {
+  const name = label ?? tooltip;
   const button = (
-    <Button size={size} type="button" variant={variant} {...props}>
+    <Button
+      size={size}
+      type="button"
+      variant={variant}
+      {...(name != null ? { "aria-label": name } : {})}
+      {...props}
+    >
       {children}
-      <span className="sr-only">{label || tooltip}</span>
     </Button>
   );
 

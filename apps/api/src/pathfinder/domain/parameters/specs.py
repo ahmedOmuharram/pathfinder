@@ -7,11 +7,8 @@ from dataclasses import dataclass
 
 from assistant_core.platform.types import JSONObject
 
-from pathfinder.domain.parameters.values import (
-    ParamValue,
-    as_param_kind,
-    from_decoded,
-)
+from pathfinder.domain.parameters.value_codec import as_param_kind, from_decoded
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.parameters.wdk_vocab import WDKVocabulary, vocab_keys
 
 

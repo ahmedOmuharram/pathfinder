@@ -51,9 +51,15 @@ interface RailEmptyStateProps {
   icon: React.ReactNode;
   heading: string;
   description: string;
+  action?: React.ReactNode;
 }
 
-export function RailEmptyState({ icon, heading, description }: RailEmptyStateProps) {
+export function RailEmptyState({
+  icon,
+  heading,
+  description,
+  action,
+}: RailEmptyStateProps) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <div className="text-muted-foreground">{icon}</div>
@@ -61,6 +67,7 @@ export function RailEmptyState({ icon, heading, description }: RailEmptyStatePro
         <p className="text-sm font-medium text-foreground">{heading}</p>
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
+      {action}
     </div>
   );
 }

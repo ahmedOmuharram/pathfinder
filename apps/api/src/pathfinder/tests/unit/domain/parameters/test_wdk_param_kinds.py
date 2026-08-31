@@ -13,15 +13,14 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from pathfinder.devtools.wdk_fixtures import load_recorded
-from pathfinder.domain.parameters.values import (
+from pathfinder.domain.parameters.value_codec import (
     _SCALAR_KINDS,
     _SCALAR_VALUE_BY_KIND,
     _WIRE_BUILDERS,
-    MultiPickValue,
-    ParamKind,
     as_param_kind,
     from_wire,
 )
+from pathfinder.domain.parameters.values import MultiPickValue, ParamKind
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
 
 _THE_ELEVEN = frozenset(

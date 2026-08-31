@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from pydantic import JsonValue
 
-from pathfinder.domain.parameters.values import to_decoded_map
+from pathfinder.domain.parameters.value_codec import to_decoded_map
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.organism import extract_output_organisms

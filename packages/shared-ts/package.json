@@ -7,9 +7,10 @@
   "scripts": {
     "generate": "kubb",
     "check:generated": "kubb && git diff --exit-code src/generated",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "build": "tsc",
     "dev": "tsc --watch",
-    "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {

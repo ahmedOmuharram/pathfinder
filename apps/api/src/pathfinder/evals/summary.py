@@ -10,17 +10,23 @@ from __future__ import annotations
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import ConfigDict, Field, computed_field
 
+from pathfinder.evals.distance import StrategyDistance
 from pathfinder.evals.scoring import CaseDifference
 
 
 class CaseResult(CamelModel):
-    """One case's verdict, with the differences that produced it."""
+    """One case's verdict, the differences behind it, and how far off it is.
+
+    The distance is carried on a pass too: a trend is drawn from how far a run
+    moved, not only from whether it crossed the line.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     name: str
     passed: bool
     differences: list[CaseDifference] = Field(default_factory=list)
+    distance: StrategyDistance | None = None
     error: str = ""
     duration_seconds: float = 0.0
 

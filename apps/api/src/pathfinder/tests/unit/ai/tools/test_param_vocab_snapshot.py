@@ -196,9 +196,6 @@ def test_pinned_discovered_searches_renders_param_vocab() -> None:
         description="",
         parameter_names=["hard_floor"],
         required_params=["hard_floor"],
-        selection_status="selected",
-        rationale="primary fold-change anchor",
-        confidence=0.9,
     )
     overview = overview.model_copy(
         update={
@@ -229,44 +226,3 @@ def test_pinned_discovered_searches_renders_param_vocab() -> None:
     assert "1693.23" in rendered
     assert "6772.93" in rendered
     assert "Tier-quantile floor for read counts" in rendered
-
-
-def test_pinned_discovered_searches_omits_vocab_for_rejected() -> None:
-    """A rejected search renders its name and reason, but not its vocabulary."""
-    state = AgentToolState()
-    overview = SearchOverview(
-        search_name="GenesByRNASeqGametocytesOnly",
-        display_name="Gametocyte-only RNA-Seq",
-        record_type="transcript",
-        description="",
-        parameter_names=["hard_floor"],
-        required_params=["hard_floor"],
-        selection_status="rejected",
-        rationale="gametocyte-only dataset",
-        selection_reason="sample vocab missing asexual blood stages",
-    )
-    overview = overview.model_copy(
-        update={
-            "param_vocab": {
-                "hard_floor": ParamVocabSnapshot(
-                    param_type="number-enum",
-                    required=True,
-                    help="Tier-quantile floor",
-                    default_value="6772.93",
-                    allowed_values=[VocabOption(value="6772.93", display="6772 reads")],
-                ),
-            },
-        },
-    )
-    state.register_search(overview.search_name, overview)
-
-    ctx = MagicMock()
-    ctx.tool_call_id = "call_1"
-    ctx.deps = MagicMock()
-    ctx.deps.agent_state = state
-    rendered = pinned_discovered_searches(ctx)
-    assert rendered is not None
-    assert "GenesByRNASeqGametocytesOnly" in rendered
-    assert "sample vocab missing asexual blood stages" in rendered
-    assert "param_vocab" not in rendered
-    assert "6772.93" not in rendered

@@ -1,9 +1,7 @@
-"""Helpers for standardized AI tool error payloads.
+"""Standardized AI tool error payloads.
 
-:func:`tool_error` returns a :class:`ToolErrorPayload` model directly.
-Kani natively calls ``.model_dump_json()`` on BaseModel returns from
-``@ai_function`` methods, so returning a model is zero-behavior-change
-for the LLM while preserving type safety for Python callers.
+:func:`tool_error` returns a :class:`ToolErrorPayload` model, so a tool
+failure reaches the model as one typed shape.
 """
 
 from enum import Enum

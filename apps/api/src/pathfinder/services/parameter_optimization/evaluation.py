@@ -5,7 +5,8 @@ from dataclasses import dataclass
 
 from assistant_core.platform.logging import get_logger
 
-from pathfinder.domain.parameters.values import ParamValue, to_decoded_map
+from pathfinder.domain.parameters.value_codec import to_decoded_map
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.errors import AppError
 from pathfinder.services.control_tests import (
     IntersectionConfig,

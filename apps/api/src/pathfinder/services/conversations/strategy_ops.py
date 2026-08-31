@@ -8,12 +8,16 @@ mutation, distinct from plain conversation CRUD.
 from dataclasses import dataclass
 from uuid import UUID
 
+from assistant_core.persistence.models import Conversation
 from assistant_core.platform.db import async_session_factory
 from assistant_core.platform.types import JSONObject
 
 from pathfinder.domain.strategy.operations import GraphOperation
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.persistence.repositories import ConversationRepository
+from pathfinder.persistence.repositories.saved_strategy import (
+    SavedStrategyRepository,
+)
 from pathfinder.platform.errors import ErrorCode, NotFoundError, ValidationError
 from pathfinder.services.conversations.authz import (
     get_owned_conversation_or_404,
@@ -38,6 +42,7 @@ from pathfinder.services.strategies.session_factory import (
     build_strategy_session,
     persisted_graph,
 )
+from pathfinder.services.strategies.write_lock import strategy_write_lock
 
 
 @dataclass(frozen=True)
@@ -108,26 +113,31 @@ async def apply_operation(
     site_id: str,
     op: GraphOperation,
 ) -> ConversationResponse:
-    conversation, strategy = await get_owned_thread_or_404(
-        repo, conversation_id, user_id
-    )
-    ctx = StrategyMutationContext(
-        site_id=site_id,
-        strategy_session=build_strategy_session(
-            site_id=site_id,
-            strategy_graph=persisted_graph(conversation, strategy),
-        ),
-        conversation_id=conversation_id,
-        db_session_factory=async_session_factory,
-    )
-    await apply_and_commit(deps=ctx, op=op)
-    refreshed = await repo.get_with_strategy(conversation_id)
-    if refreshed is None:
-        raise NotFoundError(
-            code=ErrorCode.STRATEGY_NOT_FOUND,
-            title="Strategy not found after commit",
+    # A thread the caller does not own takes no lock. The state is read again
+    # inside the lock, because another writer may have moved it since.
+    await get_owned_thread_or_404(repo, conversation_id, user_id)
+    async with strategy_write_lock(conversation_id, async_session_factory) as locked:
+        locked_repo = ConversationRepository(locked)
+        conversation, strategy = await get_owned_thread_or_404(
+            locked_repo, conversation_id, user_id
         )
-    return build_conversation_response(*refreshed)
+        ctx = StrategyMutationContext(
+            site_id=site_id,
+            strategy_session=build_strategy_session(
+                site_id=site_id,
+                strategy_graph=persisted_graph(conversation, strategy),
+            ),
+            conversation_id=conversation_id,
+            locked_session=locked,
+        )
+        await apply_and_commit(deps=ctx, op=op)
+        refreshed = await locked_repo.get_with_strategy(conversation_id)
+        if refreshed is None:
+            raise NotFoundError(
+                code=ErrorCode.STRATEGY_NOT_FOUND,
+                title="Strategy not found after commit",
+            )
+        return build_conversation_response(*refreshed)
 
 
 async def save_substrategy(
@@ -171,7 +181,24 @@ async def count_saved_strategy_consumers(
     user_id: UUID,
     site_id: str,
 ) -> dict[int, int]:
-    return await repo.count_consumers_per_saved_strategy(user_id, site_id)
+    saved = SavedStrategyRepository(repo.session)
+    return await saved.count_consumers_per_saved_strategy(user_id, site_id)
+
+
+async def list_saved_strategy_consumers(
+    repo: ConversationRepository,
+    user_id: UUID,
+    wdk_strategy_id: int,
+    *,
+    exclude_conversation_id: UUID,
+) -> list[Conversation]:
+    """The other threads that import the saved strategy."""
+    saved = SavedStrategyRepository(repo.session)
+    return await saved.list_consumers_of_saved_strategy(
+        user_id,
+        wdk_strategy_id,
+        exclude_conversation_id=exclude_conversation_id,
+    )
 
 
 async def insert_saved(
@@ -180,24 +207,30 @@ async def insert_saved(
     user_id: UUID,
     params: InsertSavedParams,
 ) -> InsertSavedResult:
-    conversation, strategy = await get_owned_thread_or_404(
-        repo, conversation_id, user_id
-    )
-    if not strategy.strategy_ast:
-        raise ValidationError(
-            title="conversation has no strategy",
-            detail="cannot insert into an empty conversation",
+    # The insert reads the stored tree, reads and clones a saved WDK strategy,
+    # and writes the whole tree back, so it holds the lock across all three.
+    await get_owned_thread_or_404(repo, conversation_id, user_id)
+    async with strategy_write_lock(conversation_id, async_session_factory) as locked:
+        conversation, strategy = await get_owned_thread_or_404(
+            ConversationRepository(locked), conversation_id, user_id
         )
-    session = build_strategy_session(
-        site_id=params.site_id,
-        strategy_graph=persisted_graph(conversation, strategy),
-    )
-    return await insert_saved_into_conversation(
-        session=session,
-        site_id=params.site_id,
-        conversation_id=conversation_id,
-        db_session_factory=async_session_factory,
-        target_step_id=params.target_step_id,
-        saved_wdk_strategy_id=params.saved_wdk_strategy_id,
-        operator=params.operator,
-    )
+        if params.target_step_id and not strategy.strategy_ast:
+            raise ValidationError(
+                title="conversation has no strategy",
+                detail="cannot insert into an empty conversation",
+            )
+        ctx = StrategyMutationContext(
+            site_id=params.site_id,
+            strategy_session=build_strategy_session(
+                site_id=params.site_id,
+                strategy_graph=persisted_graph(conversation, strategy),
+            ),
+            conversation_id=conversation_id,
+            locked_session=locked,
+        )
+        return await insert_saved_into_conversation(
+            deps=ctx,
+            target_step_id=params.target_step_id,
+            saved_wdk_strategy_id=params.saved_wdk_strategy_id,
+            operator=params.operator,
+        )

@@ -18,6 +18,7 @@ from assistant_core.graph.turn_state import (
     PendingApproval,
     UserQuestionAnswer,
 )
+from pydantic_ai import Tool
 
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.lead_agent import consult_user
@@ -87,3 +88,12 @@ async def test_no_answers_yet_reports_awaiting() -> None:
     assert result.return_value == []
     assert "2" in result.content  # presented 2 questions
     assert "awaiting" in result.content.lower()
+
+
+def test_the_call_takes_only_questions_and_says_where_context_goes() -> None:
+    """Background belongs to a question, so the schema has no top-level context."""
+    tool = Tool(consult_user)
+    schema = tool.function_schema.json_schema
+    assert sorted(schema["properties"]) == ["questions"]
+    assert schema["additionalProperties"] is False
+    assert "question's ``context``" in tool.description

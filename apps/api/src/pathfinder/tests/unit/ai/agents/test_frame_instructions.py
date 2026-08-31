@@ -122,3 +122,18 @@ def test_frame_instructions_select_every_matching_sample() -> None:
     assert "Only when nothing on the sheet matches do you ask the user" in (
         _FRAME_INSTRUCTIONS
     )
+
+
+def test_frame_instructions_say_when_to_declare_an_assumption() -> None:
+    # A value the request does not state is recorded as a constraint the user
+    # can override, rather than being narrated once and lost.
+    assert (
+        "Assumed values: when you choose a value the criterion text does not "
+        "state and that is not the sheet's default, declare it in `assumed` "
+        "with the parameter name, the value and one sentence of reason. Each "
+        "becomes a constraint the user reads and can override. A value the "
+        'request states is not an assumption: "top 10 percent" states the '
+        "minimum percentile 90. A half of a reference and comparison pair is "
+        "never assumed - state the group the request names, or leave it null "
+        "and ask."
+    ) in _normalized(_FRAME_INSTRUCTIONS)

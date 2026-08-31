@@ -24,14 +24,15 @@ from pathfinder.domain.parameters._value_helpers import (
     process_value,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.value_codec import (
+    as_param_kind,
+    from_decoded,
+    to_decoded,
+)
 from pathfinder.domain.parameters.values import (
     DateRangeValue,
     NumberRangeValue,
     ParamValue,
-    as_param_kind,
-    close_open_range,
-    from_decoded,
-    to_decoded,
 )
 from pathfinder.domain.parameters.wdk_vocab import (
     FAKE_ALL_SENTINEL,
@@ -40,6 +41,29 @@ from pathfinder.domain.parameters.wdk_vocab import (
     find_vocab_node,
 )
 from pathfinder.platform.errors import ValidationError
+
+
+def close_open_range(
+    value: NumberRangeValue | DateRangeValue,
+    spec: ParamSpecNormalized,
+) -> NumberRangeValue | DateRangeValue:
+    """Fill a range's open end from the parameter's own declared limit.
+
+    WDK reads both ends and refuses an object missing one. A limit the
+    parameter declares is not a guess; without one the value is left as it is
+    so WDK refuses it by name.
+    """
+    if isinstance(value, NumberRangeValue):
+        low = value.min if value.min is not None else spec.min
+        high = value.max if value.max is not None else spec.max
+        if low is None or high is None:
+            return value
+        return NumberRangeValue(min=low, max=high)
+    low_date = value.min if value.min is not None else spec.min_date
+    high_date = value.max if value.max is not None else spec.max_date
+    if low_date is None or high_date is None:
+        return value
+    return DateRangeValue(min=low_date, max=high_date)
 
 
 @dataclass(frozen=True)
@@ -52,6 +76,11 @@ class ParameterCanonicalizer:
         self,
         parameters: dict[str, ParamValue],
     ) -> dict[str, ParamValue]:
+        """Canonicalize each value against its spec.
+
+        An ``input-step`` value is left out: its value is structural, wired by
+        the caller, and never a choice WDK made.
+        """
         canonical: dict[str, ParamValue] = {}
         for name, value in (parameters or {}).items():
             spec = self.specs.get(name)

@@ -139,7 +139,9 @@ test.describe("Toxoplasma Host Invasion Journey", () => {
       timeout: 10_000,
     });
 
-    // Union of a set with its subset = the full set count
+    // The compose bar opens on Intersect, so the union preview needs the
+    // operation first. Union of a set with its subset = the full set count.
+    await page.getByRole("button", { name: /union/i }).click();
     await workbenchSidebarPage.expectComposeResultCount(fullCount);
 
     await workbenchSidebarPage.performOperation("union");

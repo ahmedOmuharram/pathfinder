@@ -119,3 +119,82 @@ class TestTheLeadCanReachControlScoring:
         # the only place the model learns that a scored counterpart exists.
         assert compare_search_variants.__doc__ is not None
         assert "compare_variants_scored" in compare_search_variants.__doc__
+
+
+class TestAFailedScoringIsReportedAsOne:
+    """The Lead must not narrate a failed scoring as a missing control set,
+    and the membership question stays answerable."""
+
+    def _comparison(self) -> ScoredComparison:
+        return ScoredComparison(
+            variants=[
+                ScoredVariant(
+                    label="top 20%",
+                    search_name="SA",
+                    error="parameters.channel: Input should be a valid string",
+                    control_hits=["g1"],
+                ),
+                ScoredVariant(
+                    label="top 5%",
+                    search_name="SB",
+                    error="parameters.channel: Input should be a valid string",
+                    control_hits=[],
+                ),
+            ],
+            winner_label=None,
+            objective="mcc",
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_summary_says_the_scoring_failed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        control_set = MagicMock()
+        control_set.positive_ids = ["g1", "g2"]
+        control_set.negative_ids = []
+        service = MagicMock()
+        service.get = AsyncMock(return_value=control_set)
+        monkeypatch.setattr(tool_mod, "ControlSetService", lambda _s: service)
+        comparison = self._comparison()
+
+        async def _run(*_a: Any, **_kw: Any) -> ScoredComparison:
+            return comparison
+
+        monkeypatch.setattr(tool_mod, "run_scored_comparison", _run)
+
+        result = await compare_variants_scored(
+            _ctx(), _variants(), control_set_id=str(uuid4())
+        )
+
+        content = result.content or ""
+        assert "scoring failed" in content
+        assert "Winner" not in content
+
+    @pytest.mark.asyncio
+    async def test_the_summary_carries_membership_per_variant(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        control_set = MagicMock()
+        control_set.positive_ids = ["g1", "g2"]
+        control_set.negative_ids = []
+        service = MagicMock()
+        service.get = AsyncMock(return_value=control_set)
+        monkeypatch.setattr(tool_mod, "ControlSetService", lambda _s: service)
+        comparison = self._comparison()
+
+        async def _run(*_a: Any, **_kw: Any) -> ScoredComparison:
+            return comparison
+
+        monkeypatch.setattr(tool_mod, "run_scored_comparison", _run)
+
+        result = await compare_variants_scored(
+            _ctx(), _variants(), control_set_id=str(uuid4())
+        )
+
+        content = result.content or ""
+        assert "top 20% contains g1" in content
+        assert "top 5% contains none of them" in content
+
+    def test_the_tool_tells_the_model_how_to_report_a_failure(self) -> None:
+        assert compare_variants_scored.__doc__ is not None
+        assert "scoring failed" in compare_variants_scored.__doc__

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 export type ApprovalDecision = "pending" | "approved" | "denied";
 
 export interface ApprovalCardProps {
-  title: string;
+  prompt: string;
   input: unknown;
   showRaw: boolean;
   onApprove: () => void;
@@ -37,7 +37,7 @@ function Decision({ approved }: { approved: boolean }): ReactElement {
 
 /** The one bordered box the thread still draws, because the user must act. */
 export function ApprovalCard({
-  title,
+  prompt,
   input,
   showRaw,
   onApprove,
@@ -55,7 +55,7 @@ export function ApprovalCard({
         className="flex items-center gap-1.5 text-xs font-medium"
       >
         <ShieldAlert className="size-3.5 text-warning" aria-hidden />
-        {title} needs your approval before it runs.
+        {prompt}
       </p>
       {showRaw && <ToolInput input={input} className="p-0" />}
       <div data-testid="tool-approval-controls" className="flex justify-end gap-2">

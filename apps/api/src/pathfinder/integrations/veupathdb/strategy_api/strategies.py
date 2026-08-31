@@ -79,25 +79,6 @@ class StrategiesMixin(StrategyAPIBase):
         )
         return WDKIdentifier.model_validate(raw)
 
-    async def copy_strategy(
-        self,
-        source_signature: str,
-        *,
-        user_id: str | None = None,
-    ) -> WDKIdentifier:
-        """Duplicate a strategy by signature. The copy belongs to the caller.
-
-        Every step gets a fresh id, so the caller must remap any step id it
-        tracks against the new step tree.
-        """
-        uid = await self._get_user_id(user_id)
-        raw = await self.client.post(
-            f"/users/{uid}/strategies",
-            json={"sourceStrategySignature": source_signature},
-            idempotent=False,
-        )
-        return WDKIdentifier.model_validate(raw)
-
     async def get_strategy(
         self, strategy_id: int, user_id: str | None = None
     ) -> WDKStrategyDetails:

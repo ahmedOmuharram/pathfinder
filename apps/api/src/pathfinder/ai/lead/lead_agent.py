@@ -13,19 +13,23 @@ from assistant_core.graph.turn_state import (
     ConsultQuestion,
     UserQuestionAnswer,
 )
+from assistant_core.memory.schemas import MemoryKind
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 from pydantic_ai import Agent, DeferredToolRequests, RunContext, Tool
-from pydantic_ai.capabilities import ProcessHistory, Thinking
+from pydantic_ai.capabilities import PrepareTools, ProcessHistory, Thinking
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents._history_processor import (
     PHASE_HISTORY_PROCESSORS,
 )
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
 from pathfinder.ai.lead.derive import derive_ledger
+from pathfinder.ai.lead.dispatch_context import agent_deps_for
 from pathfinder.ai.lead.edit_dispatch import edit_strategy
 from pathfinder.ai.lead.intent import UserIntent
+from pathfinder.ai.lead.intent_gate import hide_building_tools
 from pathfinder.ai.lead.live_state import LiveStrategyState, read_live_state
 from pathfinder.ai.lead.sub_agent_dispatch import (
     build_strategy,
@@ -34,6 +38,8 @@ from pathfinder.ai.lead.sub_agent_dispatch import (
     verify_strategy,
 )
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.ai.tools.standalone import conversation, memory_tools
+from pathfinder.ai.tools.standalone._conversation_models import ClearStrategyResult
 from pathfinder.ai.tools.standalone.control_sets import (
     build_control_set,
     import_control_ids_from_gene_set,
@@ -43,6 +49,7 @@ from pathfinder.ai.tools.standalone.control_sets import (
 from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_scored
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
 from pathfinder.ai.tools.toolsets import eda
+from pathfinder.integrations.veupathdb.factory import get_strategy_api
 
 LeadTurnState = Literal["await_user", "complete"]
 LedgerSectionName = Literal[
@@ -146,7 +153,9 @@ def classify_user_intent(
     Populate ``explicit_constraints`` with one typed Constraint for every
     requirement the user STATES in this message - data type ("RNA-Seq
     only"), statistical threshold ("adjusted p <= 0.05"), fold change,
-    comparator ("female vs male"), organism, record type. Capture their
+    comparator ("female vs male"), organism, record type, and percentile
+    for a stated share ("top 10% expressed", "bottom quartile"), whose
+    requested value carries the share and the direction. Capture their
     exact stated value. These override scoping's provisional assumptions
     for the same dimension, so a clarification answer like "RNA-Seq only,
     hard requirement" lands here even when scoping earlier assumed
@@ -157,8 +166,24 @@ def classify_user_intent(
     PREFERENCE with an acceptable fallback ("RNA-Seq preferred, microarray
     fallback ok", "ideally X but Y is fine"). A soft constraint is surfaced
     but never blocks the turn if substituted.
+
+    Two classifications ask for no strategy at all:
+
+    - ``context_statement``: the message states what the user works on and
+      asks for nothing. No imperative, no question about the data. Example:
+      "I'm investigating virulence factors in Leishmania major".
+    - ``memory_request``: the message asks you to keep something for later.
+      Example: "Please remember for future sessions: I always work with
+      P. falciparum 3D7 and I prefer the Su et al. strand-specific dataset."
+
+    Both are answered in prose, and ``memory_request`` with one ``remember``
+    call per thing to keep. Neither is a request to build.
     """
     ctx.deps.intent = intent
+    ctx.deps.state.domain.record_intent(
+        intent,
+        request_text=ctx.deps.state.user_prompt,
+    )
     return with_summary(
         intent,
         f"Intent: {intent.classification.value}",
@@ -166,28 +191,102 @@ def classify_user_intent(
     )
 
 
-def get_live_strategy_state(
+async def remember(
+    ctx: RunContext[LeadDeps],
+    kind: MemoryKind,
+    name: str,
+    summary: str,
+    content: dict[str, object],
+    tags: list[str] | None = None,
+) -> ToolReturn[str]:
+    """Store one thing the user asked you to keep for future sessions.
+
+    Use it for a stated preference (a default organism, a preferred dataset)
+    and for a fact they taught you. One call per thing remembered. Storing a
+    preference is the whole answer to that request: do not build a strategy to
+    "validate" it.
+    """
+    inner: RunContext[AgentDeps] = RunContext(
+        deps=agent_deps_for(ctx.deps),
+        model=ctx.model,
+        usage=ctx.usage,
+        tool_call_id=ctx.tool_call_id,
+    )
+    return await memory_tools.remember(
+        inner,
+        kind=kind,
+        name=name,
+        summary=summary,
+        content=content,
+        tags=tags,
+    )
+
+
+async def get_live_strategy_state(
     ctx: RunContext[LeadDeps],
 ) -> ToolReturn[LiveStrategyState]:
     """Read the strategy as it exists RIGHT NOW, bypassing the Ledger's cache.
 
     The Ledger's build counts describe the last build this conversation ran.
-    The user can change the strategy between turns (graph editor, WDK web
-    UI), which leaves those counts wrong. Call this before stating any
+    The user can change the strategy between turns (graph editor, VEuPathDB
+    web UI), which leaves those counts wrong. Call this before stating any
     result count, parameter value, or step list as current fact - and always
     when the Ledger shows a STALE marker or the user asks what the strategy
     does "now".
+
+    Every count comes from the site. An ``estimatedSize`` or ``rootCount`` of
+    null is UNKNOWN, never zero: say the count is not available for that step
+    rather than reporting a number from an earlier turn. Describe a step from
+    its ``parameters``, which are the values stored on it; its name can still
+    describe the value it was built with.
     """
-    live = read_live_state(ctx.deps.runtime.strategy_session)
+    live = await read_live_state(
+        ctx.deps.runtime.strategy_session,
+        get_strategy_api(ctx.deps.runtime.site_id),
+    )
     if not live.step_count:
         return with_summary(live, "No strategy yet", ctx=ctx, status="empty")
-    genes = live.root_count or 0
+    genes = live.root_count
+    if genes is None:
+        return with_summary(
+            live,
+            f"{live.step_count} steps, count not available",
+            ctx=ctx,
+            status="warn",
+        )
     return with_summary(
         live,
         f"{live.step_count} steps, {genes:,} genes",
         ctx=ctx,
         status="ok" if genes else "empty",
     )
+
+
+async def clear_strategy(
+    ctx: RunContext[LeadDeps],
+    *,
+    confirm: bool,
+) -> ToolReturn[ClearStrategyResult]:
+    """Throw the whole strategy away so the user can start over.
+
+    This is the ONLY deliberate destructive path. Use it when the user asks to
+    scrap the strategy and begin again, and never as a way around
+    ``build_strategy``'s refusal on a thread that already has one: a request
+    that changes what the strategy asks is ``edit_strategy``.
+
+    Every step goes, on this thread and on VEuPathDB, and the strategy's
+    provenance goes with them. The user approves the call before it runs, so
+    do not also ask in prose. After it returns, frame and build afresh.
+
+    ``confirm`` must be true; the call is refused otherwise.
+    """
+    inner: RunContext[AgentDeps] = RunContext(
+        deps=agent_deps_for(ctx.deps),
+        model=ctx.model,
+        usage=ctx.usage,
+        tool_call_id=ctx.tool_call_id,
+    )
+    return await conversation.clear_strategy(inner, confirm=confirm)
 
 
 def read_ledger_section(
@@ -234,7 +333,8 @@ async def consult_user(
     constraints. Ask only the few questions that genuinely change the
     answer; pick sensible defaults for everything else and state your
     assumptions in prose. Do NOT ask "submit or request changes?" - the
-    approval card already offers both.
+    approval card already offers both. Background for a question goes in
+    that question's ``context``; the call itself takes only ``questions``.
     """
     state = ctx.deps.state
     pending = state.pending_approval
@@ -275,6 +375,7 @@ def build_lead_agent() -> LeadAgent:
         instructions=LEAD_INSTRUCTIONS,
         tools=[
             Tool(classify_user_intent),
+            Tool(remember),
             Tool(read_ledger_section),
             Tool(get_live_strategy_state),
             Tool(frame_problem),
@@ -288,11 +389,13 @@ def build_lead_agent() -> LeadAgent:
             Tool(import_control_ids_from_gene_set),
             Tool(import_control_ids_from_strategy),
             Tool(compare_variants_scored),
+            Tool(clear_strategy, requires_approval=True),
             Tool(consult_user, requires_approval=True),
         ],
         toolsets=[eda.build_toolset()],
         capabilities=[
             Thinking(effort="medium"),
+            PrepareTools[LeadDeps](hide_building_tools),
             *(ProcessHistory[LeadDeps](p) for p in PHASE_HISTORY_PROCESSORS),
         ],
         retries=3,

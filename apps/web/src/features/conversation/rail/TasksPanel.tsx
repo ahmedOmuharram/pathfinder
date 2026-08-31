@@ -7,6 +7,9 @@ import type { TaskListItem } from "@pathfinder/shared";
 import { tasksListOptions } from "@/lib/api/tasks";
 import { humanizeToolName } from "@/lib/utils/toolNames";
 
+import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
+import { taskResultHref } from "../thread/taskResult";
+import { traceRenderingKinds } from "../thread/traceRenderingKinds";
 import { RailEmptyState, RailPanelShell } from "./RailPanelShell";
 
 interface TasksPanelProps {
@@ -17,6 +20,8 @@ const ACTIVE = new Set(["pending", "running", "resuming"]);
 
 export function TasksPanel({ conversationId }: TasksPanelProps) {
   const { data, isLoading } = useQuery(tasksListOptions(conversationId));
+  const chat = useChatHelpersOptional();
+  const messages = chat?.messages ?? [];
   const tasks = data?.tasks ?? [];
 
   return (
@@ -34,7 +39,11 @@ export function TasksPanel({ conversationId }: TasksPanelProps) {
       ) : (
         <ul className="divide-y divide-border">
           {tasks.map((task) => (
-            <TaskRow key={task.taskId} task={task} />
+            <TaskRow
+              key={task.taskId}
+              task={task}
+              resultHref={taskResultHref(messages, task.taskId, traceRenderingKinds())}
+            />
           ))}
         </ul>
       )}
@@ -42,7 +51,13 @@ export function TasksPanel({ conversationId }: TasksPanelProps) {
   );
 }
 
-function TaskRow({ task }: { task: TaskListItem }) {
+function TaskRow({
+  task,
+  resultHref,
+}: {
+  task: TaskListItem;
+  resultHref: string | null;
+}) {
   const isActive = ACTIVE.has(task.status);
   const isFailed = task.status === "failed";
   const percent =
@@ -58,9 +73,18 @@ function TaskRow({ task }: { task: TaskListItem }) {
           ) : (
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
           )}
-          <span className="truncate text-xs font-medium">
-            {humanizeToolName(task.toolName)}
-          </span>
+          {resultHref === null ? (
+            <span className="truncate text-xs font-medium">
+              {humanizeToolName(task.toolName)}
+            </span>
+          ) : (
+            <a
+              href={resultHref}
+              className="truncate text-xs font-medium text-primary underline-offset-2 hover:underline"
+            >
+              {humanizeToolName(task.toolName)}
+            </a>
+          )}
         </div>
         <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">
           {task.status}

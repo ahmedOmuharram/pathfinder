@@ -35,6 +35,7 @@ function makeChat(
   parts: UIMessage["parts"][number][],
   resumeStream: () => Promise<void>,
   status: ChatHelpers["status"] = "ready",
+  later: UIMessage[] = [],
 ): ChatHelpers {
   return {
     id: "conv-1",
@@ -47,6 +48,7 @@ function makeChat(
           ...parts,
         ] as UIMessage["parts"],
       },
+      ...later,
     ],
     status,
     error: undefined,
@@ -64,7 +66,11 @@ function makeChat(
 
 function renderCard(
   parts: UIMessage["parts"][number][],
-  options: { resumeStream?: () => Promise<void>; status?: ChatHelpers["status"] } = {},
+  options: {
+    resumeStream?: () => Promise<void>;
+    status?: ChatHelpers["status"];
+    later?: UIMessage[];
+  } = {},
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -73,6 +79,7 @@ function renderCard(
     parts,
     options.resumeStream ?? (async () => {}),
     options.status ?? "ready",
+    options.later ?? [],
   );
   const ui = (
     <QueryClientProvider client={client}>
@@ -146,6 +153,67 @@ describe("DataBackgroundTaskStarted", () => {
     expect(screen.getByTestId("task-row-status")).toHaveTextContent("0%");
   });
 
+  it("draws one row per lane, ordered by lane, when the task fans out", () => {
+    renderCard([
+      progressPart({
+        taskId: "t1",
+        percent: 0.5,
+        message: "Trying v2",
+        toolSpecific: { variantId: "v2" },
+      }),
+      progressPart({
+        taskId: "t1",
+        percent: 0.2,
+        message: "Trying v1",
+        toolSpecific: { variantId: "v1" },
+      }),
+      progressPart({
+        taskId: "t1",
+        percent: 0.9,
+        message: "Trying v2 again",
+        toolSpecific: { variantId: "v2" },
+      }),
+    ]);
+
+    const rows = screen.getAllByTestId("task-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("v1");
+    expect(rows[0]).toHaveTextContent("20%");
+    expect(rows[1]).toHaveTextContent("v2");
+    expect(rows[1]).toHaveTextContent("90%");
+  });
+
+  it("keeps a single row for a task that runs one sequence", () => {
+    renderCard([
+      progressPart({ taskId: "t1", percent: 0.4, message: "Comparing controls" }),
+    ]);
+
+    expect(screen.getAllByTestId("task-row")).toHaveLength(1);
+  });
+
+  it("marks every lane completed once the task finishes", () => {
+    renderCard([
+      progressPart({
+        taskId: "t1",
+        percent: 0.5,
+        message: "Trying v1",
+        toolSpecific: { variantId: "v1" },
+      }),
+      progressPart({
+        taskId: "t1",
+        percent: 0.6,
+        message: "Trying v2",
+        toolSpecific: { variantId: "v2" },
+      }),
+      completedPart({ taskId: "t1", status: "success" }),
+    ]);
+
+    const statuses = screen
+      .getAllByTestId("task-row-status")
+      .map((node) => node.textContent);
+    expect(statuses).toEqual(["Completed", "Completed"]);
+  });
+
   it("reattaches the thread exactly once while the task is unfinished", async () => {
     const resumeStream = vi.fn(async () => {});
     const { rerender, ui } = renderCard([], { resumeStream });
@@ -177,5 +245,39 @@ describe("DataBackgroundTaskStarted", () => {
     expect(screen.getByTestId("task-row-status")).toHaveTextContent("Completed");
     await Promise.resolve();
     expect(resumeStream).not.toHaveBeenCalled();
+  });
+});
+
+describe("a completed task points at its result", () => {
+  it("links the card to the turn that carries the result", () => {
+    renderCard([completedPart({ taskId: "t1", status: "success" })], {
+      later: [
+        {
+          id: "m2",
+          role: "assistant",
+          parts: [{ type: "text", text: "Enrichment finished." }] as UIMessage["parts"],
+        },
+      ],
+    });
+    const link = screen.getByRole("link", { name: "View result" });
+    expect(link.getAttribute("href")).toBe("#message-m2");
+  });
+
+  it("offers no link while the task still runs", () => {
+    renderCard([]);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("offers no link for a task that failed", () => {
+    renderCard([completedPart({ taskId: "t1", status: "failed", error: "boom" })], {
+      later: [
+        {
+          id: "m2",
+          role: "assistant",
+          parts: [{ type: "text", text: "It failed." }] as UIMessage["parts"],
+        },
+      ],
+    });
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 });

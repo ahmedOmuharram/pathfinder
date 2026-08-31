@@ -39,12 +39,17 @@ def task_progress_event(
     percent: float,
     message: str,
     tool_specific: dict[str, Any] | None = None,
+    lane: str | None = None,
 ) -> DataChunk:
-    """Report a durable task's progress on the thread. The id is the task id,
-    so repeated emissions reconcile into one persisted part."""
+    """Report a durable task's progress on the thread.
+
+    The id is the task id, suffixed by the lane when the task runs several at
+    once, so emissions of one lane reconcile into one persisted part and a
+    fan-out leaves one part per lane.
+    """
     return DataChunk(
         type="data-task-progress",
-        id=str(task_id),
+        id=str(task_id) if lane is None else f"{task_id}:{lane}",
         data=TaskProgress(
             task_id=str(task_id),
             percent=percent,

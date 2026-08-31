@@ -1,0 +1,30 @@
+{
+  "name": "question-turns-do-not-build",
+  "turns": [
+    "I'm investigating virulence factors in Leishmania major"
+  ],
+  "siteId": "tritrypdb",
+  "assistantId": "pathfinder",
+  "rationale": "A bare context statement asks for nothing. The cataloged run answered it with a full frame, build and verify and left a strategy on the researcher's account. This pins the pipeline half: a turn the Lead classifies as a statement persists no strategy AST.",
+  "expected": {
+    "buildsStrategy": false,
+    "structure": null,
+    "recordType": null,
+    "stepCount": null,
+    "verified": null,
+    "stepIdsUnchanged": null,
+    "replyMentions": [],
+    "replyOmits": [
+      "Verified end-to-end"
+    ]
+  },
+  "provenance": {
+    "site": "tritrypdb",
+    "assistant": "pathfinder",
+    "origin": "cataloged-failure",
+    "addedAt": "2026-08-30",
+    "stagingId": "",
+    "reference": "log.md#2026-08-30",
+    "curatorNote": "The prompt is the cataloged sentence, unchanged."
+  }
+}

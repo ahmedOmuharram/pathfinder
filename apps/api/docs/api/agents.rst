@@ -1,124 +1,157 @@
 Agents
 ======
 
-Pathfinder uses two Kani-based agents: the main unified agent and
-sub-agents for delegated tasks. Both extend `Kani <https://github.com/zhudotexe/kani>`_
-with tools and prompts tailored to VEuPathDB strategy building.
+PathFinder runs one Lead agent and three phase sub-agents, all built with
+`pydantic-ai <https://ai.pydantic.dev/>`_. The Lead is the only voice the user
+hears. It calls each phase as a tool and reads a typed ledger between calls,
+so a phase is a tool invocation rather than a node in a fixed graph.
 
 .. list-table:: Agent Comparison
-   :widths: 20 25 25 30
+   :widths: 20 30 25 25
    :header-rows: 1
 
    * - Agent
      - Purpose
-     - Tools
+     - Toolset
      - When Used
-   * - **PathfinderAgent**
-     - Unified chat agent
-     - All tools (catalog, strategy, research, delegation)
-     - Every chat conversation
-   * - **SubtaskAgent**
-     - Delegated sub-task
-     - Same minus delegation
-     - Multi-step builds via sub-kani
-   * - **ExperimentAssistantAgent**
-     - Experiment wizard helper
-     - Research + catalog + gene lookup
-     - ``POST /api/v1/experiments/ai-assist``
-   * - **WorkbenchAgent**
-     - Workbench analysis chat
-     - 7 tool mixins (research, gene, catalog, refinement, analysis, workbench)
-     - Workbench conversations
+   * - **Lead**
+     - The user-facing voice; routes the turn
+     - Sub-agent tools, ledger reads, memory, consult
+     - Every chat turn
+   * - **FRAME**
+     - Turn the request into an operational spec
+     - Retrieval, operationalize, bind, resolve
+     - Called by the Lead when the spec is missing or stale
+   * - **BUILD**
+     - Build and edit the strategy declaratively
+     - Declarative build plus atomic edits
+     - Called by the Lead once a spec exists
+   * - **VERIFY**
+     - Test, analyse and export the result
+     - Control tests, optimization, enrichment, export
+     - Called by the Lead after a build
 
-PathfinderAgent (Unified)
--------------------------
+Lead Agent
+----------
 
-**Purpose:** The single agent for all conversations. Handles research (catalog
-exploration, literature search, control tests, optimization) and execution
-(graph building, strategy composition) in a unified tool set. The model
-decides per-turn which capabilities to use. For multi-step builds, delegates
-to sub-kanis.
+**Purpose:** Own the conversation. The Lead classifies the user's intent,
+invokes the phase sub-agents as tools, reads the typed
+:py:class:`~pathfinder.ai.lead.ledger.InvestigationLedger` after each call,
+and asks the user a blocking question through ``consult_user``. It never
+writes to WDK itself.
 
-**Inherits:** :py:class:`pathfinder.ai.tools.unified_registry.UnifiedToolRegistryMixin`, ``Kani``
+**Key functions:** :py:func:`build_lead_agent`, :py:func:`classify_user_intent`,
+:py:func:`consult_user`, :py:func:`read_ledger_section`
 
-**Tools:** Catalog (list_sites, get_record_types, search_for_searches, etc.),
-strategy tools (create_step, list_current_steps, build_strategy, delete_step,
-update_step, etc.), conversation tools (save_strategy, load_strategy),
-research (web_search, literature_search), validation (run_control_tests,
-optimize_search_parameters, lookup_gene_records), artifacts
-(save_planning_artifact), and **delegate_strategy_subtasks**.
-
-.. tip::
-
-   The unified agent has no separate "plan mode" or "execute mode". The model
-   autonomously decides per-turn whether to research, plan, or build. This
-   matches how researchers naturally describe goals.
-
-.. automodule:: pathfinder.ai.agents.executor
+.. automodule:: pathfinder.ai.lead.lead_agent
    :members:
    :undoc-members:
    :show-inheritance:
 
-SubtaskAgent (Sub-kani)
------------------------
+Investigation Ledger
+--------------------
 
-**Purpose:** Sub-agent spawned by the orchestrator for one delegated task. Has
-the same tools as the main agent (catalog, strategy) but **no** delegation.
-Each sub-kani creates exactly one step (or edits one) and returns the result.
+**Purpose:** The typed record of what the turn has established: the spec, the
+searches chosen, the counts observed, and the verification digest. The Lead
+reads it instead of re-reading sub-agent transcripts.
 
-**Inherits:** :py:class:`pathfinder.ai.tools.registry.AgentToolRegistryMixin`, ``Kani``
-
-**Tools:** Same as PathfinderAgent minus ``delegate_strategy_subtasks``.
-
-**When used:** Internally by :py:func:`pathfinder.ai.orchestration.subkani.orchestrator.delegate_strategy_subtasks` for each
-task node in the delegation plan.
-
-.. automodule:: pathfinder.ai.agents.subtask
+.. automodule:: pathfinder.ai.lead.ledger
    :members:
    :undoc-members:
    :show-inheritance:
 
-ExperimentAssistantAgent
-------------------------
+Sub-agent Dispatch
+------------------
 
-**Purpose:** Lightweight AI assistant for the workbench experiment wizard.
-Scoped to research capabilities (web search, literature search, catalog tools,
-gene lookup) for helping users configure experiment steps.
+**Purpose:** Run one phase sub-agent on behalf of the Lead: build its message
+list, stream its events into the turn, and fold its result into the ledger.
 
-**Inherits:** :py:class:`~pathfinder.ai.tools.research_registry.ResearchToolsMixin`, ``Kani``
-
-**Tools:** web_search, literature_search, catalog tools, gene lookup. No strategy
-mutation or delegation tools.
-
-**When used:** By the experiment wizard AI-assist endpoint
-(``POST /api/v1/experiments/ai-assist``).
-
-.. automodule:: pathfinder.ai.agents.experiment
+.. automodule:: pathfinder.ai.lead.sub_agent_tools
    :members:
    :undoc-members:
    :show-inheritance:
 
-WorkbenchAgent
---------------
-
-**Purpose:** Full-featured conversational AI agent for the workbench. Provides
-experiment result exploration, gene set analysis, strategy refinement, and
-literature research within the context of a specific experiment.
-
-**Inherits:** Composes 7 tool mixins (research, gene, catalog, refinement,
-analysis, workbench read, workbench mutation) + ``Kani``
-
-**When used:** By the workbench chat endpoint, scoped to a (user_id, experiment_id) pair.
-
-.. automodule:: pathfinder.ai.agents.workbench
+.. automodule:: pathfinder.ai.lead.sub_agent_dispatch
    :members:
    :undoc-members:
    :show-inheritance:
 
-Agent Factory
--------------
+.. automodule:: pathfinder.ai.lead.sub_agent_stream
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-**Purpose:** Build the agent with the right engine and model. Resolves model ID
-from override, persisted state, or server default.
+FRAME Agent
+-----------
 
-See :doc:`ai` for full reference.
+**Purpose:** Turn the user's request into an operational spec: the record
+type, the criteria, and the search plus bound parameters each criterion
+resolves to. FRAME proposes; it does not push to WDK.
+
+**Key function:** :py:func:`build_frame_agent`
+
+.. automodule:: pathfinder.ai.agents.frame
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+BUILD Agent
+-----------
+
+**Purpose:** Build the strategy from the operational spec and apply atomic
+edits to an existing one. This is the only agent that mutates the strategy
+graph.
+
+**Key function:** :py:func:`build_execution_agent`
+
+.. automodule:: pathfinder.ai.agents.execution
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+VERIFY Agent
+------------
+
+**Purpose:** Test the built strategy: control tests, parameter optimization,
+enrichment, variant comparison, and export. Its digest is what the Lead reads
+to decide whether the turn succeeded.
+
+**Key function:** :py:func:`build_verification_agent`
+
+.. automodule:: pathfinder.ai.agents.verification
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Phase Roles and Model Defaults
+------------------------------
+
+**Purpose:** The four phase roles and the model each one runs on when the user
+pins nothing. Every agent is built per run, so a default is the model its
+factory bakes in.
+
+.. automodule:: pathfinder.ai.agents.roles
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.agents.registry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Shared Agent State
+------------------
+
+**Purpose:** The state a sub-agent carries across its own tool calls, and the
+history processor that keeps a long phase inside its context budget.
+
+.. automodule:: pathfinder.ai.agents.state
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.agents.compactor
+   :members:
+   :undoc-members:
+   :show-inheritance:

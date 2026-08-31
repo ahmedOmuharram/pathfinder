@@ -25,7 +25,8 @@ from pathfinder.devtools.bench_corpus import (
 )
 from pathfinder.devtools.resolver_bench_proposer import propose_with_model
 from pathfinder.domain.parameters.phyletic import PhyleticBinding
-from pathfinder.domain.parameters.values import ParamValue, to_wire
+from pathfinder.domain.parameters.value_codec import to_wire
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.parameters.wdk_vocab import match_exact_option
 from pathfinder.domain.search import SearchContext
 from pathfinder.platform.errors import AppError

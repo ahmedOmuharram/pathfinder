@@ -71,10 +71,9 @@ async def release_stalled_jobs() -> None:
     """Fail every job no live worker holds, without retrying it.
 
     A dead worker is named by its heartbeat, so a killed process releases its
-    lock five to six minutes later: the sweep runs every minute and the window
-    clears the gap a busy worker starves its own heartbeat by. The started-age
-    timeout stays as the backstop for a job that runs too long on a worker that
-    still answers.
+    lock one to two minutes later: the sweep runs every minute and the window
+    is many beats of the heartbeat thread. The started-age timeout stays as the
+    backstop for a job that runs too long on a worker that still answers.
     """
     reasons: dict[int | None, tuple[Job, str]] = {
         job.id: (job, _STALLED_TURN_ERROR) for job in await _long_running_jobs()

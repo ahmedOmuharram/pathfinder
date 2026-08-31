@@ -1,4 +1,4 @@
-"""Builders for the ``DataChunk``s that carry strategy telemetry to the
+r"""Builders for the ``DataChunk``\ s that carry strategy telemetry to the
 frontend as data parts on the assistant message."""
 
 from __future__ import annotations

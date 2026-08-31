@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import procrastinate
@@ -73,40 +75,101 @@ async def _noop_open() -> AsyncIterator[None]:
     yield
 
 
-async def _run_amain(worker_concurrency: int) -> AsyncMock:
-    """Run ``amain`` against a stubbed app and return the run_worker_async mock."""
+@dataclass
+class _AmainRun:
+    """What ``amain`` built and how it ran the heartbeat."""
+
+    worker_kwargs: dict[str, Any]
+    heartbeat_kwargs: dict[str, Any]
+    heartbeat_marks: list[str]
+    ran: bool
+
+
+async def _run_amain(
+    *,
+    worker_concurrency: int = 4,
+    heartbeat_interval: float = 5.0,
+) -> _AmainRun:
+    """Run ``amain`` against a stubbed app and report what it built."""
     app = MagicMock()
     app.open_async = MagicMock(side_effect=_noop_open)
-    app.run_worker_async = AsyncMock()
+    app.perform_import_paths = MagicMock()
+    built: dict[str, Any] = {}
+    heartbeat_built: dict[str, Any] = {}
+    marks: list[str] = []
+
+    def make_worker(**kwargs: Any) -> MagicMock:
+        built.update(kwargs)
+        worker = MagicMock()
+        worker.worker_id = 11
+        worker.run = AsyncMock(side_effect=lambda: marks.append("run"))
+        return worker
+
+    def make_heartbeat(**kwargs: Any) -> MagicMock:
+        heartbeat_built.update(kwargs)
+        heartbeat = MagicMock()
+        heartbeat.start = MagicMock(side_effect=lambda: marks.append("start"))
+        heartbeat.stop = MagicMock(side_effect=lambda: marks.append("stop"))
+        return heartbeat
+
     with (
         patch("pathfinder.jobs.worker.procrastinate_app", app),
         patch("pathfinder.jobs.worker.setup_logging"),
         patch("pathfinder.jobs.worker.install_procrastinate_redaction"),
         patch("pathfinder.jobs.worker.register_all_tools"),
+        patch("pathfinder.jobs.worker.install_admitted_sources"),
+        patch("pathfinder.jobs.worker.admitted_tool_sources", return_value=[]),
+        patch("pathfinder.jobs.worker.postgres_beat_writer", return_value="writer"),
+        patch("pathfinder.jobs.worker.Worker", side_effect=make_worker),
+        patch("pathfinder.jobs.worker.HeartbeatThread", side_effect=make_heartbeat),
         patch(
             "pathfinder.jobs.worker.get_settings",
-            return_value=MagicMock(worker_concurrency=worker_concurrency),
+            return_value=MagicMock(
+                worker_concurrency=worker_concurrency,
+                worker_heartbeat_interval_seconds=heartbeat_interval,
+                database_url="postgresql+asyncpg://user@host/db",
+            ),
         ),
     ):
         await amain()
-    return app.run_worker_async
+    return _AmainRun(
+        worker_kwargs=built,
+        heartbeat_kwargs=heartbeat_built,
+        heartbeat_marks=marks,
+        ran=True,
+    )
 
 
 async def test_amain_passes_configured_concurrency() -> None:
     """``amain`` hands the configured concurrency to the procrastinate worker."""
-    run_worker_async = await _run_amain(6)
+    run = await _run_amain(worker_concurrency=6)
 
-    run_worker_async.assert_awaited_once()
-    assert run_worker_async.await_args.kwargs["concurrency"] == 6
+    assert run.worker_kwargs["concurrency"] == 6
 
 
 async def test_amain_keeps_serving_every_queue() -> None:
     """Concurrency does not change the set of queues the worker consumes."""
-    run_worker_async = await _run_amain(4)
+    run = await _run_amain()
 
-    assert run_worker_async.await_args.kwargs["queues"] == [
+    assert run.worker_kwargs["queues"] == [
         "chat_turn",
         "default",
         "maintenance",
         "verification",
     ]
+
+
+async def test_amain_beats_around_the_worker_run() -> None:
+    """The heartbeat starts before the jobs and stops after them."""
+    run = await _run_amain()
+
+    assert run.heartbeat_marks == ["start", "run", "stop"]
+
+
+async def test_amain_gives_the_heartbeat_the_worker_id_and_interval() -> None:
+    """The heartbeat refreshes the row the worker registered, at the interval."""
+    run = await _run_amain(heartbeat_interval=2.5)
+
+    assert run.heartbeat_kwargs["interval_seconds"] == 2.5
+    assert run.heartbeat_kwargs["worker_id"]() == 11
+    assert run.worker_kwargs["update_heartbeat_interval"] == 2.5

@@ -148,6 +148,8 @@ machinery is not the obstacle.
   union, discriminated on `type`.
 - **`domain/parameters/values.py`** - the eleven `*Value` models and `ParamKind`.
   Pure, no I/O, and the only parameter representation that crosses layers.
+- **`domain/parameters/value_codec.py`** - the conversion between those models and
+  WDK's wire and decoded forms, and the coercion of raw input into one of them.
 - **`domain/parameters/wdk_vocab.py` and `domain/wdk_values.py`** - the eight
   `WDK*`-named types that reach the browser, listed in
   [WDK-MAP-007](../rules/pathfinder-mapping.md). They are WDK-shaped and

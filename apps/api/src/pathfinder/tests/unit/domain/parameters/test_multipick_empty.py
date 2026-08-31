@@ -16,10 +16,8 @@ import json
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
-from pathfinder.domain.parameters.values import (
-    _PARAM_VALUE_ADAPTER,
-    MultiPickValue,
-)
+from pathfinder.domain.parameters.value_codec import _PARAM_VALUE_ADAPTER
+from pathfinder.domain.parameters.values import MultiPickValue
 
 
 def test_empty_selection_is_representable() -> None:

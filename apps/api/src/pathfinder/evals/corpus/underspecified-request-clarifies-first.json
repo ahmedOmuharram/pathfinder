@@ -1,6 +1,8 @@
 {
   "name": "underspecified-request-clarifies-first",
-  "prompt": "Find drug targets that are expressed in the blood stage, do not vary much between isolates, and have no human equivalent.",
+  "turns": [
+    "Find drug targets that are expressed in the blood stage, do not vary much between isolates, and have no human equivalent."
+  ],
   "siteId": "plasmodb",
   "assistantId": "pathfinder",
   "rationale": "Three undefined terms must produce a question, not a guess. Pins the clarify-before-guess property: the turn ends awaiting the user and persists no strategy.",
@@ -10,6 +12,7 @@
     "recordType": null,
     "stepCount": null,
     "verified": null,
+    "stepIdsUnchanged": null,
     "replyMentions": [
       "clarify"
     ],

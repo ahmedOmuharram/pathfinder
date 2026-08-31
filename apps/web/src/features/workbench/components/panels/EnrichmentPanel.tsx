@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Dna, Play, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { EnrichmentSection } from "@/features/analysis";
-import type { EnrichmentResult } from "@pathfinder/shared";
+import { toUserMessage } from "@/lib/api/errors";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 import { enrichGeneSet } from "../../api/geneSets";
 
 // ---------------------------------------------------------------------------
@@ -34,13 +36,22 @@ export function EnrichmentPanel() {
   const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
+  const invalidateGeneSets = useInvalidateGeneSets();
 
   const [selectedTypes, setSelectedTypes] = useState<Set<EnrichmentTypeKey>>(
     new Set(ENRICHMENT_TYPES.map((t) => t.key)),
   );
-  const [results, setResults] = useState<EnrichmentResult[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // The API saves each run on the gene set, so the panel reads the saved
+  // analyses and a set the researcher comes back to still shows its results.
+  const results = activeSet?.enrichmentResults ?? [];
+
+  const run = useMutation({
+    mutationFn: async (setId: string) => enrichGeneSet(setId, [...selectedTypes]),
+    onSuccess: async () => {
+      await invalidateGeneSets();
+    },
+  });
 
   const toggleType = (key: EnrichmentTypeKey) => {
     setSelectedTypes((prev) => {
@@ -54,21 +65,9 @@ export function EnrichmentPanel() {
     });
   };
 
-  const handleRun = async () => {
-    if (!activeSet || selectedTypes.size === 0) return;
-    setLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const data = await enrichGeneSet(activeSet.id, [...selectedTypes]);
-      setResults(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loading = run.isPending;
+  const error = run.error === null ? null : toUserMessage(run.error);
+  const ranAndFoundNothing = run.isSuccess && results.length === 0;
 
   return (
     <AnalysisPanelContainer
@@ -104,7 +103,8 @@ export function EnrichmentPanel() {
           <Button
             size="sm"
             onClick={() => {
-              void handleRun();
+              if (activeSet == null || selectedTypes.size === 0) return;
+              run.mutate(activeSet.id);
             }}
             disabled={loading || !activeSet || selectedTypes.size === 0}
           >
@@ -123,16 +123,11 @@ export function EnrichmentPanel() {
           )}
         </div>
 
-        {error != null && error !== "" && (
-          <p className="text-xs text-destructive">{error}</p>
-        )}
+        {error !== null && <p className="text-xs text-destructive">{error}</p>}
 
-        {/* Results */}
-        {results != null && results.length > 0 && (
-          <EnrichmentSection results={results} />
-        )}
+        {results.length > 0 && <EnrichmentSection results={results} />}
 
-        {results?.length === 0 && (
+        {ranAndFoundNothing && (
           <p className="py-4 text-center text-xs text-muted-foreground">
             No enrichment results returned. Try different enrichment types.
           </p>

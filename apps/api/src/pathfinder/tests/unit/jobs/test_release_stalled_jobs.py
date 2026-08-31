@@ -89,11 +89,11 @@ class TestStalledTimeoutSetting:
 
 
 class TestDeadHeartbeatSetting:
-    """The window clears the worst measured heartbeat starvation gap."""
+    """The window clears the worst gap the heartbeat thread can produce."""
 
-    def test_it_defaults_to_five_minutes(self) -> None:
+    def test_it_defaults_to_one_minute(self) -> None:
         get_settings.cache_clear()
-        assert get_settings().worker_dead_heartbeat_seconds == 300
+        assert get_settings().worker_dead_heartbeat_seconds == 60
 
     def test_it_rejects_a_value_below_the_floor(self) -> None:
         with pytest.raises(ValueError, match="worker_dead_heartbeat_seconds"):

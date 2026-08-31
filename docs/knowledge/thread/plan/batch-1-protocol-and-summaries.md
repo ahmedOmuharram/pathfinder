@@ -527,7 +527,7 @@ covering both entities yields
 | `rename_strategy` | `f"Renamed to {new_name}"` |
 | `clear_strategy` | `f"Strategy cleared"` |
 | `get_strategy` | `f"{n} steps, {genes:,} genes"`; `f"No strategy yet"` with `status="empty"` |
-| `get_live_strategy_state` | same as `get_strategy` |
+| `get_live_strategy_state` | same as `get_strategy`, plus `f"{n} steps, count not available"` with `status="warn"` when the site answers no count |
 
 ### Verification and experiments
 

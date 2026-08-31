@@ -53,6 +53,22 @@ describe("selectAssistantErrorDetail", () => {
     ).toBe(null);
   });
 
+  it("shows the field message a chat 422 carries, never the raw body", () => {
+    const body = JSON.stringify({
+      type: "about:blank",
+      title: "Invalid plan",
+      status: 422,
+      code: "VALIDATION_ERROR",
+      errors: [{ path: "recordType", message: "Record type is required" }],
+    });
+    expect(
+      selectAssistantErrorDetail({
+        status: { type: "incomplete", reason: "error", error: body },
+        content: [],
+      }),
+    ).toBe("Record type is required");
+  });
+
   it("says nothing for a turn that finished", () => {
     expect(
       selectAssistantErrorDetail({ status: { type: "complete" }, content: [] }),

@@ -4,7 +4,11 @@ import type { SystemReadyResponse } from "@pathfinder/shared/generated/types/Sys
 export type StartupStatus =
   | { kind: "booting"; notReady: string[] }
   | { kind: "degraded"; notReady: string[] }
-  | { kind: "unreachable" };
+  | { kind: "unreachable" }
+  | { kind: "busy-worker" };
+
+/** Everything that replaces the app. A busy worker does not. */
+export type BlockingStatus = Exclude<StartupStatus, { kind: "busy-worker" }>;
 
 export function startupStatus(args: {
   data: SystemReadyResponse | undefined;
@@ -13,6 +17,9 @@ export function startupStatus(args: {
   graceMs: number;
 }): StartupStatus {
   const notReady = args.data?.notReady ?? [];
+  if (args.data?.apiReady === true && notReady.join() === "worker") {
+    return { kind: "busy-worker" };
+  }
   if (args.elapsedMs < args.graceMs) {
     return { kind: "booting", notReady };
   }
@@ -22,7 +29,7 @@ export function startupStatus(args: {
   return { kind: "degraded", notReady };
 }
 
-export function StartupScreen({ status }: { status: StartupStatus }) {
+export function StartupScreen({ status }: { status: BlockingStatus }) {
   if (status.kind === "booting") {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-background text-foreground">

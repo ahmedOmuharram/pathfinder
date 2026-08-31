@@ -108,3 +108,39 @@ describe("SetVenn", () => {
     );
   });
 });
+
+describe("SetVenn promises no diagram it cannot draw", () => {
+  const withoutGenes = [
+    { key: "Set A", geneIds: [] },
+    { key: "Set B", geneIds: [] },
+  ];
+
+  it("draws no empty diagram and no click instruction for sets with no stored genes", () => {
+    render(<SetVenn sets={withoutGenes} onRegionClick={vi.fn()} />);
+    expect(screen.queryAllByTestId("reaviz-venn")).toHaveLength(0);
+    expect(screen.queryAllByText("Click a region to create a gene set")).toHaveLength(
+      0,
+    );
+  });
+
+  it("says why instead", () => {
+    render(<SetVenn sets={withoutGenes} onRegionClick={vi.fn()} />);
+    expect(
+      screen.getByText(
+        "These gene sets store no gene IDs, so there is no overlap to draw.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("still draws when one of the two sets has genes", () => {
+    render(
+      <SetVenn
+        sets={[
+          { key: "Set A", geneIds: ["g1"] },
+          { key: "Set B", geneIds: [] },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("reaviz-venn")).toBeTruthy();
+  });
+});

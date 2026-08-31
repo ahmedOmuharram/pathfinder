@@ -1,94 +1,202 @@
-Chat & Orchestration
-====================
+Chat Pipeline
+=============
 
-Chat event handling, streaming, and orchestration of the agent flow.
-Coordinates between HTTP, the agent, and the strategy store.
+How one chat turn runs: the HTTP route defers the work, the worker drives a
+LangGraph turn, and every chunk the turn emits is written to
+``conversation_events`` and tailed back over SSE.
 
 .. mermaid::
 
    sequenceDiagram
        participant Client
        participant Router
-       participant Orchestrator
-       participant Agent
-       participant WDK
+       participant Dispatcher
+       participant Worker
+       participant Lead
 
        Client->>Router: POST /api/v1/chat
-       Router->>Orchestrator: start_chat_stream()
-       Orchestrator->>Agent: create PathfinderAgent
+       Router->>Dispatcher: resolve assistant, persist user message
+       Dispatcher->>Worker: defer chat_turn job
+       Dispatcher-->>Client: SSE tail of conversation_events
+       Worker->>Lead: run the turn graph
        loop Streaming
-           Agent->>Agent: tool call (e.g. create_step)
-           Agent->>WDK: WDK API call
-           WDK-->>Agent: result
-           Agent-->>Orchestrator: SSE event
-           Orchestrator-->>Client: SSE: tool_call_start/end
+           Lead->>Lead: sub-agent tool call
+           Lead-->>Worker: chunk
+           Worker-->>Client: persisted chunk over SSE
        end
-       Agent-->>Orchestrator: final message
-       Orchestrator-->>Client: SSE: message_end
 
 Overview
 --------
 
-- **Events** — Chat event type definitions
-- **Orchestrator** — Run the agent loop, emit SSE events
-- **Streaming** — Stream processing and event handling
-- **Mention Context** — @mention context injection
-- **Utils** — Shared chat utilities
+- **Dispatcher** — Resolve the assistant, persist the user message, defer the
+  turn to the worker, and return the SSE tail. The API process never runs the
+  agent.
+- **Turn Runner** — The worker side. Drives the assistant's graph and closes
+  the turn.
+- **Turn Graph** — A two-node ``StateGraph``: ``lead`` then ``finalize_turn``.
+- **Stream Events** — The typed ``data-*`` chunks the turn emits.
+- **Event Log** — Every chunk is a row in ``conversation_events``, replayed
+  for history and for reconnect.
 
-Chat Events
------------
+.. important::
 
-**Purpose:** Chat event type definitions for the event bus.
+   Chat turns run in the worker container, not in the API process. A chat
+   request that hangs with no chunks is a worker that is not consuming the
+   ``chat_turn`` queue.
 
-.. automodule:: pathfinder.services.chat.events
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Chat Orchestrator
------------------
-
-**Purpose:** Orchestrate the agent loop. Send user messages to the agent,
-handle tool calls (create_step, build_strategy, etc.), apply graph snapshots
-from tool results, emit SSE events (message_start, tool_call_start, etc.).
-Coordinates between the agent and the strategy store.
-
-**Key functions:** Main orchestration entry point, tool result handling
-
-.. automodule:: pathfinder.services.chat.orchestrator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Chat Streaming
---------------
-
-**Purpose:** Stream processing for the chat agent. Handles SSE event
-formatting and stream lifecycle management.
-
-.. automodule:: pathfinder.services.chat.streaming
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Mention Context
----------------
-
-**Purpose:** Build rich context from @-mentions (strategies and experiments).
-Loads referenced entities and formats them for the agent's system prompt.
-
-.. automodule:: pathfinder.services.chat.mention_context
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Chat Utils
+Dispatcher
 ----------
 
-**Purpose:** Shared utilities for chat processing: node selection parsing,
-message formatting, and stream helpers.
+**Purpose:** Entry point for a chat turn. Resolves the conversation's
+assistant, runs its identity gate, persists the user message, defers the
+``chat_turn`` job, and returns the durable event tail.
 
-.. automodule:: pathfinder.services.chat.utils
+.. automodule:: pathfinder.ai.conversation.dispatcher
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Assistant Routing
+-----------------
+
+**Purpose:** Decide which assistant answers a turn. A new conversation takes
+the assistant the request names, or the default; naming a different one on an
+existing thread is refused.
+
+.. automodule:: pathfinder.ai.conversation.assistant_routing
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Request Body
+------------
+
+**Purpose:** The chat request DTO. Parses the AI SDK message list and strips
+the parts a resend must not replay.
+
+.. automodule:: pathfinder.ai.conversation.request_body
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Turn Runner
+-----------
+
+**Purpose:** The worker side of a turn. Builds the graph the assistant's spec
+returns, streams its chunks into the event writer, and finalizes the turn.
+
+.. automodule:: pathfinder.ai.conversation.turn_runner
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Turn Stop
+---------
+
+**Purpose:** Cancel a running turn. The cancel path closes every open tool
+call so no trace row reads as running forever.
+
+.. automodule:: pathfinder.ai.conversation.turn_stop
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Title Generation
+----------------
+
+**Purpose:** Name a conversation from its first user message, using the
+provider's smallest model.
+
+.. automodule:: pathfinder.ai.conversation.title_generator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Turn Graph
+----------
+
+**Purpose:** PathFinder's turn graph: ``lead`` then ``finalize_turn``. The
+Lead node runs the only LLM in the graph; the sub-agents are tools it calls.
+
+.. automodule:: pathfinder.ai.graph.builder
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.graph.composition
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.graph.lead_node
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.graph.nodes
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.graph.state
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.graph.runtime
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Stream Events
+-------------
+
+**Purpose:** Build the typed ``data-*`` chunks that carry strategy and EDA
+telemetry to the frontend as parts on the assistant message.
+
+.. automodule:: pathfinder.ai.graph.stream_events
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.strategy_stream_parts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.ai.eda_stream_parts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Durable Event Log
+-----------------
+
+**Purpose:** The runtime's side of the pipeline: translate agent events into
+AI SDK chunks, write each chunk to ``conversation_events``, and tail the log
+over SSE with LISTEN/NOTIFY. Owned by the ``assistant_core`` package.
+
+.. automodule:: assistant_core.conversation.vercel_adapter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: assistant_core.conversation.event_writer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: assistant_core.conversation.event_stream
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: assistant_core.conversation.ui_message_reducer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: assistant_core.conversation.checkpointer
    :members:
    :undoc-members:
    :show-inheritance:

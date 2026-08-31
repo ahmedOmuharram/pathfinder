@@ -6,12 +6,26 @@ from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
+from pathfinder.domain.strategy.ast import (
+    COMBINE_SEARCH_NAME,
+    StrategyStepNode,
+    deep_clone_with_fresh_ids,
+)
 from pathfinder.domain.strategy.constraints import Constraint
 from pathfinder.domain.strategy.ops import CombineOp
 
 CriterionRole = Literal["seed", "filter", "transform", "exclude"]
 _MIN_COMBINE_INPUTS = 2
+
+# Swapping a combine's operands mirrors the operator that is not symmetric.
+_MIRRORED_OPERATORS = {
+    CombineOp.INTERSECT: CombineOp.INTERSECT,
+    CombineOp.UNION: CombineOp.UNION,
+    CombineOp.MINUS: CombineOp.RMINUS,
+    CombineOp.RMINUS: CombineOp.MINUS,
+    CombineOp.LONLY: CombineOp.RONLY,
+    CombineOp.RONLY: CombineOp.LONLY,
+}
 
 
 class OpenSlot(CamelModel):
@@ -24,6 +38,17 @@ class OpenSlot(CamelModel):
     param_name: str
     question: str = ""
     options: list[str] = Field(default_factory=list)
+
+
+class AssumedValue(CamelModel):
+    """A value the model chose that the criterion text does not state.
+
+    It is reported as a constraint so the user reads it and can override it.
+    """
+
+    param_name: str
+    value: str
+    reason: str
 
 
 class DroppedCriterion(CamelModel):
@@ -44,10 +69,35 @@ class SpecStructure(CamelModel):
     root: StructureNode
 
 
+class SavedStrategyRef(CamelModel):
+    """A saved strategy the user reuses as the input of a criterion.
+
+    ``subtree`` is the saved strategy's steps, cloned with fresh ids, so the
+    build pushes steps of its own instead of borrowing the saved strategy's.
+    """
+
+    conversation_id: str
+    name: str
+    wdk_strategy_id: int
+    root_count: int | None = None
+    step_count: int = 0
+    subtree: StrategyStepNode
+
+    @property
+    def label(self) -> str:
+        """The saved strategy named with the size it brings."""
+        size = f"{self.step_count} steps"
+        if self.root_count is not None:
+            size = f"{self.root_count} results, {size}"
+        return f"saved strategy {self.name!r} ({size})"
+
+
 class Criterion(CamelModel):
     id: str
     text: str
     search_name: str = ""
+    # Set instead of ``search_name`` when the criterion reuses a saved strategy.
+    saved_strategy_ref: SavedStrategyRef | None = None
     role: CriterionRole = "filter"
     resolved_params: dict[str, ParamValue] = Field(default_factory=dict)
     # Params holding the search default rather than a value the request states.
@@ -55,10 +105,11 @@ class Criterion(CamelModel):
     defaulted_params: list[str] = Field(default_factory=list)
     open_params: list[OpenSlot] = Field(default_factory=list)
     confidence: float = 0.0
+    assumptions: list[AssumedValue] = Field(default_factory=list)
 
     @property
     def bound(self) -> bool:
-        return bool(self.search_name)
+        return bool(self.search_name) or self.saved_strategy_ref is not None
 
 
 class OperationalSpec(CamelModel):
@@ -78,6 +129,13 @@ class OperationalSpec(CamelModel):
         if not self.criteria or self.structure is None or self.open_slots:
             return False
         return all(c.bound and not c.open_params for c in self.criteria)
+
+
+class _Operand(NamedTuple):
+    """A built combine input, and the saved strategy it stands for."""
+
+    step: StrategyStepNode
+    saved: SavedStrategyRef | None
 
 
 class SpecTree(NamedTuple):
@@ -149,6 +207,10 @@ def _node_to_step(
 ) -> StrategyStepNode:
     if node.kind == "leaf":
         crit = _bound_criterion(node, by_id, "criterion")
+        if crit.saved_strategy_ref is not None:
+            saved_step = deep_clone_with_fresh_ids(crit.saved_strategy_ref.subtree)
+            minted[crit.id] = saved_step.id
+            return saved_step
         step = StrategyStepNode(
             search_name=crit.search_name,
             parameters=dict(crit.resolved_params),
@@ -177,17 +239,52 @@ def _node_to_step(
     if node.operator is None or len(node.inputs) < _MIN_COMBINE_INPUTS:
         msg = "combine node needs an operator and at least two inputs"
         raise ValueError(msg)
-    combined = StrategyStepNode(
-        search_name=COMBINE_SEARCH_NAME,
-        operator=node.operator,
-        primary_input=_node_to_step(node.inputs[0], by_id, minted),
-        secondary_input=_node_to_step(node.inputs[1], by_id, minted),
+    combined = _combine(
+        _node_to_operand(node.inputs[0], by_id, minted),
+        _node_to_operand(node.inputs[1], by_id, minted),
+        node.operator,
     )
     for extra in node.inputs[2:]:
-        combined = StrategyStepNode(
-            search_name=COMBINE_SEARCH_NAME,
-            operator=node.operator,
-            primary_input=combined,
-            secondary_input=_node_to_step(extra, by_id, minted),
+        combined = _combine(
+            combined, _node_to_operand(extra, by_id, minted), node.operator
         )
-    return combined
+    return combined.step
+
+
+def _node_to_operand(
+    node: StructureNode, by_id: dict[str, Criterion], minted: dict[str, str]
+) -> _Operand:
+    """One side of a combine, and the saved strategy it stands for."""
+    saved = None
+    if node.kind == "leaf":
+        crit = by_id.get(node.criterion_id or "")
+        saved = crit.saved_strategy_ref if crit is not None else None
+    return _Operand(step=_node_to_step(node, by_id, minted), saved=saved)
+
+
+def _combine(left: _Operand, right: _Operand, operator: CombineOp) -> _Operand:
+    """Join two operands, with any saved strategy on the secondary side.
+
+    WDK marks the SECONDARY input of a combine as the collapsed saved
+    strategy, so an operand that names one moves there and the operator
+    mirrors to keep the question the same.
+    """
+    if left.saved is not None and right.saved is None:
+        mirrored = _MIRRORED_OPERATORS.get(operator)
+        if mirrored is None:
+            msg = (
+                f"{operator.value} cannot take a saved strategy on its left "
+                f"input; put the saved strategy on the right"
+            )
+            raise ValueError(msg)
+        left, right, operator = right, left, mirrored
+    saved = right.saved
+    step = StrategyStepNode(
+        search_name=COMBINE_SEARCH_NAME,
+        operator=operator,
+        primary_input=left.step,
+        secondary_input=right.step,
+        expanded_strategy_id=saved.wdk_strategy_id if saved is not None else None,
+        expanded_name=saved.name if saved is not None else None,
+    )
+    return _Operand(step=step, saved=None)

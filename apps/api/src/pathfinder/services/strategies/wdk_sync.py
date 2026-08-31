@@ -18,6 +18,9 @@ from pathfinder.persistence.repositories import (
 from pathfinder.persistence.repositories.conversation_strategy import (
     ConversationWithStrategy,
 )
+from pathfinder.persistence.repositories.saved_strategy import (
+    SavedStrategyRepository,
+)
 from pathfinder.platform.errors import AppError, InternalError
 from pathfinder.services.wdk import get_strategy_api
 
@@ -110,7 +113,9 @@ async def upsert_chat(
     spec: WdkChatSpec,
 ) -> Conversation:
     """Creates or updates the local record for a WDK strategy."""
-    found = await conv_repo.get_by_wdk_strategy_id(user_id, spec.wdk_id)
+    found = await SavedStrategyRepository(conv_repo.session).get_by_wdk_strategy_id(
+        user_id, spec.wdk_id
+    )
     existing = None if found is None else found[0]
     if existing:
         await conv_repo.update_conversation(
@@ -174,7 +179,9 @@ async def upsert_summary_chat(
     estimated_size = wdk_item.estimated_size
     step_count = wdk_item.leaf_and_transform_step_count
 
-    found = await conv_repo.get_by_wdk_strategy_id(user_id, wdk_id)
+    found = await SavedStrategyRepository(conv_repo.session).get_by_wdk_strategy_id(
+        user_id, wdk_id
+    )
     existing = None if found is None else found[0]
     if existing and existing.dismissed_at is not None:
         # A dismissed strategy is neither re-imported nor updated.

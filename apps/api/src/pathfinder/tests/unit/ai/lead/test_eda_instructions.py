@@ -38,3 +38,12 @@ def test_the_instructions_say_the_compute_runs_before_the_step() -> None:
 
 def test_the_instructions_are_ascii_only() -> None:
     assert LEAD_INSTRUCTIONS.isascii()
+
+
+def test_the_eda_loop_ends_with_verification() -> None:
+    """An exported study step is a built step, so the loop closes with VERIFY."""
+    eda_section = LEAD_INSTRUCTIONS[
+        LEAD_INSTRUCTIONS.index("## EDA: sample-level data") :
+    ]
+    index_step = eda_section.index("create_eda_step")
+    assert "verify_strategy" in eda_section[index_step:]

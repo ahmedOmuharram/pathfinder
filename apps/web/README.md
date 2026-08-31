@@ -186,12 +186,14 @@ PathFinder uses a 3-tier Playwright E2E test architecture:
 
 All tests use real VEuPathDB APIs. Only the LLM is mocked via the dedicated test profile.
 
-Start the local E2E stack with the dedicated test profile:
+Start the local E2E stack with the dedicated test profile. The e2e overlay
+builds the web container's `runner` target, so port 3000 serves the production
+build: the suite meets no development overlay and no per-route compile.
 
 ```bash
 docker compose --env-file .env.test \
   -f ../../docker-compose.yml \
   -f ../../docker-compose.dev.yml \
   -f ../../docker-compose.e2e.yml \
-  up -d --build api web
+  up -d --build --wait api worker web
 ```

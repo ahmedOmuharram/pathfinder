@@ -35,7 +35,6 @@ _LOCAL_FILES: dict[str, str] = {
     "system": "system.md",
     "safety": "safety.md",
     "site-hints": "site_hints.md",
-    "workbench": "experiment/workbench.md",
 }
 
 # The Langfuse SDK raises error classes from more than one namespace.

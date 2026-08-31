@@ -9,10 +9,15 @@ from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.ai.agents.state import SearchOverview
-from pathfinder.ai.lead.intent import UserIntent
+from pathfinder.ai.lead.intent import (
+    REQUEST_INTENTS,
+    IntentClassification,
+    UserIntent,
+)
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
 )
+from pathfinder.domain.strategy.constraints import Constraint
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 from pathfinder.domain.strategy.staleness import StaleBuild
 
@@ -114,6 +119,35 @@ class StrategyDomainState(BaseModel):
     created_gene_set_ids: list[str] = Field(default_factory=list)
     # Studies already sent a full EDA filter sheet, with their vocabularies.
     sheeted_eda_datasets: set[str] = Field(default_factory=set)
+    # Every requirement the thread has stated, oldest first. A clarification
+    # adds to this list; nothing but a fresh request on an empty thread clears it.
+    requirements: list[Constraint] = Field(default_factory=list)
+    # The request the thread is answering, as the user wrote it.
+    original_request: str = ""
+
+    @property
+    def has_strategy(self) -> bool:
+        """Whether this thread already describes or holds a strategy."""
+        spec = self.operational_spec
+        return bool(spec and spec.criteria) or self.last_build_outcome is not None
+
+    def record_intent(self, intent: UserIntent, *, request_text: str) -> None:
+        """Take this turn's requirements and the request they belong to."""
+        if (
+            intent.classification is IntentClassification.NEW_STRATEGY
+            and not self.has_strategy
+        ):
+            self.requirements = []
+            self.original_request = ""
+        seen = {(c.kind, c.requested_value) for c in self.requirements}
+        for constraint in intent.explicit_constraints:
+            key = (constraint.kind, constraint.requested_value)
+            if key in seen:
+                continue
+            seen.add(key)
+            self.requirements.append(constraint)
+        if not self.original_request and intent.classification in REQUEST_INTENTS:
+            self.original_request = request_text
 
     def mark_eda_sheet_shown(self, dataset_id: str) -> None:
         self.sheeted_eda_datasets.add(dataset_id)

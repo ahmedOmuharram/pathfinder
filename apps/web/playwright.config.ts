@@ -2,18 +2,46 @@ import { defineConfig, devices } from "@playwright/test";
 
 const isCI = Boolean(process.env["CI"]);
 
+// Feature specs that send a message through the mock provider and wait on a
+// turn. Their data-part waits starve when every worker slot holds a turn, so
+// they run in the serialized `feature-turns` project instead of `feature`.
+const turnDrivingFeatureSpecs = [
+  "**/e2e/feature/ai-workbench-integration.spec.ts",
+  "**/e2e/feature/auth.spec.ts",
+  "**/e2e/feature/auto-build.spec.ts",
+  "**/e2e/feature/branch-switch.spec.ts",
+  "**/e2e/feature/chat.spec.ts",
+  "**/e2e/feature/conversations.spec.ts",
+  "**/e2e/feature/dependent-strategy.spec.ts",
+  "**/e2e/feature/dismissed-strategies.spec.ts",
+  "**/e2e/feature/execution-phase.spec.ts",
+  "**/e2e/feature/experiment-flows.spec.ts",
+  "**/e2e/feature/fork-branch.spec.ts",
+  "**/e2e/feature/insert-saved.spec.ts",
+  "**/e2e/feature/strategy-complex-edit.spec.ts",
+  "**/e2e/feature/strategy-duplicate-rename.spec.ts",
+  "**/e2e/feature/strategy-graph.spec.ts",
+  "**/e2e/feature/strategy-operator-persistence.spec.ts",
+  "**/e2e/feature/strategy-overhaul.spec.ts",
+  "**/e2e/feature/strategy-param-edit.spec.ts",
+  "**/e2e/feature/user-data.spec.ts",
+];
+
 /**
  * Playwright E2E test configuration.
  *
  * ## Running locally
  *
- * 1. Start Docker services with the explicit development overlays:
+ * 1. Start Docker services with the test overlays. The e2e overlay builds the
+ *    web container's `runner` target, so port 3000 serves the production
+ *    build: no dev overlay portal over the controls a spec clicks, and no
+ *    per-route compile to grow the server's heap.
  *
  *      docker compose --env-file .env.test \
  *        -f docker-compose.yml \
  *        -f docker-compose.dev.yml \
  *        -f docker-compose.e2e.yml \
- *        up -d --build api web
+ *        up -d --build --wait api worker web
  *
  * 2. Export the registered VEuPathDB token and run the tests:
  *
@@ -38,6 +66,10 @@ const isCI = Boolean(process.env["CI"]);
  */
 export default defineConfig({
   testDir: "./e2e",
+  // Waits for the web container to accept connections, then renders each route
+  // pattern once so the first spec to enter one does not pay the cold render
+  // inside its own budget.
+  globalSetup: "./e2e/global-setup.ts",
   timeout: isCI ? 120_000 : 60_000,
   expect: { timeout: 15_000 },
   retries: isCI ? 2 : 3,
@@ -61,7 +93,15 @@ export default defineConfig({
     {
       name: "feature",
       testDir: "./e2e/feature",
+      testIgnore: turnDrivingFeatureSpecs,
       timeout: 120_000,
+    },
+    {
+      name: "feature-turns",
+      testDir: "./e2e/feature",
+      testMatch: turnDrivingFeatureSpecs,
+      timeout: 120_000,
+      fullyParallel: false,
     },
     {
       name: "cross-feature",
@@ -103,9 +143,7 @@ export default defineConfig({
     },
   ],
 
-  // Both local and CI: the Docker web container on port 3000 serves the
-  // production build (no HMR). The Docker API on port 8000 must be running
-  // with PATHFINDER_CHAT_PROVIDER=mock via the dedicated test overlay.
-  //
-  // Start services: docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.e2e.yml up -d --build api web
+  // No webServer: both local and CI drive containers the recipe above starts.
+  // Port 3000 serves the production build of the `runner` target, and the API
+  // on port 8000 runs with PATHFINDER_CHAT_PROVIDER=mock from the e2e overlay.
 });

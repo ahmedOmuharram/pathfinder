@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import type { ChatPage } from "../pages/chat.page";
 import type { SidebarPage } from "../pages/sidebar.page";
 import type { ApiClient } from "../fixtures/api-client";
+import { openConversationId } from "../pages/navigation";
 
 /**
  * Feature: Dismissed (soft-deleted) strategies.
@@ -20,6 +21,7 @@ import type { ApiClient } from "../fixtures/api-client";
  * onto it, making it behave as a WDK-linked strategy for delete semantics.
  */
 async function makeWdkLinked(
+  page: Page,
   chatPage: ChatPage,
   sidebarPage: SidebarPage,
   apiClient: ApiClient,
@@ -29,7 +31,7 @@ async function makeWdkLinked(
   await chatPage.expectAssistantMessage(/\[mock\]/);
   await sidebarPage.expectAtLeastOneConversation();
 
-  const strategyId = await sidebarPage.firstConversationId();
+  const strategyId = await openConversationId(page);
 
   const uniqueWdkId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 10000);
   const patchResp = await apiClient.patch(`/api/v1/conversations/${strategyId}`, {
@@ -87,7 +89,7 @@ test.describe("Dismissed Strategies", () => {
     apiClient,
     page,
   }) => {
-    const strategyId = await makeWdkLinked(chatPage, sidebarPage, apiClient);
+    const strategyId = await makeWdkLinked(page, chatPage, sidebarPage, apiClient);
 
     const dismissCompleted = waitForDismiss(page, strategyId);
     await sidebarPage.delete(strategyId);
@@ -113,7 +115,7 @@ test.describe("Dismissed Strategies", () => {
     apiClient,
     page,
   }) => {
-    const strategyId = await makeWdkLinked(chatPage, sidebarPage, apiClient);
+    const strategyId = await makeWdkLinked(page, chatPage, sidebarPage, apiClient);
 
     const dismissCompleted = waitForDismiss(page, strategyId);
     await sidebarPage.delete(strategyId);
@@ -162,8 +164,9 @@ test.describe("Dismissed Strategies — complex flows", () => {
     chatPage,
     sidebarPage,
     apiClient,
+    page,
   }) => {
-    const strategyId = await makeWdkLinked(chatPage, sidebarPage, apiClient);
+    const strategyId = await makeWdkLinked(page, chatPage, sidebarPage, apiClient);
 
     // ── First dismiss ── (UI state is the source of truth; a response-wait
     // race on the second cycle made this flaky.)
@@ -210,6 +213,7 @@ test.describe("Dismissed Strategies — complex flows", () => {
     // Create first WDK strategy. (Keep prompts plainly biological — some
     // phrasings trip the PIGuard safety screen.)
     const id1 = await makeWdkLinked(
+      page,
       chatPage,
       sidebarPage,
       apiClient,
@@ -219,6 +223,7 @@ test.describe("Dismissed Strategies — complex flows", () => {
     // Create second WDK strategy (new chat first so sidebar has 2 items).
     await startNewChat(page, sidebarPage);
     const id2 = await makeWdkLinked(
+      page,
       chatPage,
       sidebarPage,
       apiClient,
@@ -260,6 +265,7 @@ test.describe("Dismissed Strategies — complex flows", () => {
     page,
   }) => {
     const strategyId = await makeWdkLinked(
+      page,
       chatPage,
       sidebarPage,
       apiClient,

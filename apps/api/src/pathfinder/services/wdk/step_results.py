@@ -128,7 +128,10 @@ class StepResultsService:
         result, params = await self.run_analysis_raw(analysis_name, parameters)
 
         if is_enrichment_analysis(analysis_name):
-            er = parse_enrichment_from_raw(analysis_name, params, result)
+            analyzed = await self._api.get_step_count(self._step_id)
+            er = parse_enrichment_from_raw(
+                analysis_name, params, result, analyzed_gene_count=analyzed
+            )
             return {
                 "_resultType": "enrichment",
                 "enrichmentResults": [er.model_dump(by_alias=True)],

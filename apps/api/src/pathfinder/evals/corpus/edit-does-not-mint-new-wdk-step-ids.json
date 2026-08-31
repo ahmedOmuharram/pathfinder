@@ -1,0 +1,29 @@
+{
+  "name": "edit-does-not-mint-new-wdk-step-ids",
+  "turns": [
+    "Build a comprehensive kinase strategy for Plasmodium.",
+    "Swap the organism on the seed criterion and keep the rest."
+  ],
+  "siteId": "plasmodb",
+  "assistantId": "pathfinder",
+  "rationale": "An edit patches the steps it changes and leaves every other WDK step id where it was. A rebuild answers the same request with a new id for every step, which breaks every saved reference to the strategy.",
+  "expected": {
+    "buildsStrategy": true,
+    "structure": null,
+    "recordType": null,
+    "stepCount": null,
+    "verified": null,
+    "stepIdsUnchanged": true,
+    "replyMentions": [],
+    "replyOmits": []
+  },
+  "provenance": {
+    "site": "plasmodb",
+    "assistant": "pathfinder",
+    "origin": "cataloged-failure",
+    "addedAt": "2026-08-30",
+    "stagingId": "",
+    "reference": "decisions/an-edit-is-a-delta-not-a-rebuild.md",
+    "curatorNote": "The step ids are read from the persisted strategy on both sides of the last turn."
+  }
+}

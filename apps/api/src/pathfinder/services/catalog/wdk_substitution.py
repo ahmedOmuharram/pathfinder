@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from pydantic import TypeAdapter, ValidationError
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.parameters.values import ParamValue, to_wire
-
-_VOCABULARY_TYPES = frozenset(
-    {"single-pick-vocabulary", "multi-pick-vocabulary"},
-)
+from pathfinder.domain.parameters.value_codec import to_wire
+from pathfinder.domain.parameters.values import FilterClauseKey, FilterValue, ParamValue
 
 _SELECTION_ADAPTER: TypeAdapter[list[str]] = TypeAdapter(list[str])
+
+Comparable = str | frozenset[str] | frozenset[FilterClauseKey]
+"""A value reduced to what it states, so serialization cannot differ."""
 
 
 def _selection(wire: str) -> frozenset[str]:
@@ -26,8 +26,24 @@ def _selection(wire: str) -> frozenset[str]:
         return frozenset({wire})
 
 
-def _is_vocabulary(spec: ParamSpecNormalized | None) -> bool:
-    return spec is not None and spec.param_type in _VOCABULARY_TYPES
+def _clauses(wire: str) -> frozenset[FilterClauseKey]:
+    """The clauses a filter wire form states, order and key order aside."""
+    return FilterValue.model_validate_json(wire or '{"filters": []}').clause_set
+
+
+_COMPARATORS: dict[str, Callable[[str], Comparable]] = {
+    "single-pick-vocabulary": _selection,
+    "multi-pick-vocabulary": _selection,
+    "filter": _clauses,
+}
+
+_UNREPORTED_TYPES = frozenset({"input-step"})
+"""An input-step value is the wiring the caller made, never a WDK choice."""
+
+
+def _comparable(spec: ParamSpecNormalized | None, wire: str) -> Comparable:
+    reader = _COMPARATORS.get(spec.param_type) if spec is not None else None
+    return reader(wire) if reader is not None else wire
 
 
 def substituted_params(
@@ -39,28 +55,25 @@ def substituted_params(
 ) -> list[str]:
     """Params whose echoed value is WDK's rather than the caller's.
 
-    A definition WDK built without reading the caller's values describes no
-    caller at all, so only the params left unset are read from it.
+    Each kind is compared as what it states: a vocabulary as its selection, a
+    filter as its clauses, everything else as its wire form. A definition WDK
+    built without reading the caller's values describes no caller at all, so
+    only the params left unset are read from it.
     """
     sent_wire = {name: to_wire(value) for name, value in sent.items()}
     supplied: list[str] = []
     for name, echoed_value in echoed.items():
-        vocabulary = _is_vocabulary(specs.get(name))
+        spec = specs.get(name)
+        if spec is not None and spec.param_type in _UNREPORTED_TYPES:
+            continue
+        theirs = _comparable(spec, echoed_value)
         ours = sent_wire.get(name)
         if ours is None:
-            selects_nothing = (
-                not _selection(echoed_value) if vocabulary else not echoed_value
-            )
-            if not selects_nothing:
+            if theirs:
                 supplied.append(name)
             continue
         if not values_were_read:
             continue
-        differs = (
-            _selection(ours) != _selection(echoed_value)
-            if vocabulary
-            else ours != echoed_value
-        )
-        if differs:
+        if _comparable(spec, ours) != theirs:
             supplied.append(name)
     return sorted(supplied)

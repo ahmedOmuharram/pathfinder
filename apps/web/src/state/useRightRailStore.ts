@@ -29,34 +29,64 @@ const DEFAULT_LAST_SEEN: LastSeen = {
   edaCount: 0,
 };
 
+/** Markers for every conversation the rail has shown, keyed by conversation id. */
+export type LastSeenByConversation = Record<string, LastSeen>;
+
+/** What the rail showed for one conversation, defaulting to a fresh thread. */
+export function lastSeenFor(
+  lastSeen: LastSeenByConversation,
+  conversationId: string,
+): LastSeen {
+  return lastSeen[conversationId] ?? DEFAULT_LAST_SEEN;
+}
+
 interface RightRailState {
   openPanel: RightRailPanel | null;
-  lastSeen: LastSeen;
+  lastSeen: LastSeenByConversation;
   autoOpenedConversation: string | null;
   ledgerSeen: Record<string, Record<string, string>>;
 
-  openPanelId: (panel: RightRailPanel, markers: Partial<LastSeen>) => void;
-  togglePanel: (panel: RightRailPanel, markers: Partial<LastSeen>) => void;
+  openPanelId: (
+    conversationId: string,
+    panel: RightRailPanel,
+    markers: Partial<LastSeen>,
+  ) => void;
+  togglePanel: (
+    conversationId: string,
+    panel: RightRailPanel,
+    markers: Partial<LastSeen>,
+  ) => void;
   closePanel: () => void;
   autoOpen: (conversationId: string, panel: RightRailPanel) => void;
   markLedgerTabSeen: (conversationId: string, tab: string, signature: string) => void;
+}
+
+function withMarkers(
+  lastSeen: LastSeenByConversation,
+  conversationId: string,
+  markers: Partial<LastSeen>,
+): LastSeenByConversation {
+  return {
+    ...lastSeen,
+    [conversationId]: { ...lastSeenFor(lastSeen, conversationId), ...markers },
+  };
 }
 
 export const useRightRailStore = createPersistedStore<RightRailState>(
   "RightRailStore",
   (set, get) => ({
     openPanel: null,
-    lastSeen: { ...DEFAULT_LAST_SEEN },
+    lastSeen: {},
     autoOpenedConversation: null,
     ledgerSeen: {},
 
-    openPanelId: (panel, markers) =>
+    openPanelId: (conversationId, panel, markers) =>
       set((s) => ({
         openPanel: panel,
-        lastSeen: { ...s.lastSeen, ...markers },
+        lastSeen: withMarkers(s.lastSeen, conversationId, markers),
       })),
 
-    togglePanel: (panel, markers) => {
+    togglePanel: (conversationId, panel, markers) => {
       const current = get().openPanel;
       if (current === panel) {
         set({ openPanel: null });
@@ -64,7 +94,7 @@ export const useRightRailStore = createPersistedStore<RightRailState>(
       }
       set((s) => ({
         openPanel: panel,
-        lastSeen: { ...s.lastSeen, ...markers },
+        lastSeen: withMarkers(s.lastSeen, conversationId, markers),
       }));
     },
 

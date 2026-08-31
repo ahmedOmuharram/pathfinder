@@ -65,6 +65,16 @@ class ReadinessState(BaseModel):
             raise ValueError(msg)
         setattr(self, subsystem, SubsystemStatus(ready=False, error=error))
 
+    def fail_loading(self, error: str) -> None:
+        """Fail every subsystem that is neither ready nor already failed."""
+        for name in _FIXED_SUBSYSTEMS:
+            status: SubsystemStatus = getattr(self, name)
+            if not status.ready and status.error is None:
+                setattr(self, name, SubsystemStatus(ready=False, error=error))
+        for site_id, catalog in self.catalogs.items():
+            if not catalog.ready and catalog.error is None:
+                self.catalogs[site_id] = SubsystemStatus(ready=False, error=error)
+
     def register_catalog(self, site_id: str) -> None:
         self.catalogs[site_id] = SubsystemStatus()
 

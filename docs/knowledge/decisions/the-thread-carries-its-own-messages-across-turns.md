@@ -20,7 +20,9 @@ serves both. The field is a `str`, so the checkpoint allowlist that every
 assistant shares needs no new type.
 
 The thread carries whole exchanges: `settled_history` drops trailing messages
-until the last one is a `ModelResponse` with no tool calls. A run that stops on
+until the last one is a `ModelResponse` that pydantic-ai accepts a new prompt
+over, which means no tool calls and a state other than `suspended` - the two
+tails `UserPromptNode` refuses. A run that stops on
 an approval therefore leaves the parked call out of the thread, because
 pydantic-ai refuses a new prompt over a history that holds an unprocessed call
 (`_agent_graph.UserPromptNode`), and the card's own resume history holds that

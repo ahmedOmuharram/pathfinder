@@ -8,7 +8,8 @@ from assistant_core.platform.logging import get_logger
 from assistant_core.platform.types import JSONObject
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.parameters.values import NumberValue, ParamValue, to_decoded_map
+from pathfinder.domain.parameters.value_codec import to_decoded_map
+from pathfinder.domain.parameters.values import NumberValue, ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.tree import (
     collect_plan_leaves,

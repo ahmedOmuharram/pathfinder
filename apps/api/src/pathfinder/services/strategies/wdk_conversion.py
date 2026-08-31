@@ -7,7 +7,8 @@ fetches param specs from WDK.
 from assistant_core.platform.logging import get_logger
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
-from pathfinder.domain.parameters.values import ParamKind, as_param_kind
+from pathfinder.domain.parameters.value_codec import as_param_kind
+from pathfinder.domain.parameters.values import ParamKind
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     walk_step_tree,

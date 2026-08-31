@@ -29,8 +29,12 @@ class WDKTreeBoxVocabNode(CamelModel):
     children: list[WDKTreeBoxVocabNode] = Field(default_factory=list)
 
 
-class WDKVocabTerm(RootModel[tuple[str, str, None]]):
-    """A standard enum vocabulary entry as a term, display, null triple."""
+class WDKVocabTerm(RootModel[tuple[str, str, str | None]]):
+    """A standard enum vocabulary entry as a term, display, parent triple.
+
+    The third element is the term of the entry above this one, and is null for
+    an entry at the top of the vocabulary.
+    """
 
     @property
     def term(self) -> str:
@@ -39,6 +43,10 @@ class WDKVocabTerm(RootModel[tuple[str, str, None]]):
     @property
     def display(self) -> str:
         return self.root[1]
+
+    @property
+    def parent(self) -> str | None:
+        return self.root[2]
 
 
 class WDKFilterOntologyTerm(CamelModel):

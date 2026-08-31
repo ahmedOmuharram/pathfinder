@@ -108,9 +108,8 @@ tree handed to `PUT .../step-tree` contains no step outside it.
 
 - class: CONTRACT
 - upstream: https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Model/src/main/java/org/gusdb/wdk/model/user/Strategy.java#L483-L485
-- anchor: apps/api/src/pathfinder/services/catalog/searches.py:resolve_record_type_from_steps
-- status: UNENFORCED
-- reason: PathFinder holds one record type per graph and threads it into every step's search URL, so a test asserting the root's class would fail the leaf pushes it also addresses. Enforceable once a step carries its own record class - [per-node record class](../../backlog/strategy-record-class-comes-from-the-leaves.md).
+- anchor: apps/api/src/pathfinder/domain/strategy/graph_model.py:record_class_of
+- status: ENFORCED by apps/api/src/pathfinder/tests/unit/services/strategies/test_record_class_comes_from_the_root.py::TestTheStrategysClassIsTheRoots::test_a_class_crossing_transform_makes_the_strategy_its_own_class
 
 `Strategy.getRecordClass` delegates to `getRootStep().getRecordClass()`, and
 [`StrategyFormatter`](https://github.com/VEuPathDB/WDK/blob/e534d2e6a5119165e1742c7a9e07a371217ddda5/Service/src/main/java/org/gusdb/wdk/service/formatter/StrategyFormatter.java#L29-L37)
@@ -123,12 +122,21 @@ were confirmed on plasmodb.org and toxodb.org on 2026-08-10 from
 `allowedPrimaryInputRecordClassNames`. A strategy whose leaves are genes and whose root is
 a transform is a transcript strategy.
 
-**PathFinder does not currently do this.** `resolve_record_type_from_steps` returns the
-record type of the first resolvable *leaf* search and uses it for the whole graph. The two
-answers coincide for every strategy built entirely from one record class, which is every
-strategy PathFinder has built so far, and diverge the moment a class-crossing transform is
-used. This is recorded rather than fixed because the fix is a modelling change - per-node
-record class instead of one per graph - not a patch.
+**A step carries its own record class.** `StrategyStep.record_class` holds the record type
+WDK lists that step's own search under; `assign_step_record_classes` fills it from the
+site catalog and `validate_parameters` reports the class it resolved, so the push
+addresses each step's search URL from the step's own class rather than from one value per
+graph. `record_class_of` reads a step's class, taking a combine's from the steps it
+consumes, and `sync_strategy` sets the strategy's class from the root through it. The
+former leaf-first read is deleted.
+
+The pin is `GenesByMolecularWeight` under a `GenesFromTranscripts` root on plasmodb.org
+on 2026-08-30: the leaf is listed under `transcript` and the transform under `gene`, and
+each 404s under the other record type - `There is no search "GenesByMolecularWeight"
+associated with record type "GeneRecordClass"` and `There is no search
+"GenesFromTranscripts" associated with record type "TranscriptRecordClass"`
+([WDK-SEARCH-001](searches-and-answers.md)). The strategy is a gene strategy, and a class
+read off its leaf would send both pushes to `transcript`.
 
 ### WDK-STRAT-005 - A 204 from `PUT .../step-tree` says the tree is well-formed, not that the strategy runs
 

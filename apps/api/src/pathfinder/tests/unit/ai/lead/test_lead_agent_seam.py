@@ -22,6 +22,7 @@ LEAD_TOOL_NAMES = frozenset(
         "build_control_set",
         "build_strategy",
         "classify_user_intent",
+        "clear_strategy",
         "compare_search_variants",
         "compare_variants_scored",
         "consult_user",
@@ -33,6 +34,7 @@ LEAD_TOOL_NAMES = frozenset(
         "list_control_sets",
         "read_ledger_section",
         "recover_failed_steps",
+        "remember",
         "verify_strategy",
     }
 )
@@ -61,10 +63,11 @@ def test_the_built_agent_carries_every_lead_tool() -> None:
     assert set(build_lead_agent()._function_toolset.tools) == LEAD_TOOL_NAMES
 
 
-def test_only_the_consult_tool_still_asks_for_approval() -> None:
+def test_the_consult_and_clear_tools_ask_for_approval() -> None:
+    """The two tools the user answers: a design fork, and a deletion."""
     tools = build_lead_agent()._function_toolset.tools
     deferred = sorted(name for name, tool in tools.items() if tool.requires_approval)
-    assert deferred == ["consult_user"]
+    assert deferred == ["clear_strategy", "consult_user"]
 
 
 def test_the_built_agent_keeps_its_model_and_identity() -> None:

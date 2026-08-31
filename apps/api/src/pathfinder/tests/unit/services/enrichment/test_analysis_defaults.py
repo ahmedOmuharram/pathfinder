@@ -85,6 +85,6 @@ class TestAMissingFormStopsTheRun:
         monkeypatch.setattr(api, "run_step_analysis", runs)
 
         with pytest.raises(AppError):
-            await EnrichmentService()._execute_analysis(api, 9, "go_process")
+            await EnrichmentService()._execute_analysis(api, 9, "go_process", 46)
 
         assert runs.runs == 0

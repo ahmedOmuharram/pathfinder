@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from enum import StrEnum
+from typing import Literal
 
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
@@ -15,6 +16,7 @@ class ConstraintKind(StrEnum):
     COMPARATOR = "comparator"
     ORGANISM = "organism"
     RECORD_TYPE = "record_type"
+    PERCENTILE = "percentile"
     OTHER = "other"
 
 
@@ -95,10 +97,12 @@ _EXPRESSION_SEARCH_RE = re.compile(r"rnaseq|microarray", re.IGNORECASE)
 
 class _RealizedSpec(CamelModel):
     """The bound facts a constraint is grounded against: the criteria's WDK
-    search names and the union of their parameter names."""
+    search names, the union of their parameter names, and the values bound to
+    them."""
 
     search_names: list[str] = Field(default_factory=list)
     param_names: frozenset[str] = Field(default_factory=frozenset)
+    param_values: dict[str, str] = Field(default_factory=dict)
 
 
 def _ground_data_type(c: Constraint, realized: _RealizedSpec) -> GroundedConstraint:
@@ -145,10 +149,109 @@ def _ground_fold_change(c: Constraint, realized: _RealizedSpec) -> GroundedConst
     )
 
 
+_PERCENTILE_PARAM_RE = re.compile(r"percentile", re.IGNORECASE)
+_SHARE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:%|percent\b)", re.IGNORECASE)
+_TOP_RE = re.compile(r"\btop\b|\bhighest\b", re.IGNORECASE)
+_BOTTOM_RE = re.compile(r"\bbottom\b|\blowest\b", re.IGNORECASE)
+_FULL_SCALE = 100.0
+# A "top" share is a lower bound on the percentile; a "bottom" share is an
+# upper bound. The name of the WDK parameter says which end it holds.
+_BOUND_WORD: dict[str, str] = {"top": "min", "bottom": "max"}
+
+
+def _plain(number: float) -> str:
+    return str(int(number)) if number.is_integer() else str(number)
+
+
+class PercentileRequest(CamelModel):
+    """A share of a ranked population, read from what the user stated."""
+
+    direction: Literal["top", "bottom"]
+    share: float
+
+    @classmethod
+    def parse(cls, text: str) -> PercentileRequest | None:
+        share = _SHARE_RE.search(text)
+        if share is None:
+            return None
+        if _TOP_RE.search(text):
+            direction: Literal["top", "bottom"] = "top"
+        elif _BOTTOM_RE.search(text):
+            direction = "bottom"
+        else:
+            return None
+        return cls(direction=direction, share=float(share.group(1)))
+
+    @property
+    def bound(self) -> float:
+        """The percentile value that realizes this share."""
+        return _FULL_SCALE - self.share if self.direction == "top" else self.share
+
+    def share_of(self, bound: float) -> float:
+        return _FULL_SCALE - bound if self.direction == "top" else bound
+
+
+def _percentile_bound(
+    request: PercentileRequest, realized: _RealizedSpec
+) -> tuple[str, str] | None:
+    named = {
+        name: value
+        for name, value in realized.param_values.items()
+        if _PERCENTILE_PARAM_RE.search(name)
+    }
+    if not named:
+        return None
+    word = _BOUND_WORD[request.direction]
+    at_end = {name: value for name, value in named.items() if word in name.lower()}
+    chosen = at_end or named
+    if len(chosen) != 1:
+        return None
+    return next(iter(chosen.items()))
+
+
+def _ground_percentile(c: Constraint, realized: _RealizedSpec) -> GroundedConstraint:
+    request = PercentileRequest.parse(f"{c.requested_value} {c.label}")
+    if request is None:
+        return GroundedConstraint(
+            constraint=c,
+            status=ConstraintStatus.UNGROUNDABLE,
+            note="the requested share and direction could not be read",
+        )
+    found = _percentile_bound(request, realized)
+    if found is None:
+        return GroundedConstraint(
+            constraint=c,
+            status=ConstraintStatus.UNGROUNDABLE,
+            note="no percentile parameter in the strategy",
+        )
+    name, raw = found
+    try:
+        bound = float(raw)
+    except ValueError:
+        return GroundedConstraint(
+            constraint=c,
+            status=ConstraintStatus.UNGROUNDABLE,
+            realized_value=raw,
+            note=f"{name} holds {raw!r}, which is not a percentile",
+        )
+    if bound == request.bound:
+        return GroundedConstraint(
+            constraint=c, status=ConstraintStatus.GROUNDED, realized_value=raw
+        )
+    meant = _plain(request.share_of(bound))
+    return GroundedConstraint(
+        constraint=c,
+        status=ConstraintStatus.SUBSTITUTED,
+        realized_value=raw,
+        note=f"bound {_plain(bound)} means {request.direction} {meant}%",
+    )
+
+
 _HANDLERS = {
     ConstraintKind.DATA_TYPE: _ground_data_type,
     ConstraintKind.STATISTICAL_THRESHOLD: _ground_threshold,
     ConstraintKind.FOLD_CHANGE: _ground_fold_change,
+    ConstraintKind.PERCENTILE: _ground_percentile,
 }
 
 
@@ -157,11 +260,15 @@ def ground_constraints(
     *,
     search_names: Collection[str],
     param_names: Collection[str],
+    param_values: Mapping[str, str],
 ) -> list[GroundedConstraint]:
     """Ground each constraint against the realized strategy facts (the criteria's
-    bound WDK search names + the union of their parameter names)."""
+    bound WDK search names, the union of their parameter names, and the values
+    bound to them)."""
     realized = _RealizedSpec(
-        search_names=list(search_names), param_names=frozenset(param_names)
+        search_names=list(search_names),
+        param_names=frozenset(param_names),
+        param_values=dict(param_values),
     )
     out: list[GroundedConstraint] = []
     for c in constraints:

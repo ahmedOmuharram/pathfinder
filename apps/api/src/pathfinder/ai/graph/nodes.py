@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from assistant_core.graph.stream_events import scratchpad_updated_event
 from assistant_core.graph.turn_message import write_turn_message
 from assistant_core.memory.autowrite import auto_write_memories
+from assistant_core.memory.deadline import (
+    MemoryStoreTimeoutError,
+    memory_store_deadline,
+)
 from assistant_core.memory.store import MemoryStore
 from assistant_core.memory.tombstones import TombstoneRepository
 from assistant_core.platform.logging import get_logger
@@ -17,17 +22,50 @@ from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.memory_candidates import collect_turn_memory_candidates
 from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
+from pathfinder.persistence.repositories.strategy_revision import (
+    StrategyRevisionRepository,
+)
 
 logger = get_logger(__name__)
 
 _END: Literal["__end__"] = "__end__"
 
 
+async def _name_strategy_revision(
+    *,
+    context: Context,
+    conversation_id: UUID,
+    message_id: UUID,
+) -> None:
+    """Record which message the strategy the turn left behind belongs to."""
+    try:
+        async with context.db_session_factory() as session:
+            await StrategyRevisionRepository(session).name_latest(
+                conversation_id,
+                message_id=message_id,
+            )
+            await session.commit()
+    except SQLAlchemyError:
+        logger.warning(
+            "failed to name the turn's strategy revision",
+            conversation_id=str(conversation_id),
+        )
+
+
 async def finalize_turn_node(
     state: PipelineState, runtime: Runtime[Context]
 ) -> Command[Literal["__end__"]]:
     if runtime.context is not None:
-        await write_turn_message(context=runtime.context, state=state)
+        turn_message_id = await write_turn_message(
+            context=runtime.context,
+            state=state,
+        )
+        if turn_message_id is not None:
+            await _name_strategy_revision(
+                context=runtime.context,
+                conversation_id=state.conversation_id,
+                message_id=turn_message_id,
+            )
 
     if (
         runtime.context is not None
@@ -40,12 +78,21 @@ async def finalize_turn_node(
             session_factory=runtime.context.db_session_factory,
         )
         try:
-            await auto_write_memories(
-                store=mem_store,
-                tombstones=tombstones,
-                user_id=state.user_id,
-                candidates=await collect_turn_memory_candidates(state),
+            candidates = await collect_turn_memory_candidates(state)
+            async with memory_store_deadline("the memory auto-write"):
+                await auto_write_memories(
+                    store=mem_store,
+                    tombstones=tombstones,
+                    user_id=state.user_id,
+                    candidates=candidates,
+                )
+        except MemoryStoreTimeoutError as exc:
+            logger.exception(
+                "the memory auto-write timed out; the turn fails",
+                conversation_id=str(state.conversation_id),
+                seconds=exc.seconds,
             )
+            raise
         except (RuntimeError, ValueError, OSError, SQLAlchemyError) as exc:
             logger.warning("auto-write memories failed: %s", exc)
 

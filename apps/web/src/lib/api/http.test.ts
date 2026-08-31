@@ -208,3 +208,86 @@ describe("lib/api/http", () => {
     });
   });
 });
+
+describe("a refused request reports the server's message", () => {
+  beforeEach(() => {
+    process.env["NEXT_PUBLIC_API_URL"] = "http://localhost:8000";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function refuse(body: unknown, status = 422, statusText = "Unprocessable Content") {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        makeResponse({
+          ok: false,
+          status,
+          statusText,
+          headers: { "content-type": "application/problem+json" },
+          json: body,
+        }),
+      ),
+    );
+  }
+
+  it("names the field a plan validation refused, not the HTTP status", async () => {
+    refuse({
+      type: "about:blank",
+      title: "Invalid plan",
+      status: 422,
+      code: "VALIDATION_ERROR",
+      errors: [
+        { path: "recordType", message: "Record type is required", code: "REQUIRED" },
+      ],
+    });
+    const error = await requestJson(z.object({}), "/api/v1/conversations/step-counts", {
+      method: "POST",
+      body: {},
+    }).catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(APIError);
+    expect((error as APIError).message).toBe("Record type is required");
+  });
+
+  it("joins every field message a refusal carries", async () => {
+    refuse({
+      title: "Invalid plan",
+      status: 422,
+      code: "VALIDATION_ERROR",
+      errors: [
+        { path: "recordType", message: "Record type is required", code: "REQUIRED" },
+        { path: "root", message: "A strategy needs one step", code: "EMPTY" },
+      ],
+    });
+    const error = await requestJson(z.object({}), "/api/v1/conversations/step-counts", {
+      method: "POST",
+      body: {},
+    }).catch((err: unknown) => err);
+    expect((error as APIError).message).toBe(
+      "Record type is required; A strategy needs one step",
+    );
+  });
+
+  it("falls back to the problem title when the body carries no field message", async () => {
+    refuse({
+      title: "Enrichment analysis failed",
+      status: 500,
+      code: "INTERNAL_ERROR",
+    });
+    const error = await requestJson(z.object({}), "/api/v1/gene-sets/x/enrich", {
+      method: "POST",
+      body: {},
+    }).catch((err: unknown) => err);
+    expect((error as APIError).message).toBe("Enrichment analysis failed");
+  });
+
+  it("keeps the transport line when the body says nothing", async () => {
+    refuse(null, 502, "Bad Gateway");
+    const error = await requestJson(z.object({}), "/api/v1/gene-sets").catch(
+      (err: unknown) => err,
+    );
+    expect((error as APIError).message).toBe("HTTP 502 Bad Gateway");
+  });
+});

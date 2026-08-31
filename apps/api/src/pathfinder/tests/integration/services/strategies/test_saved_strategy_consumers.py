@@ -11,6 +11,9 @@ from pathfinder.persistence.repositories.conversation import ConversationReposit
 from pathfinder.persistence.repositories.conversation_update import (
     ConversationUpdate,
 )
+from pathfinder.persistence.repositories.saved_strategy import (
+    SavedStrategyRepository,
+)
 
 
 async def _make_conversation(
@@ -74,7 +77,7 @@ async def test_count_consumers_per_saved_strategy_aggregates_across_conversation
     )
 
     async with async_session_factory() as db:
-        repo = ConversationRepository(db)
+        repo = SavedStrategyRepository(db)
         counts = await repo.count_consumers_per_saved_strategy(
             authed_user_id,
             site,
@@ -104,7 +107,7 @@ async def test_list_consumers_excludes_self_and_other_users(
     )
 
     async with async_session_factory() as db:
-        repo = ConversationRepository(db)
+        repo = SavedStrategyRepository(db)
         consumers = await repo.list_consumers_of_saved_strategy(
             authed_user_id,
             saved_id,
@@ -154,7 +157,7 @@ async def test_count_returns_zero_when_no_consumers(
         wdk_strategy_id=strategy_to_count,
     )
     async with async_session_factory() as db:
-        repo = ConversationRepository(db)
+        repo = SavedStrategyRepository(db)
         counts = await repo.count_consumers_per_saved_strategy(
             authed_user_id,
             site,

@@ -27,7 +27,6 @@ from pathfinder.services.enrichment.params import (
 from pathfinder.services.enrichment.parser import (
     ANALYSIS_TYPE_MAP,
     GO_ONTOLOGY_MAP,
-    derive_total_analyzed,
     parse_enrichment_response,
     parse_enrichment_terms,
 )
@@ -121,6 +120,7 @@ class EnrichmentService:
         api: StrategyAPI,
         step_id: int,
         analysis_type: EnrichmentAnalysisType,
+        analyzed_gene_count: int,
     ) -> EnrichmentResult:
         """Run one analysis on a step and parse the result.
 
@@ -218,7 +218,7 @@ class EnrichmentService:
         return EnrichmentResult(
             analysis_type=analysis_type,
             terms=terms,
-            total_genes_analyzed=derive_total_analyzed(envelope.result_data),
+            total_genes_analyzed=analyzed_gene_count,
         )
 
     async def _run_analyses_on_step(
@@ -231,14 +231,18 @@ class EnrichmentService:
         """Run multiple analysis types on a single step concurrently.
 
         Analyses run in parallel to keep total time under the proxy timeout.
+        The step's own count is the size every analysis reports as analyzed.
         """
         api = get_strategy_api(site_id)
+        analyzed_gene_count = await api.get_step_count(step_id)
 
         async def _run_one(
             analysis_type: EnrichmentAnalysisType,
         ) -> EnrichmentResult:
             try:
-                return await self._execute_analysis(api, step_id, analysis_type)
+                return await self._execute_analysis(
+                    api, step_id, analysis_type, analyzed_gene_count
+                )
             except (AppError, RuntimeError) as exc:
                 logger.warning(
                     "Enrichment failed",

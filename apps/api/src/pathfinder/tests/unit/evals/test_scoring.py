@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.evals.case import CaseProvenance, EvalCase, ExpectedOutcome
+from pathfinder.evals.distance import tree_from_ast, tree_from_signature
 from pathfinder.evals.scoring import ObservedOutcome, score_case, structure_signature
 
 
@@ -58,7 +60,7 @@ def test_step_ids_do_not_reach_the_signature() -> None:
 def _case(expected: ExpectedOutcome) -> EvalCase:
     return EvalCase(
         name="a-case",
-        prompt="build something",
+        turns=["build something"],
         site_id="plasmodb",
         assistant_id="pathfinder",
         rationale="pins a thing",
@@ -186,3 +188,129 @@ def test_every_difference_is_reported_not_only_the_first() -> None:
     fields = [d.field for d in score_case(case, observed).differences]
 
     assert fields == ["structure", "stepCount", "verified"]
+
+
+def test_a_case_that_wants_the_step_ids_kept_fails_when_they_moved() -> None:
+    case = _case(ExpectedOutcome(builds_strategy=True, step_ids_unchanged=True))
+    observed = ObservedOutcome(
+        built_strategy=True,
+        step_ids_unchanged=False,
+        reply_text="rebuilt it",
+    )
+
+    score = score_case(case, observed)
+
+    assert not score.passed
+    difference = score.differences[0]
+    assert difference.field == "stepIdsUnchanged"
+    assert (difference.expected, difference.actual) == ("True", "False")
+
+
+def test_a_case_that_wants_the_step_ids_kept_passes_when_they_held() -> None:
+    case = _case(ExpectedOutcome(builds_strategy=True, step_ids_unchanged=True))
+    observed = ObservedOutcome(
+        built_strategy=True,
+        step_ids_unchanged=True,
+        reply_text="patched one step",
+    )
+
+    assert score_case(case, observed).passed
+
+
+def test_an_unobserved_step_id_answer_fails_a_case_that_asked_for_one() -> None:
+    """Nothing was built before the last turn, so the case cannot be satisfied."""
+    case = _case(ExpectedOutcome(builds_strategy=True, step_ids_unchanged=True))
+    observed = ObservedOutcome(built_strategy=True, reply_text="")
+
+    score = score_case(case, observed)
+
+    assert not score.passed
+    assert score.differences[0].actual == "None"
+
+
+def test_a_named_parameter_the_run_changed_is_reported() -> None:
+    case = _case(
+        ExpectedOutcome(
+            builds_strategy=True,
+            structure="GenesByTaxon",
+            parameters={"GenesByTaxon": {"organism": "Plasmodium vivax P01"}},
+        ),
+    )
+    observed = ObservedOutcome(
+        built_strategy=True,
+        structure="GenesByTaxon",
+        tree=tree_from_ast(
+            _ast(
+                StrategyStepNode(
+                    search_name="GenesByTaxon",
+                    parameters={
+                        "organism": MultiPickValue(values=["Plasmodium falciparum 3D7"])
+                    },
+                )
+            )
+        ),
+        reply_text="",
+    )
+
+    score = score_case(case, observed)
+
+    assert not score.passed
+    difference = score.differences[0]
+    assert difference.field == "parameters.GenesByTaxon.organism"
+    assert difference.expected == "Plasmodium vivax P01"
+    assert difference.actual == "Plasmodium falciparum 3D7"
+
+
+def test_a_named_parameter_the_run_kept_passes() -> None:
+    case = _case(
+        ExpectedOutcome(
+            builds_strategy=True,
+            structure="GenesByTaxon",
+            parameters={"GenesByTaxon": {"organism": "Plasmodium vivax P01"}},
+        ),
+    )
+    observed = ObservedOutcome(
+        built_strategy=True,
+        structure="GenesByTaxon",
+        tree=tree_from_ast(
+            _ast(
+                StrategyStepNode(
+                    search_name="GenesByTaxon",
+                    parameters={
+                        "organism": MultiPickValue(values=["Plasmodium vivax P01"])
+                    },
+                )
+            )
+        ),
+        reply_text="",
+    )
+
+    assert score_case(case, observed).passed
+
+
+def test_the_score_carries_the_distance_when_both_shapes_are_known() -> None:
+    case = _case(
+        ExpectedOutcome(
+            builds_strategy=True,
+            structure="(A UNION B)",
+        ),
+    )
+    observed = ObservedOutcome(
+        built_strategy=True,
+        structure="(A INTERSECT B)",
+        tree=tree_from_signature("(A INTERSECT B)"),
+        reply_text="",
+    )
+
+    score = score_case(case, observed)
+
+    assert score.distance is not None
+    assert score.distance.topology == 0.0
+    assert score.distance.labelled == 0.1
+
+
+def test_a_run_that_built_nothing_carries_no_distance() -> None:
+    case = _case(ExpectedOutcome(builds_strategy=False))
+    observed = ObservedOutcome(built_strategy=False, reply_text="stored it")
+
+    assert score_case(case, observed).distance is None

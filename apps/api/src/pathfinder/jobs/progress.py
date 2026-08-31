@@ -38,16 +38,22 @@ def _points(percent: float) -> int:
     return round(percent * 100)
 
 
+def _lane_of(scope: dict[str, Any]) -> str | None:
+    """The thread-log lane a scope names, or None when it names nothing."""
+    return ":".join(str(value) for _, value in sorted(scope.items())) or None
+
+
 @dataclass
 class _ThreadLog:
     """Which of a task's updates reach the conversation log.
 
-    One instance per task. A scoped child shares its parent's instance, so a
-    fan-out spends the same budget as a single sequence.
+    One instance per lane. A lane is a part of its own on the thread, so it
+    carries its own id and spends a budget of its own.
     """
 
     conversation_id: UUID
     task_id: UUID
+    lane: str | None = None
     written_points: int | None = None
     written_at: float = 0.0
     unwritten: _PendingProgress | None = None
@@ -77,6 +83,7 @@ class _ThreadLog:
                 percent=row.percent,
                 message=row.message,
                 tool_specific=row.data,
+                lane=self.lane,
             ).model_dump(by_alias=True, mode="json", exclude_none=True),
         )
         self.written_points = _points(row.percent)
@@ -116,7 +123,11 @@ class TaskProgressEmitter:
         )
 
     def scoped(self, **scope: Any) -> TaskProgressEmitter:
-        """Return a child emitter that tags every update with ``scope``."""
+        """Return a child emitter that tags every update with ``scope``.
+
+        The scope's values name the child's lane on the thread, so each child
+        of a fan-out reconciles into a part of its own.
+        """
         child = TaskProgressEmitter(
             task_id=self.task_id,
             conversation_id=self.conversation_id,
@@ -125,7 +136,11 @@ class TaskProgressEmitter:
             max_flush_interval_seconds=self.max_flush_interval_seconds,
         )
         child._scope_data = {**self._scope_data, **scope}
-        child._thread_log = self._thread_log
+        child._thread_log = _ThreadLog(
+            conversation_id=self.conversation_id,
+            task_id=self.task_id,
+            lane=_lane_of(child._scope_data),
+        )
         return child
 
     async def update(

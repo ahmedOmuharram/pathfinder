@@ -193,11 +193,19 @@ Walk the message's ordered `parts` once, left to right.
    host's `renderingKinds` set excludes all three explicitly, and the client
    acceptance asserts that a failure notice is not hoisted into `Trace.figures`
    and that the recorded turn yields exactly three figures.
-9. `data-tool-summary` parts and the non-rendering data kinds
-   (`data-turn-usage`, `data-turn-status`, `data-lead-usage`,
-   `data-scratchpad-updated`, `data-task-progress`, `data-task-completed`,
-   `data-sub-agent-step`, `data-ledger-update`, `data-strategy-revision`)
-   never become rows, never become figures, and never close a run.
+9. A GROUP still `started` when the walk ends is closed by the turn, not by a
+   chunk: `cancelled` when the parts carry `data-turn-stopped`, `failed` when
+   they carry `data-turn-failed`, `superseded` when `turnEnded` says the turn
+   is over and neither is there. The host owns `turnEnded` because only the
+   host knows which message is the live one. A row still `running` inside a
+   group closed `cancelled` or `failed` reads `stopped`; a `superseded` group
+   keeps its running rows, because its work continues in the turn that
+   resumes it. PROTOCOL.md section 6 states the same rule for any reader.
+10. `data-tool-summary` parts and the non-rendering data kinds
+    (`data-turn-usage`, `data-turn-status`, `data-lead-usage`,
+    `data-scratchpad-updated`, `data-task-progress`, `data-task-completed`,
+    `data-sub-agent-step`, `data-ledger-update`, `data-strategy-revision`)
+    never become rows, never become figures, and never close a run.
 
 The produced shape:
 
@@ -209,7 +217,8 @@ export type TraceRowStatus =
   | "warn"
   | "error"
   | "denied"
-  | "awaiting-approval";
+  | "awaiting-approval"
+  | "stopped";
 
 export interface TraceRow {
   key: string;
@@ -228,7 +237,7 @@ export interface TraceGroup {
   rows: TraceRow[];
   tokens: number;
   costUsd: string;
-  state: "started" | "completed" | "failed";
+  state: "started" | "completed" | "failed" | "cancelled" | "superseded";
 }
 
 export interface Trace {
@@ -240,12 +249,13 @@ export interface Trace {
 
 export function buildTrace(
   parts: readonly MessagePart[],
-  options?: { renderingKinds?: ReadonlySet<string> },
+  options?: { renderingKinds?: ReadonlySet<string>; turnEnded?: boolean },
 ): Trace[];
 ```
 
-`running` is true when any row's status is `running` or
-`awaiting-approval`. `rowCount` is the sum over `groups` of `rows.length`.
+`running` is true when any row's status is `running` or `awaiting-approval`,
+so a run whose rows the turn stopped reports `false`. `rowCount` is the sum
+over `groups` of `rows.length`.
 
 A run exists only once it holds a row or a figure: a text part that closes an
 empty run emits nothing, and a trailing text part after the last run opens no
@@ -433,8 +443,8 @@ disagree:
 - Row that failed: the humanized name, then the error text, truncated to 120
   characters on a word boundary with an ASCII `...`
 - Raw disclosure label: `Raw` / hidden behind `showRawToolCalls`
-- Approval card title: `<Tool label> needs your approval before it runs.`
-  (unchanged from `ToolApprovalControls.tsx` line 94)
+- Approval card title: whatever `approvalPromptFor` returns for the tool,
+  by default `<Tool label> needs your approval before it runs.`
 - Approval buttons: `Deny`, `Approve` (unchanged)
 - Task row while running: `<Tool label>` then `<percent>%`, and, when the
   started payload carried `estimatedDurationSeconds`, `~3 s` beside it. The

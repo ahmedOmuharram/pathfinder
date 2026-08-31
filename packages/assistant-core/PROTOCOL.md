@@ -1,6 +1,6 @@
 # The assistant runtime wire protocol
 
-**Version 1.4.1.** This document specifies the bytes a client exchanges with an
+**Version 1.5.2.** This document specifies the bytes a client exchanges with an
 assistant built on `assistant_core`. It is written so a consumer in any
 language can implement a client from this page alone, with no reference to the
 JavaScript SDK that inspired the chunk vocabulary. Section 14 records what each
@@ -220,6 +220,22 @@ it left open: one `tool-output-error` per call whose input was announced and
 whose result never arrived, carrying the same text as the `error` chunk. A
 client therefore never renders a running tool call inside a finished turn.
 
+A data part that carries a state of its own is not closed that way. The
+runtime writes `data-sub-agent-call` with `state: "started"` when a dispatch
+begins and reconciles it on its `id` when the dispatch ends, so a turn that is
+stopped, or killed inside the dispatch, leaves `started` as the last payload
+the log holds for it. Closing it is a reader rule: when a turn ends, a client
+MUST read every dispatch that turn left `started` as **cancelled** if the turn
+carries `data-turn-stopped`, as **failed** if it carries `data-turn-failed`,
+and as **superseded** otherwise. Superseded says the dispatch outlived its
+turn: work suspended on a durable task (section 6.1) resumes in a later turn,
+whose own `data-sub-agent-call` reconciles the part and states how it really
+ended. A client MUST NOT show a dispatch of a turn that is over as running,
+and MUST NOT show a call inside a cancelled or failed dispatch as running
+either: the turn ended before the call reported, so the call has no result
+and never will. A superseded dispatch is the exception, because its work is
+still running where the turn left it.
+
 A text or reasoning part that would stay empty is never written: the runtime
 holds a `text-start` or `reasoning-start` until the first delta with the same
 `id` arrives, and drops the start and its end together when the end arrives
@@ -254,10 +270,18 @@ set to that `done`'s cursor; a snapshot taken while the task runs reports the
 completed history and not the gap, and a snapshot taken afterwards holds the
 whole sequence.
 
-`data-task-progress` carries the task id as its `id`, so the reconciliation
-rule of section 5.2 collapses every progress chunk for one task into a single
-part. `data-background-task-started` and `data-task-completed` carry no `id`:
-each is emitted once per task.
+`data-task-progress` carries the task id as its `id`, suffixed with `:` and a
+**lane** when the task runs several sequences at once - a parameter sweep's
+variants, for example. The reconciliation rule of section 5.2 therefore
+collapses one lane's progress into one part, and a task of five lanes leaves
+five parts on the message, each advancing on its own. A task that runs one
+sequence carries the bare task id and leaves one part.
+
+A client MUST NOT read the lane out of the `id`, which is an opaque
+reconciliation key: the lane names itself in the payload's `toolSpecific`, and
+a producer names it there whenever it suffixes an `id`.
+`data-background-task-started` and `data-task-completed` carry no `id`: each is
+emitted once per task, whatever its lanes.
 
 A reducer that splits the log at each `start` chunk therefore attaches the
 gap's chunks to the message that started the task, which is where a reader
@@ -283,12 +307,14 @@ closes with `finish` and `done`. The tool has not run.
 
 The thread now holds the suspended call. The next turn carries the user's
 answer, in the body section 12.3 defines, and re-enters the same call: it
-carries `tool-input-start` and `tool-input-available` for that same
-`toolCallId` again, then `tool-output-available` when the user approved and
-`tool-output-denied` when the user refused. The input chunks repeat because a
-client that lost its history still needs the call announced before its
-outcome; a client that holds the part patches it by `toolCallId` under the
-rule of section 9 and appends nothing.
+carries `tool-input-available` for that same `toolCallId`, then
+`tool-output-available` when the user approved and `tool-output-denied` when
+the user refused. No second `tool-input-start` precedes it, because the call
+was announced by the turn that suspended: a client MUST treat
+`tool-input-available` as opening a call whether or not a start came before
+it. The input repeats because a client that lost its history still needs the
+call announced before its outcome; a client that holds the part patches it by
+`toolCallId` under the rule of section 9 and appends nothing.
 
 A turn that answers nothing - a new user message while a call waits - drops
 the suspended call rather than running it. Nothing further is emitted for that
@@ -528,7 +554,9 @@ assistants that use those capabilities; the reference assistant does not.
 A client reduces a turn's chunks into one assistant message with an ordered
 `parts` array. The rules a conforming reducer MUST follow:
 
-- `start` sets the message id. `message-metadata` and `finish` merge metadata.
+- `start` opens the message it names. A reader MUST NOT carry a part it built
+  for one message into the next one a `start` opens, whether the two arrive
+  on one connection or on two. `message-metadata` and `finish` merge metadata.
 - `start-step` appends a `step-start` part.
 - `text-start` appends a text part in state `streaming`; `text-delta` appends
   to the part with the same `id`; `text-end` moves it to `done`. Reasoning
@@ -795,6 +823,9 @@ data: {"type":"done","reason":"completed"}
 
 | Version | What it added |
 | --- | --- |
+| `1.5.2` | Section 9 states that `start` opens the message it names and that a reader carries no part across it. Before this the rule was only implied by section 6.1, and a reader that builds one message per connection copied a suspended turn's parts into the continuation turn that follows it in the same tail. |
+| `1.5.1` | Section 6 states how a reader closes a dispatch its turn left open: `cancelled` under `data-turn-stopped`, `failed` under `data-turn-failed`, `superseded` otherwise, and the calls inside a cancelled or failed dispatch are closed with it. Before this a stopped turn's `data-sub-agent-call` stayed `started` for the life of the thread, because nothing the graph writes after a stop reaches the log. |
+| `1.5.0` | A `data-task-progress` `id` may name a lane inside the task (section 6.1), so a fan-out leaves one part per lane instead of one part the lanes overwrite in turn. Section 6.2 states the resume sequence the runtime emits: the resumed turn repeats `tool-input-available` alone, with no second `tool-input-start`, so a client opens a call on the input chunk. |
 | `1.4.1` | Section 6: a text or reasoning part that would stay empty is never written; a start followed by its end with no delta between them is dropped whole. Before this a model's empty reasoning items reached the log as empty parts. |
 | `1.4.0` | `data-tool-summary` (sections 5.2, 6.3, 9): a tool may carry one line saying what its call did, so a reader sees the work without the call's JSON. Before this the only description of a call on the wire was its raw input and its raw output. A resent tool part may carry the folded `summary` and `summaryStatus`, and the runtime ignores them (section 12.2). |
 | `1.3.1` | A turn that ends with `finishReason: "error"` closes its open tool calls with `tool-output-error` first (section 6). Before this a turn killed inside a tool left the call with an input and no result, and a client rendered it as still running inside a turn that had finished. |

@@ -106,9 +106,6 @@ async def search_for_searches(
         )
     results: list[JSONObject] = cast("list[JSONObject]", [m.to_dict() for m in matches])
 
-    decided = ctx.deps.agent_state.decided_search_names()
-    hidden = sorted({str(r["name"]) for r in results if str(r["name"]) in decided})
-    results = [r for r in results if str(r["name"]) not in decided]
     # The reader's number is what the query ranked, not the universal searches
     # every result list carries.
     found = len(results)
@@ -119,15 +116,6 @@ async def search_for_searches(
     ctx.deps.agent_state.record_catalog_searches(
         [str(r["name"]) for r in results if "name" in r]
     )
-
-    if hidden:
-        note: JSONObject = {
-            "note": (
-                f"{len(hidden)} already-decided search(es) hidden: {hidden}. "
-                "You've already recorded a decision on these; don't re-evaluate."
-            ),
-        }
-        results.append(note)
 
     return with_summary(
         results,
@@ -171,14 +159,12 @@ async def list_searches(
         record_type: Record type. Defaults to 'transcript' (gene searches).
     """
     rows = await catalog.list_searches(ctx.deps.site_id, record_type)
-    decided = ctx.deps.agent_state.decided_search_names()
-    visible = [r for r in rows if r.get("name") not in decided]
     ctx.deps.agent_state.record_catalog_searches(
-        [str(r["name"]) for r in visible if r.get("name")]
+        [str(r["name"]) for r in rows if r.get("name")]
     )
     return with_summary(
-        visible,
-        f"{len(visible)} searches on {record_type}",
+        rows,
+        f"{len(rows)} searches on {record_type}",
         ctx=ctx,
     )
 

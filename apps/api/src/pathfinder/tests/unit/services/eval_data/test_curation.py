@@ -28,7 +28,10 @@ def _extract(*, built: bool = True) -> EvalExtract:
     return EvalExtract(
         site_id="plasmodb",
         assistant_id="pathfinder",
-        turns=[ExtractedTurn(request="find kinases", reply="Built it.")],
+        turns=[
+            ExtractedTurn(request="find kinases", reply="Built it."),
+            ExtractedTurn(request="now swap the organism", reply="Swapped it."),
+        ],
         strategy=(
             ExtractedStrategy(
                 record_type="transcript",
@@ -80,33 +83,33 @@ def test_a_run_that_built_nothing_defaults_to_forbidding_a_build() -> None:
     assert expectation.step_count is None
 
 
-def test_the_case_takes_the_first_request_as_its_prompt() -> None:
+def test_the_case_takes_the_requests_of_the_staged_thread_in_order() -> None:
     case = build_case(
         _row(),
         PromotionEdits(name="a-case", rationale="pins the build"),
         today="2026-08-23",
     )
 
-    assert case.prompt == "find kinases"
+    assert case.turns == ["find kinases", "now swap the organism"]
     assert case.site_id == "plasmodb"
     assert case.provenance.origin == "promoted"
     assert case.provenance.staging_id == str(STAGING_ID)
     assert case.provenance.added_at == "2026-08-23"
 
 
-def test_the_curator_can_replace_the_prompt_and_the_expectation() -> None:
+def test_the_curator_can_replace_the_turns_and_the_expectation() -> None:
     case = build_case(
         _row(),
         PromotionEdits(
             name="a-case",
             rationale="the run built a decoy; the case forbids it",
-            prompt="remember my preferred dataset",
+            turns=["remember my preferred dataset"],
             expected=ExpectedOutcome(builds_strategy=False),
         ),
         today="2026-08-23",
     )
 
-    assert case.prompt == "remember my preferred dataset"
+    assert case.turns == ["remember my preferred dataset"]
     assert not case.expected.builds_strategy
 
 

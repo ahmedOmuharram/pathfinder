@@ -67,8 +67,8 @@ criterion from one branch of a combine to another - has no in-place expression
 and is refused. The refusal is loud and names what it could not place.
 
 `build_strategy` is now unreachable on a thread with a strategy, so a genuine
-"start over" needs the user's answer in prose first. See
-[the Lead cannot start a strategy over](../backlog/the-lead-cannot-start-a-strategy-over.md).
+"start over" goes through `clear_strategy`, the Lead's one destructive tool,
+which the user approves before any step is removed.
 
 # Anchors
 

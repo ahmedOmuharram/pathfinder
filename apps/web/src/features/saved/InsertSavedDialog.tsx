@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { client } from "@/lib/api/client";
+import { insertSavedStrategy } from "@/lib/api/conversations";
 import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
 import { strategyQueryKey } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
@@ -33,7 +33,7 @@ interface InsertSavedDialogProps {
   onOpenChange: (open: boolean) => void;
   conversationId: string;
   siteId: string;
-  /** The step that the inserted saved strategy will combine with. */
+  /** The step to combine with; empty when the strategy has no steps yet. */
   targetStepId: string;
 }
 
@@ -44,9 +44,9 @@ export function InsertSavedDialog(props: InsertSavedDialogProps) {
         <DialogHeader>
           <DialogTitle>Insert saved strategy</DialogTitle>
           <DialogDescription>
-            Pick a saved strategy from your library and choose how it should combine
-            with the target step. The inserted strategy renders as a collapsed container
-            in the strategy view.
+            {props.targetStepId === ""
+              ? "Pick a saved strategy from your library. Its steps become this strategy's first steps, and you can keep building from there."
+              : "Pick a saved strategy from your library and choose how it should combine with the target step. The inserted strategy renders as a collapsed container in the strategy view."}
           </DialogDescription>
         </DialogHeader>
         <QueryBoundary>
@@ -55,37 +55,6 @@ export function InsertSavedDialog(props: InsertSavedDialogProps) {
       </DialogContent>
     </Dialog>
   );
-}
-
-interface InsertSavedRequest {
-  conversationId: string;
-  siteId: string;
-  targetStepId: string;
-  savedWdkStrategyId: number;
-  operator: string;
-}
-
-interface InsertSavedResponse {
-  wdkStrategyId: number;
-  insertedSavedWdkStrategyId: number;
-  insertedSavedName: string;
-  combineStepId: string;
-}
-
-async function callInsertSavedEndpoint(
-  args: InsertSavedRequest,
-): Promise<InsertSavedResponse> {
-  const resp = await client<InsertSavedResponse>({
-    method: "post",
-    url: `/api/v1/conversations/${args.conversationId}/insert-saved`,
-    params: { siteId: args.siteId },
-    data: {
-      targetStepId: args.targetStepId,
-      savedWdkStrategyId: args.savedWdkStrategyId,
-      operator: args.operator,
-    },
-  });
-  return resp.data;
 }
 
 function InsertSavedDialogBody({
@@ -111,14 +80,15 @@ function InsertSavedDialogBody({
       ? saved
       : saved.filter((c) => c.name.toLowerCase().includes(filter.trim().toLowerCase()));
 
+  const isRoot = targetStepId === "";
   const insert = useMutation({
     mutationFn: () =>
-      callInsertSavedEndpoint({
+      insertSavedStrategy({
         conversationId,
         siteId,
         targetStepId,
         savedWdkStrategyId: pickedId ?? 0,
-        operator,
+        operator: isRoot ? undefined : operator,
       }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({
@@ -180,26 +150,28 @@ function InsertSavedDialogBody({
           </ul>
         )}
       </div>
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor="insert-saved-operator"
-          className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-        >
-          Operator
-        </label>
-        <select
-          id="insert-saved-operator"
-          value={operator}
-          onChange={(e) => setOperator(e.target.value)}
-          className="h-8 flex-1 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-        >
-          {OPERATORS.map((op) => (
-            <option key={op.value} value={op.value}>
-              {op.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!isRoot && (
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="insert-saved-operator"
+            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          >
+            Operator
+          </label>
+          <select
+            id="insert-saved-operator"
+            value={operator}
+            onChange={(e) => setOperator(e.target.value)}
+            className="h-8 flex-1 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            {OPERATORS.map((op) => (
+              <option key={op.value} value={op.value}>
+                {op.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <DialogFooter>
         <Button
           type="button"

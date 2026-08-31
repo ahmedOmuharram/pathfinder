@@ -40,12 +40,12 @@ PathFinder API
       WDK client, catalog discovery, strategy API, and multi-site support
       across 15+ databases.
 
-   .. grid-item-card:: LLM Engines
-      :link: api/engines
+   .. grid-item-card:: Models
+      :link: api/ai
       :link-type: doc
 
-      OpenAI, Anthropic, Google, Ollama, and a deterministic mock engine
-      for E2E testing.
+      Model catalog, per-provider settings, tier presets, pricing, and the
+      deterministic scripted model used by tests.
 
 ----
 

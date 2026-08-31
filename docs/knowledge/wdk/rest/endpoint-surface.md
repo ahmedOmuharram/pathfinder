@@ -66,7 +66,7 @@ and the WDK service base returns 404 for it.
 | GET, PUT, DELETE | `/users/{userId}` | Read, replace or delete a profile | profile JSON | profile JSON | unused |
 | GET, PATCH | `/users/{userId}/preferences` | Read and patch global or project preferences | preference deltas | preferences | unused |
 | GET | `/users/{userId}/strategies` | List the user's strategies | - | `StrategySummary[]` | `strategy_api/strategies.py:list_strategies` |
-| POST | `/users/{userId}/strategies` | Create a strategy, or duplicate one | `NewStrategySpec` or `DuplicateStrategySpec` | `{id}` | `strategy_api/strategies.py:create_strategy`, `copy_strategy` |
+| POST | `/users/{userId}/strategies` | Create a strategy | `NewStrategySpec` | `{id}` | `strategy_api/strategies.py:create_strategy` |
 | PATCH | `/users/{userId}/strategies` | Batch delete by id | `DeleteStrategySpec[]` | - | unused; PathFinder deletes one at a time |
 | GET | `/users/{userId}/strategies/{strategyId}` | Full strategy | - | `StrategyDetails` with `stepTree` and `steps` | `strategy_api/strategies.py:get_strategy` |
 | PATCH | `/users/{userId}/strategies/{strategyId}` | Rename, save, or overwrite | `StrategyProperties` subset | `{id}` | `strategy_api/strategies.py:update_strategy`, `set_saved` |

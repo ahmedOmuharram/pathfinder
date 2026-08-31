@@ -22,13 +22,13 @@ from pathfinder.persistence.repositories.eval_staging import EvalStagingReposito
 
 
 class PromotionEdits(CamelModel):
-    """What the curator decides. The prompt and the expectation are theirs."""
+    """What the curator decides. The turns and the expectation are theirs."""
 
     model_config = ConfigDict(frozen=True)
 
     name: str
     rationale: str
-    prompt: str | None = None
+    turns: list[str] | None = None
     expected: ExpectedOutcome | None = None
     curator_note: str = ""
 
@@ -61,10 +61,10 @@ def build_case(
 ) -> EvalCase:
     """The case a promotion writes, from the staged extract plus the edits."""
     extract = staged_extract(row)
-    prompt = edits.prompt or (extract.turns[0].request if extract.turns else "")
+    turns = edits.turns or [turn.request for turn in extract.turns]
     return EvalCase(
         name=edits.name,
-        prompt=prompt,
+        turns=turns,
         site_id=row.site_id,
         assistant_id=row.assistant_id,
         rationale=edits.rationale,

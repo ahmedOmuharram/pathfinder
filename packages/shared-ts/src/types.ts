@@ -73,6 +73,7 @@ import type {
   ParameterSweepPointResponse,
   VariantComparison,
   ScoredComparison,
+  ScoredVariant,
   RankMetricsResponse,
   RecordTypeResponse,
   ResolvedGeneResponse,
@@ -230,8 +231,7 @@ export const CombineOperator = {
   UNION: "UNION",
 } as const;
 
-export type CombineOperator =
-  (typeof CombineOperator)[keyof typeof CombineOperator];
+export type CombineOperator = (typeof CombineOperator)[keyof typeof CombineOperator];
 
 export const CombineOperatorLabels: Record<CombineOperator, string> = {
   INTERSECT: "IDs in common (AND)",
@@ -321,20 +321,118 @@ export function siteShortName(siteId: string): string {
 }
 
 export const VEUPATHDB_SITES: VEuPathDBSite[] = [
-  { id: "veupathdb", name: "VEuPathDB", displayName: "VEuPathDB Portal (All organisms)", baseUrl: "https://veupathdb.org", projectId: "EuPathDB", isPortal: true },
-  { id: "plasmodb", name: "PlasmoDB", displayName: "PlasmoDB (Plasmodium)", baseUrl: "https://plasmodb.org", projectId: "PlasmoDB", isPortal: false },
-  { id: "toxodb", name: "ToxoDB", displayName: "ToxoDB (Toxoplasma)", baseUrl: "https://toxodb.org", projectId: "ToxoDB", isPortal: false },
-  { id: "cryptodb", name: "CryptoDB", displayName: "CryptoDB (Cryptosporidium)", baseUrl: "https://cryptodb.org", projectId: "CryptoDB", isPortal: false },
-  { id: "giardiadb", name: "GiardiaDB", displayName: "GiardiaDB (Giardia)", baseUrl: "https://giardiadb.org", projectId: "GiardiaDB", isPortal: false },
-  { id: "amoebadb", name: "AmoebaDB", displayName: "AmoebaDB (Amoeba)", baseUrl: "https://amoebadb.org", projectId: "AmoebaDB", isPortal: false },
-  { id: "microsporidiadb", name: "MicrosporidiaDB", displayName: "MicrosporidiaDB (Microsporidia)", baseUrl: "https://microsporidiadb.org", projectId: "MicrosporidiaDB", isPortal: false },
-  { id: "piroplasmadb", name: "PiroplasmaDB", displayName: "PiroplasmaDB (Piroplasma)", baseUrl: "https://piroplasmadb.org", projectId: "PiroplasmaDB", isPortal: false },
-  { id: "tritrypdb", name: "TriTrypDB", displayName: "TriTrypDB (Kinetoplastids)", baseUrl: "https://tritrypdb.org", projectId: "TriTrypDB", isPortal: false },
-  { id: "trichdb", name: "TrichDB", displayName: "TrichDB (Trichomonas)", baseUrl: "https://trichdb.org", projectId: "TrichDB", isPortal: false },
-  { id: "fungidb", name: "FungiDB", displayName: "FungiDB (Fungi)", baseUrl: "https://fungidb.org", projectId: "FungiDB", isPortal: false },
-  { id: "hostdb", name: "HostDB", displayName: "HostDB (Hosts)", baseUrl: "https://hostdb.org", projectId: "HostDB", isPortal: false },
-  { id: "vectorbase", name: "VectorBase", displayName: "VectorBase (Vectors)", baseUrl: "https://vectorbase.org", projectId: "VectorBase", isPortal: false },
-  { id: "orthomcl", name: "OrthoMCL", displayName: "OrthoMCL (Orthologs)", baseUrl: "https://orthomcl.org", projectId: "OrthoMCL", isPortal: false },
+  {
+    id: "veupathdb",
+    name: "VEuPathDB",
+    displayName: "VEuPathDB Portal (All organisms)",
+    baseUrl: "https://veupathdb.org",
+    projectId: "EuPathDB",
+    isPortal: true,
+  },
+  {
+    id: "plasmodb",
+    name: "PlasmoDB",
+    displayName: "PlasmoDB (Plasmodium)",
+    baseUrl: "https://plasmodb.org",
+    projectId: "PlasmoDB",
+    isPortal: false,
+  },
+  {
+    id: "toxodb",
+    name: "ToxoDB",
+    displayName: "ToxoDB (Toxoplasma)",
+    baseUrl: "https://toxodb.org",
+    projectId: "ToxoDB",
+    isPortal: false,
+  },
+  {
+    id: "cryptodb",
+    name: "CryptoDB",
+    displayName: "CryptoDB (Cryptosporidium)",
+    baseUrl: "https://cryptodb.org",
+    projectId: "CryptoDB",
+    isPortal: false,
+  },
+  {
+    id: "giardiadb",
+    name: "GiardiaDB",
+    displayName: "GiardiaDB (Giardia)",
+    baseUrl: "https://giardiadb.org",
+    projectId: "GiardiaDB",
+    isPortal: false,
+  },
+  {
+    id: "amoebadb",
+    name: "AmoebaDB",
+    displayName: "AmoebaDB (Amoeba)",
+    baseUrl: "https://amoebadb.org",
+    projectId: "AmoebaDB",
+    isPortal: false,
+  },
+  {
+    id: "microsporidiadb",
+    name: "MicrosporidiaDB",
+    displayName: "MicrosporidiaDB (Microsporidia)",
+    baseUrl: "https://microsporidiadb.org",
+    projectId: "MicrosporidiaDB",
+    isPortal: false,
+  },
+  {
+    id: "piroplasmadb",
+    name: "PiroplasmaDB",
+    displayName: "PiroplasmaDB (Piroplasma)",
+    baseUrl: "https://piroplasmadb.org",
+    projectId: "PiroplasmaDB",
+    isPortal: false,
+  },
+  {
+    id: "tritrypdb",
+    name: "TriTrypDB",
+    displayName: "TriTrypDB (Kinetoplastids)",
+    baseUrl: "https://tritrypdb.org",
+    projectId: "TriTrypDB",
+    isPortal: false,
+  },
+  {
+    id: "trichdb",
+    name: "TrichDB",
+    displayName: "TrichDB (Trichomonas)",
+    baseUrl: "https://trichdb.org",
+    projectId: "TrichDB",
+    isPortal: false,
+  },
+  {
+    id: "fungidb",
+    name: "FungiDB",
+    displayName: "FungiDB (Fungi)",
+    baseUrl: "https://fungidb.org",
+    projectId: "FungiDB",
+    isPortal: false,
+  },
+  {
+    id: "hostdb",
+    name: "HostDB",
+    displayName: "HostDB (Hosts)",
+    baseUrl: "https://hostdb.org",
+    projectId: "HostDB",
+    isPortal: false,
+  },
+  {
+    id: "vectorbase",
+    name: "VectorBase",
+    displayName: "VectorBase (Vectors)",
+    baseUrl: "https://vectorbase.org",
+    projectId: "VectorBase",
+    isPortal: false,
+  },
+  {
+    id: "orthomcl",
+    name: "OrthoMCL",
+    displayName: "OrthoMCL (Orthologs)",
+    baseUrl: "https://orthomcl.org",
+    projectId: "OrthoMCL",
+    isPortal: false,
+  },
 ];
 
 export type ModelProvider = "openai" | "anthropic" | "google" | "ollama" | "mock";
@@ -392,7 +490,13 @@ export type ExperimentStatus =
 export type StepContributionVerdict = "essential" | "helpful" | "neutral" | "harmful";
 
 export type MemoryKind = MemoryValue["kind"];
-export type { MemoryValue, MemoryItem, MemoryListResponse, MemorySearchResponse, MemoryEditRequest };
+export type {
+  MemoryValue,
+  MemoryItem,
+  MemoryListResponse,
+  MemorySearchResponse,
+  MemoryEditRequest,
+};
 
 export type { PrivacySettings, PrivacyUpdate };
 
@@ -406,6 +510,7 @@ export type {
   StrategyLink,
   VariantComparison,
   ScoredComparison,
+  ScoredVariant,
   OptimizationSnapshot,
   BackgroundTaskStarted,
   TaskCompleted,
@@ -415,7 +520,12 @@ export type {
 export type GeneSetPart = GeneSetStreamPart;
 export type TaskProgressChunk = TaskProgressStreamPart;
 
-export type { EdaAnalysisState, EdaDistributionSeries, EdaEntityCount, EdaVolcanoPoint };
+export type {
+  EdaAnalysisState,
+  EdaDistributionSeries,
+  EdaEntityCount,
+  EdaVolcanoPoint,
+};
 export type EdaSubsetPreview = EdaSubsetPreviewPart;
 export type EdaViz = EdaVizPart;
 
@@ -581,8 +691,6 @@ export interface DataLedgerUpdatePayload {
   build: LedgerBuildPayload;
   verification: LedgerVerificationPayload;
   constraints: LedgerConstraintsPayload;
-  subAgentCallsThisTurn: number;
-  subAgentCallsTotal: number;
 }
 
 export interface DataMemoryRetrievedPayload {

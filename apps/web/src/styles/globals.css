@@ -142,13 +142,13 @@
   --kind-transform-ring: hsl(var(--kind-transform) / 0.3);
 
   /* -- Chart palette -- */
-  --chart-1: 215 75% 45%; /* blue, oklch(52.0% 0.171 258) */
-  --chart-2: 160 65% 33%; /* green, oklch(56.8% 0.111 165) */
-  --chart-3: 28 85% 42%; /* burnt orange, oklch(61.1% 0.149 53) */
+  --chart-1: 215 75% 44%; /* blue, oklch(51.2% 0.168 258) */
+  --chart-2: 160 65% 27%; /* green, oklch(49.2% 0.095 165) */
+  --chart-3: 28 85% 33%; /* burnt orange, oklch(51.3% 0.124 54) */
   --chart-4: 355 70% 45%; /* crimson, oklch(53.0% 0.194 24) */
   --chart-5: 275 55% 50%; /* violet, oklch(52.6% 0.209 307) */
   --chart-6: 192 80% 33%; /* deep cyan, oklch(54.6% 0.096 221) */
-  --chart-positive: 160 65% 33%; /* oklch(56.8% 0.111 165) */
+  --chart-positive: 160 65% 27%; /* oklch(49.2% 0.095 165) */
   --chart-negative: 355 70% 45%; /* oklch(53.0% 0.194 24) */
 
   --sidebar: 210 22% 95%; /* oklch(96.1% 0.005 248) */

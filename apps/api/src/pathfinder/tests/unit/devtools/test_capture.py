@@ -294,3 +294,53 @@ class TestDiagnosisReadsTheReply:
         _write(cap, _text("Your strategy is ready."))
 
         assert [a for a in cap.anomalies() if a.kind == "silent_zero"]
+
+
+def _fixture_run() -> list[dict]:
+    path = Path(__file__).parent / "fixtures" / "site_help_mock_run.events.jsonl"
+    return [json.loads(line) for line in path.read_text().splitlines() if line]
+
+
+def test_a_one_agent_run_counts_the_calls_its_event_log_announces(
+    tmp_path: Path,
+) -> None:
+    """A recorded site_help turn holds one ``tool-input-available``."""
+    cap = _new(tmp_path)
+    for chunk in _fixture_run():
+        _write(cap, chunk)
+
+    assert cap.summary().tool_calls == 1
+
+
+def test_a_call_announced_twice_counts_once(tmp_path: Path) -> None:
+    cap = _new(tmp_path)
+    announce = {
+        "type": "tool-input-available",
+        "toolCallId": "call-1",
+        "toolName": "list_veupathdb_sites",
+        "input": {},
+    }
+    _write(cap, announce)
+    _write(cap, announce)
+
+    assert cap.summary().tool_calls == 1
+
+
+def test_a_lead_run_counts_its_dispatches_and_its_inner_steps(
+    tmp_path: Path,
+) -> None:
+    cap = _new(tmp_path)
+    _write(cap, _call("frame", "framer", "p1", "started"))
+    _write(
+        cap,
+        {
+            "type": "tool-input-available",
+            "toolCallId": "p1",
+            "toolName": "dispatch_frame",
+            "input": {},
+        },
+    )
+    _write(cap, _step("search_catalog", "c1", "p1", "started"))
+    _write(cap, _step("search_catalog", "c1", "p1", "completed", result="2 hits"))
+
+    assert cap.summary().tool_calls == 2

@@ -10,12 +10,9 @@ import json
 
 import pytest
 
+from pathfinder.domain.parameters.canonicalize import close_open_range
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.parameters.values import (
-    DateRangeValue,
-    NumberRangeValue,
-    close_open_range,
-)
+from pathfinder.domain.parameters.values import DateRangeValue, NumberRangeValue
 
 
 class TestBothEndsReachTheWire:

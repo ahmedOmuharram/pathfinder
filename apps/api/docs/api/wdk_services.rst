@@ -10,34 +10,23 @@ Overview
 
 The WDK services layer sits between the transport/tool layers and the raw
 ``integrations.veupathdb`` HTTP client. Where the integration layer handles
-HTTP communication, these services add business logic: enrichment orchestration,
-fuzzy record-type matching, result pagination, and attribute inspection.
+HTTP communication, these services add business logic: fuzzy record-type
+matching, result pagination, and attribute inspection. Enrichment has its own
+package; see :doc:`experiments`.
 
 Design Decisions
 ~~~~~~~~~~~~~~~~
 
 **Why a separate WDK service layer?** The integration layer
 (``integrations.veupathdb``) is a thin HTTP client. WDK services add domain
-logic that multiple consumers need: experiments, gene sets, workbench, and
-export all need step result browsing with consistent attribute handling. Sharing
-this logic avoids duplication.
+logic that multiple consumers need: experiments, gene sets and export all need
+step result browsing with consistent attribute handling. Sharing this logic
+avoids duplication.
 
 **Fuzzy record-type matching:** WDK record type names vary between sites
 (``GeneRecordClasses.GeneRecordClass`` vs ``gene``). The resolver uses
 three-stage matching (exact → name → display) with disambiguation to handle
 this reliably.
-
-Enrichment Service
-------------------
-
-**Purpose:** Unified enrichment orchestration. Runs GO/pathway enrichment
-via WDK, handles multiple enrichment types, and formats results for the
-experiment analysis pipeline.
-
-.. automodule:: pathfinder.services.wdk.enrichment_service
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 WDK Helpers
 -----------

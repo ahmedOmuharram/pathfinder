@@ -190,6 +190,64 @@ class TestReadParameterOptions:
             for option in narrowed.allowed_values
         )
 
+    async def test_a_query_narrows_a_tree_vocabulary(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A tree keeps the branches that match and the path down to them."""
+        _stub_client(monkeypatch, "search_genes_by_molecular_weight")
+
+        whole = await read_parameter_options(
+            "plasmodb",
+            "GenesByMolecularWeight",
+            "organism",
+            record_type="transcript",
+        )
+        narrowed = await read_parameter_options(
+            "plasmodb",
+            "GenesByMolecularWeight",
+            "organism",
+            record_type="transcript",
+            query="falciparum",
+        )
+
+        assert whole.kind == "parameter_info"
+        assert narrowed.kind == "parameter_info"
+        assert len(whole.vocab_leaves) == 90
+        assert len(narrowed.vocab_leaves) == 25
+        values = [option.value for option in narrowed.vocab_leaves]
+        assert "Plasmodium falciparum 3D7" in values
+        assert "Plasmodium berghei ANKA" not in values
+        assert "Plasmodium falciparum 3D7" in narrowed.allowed_values_tree
+        assert "Plasmodium berghei ANKA" not in narrowed.allowed_values_tree
+        assert "Plasmodium berghei ANKA" in whole.allowed_values_tree
+
+    async def test_a_query_reads_the_terms_and_not_their_repr(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A list entry is matched on its term and its label, nothing else."""
+        _stub_client(monkeypatch, "search_genes_by_location")
+
+        whole = await read_parameter_options(
+            "plasmodb",
+            "GenesByLocation",
+            "organismSinglePick",
+            record_type="transcript",
+        )
+        result = await read_parameter_options(
+            "plasmodb",
+            "GenesByLocation",
+            "organismSinglePick",
+            record_type="transcript",
+            query="root=",
+        )
+
+        assert whole.kind == "parameter_info"
+        assert whole.allowed_values is not None
+        assert len(whole.allowed_values) == 48
+        assert result.kind == "parameter_info"
+        assert result.allowed_values is None
+        assert result.vocab_leaves == []
+
     async def test_a_dependent_parameter_asks_for_its_parent(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

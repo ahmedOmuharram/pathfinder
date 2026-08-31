@@ -44,9 +44,9 @@ services:
       # Seconds of silence after which the chat SSE stream sends a comment frame.
       SSE_KEEPALIVE_SECONDS: ${SSE_KEEPALIVE_SECONDS:-15}
       # Silence after which a worker counts as dead and its turn is failed.
-      # A busy worker starves its own heartbeat, so this clears the worst
-      # measured gap by a wide margin.
-      WORKER_DEAD_HEARTBEAT_SECONDS: ${WORKER_DEAD_HEARTBEAT_SECONDS:-300}
+      # The heartbeat runs in a thread of its own, so a running job cannot
+      # widen the gap this has to clear.
+      WORKER_DEAD_HEARTBEAT_SECONDS: ${WORKER_DEAD_HEARTBEAT_SECONDS:-60}
       # Dev WDK login for the chat debugger (pathfinder.devtools.chat); set in .env.dev.
       WDK_DEV_EMAIL: ${WDK_DEV_EMAIL:-}
       WDK_DEV_PASSWORD: ${WDK_DEV_PASSWORD:-}
@@ -115,9 +115,11 @@ services:
       # Age at which a job still in 'doing' is failed so its lock releases.
       WORKER_STALLED_JOB_TIMEOUT_SECONDS: ${WORKER_STALLED_JOB_TIMEOUT_SECONDS:-3600}
       # Silence after which a worker counts as dead and its jobs are failed.
-      # A busy worker starves its own heartbeat, so this clears the worst
-      # measured gap by a wide margin.
-      WORKER_DEAD_HEARTBEAT_SECONDS: ${WORKER_DEAD_HEARTBEAT_SECONDS:-300}
+      # The heartbeat runs in a thread of its own, so a running job cannot
+      # widen the gap this has to clear.
+      WORKER_DEAD_HEARTBEAT_SECONDS: ${WORKER_DEAD_HEARTBEAT_SECONDS:-60}
+      # Seconds between the worker heartbeats.
+      WORKER_HEARTBEAT_INTERVAL_SECONDS: ${WORKER_HEARTBEAT_INTERVAL_SECONDS:-5}
       # The veupathdb-wdk-mcp endpoint an assistant's declaration resolves to,
       # and the credential presented there. Set the same secret in this
       # deployment's PATHFINDER_MCP_SERVICE_TOKENS; an empty one admits nothing.

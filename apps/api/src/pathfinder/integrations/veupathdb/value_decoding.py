@@ -5,12 +5,8 @@ carry typed ``ParamValue`` (discriminated union over the 11 WDK parameter
 types). This module is the only place that bridges the two.
 """
 
-from pathfinder.domain.parameters.values import (
-    ParamKind,
-    ParamValue,
-    from_wire,
-    wire_map,
-)
+from pathfinder.domain.parameters.value_codec import from_wire, wire_map
+from pathfinder.domain.parameters.values import ParamKind, ParamValue
 from pathfinder.domain.strategy.types import WireParams
 
 

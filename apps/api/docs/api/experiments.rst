@@ -168,22 +168,6 @@ CRUD and Results
      - ``/api/v1/experiments/{id}/refine``
      - Refine/filter result records
 
-**Workbench chat** (per-experiment conversational AI):
-
-.. list-table::
-   :widths: 15 40 45
-   :header-rows: 1
-
-   * - Method
-     - Endpoint
-     - Description
-   * - :bdg-success:`POST`
-     - ``/api/v1/experiments/{id}/chat``
-     - Start workbench chat stream (SSE)
-   * - :bdg-info:`GET`
-     - ``/api/v1/experiments/{id}/chat/messages``
-     - Get chat message history
-
 Persistence
 -----------
 
@@ -200,15 +184,14 @@ Reusable positive/negative gene sets are managed at **/api/v1/control-sets**
 (CRUD). They can be referenced when creating experiments (e.g.
 control_set_id). See :py:class:`pathfinder.persistence.models.ControlSet`.
 
-Experiment Streaming (CQRS)
-----------------------------
+Experiment Streaming
+--------------------
 
-**Purpose:** Background task launchers for experiment execution using a CQRS
-event model. Events are persisted to Redis Streams; operations are tracked in
-PostgreSQL. This is how long-running experiments (single, batch, benchmark)
-are kicked off and their progress communicated to the frontend via SSE.
+**Purpose:** Async generators that wrap an experiment run and yield typed
+events. The single, batch and benchmark endpoints return these directly as
+server-sent events.
 
-.. automodule:: pathfinder.services.experiment.core.streaming
+.. automodule:: pathfinder.services.experiment.streaming
    :members:
    :undoc-members:
    :show-inheritance:
@@ -296,32 +279,12 @@ Classification metrics, rank metrics, and statistical utilities.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.services.experiment.stats
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Analysis Features
 ~~~~~~~~~~~~~~~~~
 
-Cross-validation, enrichment, overlap, comparison, robustness, and reporting.
+Cross-validation, overlap, comparison, robustness, and reporting.
 
 .. automodule:: pathfinder.services.experiment.cross_validation
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.services.experiment.enrichment
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.services.experiment.custom_enrichment
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.services.experiment.enrichment_compare
    :members:
    :undoc-members:
    :show-inheritance:
@@ -342,38 +305,6 @@ Cross-validation, enrichment, overlap, comparison, robustness, and reporting.
    :show-inheritance:
 
 .. automodule:: pathfinder.services.experiment.tree_knobs
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-AI Analysis
-~~~~~~~~~~~
-
-AI-powered analysis helpers and tool definitions.
-
-.. automodule:: pathfinder.services.experiment.ai_analysis_helpers
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.services.experiment.ai_analysis_tools
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: pathfinder.services.experiment.assistant
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-AI Refinement Tools
-~~~~~~~~~~~~~~~~~~~
-
-**Purpose:** AI tools for experiment strategy refinement. Function-calling
-tools decorated with ``@ai_function`` that allow the workbench agent to
-add search steps, combine results with gene lists, and trigger re-evaluation.
-
-.. automodule:: pathfinder.services.experiment.ai_refinement_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -449,11 +380,6 @@ Pydantic models for experiment configuration, metrics, enrichment, and results.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.services.experiment.types.enrichment
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: pathfinder.services.experiment.types.optimization
    :members:
    :undoc-members:
@@ -474,7 +400,55 @@ Pydantic models for experiment configuration, metrics, enrichment, and results.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: pathfinder.services.experiment.types.json_codec
+Enrichment
+----------
+
+**Purpose:** One entry point for running WDK enrichment analyses, shared by
+the experiment endpoints, the gene-set endpoints and the AI tools. Covers GO,
+pathway and word enrichment, a custom gene-set variant, cross-experiment
+comparison, ranking, and the statistics they share.
+
+.. automodule:: pathfinder.services.enrichment.service
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.enrichment.types
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.enrichment.params
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.enrichment.parser
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.enrichment.custom
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.enrichment.compare
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.enrichment.ranking
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.enrichment.stats
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: pathfinder.services.enrichment.html
    :members:
    :undoc-members:
    :show-inheritance:

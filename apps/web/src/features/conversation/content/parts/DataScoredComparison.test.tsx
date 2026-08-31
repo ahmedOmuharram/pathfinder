@@ -45,6 +45,21 @@ describe("DataScoredComparison figure", () => {
     );
   });
 
+  it("captions a wholly failed scoring as a failure, not as a missing winner", () => {
+    render(
+      <DataScoredComparison
+        data={{
+          ...SCORED,
+          winnerLabel: null,
+          variants: SCORED.variants.map((v) => ({ ...v, error: "boom", mcc: null })),
+        }}
+      />,
+    );
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "scoring failed for 2 of 2 variants",
+    );
+  });
+
   it("says so in the caption when nothing scored", () => {
     render(<DataScoredComparison data={{ ...SCORED, winnerLabel: null }} />);
     expect(screen.getByTestId("figure-caption").textContent).toBe(
@@ -112,6 +127,77 @@ describe("DataScoredComparison", () => {
     expect(winner).toBeInTheDocument();
     expect(screen.getByText(/MCC 1\.00/)).toBeInTheDocument();
     expect(screen.getByText(/MCC 0\.60/)).toBeInTheDocument();
+  });
+
+  it("names the failure as a failed scoring, not as a bare failure", () => {
+    render(
+      <DataScoredComparison
+        data={{
+          objective: "mcc",
+          winnerLabel: null,
+          variants: [
+            {
+              label: "top 20%",
+              searchName: "SA",
+              mcc: null,
+              f1: null,
+              precision: null,
+              sensitivity: null,
+              balancedAccuracy: null,
+              experimentId: null,
+              error: "parameters.channel: Input should be a valid string",
+              controlHits: ["PF3D7_1116700"],
+            },
+          ],
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "scoring failed: parameters.channel: Input should be a valid string",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("lists the control ids a variant contains", () => {
+    render(
+      <DataScoredComparison
+        data={{
+          objective: "mcc",
+          winnerLabel: null,
+          variants: [
+            {
+              label: "top 20%",
+              searchName: "SA",
+              mcc: null,
+              f1: null,
+              precision: null,
+              sensitivity: null,
+              balancedAccuracy: null,
+              experimentId: null,
+              error: "scoring blew up",
+              controlHits: ["PF3D7_1116700", "PF3D7_0507500"],
+            },
+            {
+              label: "top 5%",
+              searchName: "SB",
+              mcc: null,
+              f1: null,
+              precision: null,
+              sensitivity: null,
+              balancedAccuracy: null,
+              experimentId: null,
+              error: "scoring blew up",
+              controlHits: [],
+            },
+          ],
+        }}
+      />,
+    );
+    expect(
+      screen.getByText("contains PF3D7_1116700, PF3D7_0507500"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("contains none of the control genes")).toBeInTheDocument();
   });
 
   it("shows a failed variant's error and no metrics", () => {
