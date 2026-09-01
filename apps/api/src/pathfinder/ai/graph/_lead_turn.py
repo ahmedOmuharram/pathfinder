@@ -2,8 +2,9 @@
 
 Memory retrieval at turn start, and the Lead's half of the deferred-call
 cycle: which call the turn parked, and what the answer - the user's click or
-the worker's result - means for the sub-agent run under it. The cycle's shared
-mechanics are the runtime's.
+the worker's result - means for the sub-agent run under it. Reading the answer
+itself belongs to ``_lead_answers``; the cycle's shared mechanics are the
+runtime's.
 """
 
 from __future__ import annotations
@@ -34,20 +35,15 @@ from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
-    ModelRequest,
-    ModelResponse,
-    RetryPromptPart,
     ToolCallPart,
-    ToolReturnPart,
 )
-from pydantic_ai.tools import (
-    DeferredToolApprovalResult,
-    DeferredToolRequests,
-    DeferredToolResults,
-    ToolDenied,
-)
+from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults
 
-from pathfinder.ai.capabilities.security import is_pure_approval
+from pathfinder.ai.graph._lead_answers import (
+    answers_for,
+    sibling_answers,
+    unanswered_inner,
+)
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.dispatch_resume import SubAgentOutcome, resume_sub_agent
@@ -60,8 +56,6 @@ from pathfinder.ai.lead.sub_agent_tools import (
 )
 
 logger = get_logger(__name__)
-
-_DENIED_BY_REPLY = "The user replied instead of answering the approval."
 
 
 async def retrieve_memories(
@@ -266,95 +260,6 @@ class TurnResumption:
     user_prompt: str | None = None
 
 
-def _answers_for(
-    state: PipelineState,
-    tool_call_ids: list[str],
-) -> dict[str, bool | DeferredToolApprovalResult]:
-    """The user's approve/deny for each of ``tool_call_ids``, when answered."""
-    answers: dict[str, bool | DeferredToolApprovalResult] = {}
-    for tool_call_id in tool_call_ids:
-        response = state.approval_responses.get(tool_call_id)
-        if response is None:
-            continue
-        answers[tool_call_id] = approvals.approval_answer(response)
-    return answers
-
-
-def typed_reply(state: PipelineState) -> str | None:
-    """The user's new message, when one arrives while an approval is pending.
-
-    Answering the card leaves ``user_message_id`` untouched, so a different id
-    is a message the user typed instead of clicking.
-    """
-    approval = state.pending_approval
-    if approval is None or approval.user_message_id is None:
-        return None
-    if state.user_message_id in (None, approval.user_message_id):
-        return None
-    return state.user_prompt.strip() or None
-
-
-def _settled_call_ids(history: list[ModelMessage]) -> set[str]:
-    """Tool calls that already carry a result in the replayed history."""
-    settled: set[str] = set()
-    for message in history:
-        if not isinstance(message, ModelRequest):
-            continue
-        for part in message.parts:
-            if isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_call_id:
-                settled.add(part.tool_call_id)
-    return settled
-
-
-def _sibling_answers(
-    state: PipelineState,
-    approval: PendingApproval,
-) -> dict[str, bool | DeferredToolApprovalResult]:
-    """Answers for the other calls the same Lead response left unresolved."""
-    history = approvals.resume_history(approval)
-    last_response = next(
-        (m for m in reversed(history) if isinstance(m, ModelResponse)),
-        None,
-    )
-    if last_response is None:
-        return {}
-    settled = _settled_call_ids(history)
-    return _answers_for(
-        state,
-        [
-            call.tool_call_id
-            for call in last_response.tool_calls
-            if call.tool_call_id != approval.tool_call_id
-            and call.tool_call_id not in settled
-        ],
-    )
-
-
-def _unanswered_inner(
-    state: PipelineState,
-    approval: PendingApproval,
-    inner_ids: list[str],
-) -> tuple[dict[str, bool | DeferredToolApprovalResult], str | None]:
-    """How to resolve inner approvals the user did not click.
-
-    An answer naming the dispatch call applies to all of them. A typed reply
-    approves them when it is nothing but an approval phrase, and otherwise
-    denies them and is delivered to the Lead as the user's next message.
-    """
-    dispatch_answer = _answers_for(state, [approval.tool_call_id])
-    if dispatch_answer:
-        answer = dispatch_answer[approval.tool_call_id]
-        return dict.fromkeys(inner_ids, answer), None
-    typed = typed_reply(state)
-    if typed is None:
-        return {}, None
-    if is_pure_approval(typed):
-        approved: bool | DeferredToolApprovalResult = True
-        return dict.fromkeys(inner_ids, approved), None
-    denial: bool | DeferredToolApprovalResult = ToolDenied(message=_DENIED_BY_REPLY)
-    return dict.fromkeys(inner_ids, denial), typed
-
-
 def _reparked(
     parked: PendingDurableCall,
     *,
@@ -442,7 +347,7 @@ async def _resolve_pending_approval(
         return TurnResumption()
     sub_agent = approval.sub_agent
     if sub_agent is None:
-        answers = _answers_for(state, [approval.tool_call_id])
+        answers = answers_for(state, [approval.tool_call_id])
         if not answers:
             return TurnResumption(parked=approval)
         return TurnResumption(
@@ -450,10 +355,10 @@ async def _resolve_pending_approval(
             results=DeferredToolResults(approvals=answers),
         )
     inner_ids = [call.tool_call_id for call in sub_agent.approvals]
-    answers = _answers_for(state, inner_ids)
+    answers = answers_for(state, inner_ids)
     prompt: str | None = None
     if not answers:
-        answers, prompt = _unanswered_inner(state, approval, inner_ids)
+        answers, prompt = unanswered_inner(state, approval, inner_ids)
     if not answers:
         # pydantic-ai re-executes a deferred call it is given no result for, so
         # a turn that resolves nothing keeps the card and runs no sub-agent.
@@ -490,7 +395,7 @@ async def _resolve_pending_approval(
     return TurnResumption(
         parked=approval,
         results=DeferredToolResults(
-            approvals=_sibling_answers(state, approval),
+            approvals=sibling_answers(state, approval),
             calls={approval.tool_call_id: outcome},
         ),
         user_prompt=prompt,

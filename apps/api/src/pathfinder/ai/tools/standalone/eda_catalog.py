@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from assistant_core.graph.tool_summary import with_summary
+from assistant_core.graph.tool_summary import truncate_summary, with_summary
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -24,6 +24,10 @@ from pathfinder.services.eda.description import (
     permission_facts,
 )
 
+# A card says enough to pick the study. The whole description travels in
+# describe_eda_study, on the one dataset the model picks.
+_CARD_DESCRIPTION_CHARS = 240
+
 _FILTER_GUIDANCE = (
     "Filter this study with set_eda_filters. Copy an entityId and a "
     "variableId from the lists above; a variableId is only valid on the "
@@ -34,7 +38,7 @@ _FILTER_GUIDANCE = (
 )
 
 _ENTITY_GUIDANCE = (
-    "Call describe_eda_study again with an entityId to read that entity's "
+    "Call describe_eda_study again with an entity_id to read that entity's "
     "variables. A study can declare thousands, so they travel one entity at "
     "a time."
 )
@@ -86,7 +90,10 @@ async def search_eda_studies(
                 study_id=card.study_id,
                 display_name=card.display_name,
                 short_display_name=card.short_display_name,
-                description=card.description,
+                description=truncate_summary(
+                    card.description,
+                    limit=_CARD_DESCRIPTION_CHARS,
+                ),
                 source_type=card.source_type,
                 relevance=card.relevance,
                 can_subset=card.can_subset,
@@ -98,8 +105,11 @@ async def search_eda_studies(
             part
             for part in (
                 found.guidance,
-                "Call describe_eda_study on the datasetId you want before "
-                "opening an analysis.",
+                "Every description here is cut short. Call "
+                "describe_eda_study on the datasetId you pick, before "
+                "opening an analysis: it reads that study in full - its "
+                "entities, its variables, and what this account may do "
+                "with it.",
             )
             if part
         ),
@@ -118,10 +128,10 @@ async def describe_eda_study(
 ) -> ToolReturn[EdaStudyDescription]:
     """Read an EDA study's entity tree, and one entity's filterable variables.
 
-    Call it first with no ``entityId`` to get the entity tree: each entity is
+    Call it first with no ``entity_id`` to get the entity tree: each entity is
     one table of records, a child entity holds several rows per parent row,
     and the counts a subset produces are per entity. Then call it again with
-    the ``entityId`` you want, to get that entity's variables. A study can
+    the ``entity_id`` you want, to get that entity's variables. A study can
     declare thousands of variables, so they never travel all at once.
 
     Each variable carries the exact ``filterType`` it takes, its vocabulary or
@@ -131,7 +141,7 @@ async def describe_eda_study(
 
     Args:
         ctx: Agent run context.
-        dataset_id: The ``datasetId`` from search_eda_studies.
+        dataset_id: The dataset id from search_eda_studies.
         entity_id: The entity whose variables to read.
     """
     try:
@@ -139,7 +149,7 @@ async def describe_eda_study(
             ctx.deps.runtime.site_id, dataset_id
         )
     except UnknownEdaDatasetError as exc:
-        msg = f"{exc.guidance} Call search_eda_studies to find a real datasetId."
+        msg = f"{exc.guidance} Call search_eda_studies to find a real dataset id."
         raise ModelRetry(msg) from exc
     try:
         described = describe_study(

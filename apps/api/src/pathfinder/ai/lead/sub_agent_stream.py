@@ -60,6 +60,7 @@ from pathfinder.ai.lead.sub_agent_tools import (
     phase_override_kwargs,
     phase_usage_limits,
 )
+from pathfinder.ai.models.catalog import context_window_for
 
 logger = get_logger(__name__)
 
@@ -170,6 +171,8 @@ async def stream_sub_agent[OutputT: BaseModel](
     output: OutputT | None = None
     wait: SubAgentApprovalWait | None = None
     usage = RunUsage()
+    usage_recorded = False
+    context_meter = _ContextMeter()
     # The mock model reads these to pick a site-valid search and branch its
     # canned plan.
     current_scope_id.set(deps.runtime.site_id)
@@ -224,6 +227,7 @@ async def stream_sub_agent[OutputT: BaseModel](
                                 parent_tool_call_id=parent_tool_call_id,
                             ),
                         )
+                        usage_recorded = True
                         continue
                     _forward_inner_event(
                         parent_tool_call_id=parent_tool_call_id,
@@ -235,7 +239,7 @@ async def stream_sub_agent[OutputT: BaseModel](
                         _close_answered_approval(writer, event, answered)
                         _emit_live_ledger(writer, deps, agent_deps)
                         _emit_running_sub_agent_usage(
-                            writer, role, parent_tool_call_id, usage
+                            writer, role, parent_tool_call_id, usage, context_meter
                         )
                         if event.tool_call_id == guard.stopped_call_id:
                             # The guard refused the same call twice. The draft
@@ -255,8 +259,58 @@ async def stream_sub_agent[OutputT: BaseModel](
                 role=role,
                 error=str(exc),
             )
+            _record_stopped_usage(deps, role, parent_tool_call_id, usage)
             return None
+    if not usage_recorded:
+        _record_stopped_usage(deps, role, parent_tool_call_id, usage)
     return wait if wait is not None else output
+
+
+def _record_stopped_usage(
+    deps: LeadDeps,
+    role: PhaseRole,
+    parent_tool_call_id: str,
+    usage: RunUsage,
+) -> None:
+    """Record usage for a run that ended without a result event.
+
+    A budget stop or a repetition stop yields no result, so the turn's
+    totals would otherwise drop the run's tokens.
+    """
+    model_id = phase_default_model_id(role)
+    provider, _, model = model_id.partition(":")
+    deps.record_sub_agent_usage(
+        SubAgentRunUsage(
+            usage=usage,
+            model_name=model or None,
+            provider_name=provider or None,
+            provider_url=None,
+            parent_tool_call_id=parent_tool_call_id,
+        ),
+    )
+
+
+@dataclass
+class _ContextMeter:
+    """The cumulative input tokens already reported for one dispatch.
+
+    ``RunUsage.input_tokens`` accumulates over a run, so one request's input
+    size is the delta between two readings. One request answers every one of
+    its parallel tool calls, so an unchanged reading repeats the last size
+    instead of reporting 0. A drop reads as 0.
+    """
+
+    seen_input: int = 0
+    last_size: int = 0
+
+    def last_request_input(self, usage: RunUsage) -> int:
+        delta = usage.input_tokens - self.seen_input
+        self.seen_input = usage.input_tokens
+        if delta > 0:
+            self.last_size = delta
+        elif delta < 0:
+            self.last_size = 0
+        return self.last_size
 
 
 def _emit_running_sub_agent_usage(
@@ -264,8 +318,10 @@ def _emit_running_sub_agent_usage(
     role: PhaseRole,
     parent_tool_call_id: str,
     usage: RunUsage,
+    meter: _ContextMeter,
 ) -> None:
-    """Push the sub-agent's running tokens/cost after each inner tool call."""
+    """Push the sub-agent's running tokens/cost and context fill after each
+    inner tool call."""
     model_id = phase_default_model_id(role)
     provider, _, model = model_id.partition(":")
     cost = cost_for_run(
@@ -285,6 +341,8 @@ def _emit_running_sub_agent_usage(
                 model_id=model_id,
                 tokens=usage.total_tokens,
                 cost_usd=str(cost),
+                context_tokens=meter.last_request_input(usage),
+                context_window=context_window_for(model_id),
             )
         ),
     )

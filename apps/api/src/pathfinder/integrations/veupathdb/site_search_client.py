@@ -13,8 +13,8 @@ from assistant_core.platform.logging import get_logger
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field, field_validator
 from tenacity import (
+    AsyncRetrying,
     RetryError,
-    retry,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
@@ -22,7 +22,7 @@ from tenacity import (
 
 from pathfinder.integrations.veupathdb._observability import (
     SiteSearchRequestTelemetry,
-    log_site_search_retry,
+    site_search_retry_logger,
 )
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.metrics import (
@@ -170,8 +170,18 @@ class SiteSearchClient:
             base_url=self._base_url,
         )
         start = time.monotonic()
+        retrying = AsyncRetrying(
+            retry=retry_if_exception_type(
+                (httpx.TimeoutException, httpx.ConnectError)
+            ),
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=1, max=10),
+            before_sleep=site_search_retry_logger(telemetry),
+            reraise=False,
+        )
         try:
-            result = await self._search_with_retry(
+            result: SiteSearchResponse = await retrying(
+                self._search_attempt,
                 search_text,
                 document_type_filter=document_type_filter,
                 organisms=organisms,
@@ -197,13 +207,7 @@ class SiteSearchClient:
         site_search_request_duration_s.record(time.monotonic() - start, attrs)
         return result
 
-    @retry(
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        before_sleep=log_site_search_retry,
-    )
-    async def _search_with_retry(
+    async def _search_attempt(
         self,
         search_text: str,
         *,

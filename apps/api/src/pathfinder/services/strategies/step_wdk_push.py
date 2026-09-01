@@ -11,14 +11,12 @@ from pydantic import BaseModel, ConfigDict
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
-from pathfinder.domain.strategy.ast import (
-    COMBINE_SEARCH_NAME,
-)
 from pathfinder.domain.strategy.graph_model import (
     StepKind,
     StepStatus,
     StrategyStep,
     record_class_of,
+    runs_a_wdk_search,
     step_status,
     wdk_search_name,
 )
@@ -243,8 +241,7 @@ async def _validate_plan_params(
         step = steps_by_id.get(entry.step_id)
         if step is None or isinstance(entry.action, SkipAction):
             continue
-        search_name = step.search_name or COMBINE_SEARCH_NAME
-        if search_name == COMBINE_SEARCH_NAME:
+        if not runs_a_wdk_search(step):
             continue
         try:
             validated = await validate_parameters(
@@ -253,7 +250,7 @@ async def _validate_plan_params(
                     record_type=record_class_of(
                         entry.step_id, steps_by_id, fallback=strategy_class
                     ),
-                    search_name=search_name,
+                    search_name=wdk_search_name(step),
                 ),
                 parameters=dict(step.parameters),
                 callbacks=callbacks,
@@ -280,10 +277,7 @@ async def push_steps_with_plan(
     A failed step does not stop the plan. A combine whose input failed has no
     input id, so it also fails.
     """
-    root_step = next(
-        (graph.steps[sid] for sid in graph.roots if sid in graph.steps), None
-    )
-    if root_step is None:
+    if graph.primary_root_id() is None:
         return PushOutcome(succeeded=[], failed=[])
 
     steps_by_id: dict[str, StrategyStep] = dict(graph.steps)

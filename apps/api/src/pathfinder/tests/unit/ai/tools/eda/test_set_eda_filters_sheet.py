@@ -295,7 +295,6 @@ async def test_a_first_call_with_no_filters_returns_the_sheet(
     returned = await eda_analysis.set_eda_filters(lead_ctx, dataset_id=_DATASET)
     result = returned.return_value
     assert result.decide
-    assert result.filters_template == []
     assert result.applied is False
 
 

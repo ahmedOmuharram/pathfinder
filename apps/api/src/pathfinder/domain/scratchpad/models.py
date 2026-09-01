@@ -84,6 +84,24 @@ class NoteDetail(NoteRef):
     updated_at: datetime
 
 
+class NoteListResult(CamelModel):
+    """What a scratchpad listing returns.
+
+    ``total_notes`` is the size of the whole scratchpad, so an empty
+    ``matches`` separates "no match" from "empty scratchpad".
+    """
+
+    total_notes: int = Field(ge=0)
+    matches: list[NoteRef]
+    summary: str
+
+
+class NoteSearchResult(NoteListResult):
+    """A listing that answers one query."""
+
+    query: str
+
+
 class CompactionRun(CamelModel):
     id: int | None = None
     conversation_id: UUID

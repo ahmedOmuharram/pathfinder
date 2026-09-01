@@ -9,6 +9,7 @@ Choices with a real alternative, where the reasoning is not recoverable from the
 ## Strategy graph
 
 - [The nested tree stays at the wire boundary](nested-tree-at-the-wire-boundary.md) - why R1 did not flatten persistence
+- [The combine sentinel is a boundary default, not a kind flag](the-combine-sentinel-is-a-boundary-default.md) - `__combine__` stays where `searchName` is required, and no reader asks it what a step is
 - [Step status is derived, never stored](step-status-is-derived.md) - four states, not three, and no stored copy
 - [A boolean operator is a type, not a string](boolean-operator-is-a-type.md) - one annotated type, so a bad operator is a 422
 - [The local edit is the truth](local-edit-is-the-truth.md) - a WDK rejection is that step's problem, not the operation's
@@ -22,6 +23,7 @@ Choices with a real alternative, where the reasoning is not recoverable from the
 - [Preserved is computed, never written](preserved-is-computed-never-written.md) - an edit turn's "the rest is unchanged" is read from a diff of the two specs, and an undeclared drop is a retry
 - [The ledger outranks the verification digest](the-ledger-outranks-the-verification-digest.md) - a success the build does not support is rewritten where the digest is recorded, because a ModelRetry runs out and the same flag decides the memory auto-write and the eval verdict
 - [An edit is a delta, not a rebuild](an-edit-is-a-delta-not-a-rebuild.md) - the diff becomes graph operations over the live strategy, so an untouched step keeps its WDK id and its hand edits
+- [A built turn is asked to verify once](a-built-turn-is-asked-to-verify-once.md) - an output validator refuses the first answer of a turn that built and never verified, once per turn, so the second answer can state why a check is impossible
 - [Building is a response to a request](building-is-a-response-to-a-request.md) - the tools that change a strategy are off the Lead's list until the turn is classified as one that asks for a change
 - [A clarification adds to the request](a-clarification-adds-to-the-request.md) - the thread accumulates every stated requirement, so a clarification turn frames from the original request as well as the answer
 - [A criterion and its step are one address](a-criterion-and-its-step-are-one-address.md) - a build re-keys the spec on the step ids it minted, and a spec-less thread reconstructs one from its persisted AST

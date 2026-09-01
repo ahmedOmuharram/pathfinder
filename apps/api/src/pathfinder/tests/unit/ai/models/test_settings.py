@@ -70,6 +70,35 @@ class TestBuildModelSettings:
         assert "thinking" not in data
 
 
+class TestEveryRequestCarriesATimeout:
+    """A provider request that never returns must fail instead of hanging."""
+
+    def test_openai_carries_the_timeout(self) -> None:
+        assert build_model_settings("openai:gpt-5.6-luna")["timeout"] == 900
+
+    def test_anthropic_carries_the_timeout(self) -> None:
+        assert build_model_settings("anthropic:claude-opus-4-6")["timeout"] == 900
+
+    def test_google_carries_the_timeout(self) -> None:
+        assert build_model_settings("google:gemini-2.5-pro")["timeout"] == 900
+
+    def test_timeout_survives_every_thinking_effort(self) -> None:
+        for effort in ("none", "low", "medium", "high"):
+            for model in ("openai:gpt-5.6-luna", "anthropic:claude-opus-4-6"):
+                settings = build_model_settings(model, thinking=effort)
+
+                assert settings["timeout"] == 900, (model, effort)
+
+    def test_timeout_does_not_disturb_provider_settings(self) -> None:
+        anthropic = build_model_settings("anthropic:claude-opus-4-6", thinking="high")
+        openai = build_model_settings("openai:gpt-5.6-luna", thinking="high")
+
+        assert anthropic.get("anthropic_cache_instructions") is True
+        assert anthropic["thinking"] == "high"
+        assert openai.get("openai_send_reasoning_ids") is False
+        assert openai["thinking"] == "high"
+
+
 class TestOpenAiItemIdsAreNotSentBack:
     """The Responses API validates item IDs we echo back; we rewrite history,
     so they never match.

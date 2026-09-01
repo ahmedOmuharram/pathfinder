@@ -11,6 +11,7 @@ import { useRightRailStore } from "@/state/useRightRailStore";
 import { runningPhase } from "../thread/runningPhase";
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
 import { ConstraintsSection } from "./ConstraintsSection";
+import { ContextSection } from "./ContextSection";
 import {
   BuildSection,
   FrameSection,
@@ -86,7 +87,8 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
   const signatures = ledger !== null ? ledgerTabSignatures(ledger) : null;
   const hasContent = ledger !== null ? ledgerTabHasContent(ledger) : null;
   const seen = ledgerSeen[conversationId] ?? {};
-  const phase = runningPhase(chat?.messages.flatMap((m) => m.parts) ?? []);
+  const parts = chat?.messages.flatMap((m) => m.parts) ?? [];
+  const phase = runningPhase(parts);
 
   // Keep the active detail tab marked seen as it updates live (render-time
   // pattern, no useEffect) so it never re-flags after the user watched it.
@@ -162,7 +164,7 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
                 {`${phaseLabel(phase)} is running...`}
               </p>
             )}
-            <LedgerTabContent tab={tab} ledger={ledger} />
+            <LedgerTabContent tab={tab} ledger={ledger} parts={parts} />
           </>
         )}
       </div>
@@ -173,9 +175,11 @@ export function LedgerPanel({ conversationId }: { conversationId: string }) {
 function LedgerTabContent({
   tab,
   ledger,
+  parts,
 }: {
   tab: Tab;
   ledger: DataLedgerUpdatePayload;
+  parts: readonly { type: string; data?: unknown }[];
 }) {
   if (tab === "summary") {
     return (
@@ -184,6 +188,7 @@ function LedgerTabContent({
         <FrameSection frame={ledger.frame} />
         <BuildSection build={ledger.build} />
         <VerificationSection verification={ledger.verification} />
+        <ContextSection parts={parts} />
         <ConstraintsSection constraints={ledger.constraints} />
       </div>
     );

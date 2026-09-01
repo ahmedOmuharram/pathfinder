@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -12,7 +13,6 @@ from tenacity import RetryCallState
 from pathfinder.platform.metrics import site_search_request_retries, wdk_request_retries
 
 logger = get_logger(__name__)
-_RETRY_STATE_REQUIRED_ARGS = 3
 _ENDPOINT_GROUP_PREFIXES = (
     ("record-types/", "record_types"),
     ("searches/", "searches"),
@@ -140,89 +140,78 @@ class SiteSearchRequestTelemetry:
         )
 
 
-def log_wdk_retry(retry_state: RetryCallState) -> None:
-    """Record retry metrics and logs for transient WDK failures."""
-    if len(retry_state.args) < _RETRY_STATE_REQUIRED_ARGS:
-        return
-    client = retry_state.args[0]
-    method = retry_state.args[1]
-    path = retry_state.args[2]
-    if (
-        not isinstance(client, object)
-        or not isinstance(method, str)
-        or not isinstance(path, str)
-    ):
-        return
-
+def _retry_failure(retry_state: RetryCallState) -> tuple[float, BaseException] | None:
+    """The pending sleep and the failure, when the state carries both."""
     next_action = retry_state.next_action
     if next_action is None:
-        return
+        return None
     outcome = retry_state.outcome
     if outcome is None or not outcome.failed:
-        return
+        return None
     error = outcome.exception()
     if error is None:
-        return
-
-    telemetry = WdkRequestTelemetry(
-        method=method,
-        path=path,
-        base_url=getattr(client, "base_url", ""),
-        has_auth=bool(getattr(client, "auth_token", None)),
-    )
-    attrs = telemetry.metric_attrs(
-        outcome="retry",
-        status_code=(
-            error.response.status_code
-            if isinstance(error, httpx.HTTPStatusError)
-            else None
-        ),
-        retried=True,
-    )
-    wdk_request_retries.add(1, attrs | {"error_kind": _error_kind(error)})
-    logger.warning(
-        "Retrying VEuPathDB request",
-        method=method,
-        path=path,
-        endpoint_group=attrs["endpoint_group"],
-        site_host=attrs["site_host"],
-        attempt=retry_state.attempt_number,
-        wait_seconds=next_action.sleep,
-        error_kind=_error_kind(error),
-        error=str(error),
-    )
+        return None
+    sleep = next_action.sleep
+    return (float(sleep) if sleep is not None else 0.0, error)
 
 
-def log_site_search_retry(retry_state: RetryCallState) -> None:
-    """Record retry metrics and logs for transient site-search failures."""
-    if len(retry_state.args) < _RETRY_STATE_REQUIRED_ARGS:
-        return
-    client = retry_state.args[0]
-    if not isinstance(client, object):
-        return
-    next_action = retry_state.next_action
-    if next_action is None:
-        return
-    outcome = retry_state.outcome
-    if outcome is None or not outcome.failed:
-        return
-    error = outcome.exception()
-    if error is None:
-        return
+def wdk_retry_logger(
+    telemetry: WdkRequestTelemetry,
+) -> Callable[[RetryCallState], None]:
+    """Build a tenacity before_sleep hook bound to one request's telemetry."""
 
-    telemetry = SiteSearchRequestTelemetry(
-        method="POST",
-        path="/site-search",
-        base_url=getattr(client, "_base_url", ""),
-    )
-    attrs = telemetry.metric_attrs(outcome="retry", retried=True)
-    site_search_request_retries.add(1, attrs | {"error_kind": _error_kind(error)})
-    logger.warning(
-        "Retrying site-search request",
-        endpoint_group=attrs["endpoint_group"],
-        site_host=attrs["site_host"],
-        attempt=retry_state.attempt_number,
-        wait_seconds=next_action.sleep,
-        error_kind=_error_kind(error),
-        error=str(error),
-    )
+    def log_retry(retry_state: RetryCallState) -> None:
+        failure = _retry_failure(retry_state)
+        if failure is None:
+            return
+        wait_seconds, error = failure
+        attrs = telemetry.metric_attrs(
+            outcome="retry",
+            status_code=(
+                error.response.status_code
+                if isinstance(error, httpx.HTTPStatusError)
+                else None
+            ),
+            retried=True,
+        )
+        wdk_request_retries.add(1, attrs | {"error_kind": _error_kind(error)})
+        logger.warning(
+            "Retrying VEuPathDB request",
+            method=telemetry.method,
+            path=telemetry.path,
+            endpoint_group=attrs["endpoint_group"],
+            site_host=attrs["site_host"],
+            attempt=retry_state.attempt_number,
+            wait_seconds=wait_seconds,
+            error_kind=_error_kind(error),
+            error=str(error),
+        )
+
+    return log_retry
+
+
+def site_search_retry_logger(
+    telemetry: SiteSearchRequestTelemetry,
+) -> Callable[[RetryCallState], None]:
+    """Build a tenacity before_sleep hook bound to one request's telemetry."""
+
+    def log_retry(retry_state: RetryCallState) -> None:
+        failure = _retry_failure(retry_state)
+        if failure is None:
+            return
+        wait_seconds, error = failure
+        attrs = telemetry.metric_attrs(outcome="retry", retried=True)
+        site_search_request_retries.add(1, attrs | {"error_kind": _error_kind(error)})
+        logger.warning(
+            "Retrying site-search request",
+            method=telemetry.method,
+            path=telemetry.path,
+            endpoint_group=attrs["endpoint_group"],
+            site_host=attrs["site_host"],
+            attempt=retry_state.attempt_number,
+            wait_seconds=wait_seconds,
+            error_kind=_error_kind(error),
+            error=str(error),
+        )
+
+    return log_retry

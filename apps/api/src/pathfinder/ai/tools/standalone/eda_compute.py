@@ -81,15 +81,15 @@ async def run_eda_compute(
 
     Choosing the arguments, and describe_eda_study gives you all of them:
 
-    - ``identifierVariable`` is the gene column, and it is the reserved
+    - ``identifier_variable`` is the gene column, and it is the reserved
       variable ``VEUPATHDB_GENE_ID``.
-    - ``valueVariable`` is the measurement column on the SAME entity. It is one
-      of the reserved ids ``SEQUENCE_READ_COUNT``,
+    - ``value_variable`` is the measurement column on the SAME entity. It is
+      one of the reserved ids ``SEQUENCE_READ_COUNT``,
       ``SEQUENCE_READ_COUNT_SENSE``, ``SEQUENCE_READ_COUNT_ANTISENSE``,
       ``NORMALIZED_EXPRESSION`` or ``NORMALIZED_INTENSITY``.
-    - ``comparatorVariable`` is the sample-level variable that separates the
+    - ``comparator_variable`` is the sample-level variable that separates the
       two groups, and it lives on an ANCESTOR entity of the expression data.
-    - ``groupALabels`` is the reference group and ``groupBLabels`` is the
+    - ``group_a_labels`` is the reference group and ``group_b_labels`` is the
       comparison group. Every label must be a value in the comparator
       variable's vocabulary, and no label may be in both groups.
     - ``method`` is ``DESeq`` for raw counts and ``limma`` for normalized array

@@ -84,4 +84,3 @@ class UserIntent(CamelModel):
             "scoping's provisional assumptions for the same dimension."
         ),
     )
-    last_classified_at_turn: str | None = None

@@ -58,7 +58,7 @@ function isAnswered(q: ConsultQuestionView, a: AnswerState | undefined): boolean
   return a.labels.length > 0;
 }
 
-function ConsultCarouselView({
+export function ConsultCarouselView({
   pending,
   chat,
 }: {
@@ -231,6 +231,8 @@ function ConsultSlide({
                 key={opt.label}
                 type="button"
                 onClick={() => onToggle(opt.label)}
+                aria-label={opt.label}
+                aria-pressed={isChosen}
                 data-testid={`consult-option-${opt.label}`}
                 className={cn(
                   "w-full rounded-md border p-2.5 text-left transition-colors",
@@ -279,6 +281,7 @@ function ConsultSlide({
               : "Add a note (optional)..."
           }
           rows={2}
+          aria-label={question.kind === "free_text" ? "Your answer" : "Add a note"}
           data-testid="consult-note"
         />
       )}

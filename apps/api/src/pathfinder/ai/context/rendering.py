@@ -2,6 +2,7 @@
 
 from pathfinder.ai.context.extractors import extract_tool_summary
 from pathfinder.ai.context.models import ToolCallRecord, TurnSummary
+from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME
 from pathfinder.domain.strategy.graph_model import StrategyStep
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.types import SyncStateProtocol
@@ -67,7 +68,6 @@ def render_context_summary(summaries: list[TurnSummary]) -> str:
     return header + "\n".join(lines)
 
 
-_COMBINE_SEARCH_NAME = "__combine__"
 _MAX_PARAM_VAL_LEN = 40
 
 
@@ -184,7 +184,7 @@ def render_slim_step_result(
 
     if operator and input_ids:
         parts.append(f"{operator}({input_ids[0]}, {input_ids[1]})")
-    elif search_name and search_name != _COMBINE_SEARCH_NAME:
+    elif search_name and search_name != COMBINE_SEARCH_NAME:
         parts.append(search_name)
 
     if display_name:

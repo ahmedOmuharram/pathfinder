@@ -7,7 +7,7 @@ including step tree materialization for multi-step and import modes.
 from assistant_core.platform.logging import get_logger
 from assistant_core.platform.types import JSONObject
 
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.ops import (
     DEFAULT_COMBINE_OPERATOR,
     ColocationParams,
@@ -38,32 +38,37 @@ async def _materialize_step_tree(
     api: StrategyAPI,
     node: StrategyStepNode,
     record_type: str,
-    *,
-    site_id: str = "",
 ) -> WDKStepTree:
-    """Recursively create WDK steps from a :class:`StrategyStepNode`.
+    """Create the WDK steps of a :class:`StrategyStepNode` tree.
 
-    Walks the tree bottom-up: leaf search nodes are created first,
-    then combine/transform nodes reference them.
+    ``walk_step_tree`` yields every input before the step that consumes it, so
+    each node finds its inputs already created.
 
     :param api: Strategy API instance.
     :param node: Strategy plan node.
     :param record_type: WDK record type for all steps.
-    :param site_id: VEuPathDB site identifier (for param auto-expansion).
     :returns: :class:`WDKStepTree` ready for strategy creation.
     """
-    primary_tree: WDKStepTree | None = None
-    secondary_tree: WDKStepTree | None = None
-
-    if node.primary_input is not None:
-        primary_tree = await _materialize_step_tree(
-            api, node.primary_input, record_type, site_id=site_id
+    created: dict[str, WDKStepTree] = {}
+    for step in walk_step_tree(node):
+        created[step.id] = await _materialize_step(
+            api,
+            step,
+            record_type,
+            created.get(step.primary_input.id) if step.primary_input else None,
+            created.get(step.secondary_input.id) if step.secondary_input else None,
         )
-    if node.secondary_input is not None:
-        secondary_tree = await _materialize_step_tree(
-            api, node.secondary_input, record_type, site_id=site_id
-        )
+    return created[node.id]
 
+
+async def _materialize_step(
+    api: StrategyAPI,
+    node: StrategyStepNode,
+    record_type: str,
+    primary_tree: WDKStepTree | None,
+    secondary_tree: WDKStepTree | None,
+) -> WDKStepTree:
+    """Create the one WDK step this node describes, over its created inputs."""
     search_name = node.search_name
     wire_parameters = encode_params(node.parameters)
     display_name = node.display_name or search_name
@@ -152,7 +157,7 @@ async def _persist_experiment_strategy(
     effective_tree = override_tree or config.step_tree
     if mode in ("multi-step", "import") and effective_tree is not None:
         root_tree = await _materialize_step_tree(
-            api, effective_tree, config.record_type, site_id=config.site_id
+            api, effective_tree, config.record_type
         )
     else:
         step_payload = await api.create_step(
@@ -207,24 +212,9 @@ async def _persist_import_strategy(
 
     dup_tree = await api.get_duplicated_step_tree(source_id)
 
-    # The duplicated tree already has real WDK step IDs, so we can
-    # directly wrap it in a WDKStepTree.
-    def _wdk_tree_to_node(tree: WDKStepTree) -> WDKStepTree:
-        sid = tree.step_id
-        primary = tree.primary_input
-        secondary = tree.secondary_input
-        return WDKStepTree(
-            step_id=sid,
-            primary_input=_wdk_tree_to_node(primary) if primary is not None else None,
-            secondary_input=_wdk_tree_to_node(secondary)
-            if secondary is not None
-            else None,
-        )
-
-    root = _wdk_tree_to_node(dup_tree)
-
+    # The duplicated tree already carries real WDK step ids.
     created = await api.create_strategy(
-        step_tree=root,
+        step_tree=dup_tree,
         name=f"exp:{experiment_id}",
         description=f"Imported strategy for experiment {config.name}",
         is_internal=True,
@@ -235,9 +225,9 @@ async def _persist_import_strategy(
         "Persisted imported WDK strategy for experiment",
         experiment_id=experiment_id,
         strategy_id=strategy_id,
-        step_id=root.step_id,
+        step_id=dup_tree.step_id,
     )
-    return {"strategy_id": strategy_id, "step_id": root.step_id}
+    return {"strategy_id": strategy_id, "step_id": dup_tree.step_id}
 
 
 async def cleanup_experiment_strategy(experiment: Experiment) -> None:

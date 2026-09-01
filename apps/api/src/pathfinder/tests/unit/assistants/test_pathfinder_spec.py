@@ -130,7 +130,7 @@ def test_its_mock_factory_returns_the_scripted_function_model() -> None:
 
 def test_it_declares_the_product_memory_kinds() -> None:
     assert build_pathfinder_spec().memory_kinds == frozenset(
-        {"gene_set", "strategy", "preference", "knowledge"},
+        {"gene_set", "strategy", "preference", "knowledge", "case"},
     )
 
 

@@ -42,6 +42,7 @@ function emptyList(): MemoryListResponse {
     strategies: [],
     preferences: [],
     knowledge: [],
+    cases: [],
     pageSize: 50,
     offset: 0,
     hasMore: false,
@@ -60,7 +61,7 @@ afterEach(() => {
 });
 
 describe("MemorySettings", () => {
-  it("renders four MemorySection accordions", async () => {
+  it("renders five MemorySection accordions", async () => {
     mockedList.mockResolvedValue(emptyList());
     render(<MemorySettings />);
     await screen.findByRole("button", { name: /Gene Sets/i });
@@ -68,6 +69,23 @@ describe("MemorySettings", () => {
     expect(screen.getByRole("button", { name: /Strategies/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Preferences/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Knowledge/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cases/i })).toBeInTheDocument();
+  });
+
+  it("deletes a case like any other kind", async () => {
+    mockedList.mockResolvedValue({
+      ...emptyList(),
+      cases: [item("kinase_hunt", "case")],
+    });
+    mockedDelete.mockResolvedValue(undefined);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<MemorySettings />);
+    await screen.findByRole("button", { name: /Cases/i });
+    fireEvent.click(screen.getByRole("button", { name: /Cases/i }));
+    fireEvent.click(screen.getByLabelText(/delete kinase_hunt/i));
+    await waitFor(() => {
+      expect(mockedDelete).toHaveBeenCalledWith("k-kinase_hunt", "case");
+    });
   });
 
   it("shows error state on failed list", async () => {
@@ -85,6 +103,7 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [],
+      cases: [],
       pageSize: 50,
       offset: 0,
       hasMore: false,
@@ -108,6 +127,7 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [],
+      cases: [],
       pageSize: 50,
       offset: 0,
       hasMore: false,
@@ -127,6 +147,7 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [k],
+      cases: [],
       pageSize: 50,
       offset: 0,
       hasMore: false,
@@ -150,6 +171,7 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [k],
+      cases: [],
       pageSize: 50,
       offset: 0,
       hasMore: false,
@@ -179,6 +201,7 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [],
+      cases: [],
       pageSize: 50,
       offset: 0,
       hasMore: true,

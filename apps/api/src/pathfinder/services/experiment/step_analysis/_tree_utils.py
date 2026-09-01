@@ -1,11 +1,13 @@
 """Tree traversal and manipulation helpers for step analysis."""
 
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ast import StepFold, StrategyStepNode, fold_step_tree
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.tree import (
     collect_plan_combine_nodes,
     collect_plan_leaves,
 )
+
+type _Rewrite = StepFold[StrategyStepNode | None]
 
 
 def _collect_leaves(tree: StrategyStepNode) -> list[StrategyStepNode]:
@@ -26,64 +28,81 @@ def _node_id(node: StrategyStepNode) -> str:
 # Pruning internals
 
 
+def _rewired(
+    node: StrategyStepNode,
+    primary: StrategyStepNode,
+    secondary: StrategyStepNode,
+) -> StrategyStepNode:
+    """The combine with whichever slot changed, or the node itself."""
+    updates: dict[str, StrategyStepNode] = {}
+    if primary is not node.primary_input:
+        updates["primary_input"] = primary
+    if secondary is not node.secondary_input:
+        updates["secondary_input"] = secondary
+    return node.model_copy(update=updates) if updates else node
+
+
 def _prune_combine(
     node: StrategyStepNode,
-    pi: StrategyStepNode,
-    si: StrategyStepNode,
+    primary: StrategyStepNode | None,
+    secondary: StrategyStepNode | None,
     target_leaf_id: str,
 ) -> StrategyStepNode | None:
-    """Prune the target leaf from a combine node."""
-    if pi.id == target_leaf_id:
-        return si
-    if si.id == target_leaf_id:
-        return pi
-
-    replacement_pi = _prune_node(pi, target_leaf_id)
-    replacement_si = _prune_node(si, target_leaf_id)
-
-    if replacement_pi is None:
-        return replacement_si
-    if replacement_si is None:
-        return replacement_pi
-
-    updates: dict[str, StrategyStepNode] = {}
-    if replacement_pi is not pi:
-        updates["primary_input"] = replacement_pi
-    if replacement_si is not si:
-        updates["secondary_input"] = replacement_si
-    if updates:
-        return node.model_copy(update=updates)
-    return node
+    """A combine that loses one input becomes the input it kept."""
+    left, right = node.primary_input, node.secondary_input
+    if left is not None and left.id == target_leaf_id:
+        return right
+    if right is not None and right.id == target_leaf_id:
+        return left
+    if primary is None:
+        return secondary
+    if secondary is None:
+        return primary
+    return _rewired(node, primary, secondary)
 
 
 def _prune_unary(
     node: StrategyStepNode,
-    pi: StrategyStepNode,
+    primary: StrategyStepNode | None,
     target_leaf_id: str,
 ) -> StrategyStepNode | None:
-    """Prune the target leaf from a transform node."""
-    if pi.id == target_leaf_id:
+    """A transform whose input goes away goes away with it."""
+    left = node.primary_input
+    if left is not None and left.id == target_leaf_id:
         return None
-    replacement = _prune_node(pi, target_leaf_id)
-    if replacement is None:
+    if primary is None:
         return None
-    if replacement is not pi:
-        return node.model_copy(update={"primary_input": replacement})
-    return node
+    if primary is left:
+        return node
+    return node.model_copy(update={"primary_input": primary})
 
 
-def _prune_node(node: StrategyStepNode, target_leaf_id: str) -> StrategyStepNode | None:
-    """Prune the target leaf and give the replacement node, or None if it collapses."""
-    pi = node.primary_input
-    si = node.secondary_input
+def _pruned(target_leaf_id: str) -> _Rewrite:
+    def fold(
+        node: StrategyStepNode, inputs: list[StrategyStepNode | None]
+    ) -> StrategyStepNode | None:
+        if node.secondary_input is not None:
+            return _prune_combine(node, inputs[0], inputs[1], target_leaf_id)
+        if node.primary_input is not None:
+            return _prune_unary(node, inputs[0], target_leaf_id)
+        return node
 
-    if pi is not None and si is not None:
-        return _prune_combine(node, pi, si, target_leaf_id)
+    return fold
 
-    if pi is not None:
-        return _prune_unary(node, pi, target_leaf_id)
 
-    return node
+def _extracted(leaf_id: str) -> _Rewrite:
+    def fold(
+        node: StrategyStepNode, inputs: list[StrategyStepNode | None]
+    ) -> StrategyStepNode | None:
+        if node.secondary_input is not None:
+            return inputs[0] if inputs[0] is not None else inputs[1]
+        if node.primary_input is None:
+            return node if node.id == leaf_id else None
+        if inputs[0] is None:
+            return None
+        return node.model_copy(update={"primary_input": inputs[0]})
+
+    return fold
 
 
 # Public helpers
@@ -100,7 +119,7 @@ def _remove_leaf_from_tree(
     """
     if tree.id == target_leaf_id:
         return None
-    return _prune_node(tree, target_leaf_id)
+    return fold_step_tree(tree, _pruned(target_leaf_id))
 
 
 def _extract_leaf_branch(
@@ -112,27 +131,7 @@ def _extract_leaf_branch(
     A combine node contributes only the branch that holds the leaf. A transform
     node stays, so the extracted tree evaluates the leaf in the same way.
     """
-    pi = tree.primary_input
-    si = tree.secondary_input
-
-    if pi is None and si is None:
-        return tree if tree.id == leaf_id else None
-
-    # A combine node keeps the branch that holds the leaf.
-    if pi is not None and si is not None:
-        branch = _extract_leaf_branch(pi, leaf_id)
-        if branch is not None:
-            return branch
-        return _extract_leaf_branch(si, leaf_id)
-
-    # A transform node keeps its wrapper around the child result.
-    if pi is not None:
-        child = _extract_leaf_branch(pi, leaf_id)
-        if child is not None:
-            return tree.model_copy(update={"primary_input": child})
-        return None
-
-    return None
+    return fold_step_tree(tree, _extracted(leaf_id))
 
 
 def _build_subtree_with_operator(

@@ -49,6 +49,7 @@ TURN_FIELDS = {
 
 DOMAIN_FIELDS = {
     "user_intent",
+    "turn_markers",
     "lead_next_state",
     "operational_spec",
     "spec_before_turn",
@@ -58,9 +59,11 @@ DOMAIN_FIELDS = {
     "stale_build",
     "created_gene_set_ids",
     "sheeted_eda_datasets",
-    "eda_state_digest",
+    "eda_analysis",
     "requirements",
     "original_request",
+    "turn_briefing",
+    "zero_result_history",
 }
 
 STRATEGY_RESOURCES = {

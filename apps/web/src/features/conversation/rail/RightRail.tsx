@@ -11,7 +11,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { useWindowSize } from "usehooks-ts";
 
 import type { Strategy } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
@@ -25,13 +24,12 @@ import { cn } from "@/lib/utils/cn";
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
 import {
   lastSeenFor,
-  useLeftSidebarStore,
   useRightRailStore,
   type RightRailPanel,
 } from "@/state/useRightRailStore";
 
 import { computeRailActivity } from "./railActivity";
-import { RAIL_PANEL_WIDTH, shouldOverlayRailPanel } from "./railLayout";
+import { RAIL_PANEL_WIDTH } from "./railLayout";
 import { EdaPanel } from "./EdaPanel";
 import { LedgerPanel } from "./LedgerPanel";
 import { MemoriesPanel } from "./MemoriesPanel";
@@ -72,14 +70,6 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
   const togglePanel = useRightRailStore((s) => s.togglePanel);
   const autoOpenedConversation = useRightRailStore((s) => s.autoOpenedConversation);
   const autoOpen = useRightRailStore((s) => s.autoOpen);
-
-  const listExpanded = !useLeftSidebarStore((s) => s.collapsed);
-  const { width: viewportWidth } = useWindowSize();
-  const overlay = shouldOverlayRailPanel({
-    viewportWidth,
-    listExpanded,
-    panelOpen: openPanel != null,
-  });
 
   const strategyStepCount = strategy?.steps.length ?? 0;
   const chat = useChatHelpersOptional();
@@ -128,16 +118,11 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
           <motion.div
             key="rail-panel"
             data-testid="rail-panel"
-            data-overlay={overlay ? "true" : "false"}
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: RAIL_PANEL_WIDTH, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={PANEL_TRANSITION}
-            className={cn(
-              "h-full shrink-0 overflow-hidden border-l border-border bg-background",
-              overlay &&
-                "absolute right-11 top-0 bottom-0 z-30 shadow-[var(--shadow-float)]",
-            )}
+            className="h-full shrink-0 overflow-hidden border-l border-border bg-background"
           >
             <div style={{ width: RAIL_PANEL_WIDTH }} className="h-full">
               <AnimatePresence mode="wait" initial={false}>

@@ -7510,7 +7510,8 @@
                 "gene_set",
                 "strategy",
                 "preference",
-                "knowledge"
+                "knowledge",
+                "case"
               ],
               "type": "string",
               "title": "Kind"
@@ -7601,7 +7602,8 @@
                 "gene_set",
                 "strategy",
                 "preference",
-                "knowledge"
+                "knowledge",
+                "case"
               ],
               "type": "string",
               "title": "Kind"
@@ -16091,11 +16093,21 @@
             "type": "string",
             "title": "Costusd",
             "default": "0"
+          },
+          "contextTokens": {
+            "type": "integer",
+            "title": "Contexttokens",
+            "default": 0
+          },
+          "contextWindow": {
+            "type": "integer",
+            "title": "Contextwindow",
+            "default": 0
           }
         },
         "type": "object",
         "title": "LeadUsagePayload",
-        "description": "Payload for the lead-usage chunk. The counts cover the Lead agent only\nand exclude sub-agents."
+        "description": "Payload for the lead-usage chunk. The counts cover the Lead agent only\nand exclude sub-agents. ``context_tokens`` is the input size of the latest\nrequest against ``context_window``, and 0 in either means unknown."
       },
       "LoginPayload": {
         "properties": {
@@ -16227,6 +16239,13 @@
             "type": "array",
             "title": "Knowledge"
           },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryItem"
+            },
+            "type": "array",
+            "title": "Cases"
+          },
           "pageSize": {
             "type": "integer",
             "title": "Pagesize"
@@ -16246,6 +16265,7 @@
           "strategies",
           "preferences",
           "knowledge",
+          "cases",
           "pageSize",
           "offset",
           "hasMore"
@@ -16277,7 +16297,8 @@
               "gene_set",
               "strategy",
               "preference",
-              "knowledge"
+              "knowledge",
+              "case"
             ],
             "title": "Kind"
           },
@@ -21695,6 +21716,16 @@
             "type": "string",
             "title": "Costusd",
             "default": "0"
+          },
+          "contextTokens": {
+            "type": "integer",
+            "title": "Contexttokens",
+            "default": 0
+          },
+          "contextWindow": {
+            "type": "integer",
+            "title": "Contextwindow",
+            "default": 0
           }
         },
         "type": "object",
@@ -21705,7 +21736,7 @@
           "state"
         ],
         "title": "SubAgentCallPayload",
-        "description": "Payload for the sub-agent-call chunk. The tool call id identifies the\ndispatch, and sub-agent step chunks join to it."
+        "description": "Payload for the sub-agent-call chunk. The tool call id identifies the\ndispatch, and sub-agent step chunks join to it. ``context_tokens`` is the\ninput size of the dispatch's latest request against ``context_window``, and\n0 in either means unknown."
       },
       "SubAgentStepPayload": {
         "properties": {

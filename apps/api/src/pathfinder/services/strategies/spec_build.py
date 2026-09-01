@@ -6,10 +6,7 @@ from assistant_core.platform.logging import get_logger
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
-from pathfinder.domain.strategy.ast import (
-    COMBINE_SEARCH_NAME,
-    StrategyStepNode,
-)
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
     NodeResult,
@@ -19,6 +16,7 @@ from pathfinder.domain.strategy.build_outcome import (
 from pathfinder.domain.strategy.graph_model import (
     StrategyStep,
     flatten_tree,
+    runs_a_wdk_search,
     subtree_ids,
     wdk_search_name,
 )
@@ -49,7 +47,7 @@ def node_results(
     return [
         NodeResult(
             node_id=node.id,
-            search_name=node.search_name or COMBINE_SEARCH_NAME,
+            search_name=wdk_search_name(node),
             wdk_step_id=sync_state.wdk_step_ids.get(node.id),
             count=outcome.counts.get(node.id),
             status=node_status(
@@ -201,7 +199,7 @@ async def _push_tree_to_wdk(
             continue
         search_name = wdk_search_name(node)
         push_parameters: dict[str, ParamValue] = dict(node.parameters)
-        if search_name != COMBINE_SEARCH_NAME:
+        if runs_a_wdk_search(node):
             try:
                 push_parameters = (
                     await validate_parameters(

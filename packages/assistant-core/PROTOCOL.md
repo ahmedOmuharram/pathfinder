@@ -1,6 +1,6 @@
 # The assistant runtime wire protocol
 
-**Version 1.5.3.** This document specifies the bytes a client exchanges with an
+**Version 1.6.0.** This document specifies the bytes a client exchanges with an
 assistant built on `assistant_core`. It is written so a consumer in any
 language can implement a client from this page alone, with no reference to the
 JavaScript SDK that inspired the chunk vocabulary. Section 14 records what each
@@ -159,8 +159,8 @@ The runtime defines these. An assistant MAY register more.
 | `data-turn-usage` | Running tokens and cost for the turn. Transient. |
 | `data-turn-stopped` | The user stopped this turn. |
 | `data-turn-failed` | This turn ended in a failure. Carries the failure's text. |
-| `data-lead-usage` | Usage of the lead agent alone. Reconciles on its `id`. |
-| `data-sub-agent-call` | One sub-agent dispatch. Reconciles on its `id`. |
+| `data-lead-usage` | Usage of the lead agent alone, with the fill of its context window. Reconciles on its `id`. |
+| `data-sub-agent-call` | One sub-agent dispatch, with the fill of its context window. Reconciles on its `id`. |
 | `data-sub-agent-step` | One event inside a sub-agent's run. |
 | `data-conversation-title` | The thread's generated title. |
 | `data-background-task-started` | A durable tool was deferred to a worker. |
@@ -832,6 +832,7 @@ data: {"type":"done","reason":"completed"}
 
 | Version | What it added |
 | --- | --- |
+| `1.6.0` | `data-lead-usage` and `data-sub-agent-call` carry `contextTokens` and `contextWindow`: the input size of the agent's latest request, and the model's context window. Both are optional and 0 means unknown. Before this the parts carried cumulative `tokens` only, so a client could not show how full an agent's window was, and history the runtime sheds mid-run was invisible. |
 | `1.5.3` | Section 6.1 states what a turn suspended on several durable tasks emits: one `data-background-task-started` per task, each task's progress and outcome in the gap in completion order, and one continuation turn after the last outcome. Before this the section read as one task per suspension, so a client could take the first `data-task-completed` for the end of the gap. |
 | `1.5.2` | Section 9 states that `start` opens the message it names and that a reader carries no part across it. Before this the rule was only implied by section 6.1, and a reader that builds one message per connection copied a suspended turn's parts into the continuation turn that follows it in the same tail. |
 | `1.5.1` | Section 6 states how a reader closes a dispatch its turn left open: `cancelled` under `data-turn-stopped`, `failed` under `data-turn-failed`, `superseded` otherwise, and the calls inside a cancelled or failed dispatch are closed with it. Before this a stopped turn's `data-sub-agent-call` stayed `started` for the life of the thread, because nothing the graph writes after a stop reaches the log. |

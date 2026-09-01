@@ -21,7 +21,7 @@ from tenacity import (
 from pathfinder.integrations.veupathdb._failures import wdk_failure
 from pathfinder.integrations.veupathdb._observability import (
     WdkRequestTelemetry,
-    log_wdk_retry,
+    wdk_retry_logger,
 )
 from pathfinder.integrations.veupathdb.delayed_result import (
     WDKDelayedResultError,
@@ -267,7 +267,7 @@ class HTTPClient:
             raise WDKError(msg, status=502) from e
 
     @staticmethod
-    def _retrying(*, attempts: int) -> AsyncRetrying:
+    def _retrying(*, attempts: int, telemetry: WdkRequestTelemetry) -> AsyncRetrying:
         """The retry policy for one request.
 
         A non-idempotent request gets a single attempt: a proxy 502 can follow a
@@ -284,7 +284,7 @@ class HTTPClient:
             ),
             stop=stop_after_attempt(attempts),
             wait=wait_exponential(multiplier=1, min=1, max=10),
-            before_sleep=log_wdk_retry,
+            before_sleep=wdk_retry_logger(telemetry),
             reraise=False,
         )
 
@@ -307,7 +307,10 @@ class HTTPClient:
             has_auth=bool(auth_token),
         )
         try:
-            result: JsonValue = await self._retrying(attempts=3 if idempotent else 1)(
+            result: JsonValue = await self._retrying(
+                attempts=3 if idempotent else 1,
+                telemetry=telemetry,
+            )(
                 self._request_attempt,
                 method,
                 path,

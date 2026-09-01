@@ -11,7 +11,9 @@ from pathfinder.domain.scratchpad.models import (
     CompactionRun,
     Note,
     NoteCreate,
+    NoteListResult,
     NoteRef,
+    NoteSearchResult,
     NoteUpdate,
 )
 
@@ -188,3 +190,39 @@ class TestCompactionRun:
                 cost_usd=Decimal(0),
                 trigger_reason="sometimes",
             )
+
+
+def _ref() -> NoteRef:
+    return NoteRef(
+        id="n-xyz",
+        title="t",
+        summary="s",
+        tags=["x"],
+        pinned=False,
+        created_at=datetime.now(UTC),
+    )
+
+
+class TestNoteListResult:
+    def test_the_envelope_reaches_the_model_in_camel_case(self) -> None:
+        """The docstring promises totalNotes, so the wire must carry it."""
+        dumped = NoteListResult(
+            total_notes=3,
+            matches=[_ref()],
+            summary="1 of 3 notes.",
+        ).model_dump(by_alias=True, mode="json")
+        assert dumped["totalNotes"] == 3
+        assert "total_notes" not in dumped
+        assert dumped["matches"][0]["id"] == "n-xyz"
+        assert dumped["summary"] == "1 of 3 notes."
+
+    def test_the_search_envelope_adds_the_query(self) -> None:
+        dumped = NoteSearchResult(
+            total_notes=1,
+            matches=[],
+            summary="No notes match 'zqzqzq'.",
+            query="zqzqzq",
+        ).model_dump(by_alias=True, mode="json")
+        assert dumped["query"] == "zqzqzq"
+        assert dumped["totalNotes"] == 1
+        assert dumped["matches"] == []

@@ -18,11 +18,19 @@ import pytest
 import pathfinder
 from pathfinder.devtools.wdk_fixtures import load_recorded
 from pathfinder.domain.parameters.values import SinglePickValue
+from pathfinder.domain.parameters.wdk_vocab import (
+    FAKE_ALL_SENTINEL,
+    WDKTreeBoxVocabNode,
+    WDKVocabNodeData,
+    collect_leaf_terms,
+)
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
 from pathfinder.platform.errors import WDKError
 from pathfinder.services.catalog import search_inspection, searches
 from pathfinder.services.catalog.search_inspection import (
     UnknownSearchError,
+    VocabNarrowing,
+    _prioritized_branches,
     inspect_search,
     read_parameter_options,
 )
@@ -176,7 +184,7 @@ class TestReadParameterOptions:
             "GenesByLocation",
             "organismSinglePick",
             record_type="transcript",
-            query="falciparum",
+            narrowing=VocabNarrowing(query="falciparum"),
         )
 
         assert whole.kind == "parameter_info"
@@ -207,7 +215,7 @@ class TestReadParameterOptions:
             "GenesByMolecularWeight",
             "organism",
             record_type="transcript",
-            query="falciparum",
+            narrowing=VocabNarrowing(query="falciparum"),
         )
 
         assert whole.kind == "parameter_info"
@@ -220,6 +228,46 @@ class TestReadParameterOptions:
         assert "Plasmodium falciparum 3D7" in narrowed.allowed_values_tree
         assert "Plasmodium berghei ANKA" not in narrowed.allowed_values_tree
         assert "Plasmodium berghei ANKA" in whole.allowed_values_tree
+
+    async def test_organism_hints_float_the_matching_branches(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The tree is capped, so the investigation's organism is rendered first."""
+        _stub_client(monkeypatch, "search_genes_by_molecular_weight")
+
+        whole = await read_parameter_options(
+            "plasmodb",
+            "GenesByMolecularWeight",
+            "organism",
+            record_type="transcript",
+        )
+        hinted = await read_parameter_options(
+            "plasmodb",
+            "GenesByMolecularWeight",
+            "organism",
+            record_type="transcript",
+            narrowing=VocabNarrowing(organism_hints=["Plasmodium falciparum"]),
+        )
+
+        assert whole.kind == "parameter_info"
+        assert hinted.kind == "parameter_info"
+        assert len(hinted.vocab_leaves) == len(whole.vocab_leaves) == 90
+        unbiased_tree = whole.allowed_values_tree
+        hinted_tree = hinted.allowed_values_tree
+        assert unbiased_tree is not None
+        assert hinted_tree is not None
+        assert "Plasmodium falciparum 3D7" in hinted_tree
+
+        def _first_falciparum(tree: str) -> int:
+            return next(
+                index
+                for index, line in enumerate(tree.splitlines())
+                if "Plasmodium falciparum 3D7" in line
+            )
+
+        hinted_at = _first_falciparum(hinted_tree)
+        assert hinted_at < _first_falciparum(unbiased_tree)
+        assert hinted_at < 5
 
     async def test_a_query_reads_the_terms_and_not_their_repr(
         self, monkeypatch: pytest.MonkeyPatch
@@ -238,7 +286,7 @@ class TestReadParameterOptions:
             "GenesByLocation",
             "organismSinglePick",
             record_type="transcript",
-            query="root=",
+            narrowing=VocabNarrowing(query="root="),
         )
 
         assert whole.kind == "parameter_info"
@@ -320,6 +368,55 @@ class TestReadParameterOptions:
             "organismSinglePick",
             "sequenceId",
             "start_point",
+        ]
+
+
+def _node(term: str, *children: WDKTreeBoxVocabNode) -> WDKTreeBoxVocabNode:
+    return WDKTreeBoxVocabNode(
+        data=WDKVocabNodeData(term=term, display=term),
+        children=list(children),
+    )
+
+
+def _two_genus_tree() -> WDKTreeBoxVocabNode:
+    return _node(
+        FAKE_ALL_SENTINEL,
+        _node("Anopheles", _node("Anopheles gambiae PEST")),
+        _node("Plasmodium", _node("Plasmodium falciparum 3D7")),
+    )
+
+
+class TestPrioritizedBranches:
+    def test_a_hint_floats_the_branch_that_reaches_it(self) -> None:
+        ordered = _prioritized_branches(_two_genus_tree(), ["falciparum"])
+
+        assert [child.data.term for child in ordered.children] == [
+            "Plasmodium",
+            "Anopheles",
+        ]
+
+    def test_nothing_is_dropped(self) -> None:
+        ordered = _prioritized_branches(_two_genus_tree(), ["falciparum"])
+
+        assert sorted(collect_leaf_terms(ordered)) == [
+            "Anopheles gambiae PEST",
+            "Plasmodium falciparum 3D7",
+        ]
+
+    def test_no_hint_keeps_the_wdk_order(self) -> None:
+        ordered = _prioritized_branches(_two_genus_tree(), [])
+
+        assert [child.data.term for child in ordered.children] == [
+            "Anopheles",
+            "Plasmodium",
+        ]
+
+    def test_a_hint_that_matches_nothing_keeps_the_wdk_order(self) -> None:
+        ordered = _prioritized_branches(_two_genus_tree(), ["Toxoplasma"])
+
+        assert [child.data.term for child in ordered.children] == [
+            "Anopheles",
+            "Plasmodium",
         ]
 
 

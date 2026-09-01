@@ -447,7 +447,7 @@ class TestASilentZeroReportsEmpty:
             return ParameterInfo(
                 name="organism",
                 display_name="Organism",
-                type="string",
+                type="single-pick-vocabulary",
                 required=True,
                 is_visible=True,
                 help="",

@@ -7,6 +7,7 @@ from pathfinder.ai.agents._history_processor import (
     PHASE_HISTORY_PROCESSORS,
 )
 from pathfinder.ai.agents._instructions import (
+    pinned_run_budget,
     pinned_scratchpad,
     pinned_user_memories,
 )
@@ -214,6 +215,7 @@ def build_execution_agent() -> ExecutionAgent:
         pinned_scratchpad,
         pinned_ledger,
         pinned_discovered_searches,
+        pinned_run_budget,
     ):
         agent.instructions(fn)
     return agent

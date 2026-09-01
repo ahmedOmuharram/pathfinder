@@ -47,6 +47,9 @@ class AgentToolState:
     catalog_search_names: set[str] = field(default_factory=set)
     read_param_options: set[str] = field(default_factory=set)
     operational_spec_draft: OperationalSpec = field(default_factory=OperationalSpec)
+    # The organisms this investigation states. A capped vocabulary renders the
+    # branches that match them first.
+    organism_hints: list[str] = field(default_factory=list)
     # Params already handed back for a fresh decision, by criterion and search.
     # Searches share parameter names, so the search is part of the key.
     redecided_params: set[tuple[str, str, str]] = field(default_factory=set)

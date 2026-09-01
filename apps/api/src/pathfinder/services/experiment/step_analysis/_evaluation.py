@@ -52,9 +52,7 @@ async def _eval_control_set(
     label: str,
 ) -> JSONObject:
     """Materialise the tree, intersect with one control set, clean up."""
-    root_tree = await _materialize_step_tree(
-        api, tree, ctx.record_type, site_id=ctx.site_id
-    )
+    root_tree = await _materialize_step_tree(api, tree, ctx.record_type)
 
     param_type = await resolve_controls_param_type(
         api,

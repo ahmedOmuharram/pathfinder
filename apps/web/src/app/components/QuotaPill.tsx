@@ -65,6 +65,7 @@ export function QuotaPill() {
         <TooltipTrigger asChild>
           <div
             aria-label="Monthly quota"
+            tabIndex={0}
             className={cn(
               "flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-medium drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]",
               tone,
@@ -81,9 +82,14 @@ export function QuotaPill() {
             </span>
           </div>
         </TooltipTrigger>
-        <TooltipContent side="bottom">
-          {compact.format(data.totalTokens)} tokens · resets{" "}
-          {formatResetsAt(data.resetsAt)}
+        <TooltipContent side="bottom" className="space-y-0.5">
+          <div className="text-muted-foreground">
+            Account total this month, across all conversations.
+          </div>
+          <div>
+            {compact.format(data.totalTokens)} tokens · resets{" "}
+            {formatResetsAt(data.resetsAt)}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

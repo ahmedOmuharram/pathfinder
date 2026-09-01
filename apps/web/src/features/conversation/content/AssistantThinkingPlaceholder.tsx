@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuiState } from "@assistant-ui/react";
+import { useState } from "react";
 
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { ProviderIcon } from "@/lib/components/ProviderIcon";
@@ -8,6 +9,7 @@ import { phaseLabel } from "@/lib/models/phaseRoles";
 import { isLocalProvider, parseModelString } from "@/lib/models/providerMeta";
 
 import { runningPhase } from "../thread/runningPhase";
+import { currentSeconds, statusLineWith, useNowSeconds } from "./statusClock";
 
 const DEFAULT_LABEL = "Thinking...";
 
@@ -67,9 +69,27 @@ function selectStatusModel(m: StatusCarrier | undefined): string | null {
   return model;
 }
 
+export function selectPartsFingerprint(m: StatusCarrier | undefined): string {
+  if (m == null) return "";
+  const last = m.content.at(-1);
+  const growth =
+    last != null && "text" in last && typeof last.text === "string"
+      ? last.text.length
+      : 0;
+  return `${m.content.length}:${last?.type ?? ""}:${growth}`;
+}
+
 export function AssistantThinkingPlaceholder() {
   const label = useAuiState((s) => selectStatusLabel(s.message));
   const model = useAuiState((s) => selectStatusModel(s.message));
+  const fingerprint = useAuiState((s) => selectPartsFingerprint(s.message));
+  const now = useNowSeconds();
+  const [seenFingerprint, setSeenFingerprint] = useState(fingerprint);
+  const [changedAt, setChangedAt] = useState(currentSeconds);
+  if (fingerprint !== seenFingerprint) {
+    setSeenFingerprint(fingerprint);
+    setChangedAt(currentSeconds());
+  }
   if (typeof label !== "string") return null;
   const provider = model !== null ? parseModelString(model).provider : null;
   return (
@@ -82,7 +102,7 @@ export function AssistantThinkingPlaceholder() {
         />
       )}
       <Shimmer as="span" className="text-sm font-medium" duration={1.2}>
-        {label}
+        {statusLineWith(label, now - changedAt)}
       </Shimmer>
     </div>
   );

@@ -18,18 +18,31 @@ from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 from pydantic_ai import Agent, DeferredToolRequests, RunContext, Tool
 from pydantic_ai.capabilities import PrepareTools, ProcessHistory, Thinking
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents._history_processor import (
     PHASE_HISTORY_PROCESSORS,
 )
-from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.agents._instructions import (
+    pinned_run_budget,
+    pinned_user_memories,
+)
 from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
 from pathfinder.ai.lead.derive import derive_ledger
-from pathfinder.ai.lead.dispatch_context import agent_deps_for
+from pathfinder.ai.lead.dispatch_context import inner_context
+from pathfinder.ai.lead.dispatch_messages import unverified_build_message
 from pathfinder.ai.lead.edit_dispatch import edit_strategy
+from pathfinder.ai.lead.guarantees import machine_guarantees_pin
 from pathfinder.ai.lead.intent import UserIntent
-from pathfinder.ai.lead.intent_gate import hide_building_tools
+from pathfinder.ai.lead.intent_gate import apply_tool_preconditions
+from pathfinder.ai.lead.lead_pins import (
+    pinned_ledger_summary,
+    pinned_operational_spec,
+    pinned_turn_briefing,
+    pinned_user_intent,
+    pinned_user_prompt,
+)
 from pathfinder.ai.lead.live_state import LiveStrategyState, read_live_state
 from pathfinder.ai.lead.sub_agent_dispatch import (
     build_strategy,
@@ -40,6 +53,10 @@ from pathfinder.ai.lead.sub_agent_dispatch import (
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.standalone import conversation, memory_tools, research
 from pathfinder.ai.tools.standalone._conversation_models import ClearStrategyResult
+from pathfinder.ai.tools.standalone._research_models import (
+    LiteratureSearchOut,
+    WebSearchOut,
+)
 from pathfinder.ai.tools.standalone.control_sets import (
     build_control_set,
     import_control_ids_from_gene_set,
@@ -50,15 +67,9 @@ from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_sc
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
 from pathfinder.ai.tools.toolsets import eda
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
-from pathfinder.services.research.processing import LiteratureSearchResponse
-from pathfinder.services.research.web_search import WebSearchResponse
 
 LeadTurnState = Literal["await_user", "complete"]
-LedgerSectionName = Literal[
-    "frame",
-    "build",
-    "verification",
-]
+LedgerSectionName = Literal["frame", "build", "verification"]
 
 
 class LeadResponse(CamelModel):
@@ -81,62 +92,6 @@ class LeadResponse(CamelModel):
 
 
 LeadAgent = Agent[LeadDeps, LeadResponse | DeferredToolRequests]
-
-
-def pinned_ledger_summary(ctx: RunContext[LeadDeps]) -> str:
-    """Builds the compact ledger summary. It is derived on each render."""
-    ledger = derive_ledger(ctx.deps.state, ctx.deps.intent)
-    return ledger.render_summary()
-
-
-def pinned_operational_spec(ctx: RunContext[LeadDeps]) -> str | None:
-    """Renders the operational spec, which the Lead reads to decide build readiness."""
-    spec = ctx.deps.state.domain.operational_spec
-    if spec is None:
-        return "## Operational Spec\nNot framed yet. Call ``frame_problem``."
-    lines = [
-        "## Operational Spec",
-        f"- goal: {spec.interpreted_goal or spec.goal}",
-        f"- ready_to_build: {spec.ready_to_build}",
-    ]
-    for c in spec.criteria:
-        slots = [s.param_name for s in c.open_params]
-        line = f"  - [{c.id}] {c.text[:60]} -> {c.search_name or '(UNBOUND)'}"
-        if slots:
-            line += f" | open: {slots}"
-        lines.append(line)
-    if spec.dropped:
-        lines.append("  dropped: " + "; ".join(d.text for d in spec.dropped))
-    return "\n".join(lines)
-
-
-def pinned_user_intent(ctx: RunContext[LeadDeps]) -> str | None:
-    intent = ctx.deps.intent
-    if intent is None:
-        return (
-            "## User Intent\nNot classified yet. Call ``classify_user_intent`` first."
-        )
-    lines = [
-        "## User Intent",
-        f"- classification: {intent.classification.value}",
-        f"- inferred goal: {intent.inferred_goal}",
-    ]
-    if intent.is_differential and intent.differential_sides:
-        lines.append(f"- differential sides: {intent.differential_sides}")
-    if intent.referenced_step_ids:
-        lines.append(f"- referenced steps: {intent.referenced_step_ids}")
-    if intent.referenced_strategy_ids:
-        lines.append(
-            f"- referenced strategies: {intent.referenced_strategy_ids}",
-        )
-    return "\n".join(lines)
-
-
-def pinned_user_prompt(ctx: RunContext[LeadDeps]) -> str | None:
-    prompt = ctx.deps.state.user_prompt
-    if not prompt:
-        return None
-    return f"## User's latest message\n{prompt}"
 
 
 def classify_user_intent(
@@ -193,6 +148,7 @@ def classify_user_intent(
     call per thing to keep. Neither is a request to build.
     """
     ctx.deps.intent = intent
+    ctx.deps.state.turn_markers.intent_classified = True
     ctx.deps.state.domain.record_intent(
         intent,
         request_text=ctx.deps.state.user_prompt,
@@ -219,12 +175,7 @@ async def remember(
     preference is the whole answer to that request: do not build a strategy to
     "validate" it.
     """
-    inner: RunContext[AgentDeps] = RunContext(
-        deps=agent_deps_for(ctx.deps),
-        model=ctx.model,
-        usage=ctx.usage,
-        tool_call_id=ctx.tool_call_id,
-    )
+    inner = inner_context(ctx)
     return await memory_tools.remember(
         inner,
         kind=kind,
@@ -287,18 +238,15 @@ async def clear_strategy(
     ``build_strategy``'s refusal on a thread that already has one: a request
     that changes what the strategy asks is ``edit_strategy``.
 
-    Every step goes, on this thread and on VEuPathDB, and the strategy's
-    provenance goes with them. The user approves the call before it runs, so
-    do not also ask in prose. After it returns, frame and build afresh.
+    Every step goes from this thread, and the next build creates a strategy of
+    its own on VEuPathDB instead of reusing the one that stood here. The
+    cleared state appends a revision, so a revert restores what this call
+    cleared. The user approves the call before it runs, so do not also ask in
+    prose. After it returns, frame and build afresh.
 
     ``confirm`` must be true; the call is refused otherwise.
     """
-    inner: RunContext[AgentDeps] = RunContext(
-        deps=agent_deps_for(ctx.deps),
-        model=ctx.model,
-        usage=ctx.usage,
-        tool_call_id=ctx.tool_call_id,
-    )
+    inner = inner_context(ctx)
     return await conversation.clear_strategy(inner, confirm=confirm)
 
 
@@ -306,7 +254,7 @@ async def web_search(
     ctx: RunContext[LeadDeps],
     query: str,
     limit: int = 5,
-) -> ToolReturn[WebSearchResponse]:
+) -> ToolReturn[WebSearchOut]:
     """Search the web and return results with citations.
 
     Use it to ground a claim, check a name, or answer a question the catalog
@@ -317,12 +265,7 @@ async def web_search(
         query: Web search query.
         limit: Max number of results (1-10).
     """
-    inner: RunContext[AgentDeps] = RunContext(
-        deps=agent_deps_for(ctx.deps),
-        model=ctx.model,
-        usage=ctx.usage,
-        tool_call_id=ctx.tool_call_id,
-    )
+    inner = inner_context(ctx)
     return await research.web_search(inner, query, limit=limit)
 
 
@@ -330,7 +273,7 @@ async def literature_search(
     ctx: RunContext[LeadDeps],
     query: str,
     limit: int = 8,
-) -> ToolReturn[LiteratureSearchResponse]:
+) -> ToolReturn[LiteratureSearchOut]:
     """Search scientific literature and return results with citations.
 
     Use it for the biology behind a request - a gene's role, a method's
@@ -341,12 +284,7 @@ async def literature_search(
         query: Literature search query.
         limit: Max number of results (1-25).
     """
-    inner: RunContext[AgentDeps] = RunContext(
-        deps=agent_deps_for(ctx.deps),
-        model=ctx.model,
-        usage=ctx.usage,
-        tool_call_id=ctx.tool_call_id,
-    )
+    inner = inner_context(ctx)
     return await research.literature_search(inner, query, limit=limit)
 
 
@@ -409,6 +347,9 @@ async def consult_user(
         f"{len(questions)} questions asked",
         ctx=ctx,
     )
+    if answers:
+        # Their answers are new requirements, so one more frame is licensed.
+        state.turn_markers.framed = False
     asked.content = (
         f"Presented {len(questions)} question(s); awaiting the user's answers."
         if not answers
@@ -418,6 +359,30 @@ async def consult_user(
         )
     )
     return asked
+
+
+def verify_what_this_turn_built(
+    ctx: RunContext[LeadDeps],
+    output: LeadResponse | DeferredToolRequests,
+) -> LeadResponse | DeferredToolRequests:
+    """Refuse the first answer of a turn that built and never verified.
+
+    The precondition gate offers ``verify_strategy``; a gate cannot compel the
+    call. The refusal is asked once per turn, so a second answer that states
+    why a check is impossible still reaches the user.
+    """
+    markers = ctx.deps.state.turn_markers
+    if (
+        not markers.built
+        or markers.verified
+        or markers.verification_dispatched
+        or markers.verification_nudged
+    ):
+        return output
+    markers.verification_nudged = True
+    raise ModelRetry(
+        unverified_build_message(ctx.deps.state.domain.last_build_outcome),
+    )
 
 
 LEAD_MODEL = "openai:gpt-5.6-luna"
@@ -458,7 +423,7 @@ def build_lead_agent() -> LeadAgent:
         toolsets=[eda.build_toolset()],
         capabilities=[
             Thinking(effort="medium"),
-            PrepareTools[LeadDeps](hide_building_tools),
+            PrepareTools[LeadDeps](apply_tool_preconditions),
             *(ProcessHistory[LeadDeps](p) for p in PHASE_HISTORY_PROCESSORS),
         ],
         retries=3,
@@ -467,10 +432,15 @@ def build_lead_agent() -> LeadAgent:
         defer_model_check=True,
     )
     for fn in (
+        pinned_user_memories,
         pinned_user_prompt,
         pinned_user_intent,
         pinned_operational_spec,
         pinned_ledger_summary,
+        pinned_run_budget,
     ):
         agent.instructions(fn)
+    agent.instructions(machine_guarantees_pin(agent.toolsets))
+    agent.instructions(pinned_turn_briefing)
+    agent.output_validator(verify_what_this_turn_built)
     return agent

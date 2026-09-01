@@ -25,6 +25,7 @@ from pathfinder.services.catalog.parameters import (
 from pathfinder.services.catalog.search_inspection import (
     SearchInspection,
     UnknownSearchError,
+    VocabNarrowing,
     inspect_search,
     read_parameter_options,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "SearchQueryRejection",
     "UnknownSearchError",
     "VagueSearchQueryError",
+    "VocabNarrowing",
     "browse_search_categories",
     "eda_backed_guidance",
     "eda_backed_search",

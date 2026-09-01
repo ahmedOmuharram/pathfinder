@@ -16,7 +16,7 @@ against the catalog. `run_turn` publishes the validated pair on
 `phase_overrides_ctx` (`platform/context.py`) for the length of the turn.
 `create_background_task` reads it and stores it on the new
 `background_tasks.phase_overrides` column (migration `2026_08_30_0002`).
-`jobs/runner.py::_completion_body` reads the row back and rebuilds the
+`jobs/completion_turn.py::_completion_body` reads the row back and rebuilds the
 completion turn's `ChatRequestBody` from it, so `TurnContextRequest` receives
 the same picks the suspending turn ran under.
 
@@ -52,12 +52,12 @@ effort, so a per-phase comparison is not silently mixed across two models. A
 task deferred before the column existed reads the empty map and its completion
 turn resolves the configured tier, which is what it ran under. A model id that
 leaves the catalog while a task is in flight fails the completion turn, and
-`_safe_completion_turn` records that failure on the task row rather than
+`safe_completion_turn` records that failure on the task row rather than
 answering under a model nobody picked.
 
 # Anchor
 
-`apps/api/src/pathfinder/jobs/runner.py::_completion_body`, pinned by
+`apps/api/src/pathfinder/jobs/completion_turn.py::_completion_body`, pinned by
 `apps/api/src/pathfinder/tests/integration/jobs/test_completion_turn_phase_overrides.py`
 and
 `apps/api/src/pathfinder/tests/integration/persistence/test_task_phase_overrides_migration.py`.

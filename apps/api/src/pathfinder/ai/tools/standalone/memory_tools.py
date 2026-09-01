@@ -26,9 +26,10 @@ async def search_memory(
     Use this when the user references prior work, asks "what did we do before",
     or when recalling past context would improve your answer.
 
-    Distributes ``top_k`` across the four namespaces (or uses the full budget
-    if ``kind`` is given), then reranks globally via the hybrid score so the
-    most relevant hits across namespaces come first.
+    Distributes ``top_k`` across every namespace (or uses the full budget if
+    ``kind`` is given), then reranks globally via the hybrid score so the most
+    relevant hits across namespaces come first. ``kind="case"`` returns the
+    goals past runs verified, with the searches, params and counts that landed.
     """
     store_raw = ctx.deps.memory_store
     user_id = ctx.deps.user_id

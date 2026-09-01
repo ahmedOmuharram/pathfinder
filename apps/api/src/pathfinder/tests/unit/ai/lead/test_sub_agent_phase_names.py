@@ -25,7 +25,10 @@ from pathfinder.ai.graph._lead_events import (
 )
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.deltas import RecoveryDelta
-from pathfinder.ai.lead.sub_agent_stream import _emit_running_sub_agent_usage
+from pathfinder.ai.lead.sub_agent_stream import (
+    _ContextMeter,
+    _emit_running_sub_agent_usage,
+)
 
 _WIRE_PHASES = frozenset({"frame", "build", "verification"})
 
@@ -80,7 +83,7 @@ def test_one_call_id_carries_one_phase_name(
         calls,
         {},
     )
-    _emit_running_sub_agent_usage(writer, role, _CALL_ID, RunUsage())
+    _emit_running_sub_agent_usage(writer, role, _CALL_ID, RunUsage(), _ContextMeter())
     handle_sub_agent_event(
         deps,
         writer,

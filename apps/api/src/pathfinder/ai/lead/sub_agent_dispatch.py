@@ -121,14 +121,17 @@ async def frame_problem(
     ctx: RunContext[LeadDeps], reason: str, expected_criteria: int = 3
 ) -> FrameResult:
     """Run the FRAME sub-agent: operationalize the goal into a realizable
-    OperationalSpec — criteria bound to real WDK searches with auto-resolved
+    OperationalSpec - criteria bound to real WDK searches with auto-resolved
     params + a combine structure. Call this FIRST, then ``build_strategy``.
     Returns a ``FrameResult`` (disposition ``needs_user`` when criteria have
     open param slots the user must fill).
 
-    ``expected_criteria`` is how many distinct filters the goal states — count
+    ``expected_criteria`` is how many distinct filters the goal states - count
     the "and"s in the request. It sizes FRAME's tool budget, so undercounting a
-    large request makes it run out before it binds them all."""
+    large request makes it run out before it binds them all.
+
+    Available once per turn, while the thread has no strategy to change with
+    ``edit_strategy`` and no empty build waiting on the user."""
     tool_call_id = dispatch_call_id(ctx)
     result = await run_frame(
         deps=ctx.deps,
@@ -138,6 +141,8 @@ async def frame_problem(
     )
     if isinstance(result, SubAgentApprovalWait):
         defer_dispatch(ctx.deps, tool_call_id, result)
+        return result
+    ctx.deps.state.turn_markers.framed = True
     return result
 
 
@@ -146,9 +151,9 @@ async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     (no LLM). Requires ``frame_problem`` first. Inspect ``ledger.build`` after
     to decide ``recover_failed_steps`` or ``verify_strategy``.
 
-    This builds a strategy where there is none. It REPLACES a strategy that
-    already exists, so it is refused on a thread that has one: call
-    ``edit_strategy`` to change one, or ask the user how to start over."""
+    Available while the thread holds no strategy: it would replace one that
+    exists. Call ``edit_strategy`` to change a strategy, or ask the user how
+    to start over."""
     deps = ctx.deps
     graph = deps.runtime.strategy_session.get_graph(None)
     if graph is not None and graph.steps:
@@ -178,7 +183,7 @@ async def build_strategy(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     deps.state.domain.operational_spec = renumber_criteria(
         spec, built.step_id_by_criterion
     )
-    deps.state.domain.last_build_outcome = outcome
+    deps.state.record_build(outcome)
     graph = agent_deps.strategy_session.get_graph(None)
     if graph is not None:
         get_stream_writer()(
@@ -235,7 +240,7 @@ async def run_recovery(
         return streamed
     apply_agent_state(deps, agent_deps)
     delta = streamed if streamed is not None else RecoveryDelta()
-    deps.state.domain.last_build_outcome = await _resync_outcome(agent_deps, outcome)
+    deps.state.record_build(await _resync_outcome(agent_deps, outcome))
     return delta
 
 
@@ -247,8 +252,9 @@ async def recover_failed_steps(
 
     Only valid when ``ledger.build.needs_recovery`` is True and the
     failure shape is amenable to targeted edits (param replan, partial
-    build). When a criterion needs a different search entirely, the Lead
-    should call ``frame_problem`` again to re-bind the spec instead.
+    build). When a criterion needs a different search entirely, re-bind it
+    with ``edit_strategy``, or tell the researcher which criterion needs a
+    different search and end the turn.
     """
     tool_call_id = dispatch_call_id(ctx)
     result = await run_recovery(
@@ -312,6 +318,7 @@ async def run_verification(
     resume: SubAgentResume | None = None,
 ) -> VerificationDelta | SubAgentApprovalWait:
     """Run verification and record its digest, on a fresh or a resumed dispatch."""
+    deps.state.turn_markers.verification_dispatched = True
     work_order = (
         f"Verification work order: {reason}\n"
         "Inspect the built strategy. Return a VerificationDelta."
@@ -336,6 +343,7 @@ async def run_verification(
         raise TypeError(msg)
     digest = _digest_the_build_supports(deps, delta.digest)
     deps.state.domain.verification_digest = digest
+    deps.state.turn_markers.verified = digest.success
     return VerificationDelta(digest=digest)
 
 
@@ -373,9 +381,12 @@ async def verify_strategy(
     set; control tests on a step or a search; parameter optimization; sample
     records from a result; result export. None of these are Lead tools.
 
-    Set ``enrichmentRequested`` only when the user asked for GO, pathway or
+    Set ``enrichment_requested`` only when the user asked for GO, pathway or
     word enrichment in this message. It runs for minutes on a worker, so an
     edit turn that did not ask for it is verified by its counts instead.
+
+    Available once the strategy holds a step, and until a verification of this
+    turn reports success.
     """
     tool_call_id = dispatch_call_id(ctx)
     result = await run_verification(

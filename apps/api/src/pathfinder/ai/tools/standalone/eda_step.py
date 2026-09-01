@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Literal
 
 from assistant_core.graph.tool_summary import with_summary
-from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
@@ -19,6 +18,7 @@ from pathfinder.ai.tools.standalone._stream_parts import (
     strategy_link_chunk,
 )
 from pathfinder.ai.tools.standalone._validation_helpers import get_graph
+from pathfinder.domain.eda_thread import EdaExport
 from pathfinder.domain.strategy.operations import AddLeafOp
 from pathfinder.domain.strategy.operations.types import (
     AttachIntoSlot,
@@ -33,21 +33,18 @@ from pathfinder.services.eda.binding import (
 )
 from pathfinder.services.eda.compute import NoComputationError, VolcanoThresholds
 from pathfinder.services.eda.steps import eda_step_node
-from pathfinder.services.strategies.commit import apply_operations_and_commit
+from pathfinder.services.strategies.commit import (
+    CommitResult,
+    apply_operations_and_commit,
+)
 from pathfinder.services.strategies.context import StrategyMutationContext
+from pathfinder.services.strategies.graph_outcome import outcome_for_graph
+from pathfinder.services.strategies.sync_state import ensure_sync_state
 
 
-class EdaStepCreated(CamelModel):
+class EdaStepCreated(EdaExport):
     """What the researcher's strategy now holds, and what to say about it."""
 
-    search_name: str
-    step_id: str
-    dataset_id: str
-    analysis_id: str
-    is_compute_backed: bool = False
-    effect_size_threshold: float | None = None
-    significance_threshold: float | None = None
-    effect_direction: EdaEffectDirection | None = None
     wdk_strategy_id: int | None = None
     wdk_url: str | None = None
     failed_step_ids: list[str] = Field(default_factory=list)
@@ -118,16 +115,38 @@ def _attach_point(
     if attach_to_step_id is None:
         msg = (
             f"slot={slot!r} names an input of a combine step, so it needs "
-            f"attachToStepId. Leave both unset to add the step as a new root."
+            f"attach_to_step_id. Leave both unset to add the step as a new root."
         )
         raise ModelRetry(msg)
     if slot is None:
         msg = (
-            f"attachToStepId={attach_to_step_id!r} needs a slot: 'primary' or "
+            f"attach_to_step_id={attach_to_step_id!r} needs a slot: 'primary' or "
             f"'secondary' names which input of that combine to fill."
         )
         raise ModelRetry(msg)
     return AttachIntoSlot(target_step_id=attach_to_step_id, slot=slot)
+
+
+def _record_the_build(ctx: RunContext[LeadDeps], commit: CommitResult) -> None:
+    """Take the exported step as this turn's build, with the sync's counts.
+
+    A commit that did not sync left the step off VEuPathDB: it is a draft on
+    the canvas with no size, so the turn records no build and the ledger keeps
+    the last one that reached the site.
+    """
+    sync = commit.sync_result
+    if sync is None:
+        return
+    session = ctx.deps.runtime.strategy_session
+    ctx.deps.state.record_build(
+        outcome_for_graph(
+            graph=session.get_graph(None),
+            sync_state=ensure_sync_state(session),
+            counts=sync.counts,
+            failed_step_ids=commit.failed_step_ids,
+            wdk_url=sync.wdk_url,
+        ),
+    )
 
 
 def _guidance(wdk_strategy_id: int | None, *, is_compute_backed: bool) -> str:
@@ -174,8 +193,11 @@ async def create_eda_step(
     ``significance_threshold``. Those are the same comparisons the plot uses, so
     the step's count matches the number you told the researcher.
 
-    Leave ``attachToStepId`` unset to add the step as a new root. Set it, with
-    ``slot``, to wire the step into an existing combine.
+    Leave ``attach_to_step_id`` unset to add the step as a new root. Set it,
+    with ``slot``, to wire the step into an existing combine.
+
+    Available once ``preview_eda_subset`` has counted the open analysis this
+    turn, so the number you export is one you measured.
 
     Args:
         ctx: Agent run context.
@@ -254,6 +276,8 @@ async def create_eda_step(
         failed_step_ids=result.failed_step_ids,
         guidance=_guidance(wdk_strategy_id, is_compute_backed=is_compute_backed),
     )
+    ctx.deps.state.turn_markers.eda_export = created
+    _record_the_build(ctx, result)
     if created.failed_step_ids:
         return with_summary(
             created,

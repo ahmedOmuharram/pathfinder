@@ -200,9 +200,10 @@ def check_study_step(
     parameter. This reads that cut and the step's record count, so a study step
     is verified by its own numbers instead of reported as unverified.
 
-    Pass ``requestedFoldChange`` as a fold change (2 for "at least 2-fold") and
-    ``requestedSignificance`` as the p-value the user asked for. Each one you
-    pass comes back as a ``constraint_report`` entry you copy into the digest.
+    Pass ``requested_fold_change`` as a fold change (2 for "at least
+    2-fold") and ``requested_significance`` as the p-value the user asked for.
+    Each one you pass comes back as a ``constraint_report`` entry you copy into
+    the digest.
 
     Args:
         step_id: The strategy step to read.

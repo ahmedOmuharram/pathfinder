@@ -53,7 +53,13 @@ def test_memory_tombstone_round_trips() -> None:
 
 
 def test_all_memory_kinds_accepted() -> None:
-    kinds: list[MemoryKind] = ["gene_set", "strategy", "preference", "knowledge"]
+    kinds: list[MemoryKind] = [
+        "gene_set",
+        "strategy",
+        "preference",
+        "knowledge",
+        "case",
+    ]
     for k in kinds:
         MemoryValue(
             kind=k,

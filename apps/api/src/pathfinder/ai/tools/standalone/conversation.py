@@ -46,7 +46,7 @@ async def rename_strategy(
     graph = get_graph(session, graph_id)
     if not graph:
         msg = (
-            f"NOT_FOUND: No strategy has that id (graphId={graph_id!r}). "
+            f"NOT_FOUND: No strategy has that id (graph_id={graph_id!r}). "
             "Pass the graph id, the VEuPathDB strategy id, or nothing at all "
             "for the active strategy."
         )
@@ -96,7 +96,7 @@ async def clear_strategy(
     graph = get_graph(session, graph_id)
     if not graph:
         msg = (
-            f"NOT_FOUND: No strategy has that id (graphId={graph_id!r}). "
+            f"NOT_FOUND: No strategy has that id (graph_id={graph_id!r}). "
             "Pass the graph id, the VEuPathDB strategy id, or nothing at all "
             "for the active strategy."
         )
@@ -104,7 +104,7 @@ async def clear_strategy(
     if not confirm:
         msg = (
             "VALIDATION_ERROR: Refusing to clear the strategy without confirmation. "
-            f"Re-call clear_strategy with confirm=true (graphId={graph.id!r})."
+            f"Re-call clear_strategy with confirm=true (graph_id={graph.id!r})."
         )
         raise ModelRetry(msg)
 

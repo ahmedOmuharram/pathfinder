@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.scratchpad import tools as sc_tools
+from pathfinder.domain.scratchpad.models import NoteListResult, NoteSearchResult
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import User
 
@@ -62,10 +63,9 @@ class TestListNotes:
         await sc_tools.note(ctx, title="T1", summary="S1", body="B1")
         await sc_tools.note(ctx, title="T2", summary="S2", body="B2", tags=["alpha"])
         result = (await sc_tools.list_notes(ctx)).return_value
-        assert result["totalNotes"] == 2
-        matches = result["matches"]
-        assert isinstance(matches, list)
-        titles = [r["title"] for r in matches]
+        assert isinstance(result, NoteListResult)
+        assert result.total_notes == 2
+        titles = [ref.title for ref in result.matches]
         assert "T1" in titles
         assert "T2" in titles
 
@@ -80,9 +80,8 @@ class TestListNotes:
         await sc_tools.note(ctx, title="T1", summary="S", body="B", tags=["alpha"])
         await sc_tools.note(ctx, title="T2", summary="S", body="B", tags=["beta"])
         result = (await sc_tools.list_notes(ctx, tag="alpha")).return_value
-        matches = result["matches"]
-        assert isinstance(matches, list)
-        assert [r["title"] for r in matches] == ["T1"]
+        assert isinstance(result, NoteListResult)
+        assert [ref.title for ref in result.matches] == ["T1"]
 
     async def test_list_by_pinned(
         self,
@@ -95,9 +94,8 @@ class TestListNotes:
         await sc_tools.note(ctx, title="T1", summary="S", body="B")
         await sc_tools.note(ctx, title="T2", summary="S", body="B", pinned=True)
         result = (await sc_tools.list_notes(ctx, pinned=True)).return_value
-        matches = result["matches"]
-        assert isinstance(matches, list)
-        assert [r["title"] for r in matches] == ["T2"]
+        assert isinstance(result, NoteListResult)
+        assert [ref.title for ref in result.matches] == ["T2"]
 
     async def test_list_empty_scratchpad_surfaces_summary(
         self,
@@ -108,9 +106,10 @@ class TestListNotes:
         del db_session
         ctx = _run_ctx(conv_id=conv_id, db_session_factory=db_session_factory)
         result = (await sc_tools.list_notes(ctx)).return_value
-        assert result["totalNotes"] == 0
-        assert result["matches"] == []
-        assert "No notes saved" in str(result["summary"])
+        assert isinstance(result, NoteListResult)
+        assert result.total_notes == 0
+        assert result.matches == []
+        assert "No notes saved" in result.summary
 
 
 class TestSearchNotes:
@@ -137,13 +136,10 @@ class TestSearchNotes:
         result = (
             await sc_tools.search_notes(ctx, query="gametocyte threshold")
         ).return_value
-        matches = result["matches"]
-        assert isinstance(matches, list)
-        titles = [r["title"] for r in matches]
-        assert any(
-            "GenesByRNASeq" in title for title in titles if isinstance(title, str)
-        )
-        assert result["query"] == "gametocyte threshold"
+        assert isinstance(result, NoteSearchResult)
+        titles = [ref.title for ref in result.matches]
+        assert any("GenesByRNASeq" in title for title in titles)
+        assert result.query == "gametocyte threshold"
 
     async def test_search_empty_scratchpad_surfaces_summary(
         self,
@@ -154,9 +150,10 @@ class TestSearchNotes:
         del db_session
         ctx = _run_ctx(conv_id=conv_id, db_session_factory=db_session_factory)
         result = (await sc_tools.search_notes(ctx, query="anything")).return_value
-        assert result["totalNotes"] == 0
-        assert result["matches"] == []
-        assert "No notes saved" in str(result["summary"])
+        assert isinstance(result, NoteSearchResult)
+        assert result.total_notes == 0
+        assert result.matches == []
+        assert "No notes saved" in result.summary
 
     async def test_search_no_match_but_notes_exist(
         self,
@@ -170,11 +167,11 @@ class TestSearchNotes:
             ctx, title="unrelated", summary="s", body="nothing matches here"
         )
         result = (await sc_tools.search_notes(ctx, query="zqzqzq")).return_value
-        assert result["totalNotes"] == 1
-        assert result["matches"] == []
-        summary = str(result["summary"])
-        assert "No notes match" in summary
-        assert "1 notes total" in summary
+        assert isinstance(result, NoteSearchResult)
+        assert result.total_notes == 1
+        assert result.matches == []
+        assert "No notes match" in result.summary
+        assert "1 notes total" in result.summary
 
 
 class TestReadNote:

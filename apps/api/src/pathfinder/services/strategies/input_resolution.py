@@ -1,27 +1,14 @@
 """Resolution of step input references: primary and secondary lookup, root checks, and subtree duplication."""
 
-from dataclasses import dataclass
-
 from assistant_core.platform.logging import get_logger
 
-from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.domain.strategy.ast import StrategyStepNode, generate_step_id
+from pathfinder.domain.strategy.ast import generate_step_id
 from pathfinder.domain.strategy.graph_model import StrategyStep, subtree_ids
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class StepInputs:
-    """Resolved step input nodes, operator, and parameters for validation."""
-
-    primary: StrategyStepNode | None
-    secondary: StrategyStepNode | None
-    operator: str | None
-    params: dict[str, ParamValue] | None = None
 
 
 def _validate_primary_input(

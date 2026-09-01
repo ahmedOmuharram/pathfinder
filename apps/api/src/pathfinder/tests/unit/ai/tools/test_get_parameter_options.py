@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -11,7 +12,7 @@ from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.tools.standalone import catalog_discovery
 from pathfinder.ai.tools.standalone.catalog_discovery import AlreadyReadNotice
 from pathfinder.domain.parameters.values import SinglePickValue
-from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
+from pathfinder.domain.parameters.wdk_vocab import VocabOption, WDKVocabTerm
 from pathfinder.domain.strategy.operational_spec import Criterion
 from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKEnumParam,
@@ -608,3 +609,124 @@ class TestReadingOnePhyleticList:
 
         assert isinstance(info, ParameterInfo)
         assert info.allowed_values is None
+
+
+def _param_info(**overrides: Any) -> ParameterInfo:
+    base: dict[str, Any] = {
+        "name": "p",
+        "display_name": "P",
+        "type": "string",
+        "required": True,
+        "is_visible": True,
+        "help": "",
+        "value_format": "",
+    }
+    base.update(overrides)
+    return ParameterInfo.model_validate(base)
+
+
+def _summary_chunk(result: Any) -> Any:
+    chunk = result.metadata[-1]
+    assert chunk.type == "data-tool-summary"
+    data = chunk.data
+    if isinstance(data, dict):
+        return SimpleNamespace(**data)
+    return data
+
+
+class TestTheInvestigationsOrganismsReachTheRead:
+    """The tree is capped, so the read is told which organisms matter."""
+
+    @pytest.mark.asyncio
+    async def test_the_hints_are_forwarded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        read = AsyncMock(return_value=_param_info(name="ms_assay"))
+        monkeypatch.setattr(catalog_discovery, "read_parameter_options", read)
+        ctx = _ctx()
+        ctx.deps.agent_state.organism_hints = ["Plasmodium falciparum"]
+
+        await catalog_discovery.get_parameter_options(
+            ctx,
+            search_name="GenesByMassSpec",
+            parameter_id="ms_assay",
+        )
+
+        assert read.await_args is not None
+        narrowing = read.await_args.kwargs["narrowing"]
+        assert list(narrowing.organism_hints) == ["Plasmodium falciparum"]
+
+    @pytest.mark.asyncio
+    async def test_no_hints_reads_without_them(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        read = AsyncMock(return_value=_param_info(name="ms_assay"))
+        monkeypatch.setattr(catalog_discovery, "read_parameter_options", read)
+
+        await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByMassSpec",
+            parameter_id="ms_assay",
+        )
+
+        assert read.await_args is not None
+        narrowing = read.await_args.kwargs["narrowing"]
+        assert list(narrowing.organism_hints) == []
+
+
+class TestOptionCountSummary:
+    """The trace line counts what the model can actually pick from."""
+
+    async def _read_summary(
+        self, monkeypatch: pytest.MonkeyPatch, info: ParameterInfo
+    ) -> Any:
+        monkeypatch.setattr(
+            catalog_discovery,
+            "read_parameter_options",
+            AsyncMock(return_value=info),
+        )
+        result = await catalog_discovery.get_parameter_options(
+            _ctx(),
+            search_name="GenesByMassSpec",
+            parameter_id=info.name,
+        )
+        return _summary_chunk(result)
+
+    @pytest.mark.asyncio
+    async def test_a_tree_vocabulary_counts_its_leaves(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = _param_info(
+            name="ms_assay",
+            type="multi-pick-vocabulary",
+            allowed_values=None,
+            allowed_values_tree="Anopheles\n  sample_a\n  sample_b",
+            vocab_leaves=[
+                VocabOption(value="sample_a", display="Sample A"),
+                VocabOption(value="sample_b", display="Sample B"),
+            ],
+        )
+        data = await self._read_summary(monkeypatch, info)
+
+        assert data.summary == "ms_assay: 2 options"
+        assert data.status == "ok"
+
+    @pytest.mark.asyncio
+    async def test_a_free_form_parameter_reports_no_vocabulary(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = _param_info(name="snp_density_upper", type="number")
+        data = await self._read_summary(monkeypatch, info)
+
+        assert data.summary == "snp_density_upper: free-form number, no vocabulary"
+        assert data.status == "ok"
+
+    @pytest.mark.asyncio
+    async def test_an_empty_pick_vocabulary_stays_flagged(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = _param_info(name="organism", type="single-pick-vocabulary")
+        data = await self._read_summary(monkeypatch, info)
+
+        assert data.summary == "organism: 0 options"
+        assert data.status == "empty"

@@ -2,8 +2,12 @@
 
 from dataclasses import dataclass, field
 
-from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
-from pathfinder.domain.strategy.graph_model import StepKind, StrategyStep
+from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.graph_model import (
+    StepKind,
+    StrategyStep,
+    own_search_name,
+)
 from pathfinder.domain.strategy.session import StrategyGraph
 
 
@@ -75,11 +79,7 @@ def _step_from_node(node: StrategyStepNode, kind: StepKind) -> StrategyStep:
     return StrategyStep(
         id=node.id,
         kind=kind,
-        search_name=(
-            None
-            if kind is StepKind.COMBINE and node.search_name == COMBINE_SEARCH_NAME
-            else node.search_name
-        ),
+        search_name=own_search_name(node, kind),
         parameters=dict(node.parameters),
         display_name=node.display_name,
         operator=node.operator,

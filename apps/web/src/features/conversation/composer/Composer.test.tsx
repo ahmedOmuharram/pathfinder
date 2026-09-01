@@ -1,16 +1,21 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
 import type { ReactNode } from "react";
+import type { UIMessage } from "ai";
 
 import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 import { createTestWrapper } from "@/lib/query/testing";
 import { useSessionStore } from "@/state/useSessionStore";
+import {
+  ChatHelpersProvider,
+  type ChatHelpers,
+} from "@/features/conversation/runtime/chatHelpersContext";
 
-import { Composer } from "./Composer";
+import { Composer, stopClickBlocked } from "./Composer";
 
 function StubRuntimeProvider({ children }: { children: ReactNode }) {
   const runtime = useLocalRuntime({
@@ -23,18 +28,69 @@ function StubRuntimeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function renderComposer(signedIn: boolean) {
+function HangingRuntimeProvider({ children }: { children: ReactNode }) {
+  const runtime = useLocalRuntime({
+    async run() {
+      await new Promise<void>(() => {});
+      return { content: [] };
+    },
+  });
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+  );
+}
+
+function makeChat(messages: UIMessage[]): ChatHelpers {
+  return {
+    id: "test-conversation",
+    messages,
+    status: "ready",
+    error: undefined,
+    setMessages: () => {},
+    sendMessage: async () => {},
+    regenerate: async () => {},
+    stop: async () => {},
+    resumeStream: async () => {},
+    addToolResult: async () => {},
+    addToolOutput: async () => {},
+    addToolApprovalResponse: () => {},
+    clearError: () => {},
+  };
+}
+
+function renderComposer(
+  signedIn: boolean,
+  options?: { hangingRuntime?: boolean; messages?: UIMessage[] },
+) {
   const { queryClient, Wrapper } = createTestWrapper();
   queryClient.setQueryData(
     authStatusOptions(useSessionStore.getState().selectedSite).queryKey,
     { signedIn },
   );
+  const Runtime =
+    options?.hangingRuntime === true ? HangingRuntimeProvider : StubRuntimeProvider;
   return render(
-    <StubRuntimeProvider>
-      <Composer conversationId="test-conversation" />
-    </StubRuntimeProvider>,
+    <Runtime>
+      <ChatHelpersProvider value={makeChat(options?.messages ?? [])}>
+        <Composer conversationId="test-conversation" />
+      </ChatHelpersProvider>
+    </Runtime>,
     { wrapper: Wrapper },
   );
+}
+
+function cancelCalls(fetchMock: ReturnType<typeof vi.fn>): unknown[] {
+  return fetchMock.mock.calls.filter(
+    (call) => typeof call[0] === "string" && call[0].includes("/cancel"),
+  );
+}
+
+async function sendAndWaitForStop(): Promise<void> {
+  fireEvent.change(screen.getByTestId("message-input"), {
+    target: { value: "count the genes" },
+  });
+  fireEvent.click(screen.getByTestId("send-button"));
+  await waitFor(() => expect(screen.getByTestId("stop-button")).toBeInTheDocument());
 }
 
 describe("Composer", () => {
@@ -54,5 +110,99 @@ describe("Composer", () => {
       screen.getByPlaceholderText("Sign in to VEuPathDB to build strategies"),
     ).toBeDisabled();
     expect(screen.getByTestId("send-button")).toBeDisabled();
+  });
+});
+
+describe("stopClickBlocked", () => {
+  it("blocks a stop click 1ms after a send", () => {
+    expect(stopClickBlocked(1000, 1001)).toBe(true);
+  });
+
+  it("blocks a stop click 499ms after a send", () => {
+    expect(stopClickBlocked(1000, 1499)).toBe(true);
+  });
+
+  it("allows a stop click exactly 500ms after a send", () => {
+    expect(stopClickBlocked(1000, 1500)).toBe(false);
+  });
+
+  it("allows a stop click long after a send", () => {
+    expect(stopClickBlocked(1000, 60_000)).toBe(false);
+  });
+
+  it("allows a stop click when this composer never sent", () => {
+    expect(stopClickBlocked(0, 1_700_000_000_000)).toBe(false);
+  });
+});
+
+describe("the second click of a double-click on Send does not cancel the turn", () => {
+  it("ignores a Stop click inside the guard window", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    renderComposer(true, { hangingRuntime: true });
+
+    await sendAndWaitForStop();
+    fireEvent.click(screen.getByTestId("stop-button"));
+
+    expect(cancelCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("cancels on a deliberate Stop click after the guard window", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    let now = 1_700_000_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    renderComposer(true, { hangingRuntime: true });
+
+    await sendAndWaitForStop();
+    now += 500;
+    fireEvent.click(screen.getByTestId("stop-button"));
+
+    expect(cancelCalls(fetchMock)).toHaveLength(1);
+  });
+});
+
+describe("the conversation usage footer names its scope", () => {
+  const USAGE_MESSAGES: UIMessage[] = [
+    {
+      id: "m1",
+      role: "assistant",
+      parts: [
+        {
+          type: "data-lead-usage",
+          data: { tokens: 1000, costUsd: "0.01", modelId: "openai:gpt" },
+        },
+        {
+          type: "data-sub-agent-call",
+          id: "c1",
+          data: { tokens: 2000, costUsd: "0.02" },
+        },
+      ],
+    },
+  ];
+
+  it("labels the visible line as this conversation's total", () => {
+    renderComposer(true, { messages: USAGE_MESSAGES });
+    expect(screen.getByTestId("conversation-usage")).toHaveTextContent(
+      "Conversation · 3K tokens · $0.03",
+    );
+  });
+
+  it("is keyboard reachable and explains the scope in its tooltip", async () => {
+    renderComposer(true, { messages: USAGE_MESSAGES });
+    const trigger = screen.getByTestId("conversation-usage");
+    expect(trigger).toHaveAttribute("tabindex", "0");
+
+    fireEvent.focus(trigger);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText("This conversation's total across all turns.").length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("renders nothing when the conversation has no usage", () => {
+    renderComposer(true);
+    expect(screen.queryByTestId("conversation-usage")).toBe(null);
   });
 });

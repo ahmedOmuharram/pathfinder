@@ -7,15 +7,31 @@ factory instead, so the agent belongs to the turn that runs it.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from assistant_core.memory.schemas import MemoryValue
+from pydantic_ai import RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import pathfinder.ai.graph.lead_node as lead_node_mod
 import pathfinder.ai.lead.lead_agent as lead_agent_mod
+from pathfinder.ai.agents._instructions import pinned_user_memories
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.graph.lead_node import make_lead_node
+from pathfinder.ai.graph.runtime import Context
+from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
 from pathfinder.ai.lead.lead_agent import LEAD_MODEL, build_lead_agent
+from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.models.settings import baked_model_id
+from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.services.research.literature_search import LiteratureSearchService
+from pathfinder.services.research.web_search import WebSearchService
 
 LEAD_TOOL_NAMES = frozenset(
     {
@@ -42,10 +58,14 @@ LEAD_TOOL_NAMES = frozenset(
 )
 
 PINNED_INSTRUCTIONS = [
+    "pinned_user_memories",
     "pinned_user_prompt",
     "pinned_user_intent",
     "pinned_operational_spec",
     "pinned_ledger_summary",
+    "pinned_run_budget",
+    "pinned_machine_guarantees",
+    "pinned_turn_briefing",
 ]
 
 
@@ -93,3 +113,53 @@ def test_the_graph_is_built_with_an_agent_factory() -> None:
 
 def test_the_node_factory_takes_the_agent_factory() -> None:
     assert "build_agent" in inspect.signature(make_lead_node).parameters
+
+
+def _lead_deps(memories: list[MemoryValue]) -> LeadDeps:
+    def _never_factory() -> AsyncSession:
+        msg = "the pinned render opened a database session"
+        raise AssertionError(msg)
+
+    state = PipelineState(
+        conversation_id=uuid4(),
+        user_id=uuid4(),
+        site_id="plasmodb",
+        mode="strategy",
+    )
+    return LeadDeps(
+        state=state,
+        intent=None,
+        runtime=Context(
+            site_id="plasmodb",
+            user_id=uuid4(),
+            strategy_session=StrategySession(site_id="plasmodb"),
+            db_session_factory=_never_factory,
+            web_search_service=WebSearchService(),
+            literature_search_service=LiteratureSearchService(),
+            cancel_event=asyncio.Event(),
+        ),
+        retrieved_memories=memories,
+    )
+
+
+def test_the_lead_renders_the_memories_its_turn_retrieved() -> None:
+    """CLAUDE.md says memories reach the Lead; the render reads its deps."""
+    memory = MemoryValue(
+        kind="preference",
+        name="preferred_dataset",
+        summary="Prefers the Su et al. strand-specific dataset",
+        content={},
+        created_at=datetime.now(UTC),
+    )
+    ctx = RunContext(deps=_lead_deps([memory]), model=TestModel(), usage=RunUsage())
+
+    rendered = pinned_user_memories(ctx)
+
+    assert rendered is not None
+    assert "Prefers the Su et al. strand-specific dataset" in rendered
+    assert (
+        pinned_user_memories(
+            RunContext(deps=_lead_deps([]), model=TestModel(), usage=RunUsage())
+        )
+        is None
+    )

@@ -25,6 +25,7 @@ const turnDrivingFeatureSpecs = [
   "**/e2e/feature/strategy-overhaul.spec.ts",
   "**/e2e/feature/strategy-param-edit.spec.ts",
   "**/e2e/feature/thread-surgery/*.spec.ts",
+  "**/e2e/feature/usage-reconciliation.spec.ts",
   "**/e2e/feature/user-data.spec.ts",
 ];
 

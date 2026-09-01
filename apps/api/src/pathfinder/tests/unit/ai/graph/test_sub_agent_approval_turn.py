@@ -219,9 +219,11 @@ def _deps(state: PipelineState) -> LeadDeps:
         literature_search_service=LiteratureSearchService(),
         cancel_event=asyncio.Event(),
     )
+    # The dispatch tools reach the model only on a turn that classified a
+    # request to build.
+    state.turn_markers.intent_classified = True
     return LeadDeps(
         state=state,
-        # The dispatch tools reach the model only on a turn that asks to build.
         intent=UserIntent(
             raw_text=state.user_prompt,
             classification=IntentClassification.EXTEND_STRATEGY,

@@ -119,8 +119,8 @@ async def run_control_tests_on_step(
     :class:`StepControlTestResult`'s serialised shape.
 
     Tests directly against the strategy's actual results using Python set
-    operations -- no temporary WDK strategy needed.  Use this after building
-    a multi-step strategy with ``build_step`` / ``combine_steps``.
+    operations -- no temporary WDK strategy needed.  Use this after a
+    multi-step strategy is built with ``build_strategy``.
 
     For testing a standalone (not-yet-built) search, use
     ``run_control_tests_on_search`` instead.
@@ -128,8 +128,8 @@ async def run_control_tests_on_step(
     Args:
         ctx: Agent run context.
         wdk_step_id: WDK step ID from a built strategy to test against.
-            Get the step ID from get_strategy(summary_only=false)
-            (wdkStepId field on the root step).
+            Read it from get_strategy(summary_only=false): the root step
+            carries the WDK step id.
         positive_controls: Known-positive IDs that should be returned.
         negative_controls: Known-negative IDs that should NOT be returned.
     """
@@ -158,7 +158,7 @@ async def run_control_tests_on_search(
         ctx: Agent run context.
         target_search_name: WDK search/question urlSegment to test.
         target_parameters: Target search parameter mapping. Each value MUST be
-            wrapped in its typed shape — see the ``valueFormat`` field from
+            wrapped in its typed shape - see the ``valueFormat`` field from
             ``get_search_overview`` for the per-param template.
         positive_controls: Known-positive IDs that should be returned.
         negative_controls: Known-negative IDs that should NOT be returned.

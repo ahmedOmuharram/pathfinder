@@ -4535,6 +4535,7 @@ paths:
           - strategy
           - preference
           - knowledge
+          - case
           type: string
           title: Kind
       requestBody:
@@ -4590,6 +4591,7 @@ paths:
           - strategy
           - preference
           - knowledge
+          - case
           type: string
           title: Kind
       responses:
@@ -10198,11 +10200,21 @@ components:
           type: string
           title: Costusd
           default: '0'
+        contextTokens:
+          type: integer
+          title: Contexttokens
+          default: 0
+        contextWindow:
+          type: integer
+          title: Contextwindow
+          default: 0
       type: object
       title: LeadUsagePayload
       description: 'Payload for the lead-usage chunk. The counts cover the Lead agent only
 
-        and exclude sub-agents.'
+        and exclude sub-agents. ``context_tokens`` is the input size of the latest
+
+        request against ``context_window``, and 0 in either means unknown.'
     LoginPayload:
       properties:
         email:
@@ -10282,6 +10294,11 @@ components:
             $ref: '#/components/schemas/MemoryItem'
           type: array
           title: Knowledge
+        cases:
+          items:
+            $ref: '#/components/schemas/MemoryItem'
+          type: array
+          title: Cases
         pageSize:
           type: integer
           title: Pagesize
@@ -10297,6 +10314,7 @@ components:
       - strategies
       - preferences
       - knowledge
+      - cases
       - pageSize
       - offset
       - hasMore
@@ -10333,6 +10351,7 @@ components:
           - strategy
           - preference
           - knowledge
+          - case
           title: Kind
         name:
           type: string
@@ -13699,6 +13718,14 @@ components:
           type: string
           title: Costusd
           default: '0'
+        contextTokens:
+          type: integer
+          title: Contexttokens
+          default: 0
+        contextWindow:
+          type: integer
+          title: Contextwindow
+          default: 0
       type: object
       required:
       - toolCallId
@@ -13708,7 +13735,11 @@ components:
       title: SubAgentCallPayload
       description: 'Payload for the sub-agent-call chunk. The tool call id identifies the
 
-        dispatch, and sub-agent step chunks join to it.'
+        dispatch, and sub-agent step chunks join to it. ``context_tokens`` is the
+
+        input size of the dispatch''s latest request against ``context_window``, and
+
+        0 in either means unknown.'
     SubAgentStepPayload:
       properties:
         parentToolCallId:

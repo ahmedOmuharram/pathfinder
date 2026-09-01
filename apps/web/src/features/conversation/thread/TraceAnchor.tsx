@@ -72,7 +72,7 @@ function readLeadUsage(data: unknown): DataLeadUsagePayload | null {
  * The turn's model, tokens and cost: the Lead's own usage plus every
  * sub-agent it dispatched, which is what the wire reports as the turn total.
  */
-function turnUsageOf(parts: readonly MessagePart[]): TraceUsageView | null {
+export function turnUsageOf(parts: readonly MessagePart[]): TraceUsageView | null {
   let lead: DataLeadUsagePayload | null = null;
   let tokens = 0;
   let cost = 0;

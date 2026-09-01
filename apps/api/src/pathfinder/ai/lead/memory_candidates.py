@@ -20,6 +20,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph.state import PipelineState, StrategyDomainState
+from pathfinder.ai.lead.case_memory import collect_case_candidates
 from pathfinder.ai.lead.intent import BUILDING_INTENTS
 
 __all__ = [
@@ -33,6 +34,7 @@ PRODUCT_MEMORY_KINDS: tuple[str, ...] = (
     "strategy",
     "preference",
     "knowledge",
+    "case",
 )
 
 PREFERENCE_MIN_SUCCESSES = 3
@@ -75,6 +77,7 @@ def collect_memory_candidates(state: PipelineState) -> list[MemoryCandidate]:
                     f"knowledge:{state.conversation_id.hex}:{idx}",
                 )
             )
+    candidates.extend(collect_case_candidates(state))
     return candidates
 
 

@@ -30,8 +30,7 @@ from pathfinder.ai.lead.sub_agent_dispatch import run_frame
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
-from pathfinder.domain.strategy.build_outcome import BuildOutcome, StepPushFailure
-from pathfinder.domain.strategy.graph_model import wdk_search_name
+from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 from pathfinder.domain.strategy.operations.apply import ApplyError
 from pathfinder.domain.strategy.revision import strategy_revision
@@ -46,8 +45,8 @@ from pathfinder.services.strategies.commit import (
     CommitResult,
     apply_operations_and_commit,
 )
+from pathfinder.services.strategies.graph_outcome import outcome_for_graph
 from pathfinder.services.strategies.live_counts import read_wdk_step_counts
-from pathfinder.services.strategies.spec_build import node_results
 from pathfinder.services.strategies.sync_state import ensure_sync_state
 
 __all__ = ["edit_strategy", "run_edit"]
@@ -130,7 +129,7 @@ async def _push_the_edit(
         # The batch rolls back, so the strategy is exactly as it was.
         refuse_and_restore(deps, unsupported_edit_message(str(exc)))
     outcome = await _outcome_after_edit(agent_deps, commit)
-    deps.state.domain.last_build_outcome = outcome
+    deps.state.record_build(outcome)
     _emit_graph_snapshot(agent_deps)
     return EditDelta(
         diff=diff,
@@ -151,32 +150,17 @@ async def _outcome_after_edit(
     numbers the Lead reports are read again rather than carried over.
     """
     session = agent_deps.strategy_session
-    graph = session.get_graph(None)
     sync_state = ensure_sync_state(session)
     counts = await read_wdk_step_counts(
         sync_state, get_strategy_api(agent_deps.site_id)
     )
-    root_id = graph.primary_root_id() if graph is not None else None
-    steps = list(graph.steps.values()) if graph is not None else []
-    outcome = BuildOutcome(
-        pushed_step_ids=[s.id for s in steps if s.id in sync_state.wdk_step_ids],
-        failed_steps=[
-            StepPushFailure(
-                step_id=step.id,
-                search_name=wdk_search_name(step),
-                error=sync_state.wdk_push_errors.get(step.id, ""),
-            )
-            for step in steps
-            if step.id in commit.failed_step_ids
-        ],
-        wdk_strategy_id=sync_state.wdk_strategy_id,
+    return outcome_for_graph(
+        graph=session.get_graph(None),
+        sync_state=sync_state,
+        counts=counts,
+        failed_step_ids=commit.failed_step_ids,
         wdk_url=commit.sync_result.wdk_url if commit.sync_result else None,
-        counts=dict(counts),
-        root_count=counts.get(root_id) if root_id is not None else None,
-        zero_step_ids=[sid for sid, count in counts.items() if count == 0],
     )
-    outcome.node_results = node_results(steps, sync_state, outcome)
-    return outcome
 
 
 def _emit_graph_snapshot(agent_deps: AgentDeps) -> None:

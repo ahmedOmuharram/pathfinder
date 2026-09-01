@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import ConfigDict, Field
 
-from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode, fold_step_tree
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 
 COMBINE_LABEL = "COMBINE"
@@ -71,24 +71,22 @@ def _rounded(value: float) -> float:
 
 def tree_from_ast(ast: StrategyAst) -> ComparisonNode:
     """The comparison tree of a built strategy, parameters included."""
-    return _node_from_step(ast.root)
+    return fold_step_tree(ast.root, _node_from_step)
 
 
-def _node_from_step(step: StrategyStepNode) -> ComparisonNode:
-    kind = step.infer_kind()
-    children = tuple(
-        _node_from_step(child)
-        for child in (step.primary_input, step.secondary_input)
-        if child is not None
-    )
+def _node_from_step(
+    step: StrategyStepNode, inputs: list[ComparisonNode]
+) -> ComparisonNode:
     return ComparisonNode(
-        search_name=COMBINE_LABEL if kind == "combine" else step.search_name,
+        search_name=(
+            COMBINE_LABEL if step.infer_kind() == "combine" else step.search_name
+        ),
         operator=step.operator.value if step.operator is not None else None,
         parameters={
             name: _canonical(value.model_dump(mode="json"))
             for name, value in step.parameters.items()
         },
-        children=children,
+        children=tuple(inputs),
     )
 
 

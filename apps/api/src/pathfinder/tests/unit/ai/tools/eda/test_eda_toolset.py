@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.toolsets.function import FunctionToolset
@@ -50,6 +51,14 @@ def test_no_other_eda_tool_is_sequential() -> None:
     tools = _function_toolset(build_toolset()).tools
     sequential = {name for name, tool in tools.items() if tool.sequential}
     assert sequential == {"run_eda_compute"}
+
+
+def test_create_eda_step_prose_names_its_three_threshold_arguments() -> None:
+    """The volcano cut is the model's to set, so the prose must name it."""
+    tools = _function_toolset(build_toolset()).tools
+    description = tools["create_eda_step"].description or ""
+    for name in ("effect_size_threshold", "significance_threshold", "effect_direction"):
+        assert name in description, name
 
 
 def test_both_plot_tools_declare_a_caption_argument() -> None:
@@ -125,10 +134,20 @@ def test_a_tool_argument_reaches_the_model_in_snake_case() -> None:
 
 
 def test_no_docstring_names_a_returned_field_in_snake_case() -> None:
-    """A docstring saying dataset_id sends the model at a field the wire lacks."""
+    """A docstring saying dataset_id sends the model at a field the wire lacks.
+
+    A name the tool also declares as an argument is exempt: the model writes
+    those in snake_case, and the prose that asks for one says so.
+    """
+    tools = _function_toolset(build_toolset()).tools
     for tool in _DOCUMENTED_TOOLS:
         doc = tool.__doc__
         assert doc is not None
         prose = doc.split("Args:")[0]
-        named = [name for name in _RETURNED_FIELDS_IN_SNAKE_CASE if name in prose]
+        declared = set(tools[tool.__name__].function_schema.json_schema["properties"])
+        named = [
+            name
+            for name in _RETURNED_FIELDS_IN_SNAKE_CASE
+            if re.search(rf"\b{name}\b", prose) and name not in declared
+        ]
         assert named == [], f"{tool.__name__} prose names {named}"

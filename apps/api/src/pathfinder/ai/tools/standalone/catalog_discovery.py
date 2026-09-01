@@ -7,6 +7,7 @@ the same step.
 
 from typing import Any, Literal
 
+from assistant_core.graph.stream_events import ToolSummaryStatus
 from assistant_core.graph.tool_summary import count_noun, with_summary
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic_ai import RunContext
@@ -24,6 +25,7 @@ from pathfinder.services.catalog.param_formatting import (
 )
 from pathfinder.services.catalog.search_inspection import (
     UnknownSearchError,
+    VocabNarrowing,
     inspect_search,
     read_parameter_options,
 )
@@ -158,7 +160,10 @@ async def get_parameter_options(
         parameter_id,
         record_type=record_type,
         context_values=typed_context,
-        query=query,
+        narrowing=VocabNarrowing(
+            query=query,
+            organism_hints=deps.agent_state.organism_hints,
+        ),
     )
     if result.kind != "parameter_info":
         return with_summary(
@@ -169,13 +174,29 @@ async def get_parameter_options(
         )
     _snapshot_param_vocab(deps, search_name, result)
     deps.agent_state.mark_param_read(read_key)
-    options = len(result.allowed_values or [])
     return with_summary(
         result,
-        f"{parameter_id}: {options} options",
+        _options_summary(parameter_id, result),
         ctx=ctx,
-        status="ok" if options else "empty",
+        status=_options_status(result),
     )
+
+
+def _has_vocabulary_type(info: ParameterInfo) -> bool:
+    return "vocabulary" in info.type
+
+
+def _options_summary(parameter_id: str, info: ParameterInfo) -> str:
+    options = len(info.vocabulary())
+    if options or _has_vocabulary_type(info):
+        return f"{parameter_id}: {options} options"
+    return f"{parameter_id}: free-form {info.type}, no vocabulary"
+
+
+def _options_status(info: ParameterInfo) -> ToolSummaryStatus:
+    if len(info.vocabulary()):
+        return "ok"
+    return "empty" if _has_vocabulary_type(info) else "ok"
 
 
 def _snapshot_param_vocab(

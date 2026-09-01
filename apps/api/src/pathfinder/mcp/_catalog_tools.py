@@ -205,5 +205,5 @@ async def get_parameter_options(
         parameter_id,
         record_type=record_type,
         context_values=context_values,
-        query=query,
+        narrowing=catalog.VocabNarrowing(query=query),
     )

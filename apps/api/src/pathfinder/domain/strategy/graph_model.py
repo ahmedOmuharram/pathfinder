@@ -94,6 +94,17 @@ def _kind_of(node: StrategyStepNode) -> StepKind:
     return StepKind.SEARCH
 
 
+def own_search_name(node: StrategyStepNode, kind: StepKind) -> str | None:
+    """The question this node names, or ``None`` when it names none.
+
+    A combine carrying only the AST sentinel has no question of its own. A
+    combine WDK named keeps that name.
+    """
+    if kind is StepKind.COMBINE and node.search_name == COMBINE_SEARCH_NAME:
+        return None
+    return node.search_name
+
+
 class DuplicateStepIdError(ValueError):
     """The same step id occupies two positions in one tree."""
 
@@ -116,11 +127,7 @@ def flatten_tree(root: StrategyStepNode) -> dict[str, StrategyStep]:
         steps[node.id] = StrategyStep(
             id=node.id,
             kind=kind,
-            search_name=(
-                None
-                if kind is StepKind.COMBINE and node.search_name == COMBINE_SEARCH_NAME
-                else node.search_name
-            ),
+            search_name=own_search_name(node, kind),
             parameters=dict(node.parameters),
             primary_input_id=(
                 node.primary_input.id if node.primary_input is not None else None
@@ -248,11 +255,22 @@ def find_parent(
 
 
 def wdk_search_name(step: StrategyStep) -> str:
-    """Returns the question name WDK expects. A combine has no question of its own,
-    so this boundary supplies the placeholder name."""
+    """The name this step reports outward. A combine has no question of its own,
+    so this boundary supplies the placeholder; the push branches on the kind and
+    creates a boolean step without it."""
     if step.kind is StepKind.COMBINE:
         return step.search_name or COMBINE_SEARCH_NAME
     return step.search_name or ""
+
+
+def runs_a_wdk_search(step: StrategyStep) -> bool:
+    """Reports whether this step names a question WDK can run.
+
+    A combine names none, and neither does a combine that lost an input slot
+    and now reads as a transform under the sentinel name.
+    """
+    name = wdk_search_name(step)
+    return bool(name) and name != COMBINE_SEARCH_NAME
 
 
 def is_computable(step: StrategyStep) -> bool:

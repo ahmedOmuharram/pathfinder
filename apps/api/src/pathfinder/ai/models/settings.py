@@ -5,8 +5,8 @@ since pydantic-ai v2 a bare ``openai:`` prefix already means the Responses API,
 so no name rewriting happens anywhere.
 
 ``build_model_settings`` returns the provider-correct ``ModelSettings`` (prompt
-caching + reasoning effort), composed so caching is never clobbered by the
-per-request thinking effort.
+caching + reasoning effort + request timeout), composed so caching is never
+clobbered by the per-request thinking effort.
 """
 
 from typing import Any
@@ -15,6 +15,9 @@ from assistant_core.platform.types import ReasoningEffort
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 from pydantic_ai.settings import ModelSettings
+
+# A hung provider request must fail, and a reasoning model can need minutes.
+_REQUEST_TIMEOUT_SECONDS = 900
 
 
 def model_provider(model_id: str) -> str:
@@ -77,6 +80,7 @@ def build_model_settings(
             # history needs.
             openai_send_reasoning_ids=False,
         )
+    settings["timeout"] = _REQUEST_TIMEOUT_SECONDS
     if thinking is not None and thinking != "none":
         settings["thinking"] = thinking
     return settings

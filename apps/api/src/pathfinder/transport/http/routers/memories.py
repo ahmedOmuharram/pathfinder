@@ -26,6 +26,7 @@ MEMORY_ROUTE_KINDS: tuple[MemoryKind, ...] = (
     "strategy",
     "preference",
     "knowledge",
+    "case",
 )
 
 _MAX_PAGE_LIMIT: int = 200
@@ -75,6 +76,7 @@ async def list_memories(
         strategies=buckets["strategy"],
         preferences=buckets["preference"],
         knowledge=buckets["knowledge"],
+        cases=buckets["case"],
         page_size=limit,
         offset=offset,
         has_more=any_full_page,

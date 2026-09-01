@@ -147,15 +147,25 @@ def turn_usage_event(*, total_tokens: int, cost_usd: str) -> DataChunk:
 
 class LeadUsagePayload(CamelModel):
     """Payload for the lead-usage chunk. The counts cover the Lead agent only
-    and exclude sub-agents.
+    and exclude sub-agents. ``context_tokens`` is the input size of the latest
+    request against ``context_window``, and 0 in either means unknown.
     """
 
     model_id: str = ""
     tokens: int = 0
     cost_usd: str = "0"
+    context_tokens: int = 0
+    context_window: int = 0
 
 
-def lead_usage_event(*, model_id: str, tokens: int, cost_usd: str) -> DataChunk:
+def lead_usage_event(
+    *,
+    model_id: str,
+    tokens: int,
+    cost_usd: str,
+    context_tokens: int = 0,
+    context_window: int = 0,
+) -> DataChunk:
     """Report live Lead usage. The id is stable, so repeated emissions
     reconcile into one persisted part."""
     return DataChunk(
@@ -165,6 +175,8 @@ def lead_usage_event(*, model_id: str, tokens: int, cost_usd: str) -> DataChunk:
             model_id=model_id,
             tokens=tokens,
             cost_usd=cost_usd,
+            context_tokens=context_tokens,
+            context_window=context_window,
         ).model_dump(by_alias=True, mode="json"),
     )
 
@@ -229,7 +241,9 @@ def turn_status_event(
 
 class SubAgentCallPayload(CamelModel):
     """Payload for the sub-agent-call chunk. The tool call id identifies the
-    dispatch, and sub-agent step chunks join to it.
+    dispatch, and sub-agent step chunks join to it. ``context_tokens`` is the
+    input size of the dispatch's latest request against ``context_window``, and
+    0 in either means unknown.
     """
 
     tool_call_id: str
@@ -241,6 +255,8 @@ class SubAgentCallPayload(CamelModel):
     succeeded: bool | None = None
     tokens: int = 0
     cost_usd: str = "0"
+    context_tokens: int = 0
+    context_window: int = 0
 
 
 def sub_agent_call_event(payload: SubAgentCallPayload) -> DataChunk:

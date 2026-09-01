@@ -237,6 +237,17 @@ def _date_bound(value: float | str | None) -> str | None:
             return None
 
 
+def vocabulary_note(*, total: int, shown: int) -> str | None:
+    """What a cut vocabulary says about the values it does not carry."""
+    if total <= shown:
+        return None
+    return (
+        f"{total} values in all; the first {shown} are shown. Ask "
+        f"preview_eda_subset for this variable's distribution to see which "
+        f"values the current subset holds."
+    )
+
+
 def variable_out(
     *,
     entity_id: str,
@@ -249,15 +260,7 @@ def variable_out(
         return None
     total = len(facts.vocabulary)
     shown = facts.vocabulary[:_VOCABULARY_SHOWN]
-    note = (
-        None
-        if total <= _VOCABULARY_SHOWN
-        else (
-            f"{total} values in all; the first {_VOCABULARY_SHOWN} are shown. "
-            f"Ask preview_eda_subset for this variable's distribution to see "
-            f"which values the current subset holds."
-        )
-    )
+    note = vocabulary_note(total=total, shown=len(shown))
     bounds = facts.distribution_defaults
     return EdaVariableOut(
         entity_id=entity_id,

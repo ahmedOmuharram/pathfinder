@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.graph._lead_capture import _LeadRunCapture
-from pathfinder.ai.graph.lead_node import _build_state_delta
+from pathfinder.ai.graph._lead_delta import _build_state_delta
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState, StrategyDomainState
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent

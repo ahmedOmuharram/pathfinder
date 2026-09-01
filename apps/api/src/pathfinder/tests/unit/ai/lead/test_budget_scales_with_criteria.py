@@ -30,6 +30,12 @@ class TestTheCeilingFollowsTheDeclaredSize:
         assert limit is not None
         assert limit >= 9 * CALLS_PER_CRITERION
 
+    def test_a_vocabulary_heavy_shape_fits(self) -> None:
+        # Ten criteria on a site whose parameters carry large vocabularies.
+        limit = phase_usage_limits(10).tool_calls_limit
+        assert limit is not None
+        assert limit >= 100
+
     def test_the_structure_pass_is_paid_for_too(self) -> None:
         # Binding every criterion and then having nothing left to combine them
         # spends the whole budget for no strategy.

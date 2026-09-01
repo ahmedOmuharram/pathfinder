@@ -124,6 +124,13 @@ export function MemorySettings() {
             onDelete={handleDelete}
             onToggleAutoRetrieve={handleToggleAutoRetrieve}
           />
+          <MemorySection
+            title="Cases"
+            items={data.cases}
+            onEdit={(m) => setEditing(m)}
+            onDelete={handleDelete}
+            onToggleAutoRetrieve={handleToggleAutoRetrieve}
+          />
 
           {(data.hasMore || offset > 0) && (
             <div className="flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground">

@@ -13,6 +13,7 @@ from pathfinder.platform.config import _REPO_ROOT
 __all__ = [
     "ModelEntry",
     "ModelProvider",
+    "context_window_for",
     "get_model_catalog",
     "get_model_entry",
 ]
@@ -227,6 +228,13 @@ def _build_index() -> dict[str, ModelEntry]:
 def get_model_entry(model_id: str) -> ModelEntry | None:
     """Look up a model by catalog ID. Return None when no entry matches."""
     return _build_index().get(model_id)
+
+
+def context_window_for(model_id: str) -> int:
+    """The model's context window in tokens. An unknown model has no window,
+    which reads as 0."""
+    entry = _build_index().get(model_id)
+    return entry.context_size if entry is not None else 0
 
 
 def get_smallest_model(provider: ModelProvider) -> ModelEntry:

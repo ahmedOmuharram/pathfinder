@@ -8,7 +8,7 @@ import {
 } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Paperclip, Send, Square, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ParamStepper } from "@/features/conversation/slash/ParamStepper";
@@ -39,6 +39,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+const SEND_TO_STOP_GUARD_MS = 500;
+
+/** True when a Stop click is the tail of a double-click on Send. */
+export function stopClickBlocked(lastSendAt: number, now: number): boolean {
+  return lastSendAt > 0 && now - lastSendAt < SEND_TO_STOP_GUARD_MS;
+}
+
 function ConversationUsageFooter() {
   const chat = useChatHelpersOptional();
   const usage = aggregateSessionUsage(chat?.messages ?? []);
@@ -48,11 +55,19 @@ function ConversationUsageFooter() {
       <TooltipProvider delayDuration={150}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="cursor-help text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2">
-              {formatTokens(usage.totalTokens)} tokens · {formatCost(usage.totalCost)}
+            <span
+              data-testid="conversation-usage"
+              tabIndex={0}
+              className="cursor-help text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2"
+            >
+              Conversation · {formatTokens(usage.totalTokens)} tokens ·{" "}
+              {formatCost(usage.totalCost)}
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="space-y-0.5 text-[11px]">
+            <div className="text-muted-foreground">
+              This conversation&apos;s total across all turns.
+            </div>
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Assistant</span>
               <span className="font-mono tabular-nums">
@@ -104,11 +119,19 @@ export function Composer({ conversationId }: { conversationId: string }) {
   const signedIn = useVeupathdbSignedIn();
   const blocked = quotaExhausted || !signedIn;
   const isRunning = useAuiState((s) => s.thread.isRunning);
+  const lastSendAt = useRef(0);
   const requestServerCancel = (): void => {
     void fetch(`/api/v1/conversations/${conversationId}/cancel`, {
       method: "POST",
       headers: getAuthHeaders(),
     }).catch(() => {});
+  };
+  const handleStopClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    if (stopClickBlocked(lastSendAt.current, Date.now())) {
+      event.preventDefault();
+      return;
+    }
+    requestServerCancel();
   };
   const { data: conversationDetail } = useQuery(strategyQueryOptions(conversationId));
   const stepCount = conversationDetail?.steps.length ?? 0;
@@ -235,7 +258,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
             !signedIn
               ? SIGN_IN_TO_BUILD
               : quotaExhausted
-                ? "Monthly quota reached — try again after the reset date."
+                ? "Monthly quota reached - try again after the reset date."
                 : "Ask about strategies, genes, or data... (try /help)"
           }
           className="max-h-36 w-full resize-none overflow-y-auto bg-transparent p-3 text-sm outline-none disabled:cursor-not-allowed"
@@ -267,7 +290,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
             <ComposerPrimitive.Cancel
               data-testid="stop-button"
               aria-label="Stop"
-              onClick={requestServerCancel}
+              onClick={handleStopClick}
               className="inline-flex items-center gap-2 rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground shadow-[var(--shadow-card)] transition-transform hover:-translate-y-px"
             >
               <Square className="h-4 w-4" /> Stop
@@ -277,6 +300,9 @@ export function Composer({ conversationId }: { conversationId: string }) {
               data-testid="send-button"
               aria-label="Send"
               disabled={blocked}
+              onClick={() => {
+                lastSendAt.current = Date.now();
+              }}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground shadow-[var(--shadow-card)] transition-transform hover:-translate-y-px disabled:opacity-50 disabled:hover:translate-y-0"
             >
               <Send className="h-4 w-4" /> Send

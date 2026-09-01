@@ -116,9 +116,7 @@ async def _process_single_seed(
             tree_node = StrategyStepNode.model_validate(
                 _coerce_step_tree_params(seed.step_tree)
             )
-            root_tree = await _materialize_step_tree(
-                api, tree_node, seed.record_type, site_id=seed.site_id
-            )
+            root_tree = await _materialize_step_tree(api, tree_node, seed.record_type)
 
             created = await api.create_strategy(
                 step_tree=root_tree,

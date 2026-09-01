@@ -137,3 +137,14 @@ def test_frame_instructions_say_when_to_declare_an_assumption() -> None:
         "never assumed - state the group the request names, or leave it null "
         "and ask."
     ) in _normalized(_FRAME_INSTRUCTIONS)
+
+
+def test_frame_instructions_send_the_model_to_a_past_case_before_binding() -> None:
+    # A verified run leaves a case; nothing reads it unless the procedure says so.
+    assert (
+        'Before step 1, read what already worked: `search_memory(query, kind="case")` '
+        "returns cases from this user's verified runs - each names the searches, the "
+        "params and the count that landed - and `search_example_plans(query)` returns "
+        "public VEuPathDB strategies ranked against the goal. Both are reading; "
+        "neither binds a criterion."
+    ) in _normalized(_FRAME_INSTRUCTIONS)

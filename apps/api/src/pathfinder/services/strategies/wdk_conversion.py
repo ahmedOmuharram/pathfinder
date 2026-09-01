@@ -15,6 +15,7 @@ from pathfinder.domain.strategy.ast import (
 )
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
+from pathfinder.integrations.veupathdb.step_tree import walk_wdk_step_tree
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.value_decoding import decode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -67,49 +68,56 @@ def _resolve_expanded_reference(
 def _build_node(
     tree_node: WDKStepTree,
     steps: dict[str, WDKStep],
-    record_type: str,
     wire_by_step_id: dict[str, dict[str, str]],
 ) -> StrategyStepNode:
     """Build a step node tree from typed WDK models.
 
-    Parameter values stay empty because the WDK wire form has no param-spec
-    context. Wire parameters go into the sidecar dict for later decoding.
+    ``walk_wdk_step_tree`` yields every input before the step that consumes it,
+    so each node finds its inputs already built. Parameter values stay empty
+    because the WDK wire form has no param-spec context; wire parameters go
+    into the sidecar dict for later decoding.
     """
-    step_id = tree_node.step_id
-    step = steps.get(str(step_id))
+    built: dict[int, StrategyStepNode] = {}
+    for node in walk_wdk_step_tree(tree_node):
+        built[node.step_id] = _node_of(node, built, steps, wire_by_step_id)
+    return built[tree_node.step_id]
+
+
+def _node_of(
+    node: WDKStepTree,
+    built: dict[int, StrategyStepNode],
+    steps: dict[str, WDKStep],
+    wire_by_step_id: dict[str, dict[str, str]],
+) -> StrategyStepNode:
+    """The AST node for one wire node, over the inputs already built."""
+    step = steps.get(str(node.step_id))
     if step is None:
         msg = (
-            f"Step {step_id} not found in WDK steps dict "
+            f"Step {node.step_id} not found in WDK steps dict "
             f"(available keys: {list(steps.keys())[:20]})"
         )
         raise DataParsingError(msg)
 
-    search_name = step.search_name
-    wire_parameters = step.search_config.parameters
+    local_id = str(node.step_id)
     display_name = step.custom_name or step.display_name or None
-    local_id = str(step_id)
+    wire_parameters = step.search_config.parameters
 
-    if tree_node.primary_input and tree_node.secondary_input:
-        left = _build_node(tree_node.primary_input, steps, record_type, wire_by_step_id)
-        right = _build_node(
-            tree_node.secondary_input, steps, record_type, wire_by_step_id
-        )
+    if node.primary_input is not None and node.secondary_input is not None:
+        right = built[node.secondary_input.step_id]
         raw_operator = _extract_operator(wire_parameters)
         if raw_operator is None:
             msg = (
-                f"Combine step {step_id} has no boolean operator in "
+                f"Combine step {node.step_id} has no boolean operator in "
                 f"searchConfig.parameters (keys: {list(wire_parameters.keys())})"
             )
             raise DataParsingError(msg)
         expanded_strategy_id, expanded_name = _resolve_expanded_reference(
-            step,
-            right,
-            steps,
+            step, right, steps
         )
         return StrategyStepNode(
-            search_name=search_name,
+            search_name=step.search_name,
             operator=parse_op(raw_operator),
-            primary_input=left,
+            primary_input=built[node.primary_input.step_id],
             secondary_input=right,
             display_name=display_name,
             expanded_strategy_id=expanded_strategy_id,
@@ -117,18 +125,13 @@ def _build_node(
             id=local_id,
         )
     wire_by_step_id[local_id] = dict(wire_parameters)
-    if tree_node.primary_input:
-        input_node = _build_node(
-            tree_node.primary_input, steps, record_type, wire_by_step_id
-        )
-        return StrategyStepNode(
-            search_name=search_name,
-            primary_input=input_node,
-            display_name=display_name,
-            id=local_id,
-        )
     return StrategyStepNode(
-        search_name=search_name,
+        search_name=step.search_name,
+        primary_input=(
+            built[node.primary_input.step_id]
+            if node.primary_input is not None
+            else None
+        ),
         display_name=display_name,
         id=local_id,
     )
@@ -170,12 +173,7 @@ def build_snapshot_from_wdk(
     record_type = record_type.strip()
 
     wire_by_step_id: dict[str, dict[str, str]] = {}
-    root = _build_node(
-        wdk_strategy.step_tree,
-        wdk_strategy.steps,
-        record_type,
-        wire_by_step_id,
-    )
+    root = _build_node(wdk_strategy.step_tree, wdk_strategy.steps, wire_by_step_id)
 
     step_counts, wdk_step_ids = _extract_wdk_metadata(root, wdk_strategy.steps)
     payload = StrategyAst(

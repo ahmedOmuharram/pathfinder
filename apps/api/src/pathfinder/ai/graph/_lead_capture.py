@@ -30,6 +30,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.lead_agent import LeadResponse
+from pathfinder.ai.models.catalog import context_window_for
 from pathfinder.services import quota as quota_service
 
 logger = get_logger(__name__)
@@ -53,6 +54,7 @@ class _LeadRunCapture:
     sub_agent_cost: Decimal = field(default_factory=lambda: Decimal(0))
     sub_agent_usage_by_call: dict[str, tuple[int, str]] = field(default_factory=dict)
     lead_model: str = ""
+    last_request_input_tokens: int = 0
     pending_approval: PendingApproval | None = None
     pending_durable_call: PendingDurableCall | None = None
     parked_call_answered: bool = False
@@ -85,10 +87,24 @@ class _LeadRunCapture:
         )
 
 
-def emit_lead_usage(writer: Any, model_id: str, tokens: int, cost_usd: str) -> None:
+def emit_lead_usage(
+    writer: Any,
+    model_id: str,
+    tokens: int,
+    cost_usd: str,
+    *,
+    context_tokens: int,
+    context_window: int,
+) -> None:
     emit_chunk(
         writer,
-        lead_usage_event(model_id=model_id, tokens=tokens, cost_usd=cost_usd),
+        lead_usage_event(
+            model_id=model_id,
+            tokens=tokens,
+            cost_usd=cost_usd,
+            context_tokens=context_tokens,
+            context_window=context_window,
+        ),
     )
 
 
@@ -165,6 +181,10 @@ async def _charge_token_delta(
     capture.charged_cache_read_tokens += delta_cache_read
     capture.charged_cache_write_tokens += delta_cache_write
     capture.charged_cost += delta_cost
+    if delta_input > 0:
+        # ``input_tokens`` accumulates over the run, so one request's input
+        # size is the delta. A charge with no new input keeps the last size.
+        capture.last_request_input_tokens = delta_input
     total_tokens, cost_usd = capture.live_totals(state)
     emit_turn_usage(writer, total_tokens, cost_usd)
     emit_lead_usage(
@@ -172,6 +192,8 @@ async def _charge_token_delta(
         capture.lead_model,
         capture.charged_tokens,
         str(capture.charged_cost),
+        context_tokens=capture.last_request_input_tokens,
+        context_window=context_window_for(capture.lead_model),
     )
 
 

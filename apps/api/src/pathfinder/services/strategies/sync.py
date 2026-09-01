@@ -9,6 +9,7 @@ from pydantic import JsonValue
 
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
+    fold_step_tree,
     walk_step_tree,
 )
 from pathfinder.domain.strategy.graph_model import (
@@ -114,35 +115,18 @@ def build_step_tree_from_graph(
 
     :raises StrategyCompilationError: If any step in the tree lacks a WDK step ID.
     """
-    wdk_id = wdk_step_ids.get(root.id)
-    if wdk_id is None:
-        msg = f"Step '{root.id}' has no WDK step ID -- was it pushed to WDK?"
-        raise StrategyCompilationError(msg)
 
-    primary: WDKStepTree | None = None
-    if root.primary_input is not None:
-        primary = build_step_tree_from_graph(root.primary_input, wdk_step_ids)
+    def node(step: StrategyStepNode, inputs: list[WDKStepTree]) -> WDKStepTree:
+        wdk_id = wdk_step_ids.get(step.id)
+        if wdk_id is None:
+            msg = f"Step '{step.id}' has no WDK step ID -- was it pushed to WDK?"
+            raise StrategyCompilationError(msg)
+        slots: list[WDKStepTree | None] = [*inputs, None, None]
+        return WDKStepTree(
+            step_id=wdk_id, primary_input=slots[0], secondary_input=slots[1]
+        )
 
-    secondary: WDKStepTree | None = None
-    if root.secondary_input is not None:
-        secondary = build_step_tree_from_graph(root.secondary_input, wdk_step_ids)
-
-    return WDKStepTree(
-        step_id=wdk_id,
-        primary_input=primary,
-        secondary_input=secondary,
-    )
-
-
-def _trees_equal(a: WDKStepTree | None, b: WDKStepTree | None) -> bool:
-    """Compare two step trees for structural equality."""
-    if a is None or b is None:
-        return a is b
-    if a.step_id != b.step_id:
-        return False
-    return _trees_equal(a.primary_input, b.primary_input) and _trees_equal(
-        a.secondary_input, b.secondary_input
-    )
+    return fold_step_tree(root, node)
 
 
 def _extract_counts_and_validations(
@@ -228,7 +212,7 @@ async def _create_or_update_wdk_strategy(
         logger.info("Created WDK strategy", wdk_strategy_id=result.id)
         return result.id
 
-    if not _trees_equal(step_tree, sync_state.wdk_step_tree):
+    if step_tree != sync_state.wdk_step_tree:
         try:
             await api.update_strategy(
                 strategy_id=wdk_strategy_id,

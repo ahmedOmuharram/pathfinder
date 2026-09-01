@@ -8,7 +8,7 @@ are withheld from the graph-time retrieval entirely.
 
 These run against the real pgvector HNSW store + embeddings (only the LLM is
 ever mocked), so they also cover the ``semantic_search`` → filter → rerank
-merge across the four namespaces.
+merge across the namespaces.
 """
 
 from __future__ import annotations

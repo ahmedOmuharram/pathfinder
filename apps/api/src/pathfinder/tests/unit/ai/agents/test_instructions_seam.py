@@ -8,6 +8,7 @@ strategy vocabulary.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from types import ModuleType
 from typing import Any
@@ -31,6 +32,7 @@ STRATEGY_RENDERERS = {
 GENERIC_RENDERERS = {
     "pinned_user_memories",
     "pinned_scratchpad",
+    "pinned_run_budget",
 }
 
 INSTRUCTION_ORDER = {
@@ -39,6 +41,7 @@ INSTRUCTION_ORDER = {
         "pinned_user_memories",
         "pinned_scratchpad",
         "pinned_frame_workspace",
+        "pinned_run_budget",
     ],
     "execution": [
         "base_system_prompt",
@@ -47,6 +50,7 @@ INSTRUCTION_ORDER = {
         "pinned_scratchpad",
         "pinned_ledger",
         "pinned_discovered_searches",
+        "pinned_run_budget",
     ],
     "verification": [
         "base_system_prompt",
@@ -55,6 +59,7 @@ INSTRUCTION_ORDER = {
         "pinned_scratchpad",
         "pinned_ledger",
         "pinned_discovered_searches",
+        "pinned_run_budget",
     ],
 }
 
@@ -66,10 +71,11 @@ BUILDERS: dict[str, Callable[[], Any]] = {
 
 
 def _named(module: ModuleType) -> set[str]:
+    """The renderers a module defines. A type it declares is not one."""
     return {
         name
         for name, value in vars(module).items()
-        if callable(value) and getattr(value, "__module__", "") == module.__name__
+        if inspect.isfunction(value) and value.__module__ == module.__name__
     }
 
 

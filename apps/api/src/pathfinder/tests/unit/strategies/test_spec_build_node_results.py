@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.build_outcome import BuildOutcome, StepPushFailure
+from pathfinder.domain.strategy.graph_model import StepKind, StrategyStep
 from pathfinder.services.strategies.spec_build import node_results
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
 
+def _leaf(step_id: str, search_name: str) -> StrategyStep:
+    return StrategyStep(id=step_id, kind=StepKind.SEARCH, search_name=search_name)
+
+
 def testnode_results_maps_counts_and_step_ids() -> None:
-    leaf1 = StrategyStepNode(search_name="GenesWithSignalPeptide")
-    leaf2 = StrategyStepNode(search_name="GenesByTransmembraneDomains")
+    leaf1 = _leaf("s1", "GenesWithSignalPeptide")
+    leaf2 = _leaf("s2", "GenesByTransmembraneDomains")
     sync = WDKSyncState()
     sync.wdk_step_ids = {leaf1.id: 100, leaf2.id: 200}
     outcome = BuildOutcome(counts={leaf1.id: 437, leaf2.id: 0})
@@ -23,7 +27,7 @@ def testnode_results_maps_counts_and_step_ids() -> None:
 
 
 def testnode_results_marks_failed_with_error() -> None:
-    leaf = StrategyStepNode(search_name="GenesByTransmembraneDomains")
+    leaf = _leaf("s1", "GenesByTransmembraneDomains")
     outcome = BuildOutcome(
         failed_steps=[
             StepPushFailure(

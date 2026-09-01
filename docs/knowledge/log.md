@@ -1,5 +1,257 @@
 # Log
 
+## 2026-09-01
+
+* **The wire carries each agent's context fill, and the rail draws it.**
+  `data-sub-agent-call` and `data-lead-usage` carry `contextTokens` and
+  `contextWindow`: the input size of the agent's latest request, and the
+  model's window from the catalog. `RunUsage.input_tokens` accumulates over a
+  run, so one request's size is the delta between two readings; the sub-agent
+  emitter keeps that delta in a `_ContextMeter` per dispatch and the Lead
+  keeps it on its run capture. An unknown model reports a window of 0, and
+  the row then shows tokens with no bar. The Progress rail's Summary tab
+  renders one bar per agent that is still running, so history the runtime
+  sheds mid-run is visible as the bar dropping. Protocol 1.6.0.
+
+* **A treebox read renders the investigation's organisms first.** The 80-line
+  cap in `render_vocab_tree` used to cut a portal-wide organism tree in WDK's
+  alphabetical order, so a P. falciparum investigation reading `ms_assay` on
+  `GenesByMassSpec` saw Anopheles and Entamoeba samples and no Plasmodium
+  entry. `read_parameter_options` now takes a `VocabNarrowing` carrying the
+  query and the organism hints; `_prioritized_branches` reorders every level
+  of the tree so branches that name a hint come before the rest. Nothing is
+  filtered and no leaf is lost: the reorder happens before the cap. The hints
+  are the `ORGANISM` requirements the thread accumulated
+  (`organism_hints_from`), threaded through `AgentToolState.organism_hints`.
+  The MCP entry point passes no hints and reads the WDK order.
+
+* **The per-criterion tool budget is ten calls, not seven.** Two FRAME
+  dispatches on an 8-criterion portal prompt died on a scaled ceiling of 78
+  while asking for 80 and 81, and the second ended the turn asking the user
+  for a mass-spec experiment accession that one `query=` read would have
+  returned. On a vocabulary-heavy site one criterion costs an overview read
+  plus several vocabulary reads plus name-correction retries, so
+  `CALLS_PER_CRITERION` is now 10. The floor, the cap and the token ceiling
+  are unchanged.
+
+* **An EDA-exported turn leaves exactly one case.** The live re-proof of the
+  program's finding wrote two: the export's case and an "outcome" case that
+  credited the turn's FRAMED-but-never-built spec with the export's 1,543.
+  The collector now returns the export's case alone when the count came from
+  an export; a spec the turn framed but never built may not claim the result.
+
+* **An EDA export is a build, and a built turn cannot end silently
+  unverified.** `create_eda_step` now records the turn's `BuildOutcome`
+  through the same `PipelineState.record_build` seam the build and edit
+  dispatches use, so an exported step sets `turn_markers.built`, feeds
+  staleness, and shows in `ledger.build` with the count the commit's sync
+  read. A commit that did not reach VEuPathDB records nothing: that step is a
+  draft on the canvas with no size, and the ledger keeps the last build the
+  site took. The composition of that outcome is one function,
+  `services/strategies/graph_outcome.py::outcome_for_graph`, which the edit
+  dispatch now calls too.
+
+  A verified EDA arc used to write no case at all: `collect_case_candidates`
+  required `operational_spec.criteria`, and the EDA arc never dispatches
+  `frame_problem`. An EDA-built turn now leaves a case composed from what that
+  arc has - the study display name, the analysis name and the filter summaries
+  from the analysis card the thread last rendered, the volcano cut the export
+  applied, `original_request` as the goal, and the exported step's own count
+  (not the strategy root's, which can hold a different number). The card's
+  state is a typed `EdaAnalysisFacts` on the domain state instead of a JSON
+  digest string, so "has the card changed" is Pydantic model equality, and the
+  export the case reads is an `EdaExport` on `TurnMarkers`, which rotates with
+  the user message and so cannot be re-remembered by a later turn.
+
+  The precondition gate offers `verify_strategy` at the right step but cannot
+  compel the call, and one live heat-shock turn closed with "I'm stopping here
+  rather than report a gene count" after a successful export. An output
+  validator on the Lead now refuses the first answer of a turn that built
+  something and neither dispatched nor passed verification. It fires once,
+  tracked on `TurnMarkers`, so a second answer that states why a check is
+  impossible still reaches the user: the nudge compels the attempt, not the
+  outcome. The deterministic mock's edit arc verifies what it edited, which is
+  what the instructions already asked of it; the eval corpus stays 8/8 with no
+  arc tripping the validator.
+
+* **The step tree has one owner again, and the sentinel answers nothing.**
+  `fold_step_tree` in `domain/strategy/ast.py` hands each node its inputs
+  already folded, in slot order, and the six raw recursions over
+  `primary_input` outside `domain/strategy/` are written on it or on
+  `walk_step_tree`: the eval comparison tree and structure signature, the
+  step-analysis prune and branch extraction, the WDK step-tree projection, the
+  parameter canonicalization pass and the experiment materializer. The wire
+  tree got the same treatment through `integrations/veupathdb/step_tree.py`;
+  `_trees_equal` went with it, because two `WDKStepTree` models already compare
+  structurally. `input_resolution.py`, which the card named as the largest
+  recursion site, holds none: its 40 matches are local names over the flat
+  model, and the one type that mentioned the AST was a dataclass nobody
+  constructed.
+
+  `__combine__` is now produced only inside `domain/strategy/` and read by
+  nobody to decide what a step is. `own_search_name` is the single translation
+  from the persisted name to "this step names no question", `runs_a_wdk_search`
+  is the predicate the push and validation paths were spelling out by hand, and
+  the duplicate literal in the context renderer is gone. The name never crossed
+  the WDK wire in the first place; the reasoning is in
+  [the sentinel decision](decisions/the-combine-sentinel-is-a-boundary-default.md).
+
+  One rule picks the root. `StrategyGraph.primary_root_id` (largest subtree,
+  ties to the step added first) replaced both remaining heuristics. The one in
+  `build_context_strategy_ast` had been falling back to `last_step_id` whenever
+  the canvas held more than one root, so a stray leaf added after a two-step
+  strategy made that leaf the root of the AST the model reads and pushed the
+  real strategy into `detached_roots`; the second, in `push_steps_with_plan`,
+  picked an arbitrary member of a `set` to answer "is there a root at all".
+
+* **A verified investigation now leaves a case behind.** The store's kind union
+  grew a fifth member, `case`, and `finalize_turn`'s digest-success branch writes
+  one through the same tombstone-filtered auto-write the other kinds use
+  (`ai/lead/case_memory.py` -> `collect_memory_candidates`). An outcome case
+  carries the goal the thread is answering, the structure line, the criteria with
+  their bound params and the root count the build reached. A recovery case carries
+  the search that emptied a step of this thread and the params that filled it:
+  `StrategyDomainState.zero_result_history` records each emptied search at
+  `record_build`, and a later build that fills one writes the pair. Both key on the
+  content hash, so the same case written twice is one row and a user's delete
+  tombstones exactly that content. FRAME's procedure now opens by reading what
+  already worked - `search_memory(query, kind="case")` for this user's verified
+  runs and `search_example_plans(query)` for public VEuPathDB strategies, which was
+  registered on FRAME's toolset but named nowhere in its instructions. The route,
+  the response schema and the Memory tab list and delete cases like any kind; the
+  dead `state/useMemoriesStore` that duplicated the group list with no consumer went
+  with the change.
+
+* **Sequencing rules the Lead used to read as prose are preconditions the
+  prepare hook enforces.** `ai/lead/intent_gate.py` grew from one gate into
+  the precondition layer: `apply_tool_preconditions` hides everything but
+  `UNCLASSIFIED_TOOLS` (classify, the two state reads, the two literature
+  reads, `remember`) until THIS turn classifies its own message, then hides
+  `BUILDING_TOOLS` unless the classification asks for a build, then hides each
+  phase tool whose precondition is unmet - `frame_problem` after a frame this
+  turn, for an edit over criteria that already have steps, and after a build
+  of this turn left a step empty; `build_strategy` once the graph holds a
+  step; `verify_strategy` until a build outcome or a step exists and again
+  once a verification of this turn succeeded; `create_eda_step` until
+  `preview_eda_subset` counted the open analysis this turn. The turn's record
+  is `TurnMarkers` on `StrategyDomainState`, keyed by `user_message_id`, so a
+  resumed turn (approval answer, durable result) keeps what it did and a new
+  message starts empty; `PipelineState.turn_markers` is the one accessor and
+  `PipelineState.record_build` is the one writer of `last_build_outcome`. Each
+  gated tool's description now states its own precondition, and the
+  instruction rows the gate enforces are deleted (classify-first, frame ONCE,
+  the build refusal, no re-frame on zeros, verify-when-built, no re-run of a
+  succeeded phase); the intent rows stay. The deterministic provider meets a
+  hidden `build_strategy` as an absence rather than a refusal, so
+  `mock_arcs._build_refused` reads either. `ai/graph/lead_node.py` (408) split
+  at the seam it had: `ai/graph/_lead_delta.py` owns the state update the turn
+  writes back. Verified: 19 new unit tests, the four existing gate pins
+  updated to the new contract, 4094 unit tests green, ruff, ruff-format, mypy
+  strict and pyright clean on the 18 files touched, `check_max_lines`,
+  import-linter 8 kept and vulture clean, and the 8-case eval corpus on the
+  deterministic provider.
+
+* **The Lead opens each turn on what moved since its last one.** A fifth
+  pinned instruction, `pinned_turn_briefing`, renders a "Since your last turn"
+  section composed from four reads the code already had and nothing read:
+  the newest two `strategy_revisions` rows diffed at parameter level
+  (`domain/strategy/ast_diff.py`, by step id, so a search swap, a parameter
+  edit and a step added or removed each name themselves), the durable tasks
+  that reported after the thread's newest assistant message, the
+  `conversation_analyses.revision` delta against the revision on the newest
+  `data-eda.analysis-state` chunk in the thread, and the requirements whose
+  grounding differs between the two revisions (the same `ground_constraints`
+  the ledger uses, run against each side's searches and parameter values).
+  The reads are one service, `services/conversations/thread_activity.py`;
+  the composer, `ai/lead/turn_briefing.py`, is pure over its typed result and
+  renders like `StaleBuild`: at most eight lines, then `and N more changes`,
+  and the empty string when nothing moved, so a quiet turn pays nothing. The
+  hook that populates it is `pre_turn.attach_turn_briefing`, composed with
+  the WDK refresh into `pathfinder_pre_turn`, which the graph is now built
+  with. `pinned_user_memories` is registered on the Lead as well as the
+  sub-agents, so the memory sentence in CLAUDE.md is true: the render binds
+  to a `CarriesMemories` protocol rather than to either deps type. Two files
+  split along a seam each already had: `ai/graph/_lead_turn.py` (450) is now
+  the parked-call half plus `ai/graph/_lead_answers.py`, which owns reading
+  the user's answer, and `ai/lead/lead_agent.py` is the agent plus
+  `ai/lead/lead_pins.py`, the five renders it pins. Verified: 18 new unit
+  tests (the differ per change kind, the composer per input kind, the quiet
+  render, the elision, the worst-case character bound, the pin, and the Lead
+  rendering the memories its turn retrieved), 3 new integration tests through
+  the real hook on a seeded thread, the instruction-order pin,
+  `check_max_lines` clean on every file touched, ruff, ruff-format, mypy
+  strict and pyright clean on the 18 files, and import-linter 8 kept 0
+  broken.
+
+* **Two modules over the 400-line gate split along the seam each already
+  had.** `ai/models/mock.py` (440 meaningful lines) is now the role table
+  and the sub-agent scripts (106) plus `ai/models/mock_arcs.py` (362), the
+  Lead's turn arcs: the prose, the routing markers, the build / edit /
+  remember / recall / consult sequences and `lead_script`. The core reads
+  seven public names off the arcs module (`spec_for`,
+  `verification_succeeds`, `SUCCESS_PROSE`, `FEEDBACK_PROSE`,
+  `LOOP_MARKERS`, `LOOP_CALL_ARGS`, `lead_script`), so no module reaches
+  into another's privates. `jobs/runner.py` (401) is now the job wrapper
+  (195) plus `jobs/completion_turn.py` (226), which owns the turn a
+  finished durable task opens: `CompletionOutcome`, `safe_completion_turn`
+  and everything under it. No shim, no alias, no re-export: the four
+  callers and the two monkeypatch targets name the new modules directly,
+  and `PATHFINDER_SCRIPT`, `get_mock_model` and `run_durable_task` keep
+  their import paths. Verified: `check_max_lines` reports all five files
+  OK, ruff, ruff-format, mypy strict and pyright clean on the touched
+  files, import-linter 8 kept 0 broken, 240 unit tests and 83 integration
+  tests over every consumer of either module, and the frozen durable
+  acceptance file passes untouched.
+
+* **The agent can see its own budget, and four tools disclose instead of
+  dumping.** `pinned_run_budget` renders `tools N/limit - tokens X/limit`
+  from the run's own `RunContext.usage_limits`, pinned on the Lead and on
+  every sub-agent, so the ceiling that ends a run mid-task is visible while
+  there is still budget to steer with; a context no run backs renders
+  nothing. The four largest tool results on the wire were cut to a ranked
+  index with a handle: `web_search` 11,201 -> 2,961 bytes and
+  `literature_search` 18,259 -> 5,040 (the leading three results carry their
+  text, the rest carry the identity that fetches it again),
+  `search_eda_studies` 4,323 -> 2,648 (`describe_eda_study` reads the picked
+  study in full), and the `set_eda_filters` sheet 9,595 -> 6,291 (a field the
+  variable does not declare is not serialized, and a vocabulary the study
+  already cut travels as a shorter sample of the same form). Every filterable
+  variable still reaches the sheet with its own example, because a variable
+  missing from it is a filter the model cannot write. Each ceiling is pinned
+  in a test against the serialized tool return.
+
+* **The Lead is told what the machine guarantees.** A generated preamble,
+  built from an explicit reversibility class per tool plus the registry's own
+  markers (`requires_approval`, `BUILDING_TOOLS`, the durable registration,
+  the dispatch phase role), is pinned as `pinned_machine_guarantees`: every
+  strategy write appends a revision and a revert restores it, a destructive
+  tool is held for the researcher's approval, a success verdict is held down
+  to the build, and an undeclared spec change is refused. A unit gate holds
+  the map complete against the 26 registered tools, so a new tool with no
+  class fails before it reaches the preamble. `clear_strategy`'s docstring
+  no longer claims a cleared strategy loses its provenance: clearing appends
+  a revision like any other write.
+
+* **The agent-ergonomics program opened.** Seven claims about how legible
+  the system is to the agent driving it were audited against the code; none
+  refuted, several corrected (the intent gate carries a stale classification
+  across turns; `search_example_plans` is semantic but unadvertised; the
+  graph rewrite left M-sized residue, not the old review's L). Seven cards
+  carry the measured evidence and the order of work.
+
+* **A tool's prose names the arguments the tool declares.** Two tool names
+  the prose taught no longer existed (`run_control_tests`, and `build_step` /
+  `combine_steps`), and eleven surfaces taught a camelCase argument for a
+  snake_case parameter - the shape that earns an `extra_forbidden` retry.
+  All are corrected, and `list_notes` / `search_notes` now return
+  `NoteListResult` / `NoteSearchResult` instead of describing an envelope no
+  model declared. The gate is one parametrized test over the 83 registered
+  tools: no docstring, parameter description or `ModelRetry` string carries
+  the camelCase of a declared parameter, and every code-quoted tool-shaped
+  identifier resolves to a registered tool. It was red on 14 tools before the
+  fixes, and it is red again on any one of them reintroduced. Prose about a
+  RETURNED field keeps camelCase, because that is what the wire carries.
+
 ## 2026-08-31
 
 * **The lead closed the fork/revert program.** The journey's turn 4 now
@@ -2930,3 +3182,57 @@
   reason that lived in a comment; it is now a function with a name and a test
   that says a mid-turn cursor names a chunk whose `start` the client would not
   have.
+
+* **The streaming status line now measures its own silence, and a hung
+  request fails instead of waiting forever.** A shared one-second clock
+  (`statusClock.ts`) drives the thinking placeholder: after ten silent
+  seconds the label reads "Planning, 2m 40s" and counts up, so a slow model
+  is distinguishable from a dead pipeline without reading the event table.
+  Server side, every LLM path (Lead, sub-agents, compactor, title
+  generator) carries a 900-second request timeout through
+  `build_model_settings`.
+
+* **The Progress rail no longer covers the thread, the consult card is
+  usable by keyboard, and a double-click on Send no longer cancels the turn
+  it started.** The rail's overlay mode is deleted - the panel is always
+  in-flow and the chat column shrinks; consult option buttons carry
+  `aria-label`/`aria-pressed` and the note field a real name; the composer
+  ignores a Stop click within 500ms of the Send that started the turn. The
+  writes observed after a user stop (title, turn-stopped, finish, done,
+  epilogue) were investigated and are the protocol's turn closers, by
+  design - no change.
+
+* **The usage surfaces say their scopes.** Trace chip = this turn, composer
+  footer = this conversation (visible "Conversation ·" prefix, focusable
+  tooltip), QuotaPill = the account month (scope line in its tooltip). The
+  remaining cross-surface e2e reconciliation stays on the backlog.
+
+* **A long dispatch now compacts its own in-run history instead of dying on
+  the token ceiling.** `compact_exhausted_history` is a third
+  `ProcessHistory` processor in `PHASE_HISTORY_PROCESSORS`, so it runs on the
+  Lead and on FRAME, BUILD and VERIFY. Past an estimated 100k tokens it keeps
+  the head request and the last eight response/request pairs, and collapses
+  everything between them into one digest appended to the head request as an
+  extra `UserPromptPart` - one line per tool exchange, capped at 4000
+  characters, tail-biased. Only complete pairs are dropped, so no orphan tool
+  call reaches a provider, and the result still ends with a `ModelRequest`.
+  The digest holds no clock reading, which makes the processor a pure
+  function of its input and its output a fixpoint; a history of any other
+  shape is returned untouched. Proven by
+  `tests/unit/ai/agents/test_compact_history.py`: a 50-exchange history at
+  125k estimated tokens compacts to 21k, the eight newest pairs survive
+  verbatim, call ids and return ids stay equal, and the compacted list round
+  trips through `ModelMessagesTypeAdapter`.
+
+* **The three usage surfaces are proven to reconcile, at three levels.** A
+  vitest gate imports the real `turnUsageOf` and `aggregateSessionUsage` and
+  asserts one message's parts read to the same tokens and cost on the turn
+  chip and the conversation footer, that two turns sum into the footer, and
+  that a budget-stopped dispatch's tokens contribute to both (the
+  wipe-regression pin). A Playwright spec on the mock stack proved the live
+  wiring: after one scripted turn the chip's formatted totals equal the
+  footer's, and the quota endpoint's token count grew (mock cost is zero by
+  design, so the account assertion is token growth). The budget-stop shape
+  itself is produced and pinned by the backend unit suite; the mock stack
+  cannot cheaply hit a ceiling, so the e2e run uses a plain build turn and
+  the stopped-dispatch arithmetic is carried by the vitest gate.

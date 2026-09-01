@@ -334,7 +334,7 @@ async def test_live_stream_emits_progress_and_terminal_when_batched(
     lands in the same commit.
 
     The completion turn's chunks go to the main chat stream
-    (:func:`pathfinder.jobs.runner._run_completion_turn` via
+    (:func:`pathfinder.jobs.completion_turn._run_completion_turn` via
     :class:`ChatEventWriter`), so this endpoint only carries
     ``data-task-progress`` + the terminal ``data-task-completed`` chunk.
     """

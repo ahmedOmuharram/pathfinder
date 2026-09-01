@@ -17,6 +17,7 @@ from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentDurablePark
+from pathfinder.domain.strategy.constraints import organism_hints_from
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 
 
@@ -53,6 +54,7 @@ def agent_deps_for(deps: LeadDeps) -> AgentDeps:
                 if state.domain.operational_spec is not None
                 else OperationalSpec(goal=framing_goal(state))
             ),
+            organism_hints=organism_hints_from(state.domain.requirements),
         ),
         ledger_summary=derive_ledger(state, deps.intent).render_summary(),
         experiment_id=runtime.experiment_id,
@@ -61,6 +63,21 @@ def agent_deps_for(deps: LeadDeps) -> AgentDeps:
         retrieved_memories=deps.retrieved_memories,
         conversation_id=state.conversation_id,
         db_session_factory=runtime.db_session_factory,
+    )
+
+
+def inner_context(ctx: RunContext[LeadDeps]) -> RunContext[AgentDeps]:
+    """The Lead's context, narrowed to the deps a standalone tool takes.
+
+    It is the same run: the usage it counts against and the budget that run
+    enforces are the outer ones.
+    """
+    return RunContext(
+        deps=agent_deps_for(ctx.deps),
+        model=ctx.model,
+        usage=ctx.usage,
+        usage_limits=ctx.usage_limits,
+        tool_call_id=ctx.tool_call_id,
     )
 
 

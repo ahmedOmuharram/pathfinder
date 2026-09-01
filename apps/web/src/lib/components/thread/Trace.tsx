@@ -88,6 +88,7 @@ export function Trace({
         {showUsage && usage !== undefined && (
           <span
             data-testid="trace-usage"
+            title="This turn"
             className="ml-auto font-mono text-[11px] tabular-nums"
           >
             {usageLine(usage)}

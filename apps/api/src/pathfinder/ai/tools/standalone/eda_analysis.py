@@ -54,7 +54,7 @@ async def _study(
     try:
         entry, study = await get_study_detail_for_dataset(site_id, dataset_id)
     except UnknownEdaDatasetError as exc:
-        msg = f"{exc.guidance} Call search_eda_studies to find a real datasetId."
+        msg = f"{exc.guidance} Call search_eda_studies to find a real dataset id."
         raise ModelRetry(msg) from exc
     return permission_facts(entry), study
 
@@ -84,7 +84,7 @@ async def open_eda_analysis(
 
     Args:
         ctx: Agent run context.
-        dataset_id: The ``datasetId`` from search_eda_studies. A ``DS_`` or
+        dataset_id: The dataset id from search_eda_studies. A ``DS_`` or
             ``EDAUD_`` id, never a ``STUDY_`` id.
         purpose: What this analysis is for, in the researcher's words.
     """
@@ -97,6 +97,8 @@ async def open_eda_analysis(
         conversation_id=ctx.deps.state.conversation_id,
         display_name=purpose,
     )
+    # Nothing is counted on an analysis this call has just created.
+    ctx.deps.state.turn_markers.eda_previewed = False
     opened = EdaAnalysisOpened(
         analysis_id=state.analysis_id,
         dataset_id=dataset_id,
@@ -258,13 +260,14 @@ async def preview_eda_subset(
     number and before you create a step. It returns the filtered count and the
     unfiltered count for that entity, so the effect of the subset is visible.
 
-    ``entityId`` decides WHAT is counted, and it is independent of which
+    ``entity_id`` decides WHAT is counted, and it is independent of which
     entities the filters name: a filter on a child entity restricts the parent
     to parents that still have a surviving child, and a filter on a parent
     restricts the child to children under a surviving parent.
 
-    Name ``distributionVariableId`` to also get that variable's histogram under
-    the subset. That is what shows the researcher the shape of what is left.
+    Name ``distribution_variable_id`` to also get that variable's histogram
+    under the subset. That is what shows the researcher the shape of what is
+    left.
 
     A count of zero is a real answer, not an error. Say which filter emptied
     the subset and offer one concrete way to widen it.
@@ -298,6 +301,7 @@ async def preview_eda_subset(
         filters=filters,
         distribution_variable_id=distribution_variable_id,
     )
+    ctx.deps.state.turn_markers.eda_previewed = True
     _entry, study = await _study(site_id, bound.dataset_id)
     variable = variable_at(study, entity_id, distribution_variable_id)
     statistics = (

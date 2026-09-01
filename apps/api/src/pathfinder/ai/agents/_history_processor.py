@@ -6,13 +6,21 @@ from collections.abc import Sequence
 
 from assistant_core.platform.logging import get_logger
 from pydantic_ai.messages import (
+    BaseToolCallPart,
+    BaseToolReturnPart,
+    CompactionPart,
     ModelMessage,
     ModelRequest,
     ModelRequestPart,
     ModelResponse,
+    ModelResponsePart,
     RetryPromptPart,
+    SystemPromptPart,
+    TextPart,
+    ThinkingPart,
     ToolCallPart,
     ToolReturnPart,
+    UserPromptPart,
 )
 
 logger = get_logger(__name__)
@@ -28,8 +36,7 @@ _ELIDE_MIN_CHARS = 400
 """Results at or below this stay whole.
 
 A count or an id costs a few tokens to keep and a whole round trip to
-re-fetch. Eliding them is what made ``get_estimated_size`` get called three
-times with identical arguments in one measured run.
+re-fetch, so a small result is worth more in history than out of it.
 """
 
 _ELIDE_DIGEST_CHARS = 220
@@ -40,10 +47,8 @@ _ELIDED_MARKER = "<elided to control context size"
 def _digest(content: object) -> str:
     """Compress a bulky result, keeping the head so its facts survive.
 
-    The old stub replaced the result outright and told the agent to
-    "re-call the tool only if you need fresh data". It took the invitation:
-    12 of 41 tool calls in one turn were byte-identical re-fetches. Keeping
-    a readable head means counts and ids stay answerable from history.
+    A stub with no readable head invites the model to re-fetch the same
+    data; a head that keeps counts and ids stays answerable from history.
     """
     try:
         rendered = content if isinstance(content, str) else json.dumps(content)
@@ -267,4 +272,224 @@ def _elide_returns_in_message(
     return dataclasses.replace(msg, parts=new_parts)
 
 
-PHASE_HISTORY_PROCESSORS = (pair_tool_calls, elide_consumed_tool_results)
+COMPACT_AT_ESTIMATED_TOKENS = 100_000
+KEEP_RECENT_EXCHANGES = 8
+
+_DIGEST_CHAR_CAP = 4_000
+_DIGEST_OPENING = (
+    "Earlier steps were compacted to save context. What happened, oldest first:"
+)
+_DIGEST_CLOSING = (
+    "The workspace state (spec draft, notes) already reflects all of this; "
+    "do not redo these calls."
+)
+_OMITTED_MARKER = "(oldest lines omitted)"
+_ARGS_HEAD_CHARS = 80
+_RESULT_HEAD_CHARS = 160
+_CHARS_PER_TOKEN = 4
+
+_CONTENT_PARTS = (
+    SystemPromptPart,
+    UserPromptPart,
+    BaseToolReturnPart,
+    RetryPromptPart,
+    TextPart,
+    ThinkingPart,
+    CompactionPart,
+)
+
+
+def _render(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    try:
+        return json.dumps(content)
+    except TypeError, ValueError:
+        return str(content)
+
+
+def _flat(content: object, limit: int) -> str:
+    """One digest line holds one exchange, so newlines collapse to spaces."""
+    return " ".join(_render(content).split())[:limit]
+
+
+def _part_chars(part: ModelRequestPart | ModelResponsePart) -> int:
+    if isinstance(part, BaseToolCallPart):
+        return len(part.tool_name) + len(part.args_as_json_str())
+    if isinstance(part, _CONTENT_PARTS):
+        return len(_render(part.content))
+    return 0
+
+
+def _estimated_tokens(messages: Sequence[ModelMessage]) -> int:
+    chars = sum(_part_chars(part) for msg in messages for part in msg.parts)
+    return chars // _CHARS_PER_TOKEN
+
+
+def _split_index(messages: Sequence[ModelMessage]) -> int:
+    """Index of the oldest kept message, on a response/request pair boundary.
+
+    Returns ``len(messages)`` when no complete pair exists.
+    """
+    pairs = 0
+    start = len(messages)
+    i = len(messages) - 1
+    while i >= 1 and pairs < KEEP_RECENT_EXCHANGES:
+        if isinstance(messages[i], ModelRequest) and isinstance(
+            messages[i - 1],
+            ModelResponse,
+        ):
+            pairs += 1
+            start = i - 1
+            i -= 2
+        else:
+            i -= 1
+    if pairs == 0:
+        return len(messages)
+    # A dropped middle must end on a request, so every call it holds keeps the
+    # return that answers it.
+    while start > 1 and isinstance(messages[start - 1], ModelResponse):
+        start -= 1
+    return start
+
+
+def _middle_results(middle: Sequence[ModelMessage]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for msg in middle:
+        if not isinstance(msg, ModelRequest):
+            continue
+        for part in msg.parts:
+            if isinstance(part, BaseToolReturnPart):
+                out[part.tool_call_id] = _flat(part.content, _RESULT_HEAD_CHARS)
+            elif isinstance(part, RetryPromptPart) and part.tool_call_id:
+                head = _flat(part.content, _RESULT_HEAD_CHARS)
+                out[part.tool_call_id] = f"retry: {head}"
+    return out
+
+
+def _user_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, Sequence):
+        return " ".join(item for item in content if isinstance(item, str))
+    return ""
+
+
+def _digest_lines(middle: Sequence[ModelMessage]) -> list[str]:
+    results = _middle_results(middle)
+    lines: list[str] = []
+    for msg in middle:
+        if isinstance(msg, ModelRequest):
+            for req_part in msg.parts:
+                if isinstance(req_part, UserPromptPart):
+                    text = _user_text(req_part.content)
+                    if text.strip():
+                        lines.append(
+                            f"- user said: {_flat(text, _RESULT_HEAD_CHARS)}"
+                        )
+            continue
+        for part in msg.parts:
+            if isinstance(part, TextPart):
+                if part.content.strip():
+                    lines.append(f"- said: {_flat(part.content, _RESULT_HEAD_CHARS)}")
+            elif isinstance(part, BaseToolCallPart):
+                args = _flat(part.args_as_json_str(), _ARGS_HEAD_CHARS)
+                result = results.get(part.tool_call_id, "(no result recorded)")
+                lines.append(f"- {part.tool_name}({args}) -> {result}")
+    return lines
+
+
+def _assemble_digest(lines: Sequence[str], *, omitted: bool) -> str:
+    opening = [_DIGEST_OPENING, _OMITTED_MARKER] if omitted else [_DIGEST_OPENING]
+    return "\n".join([*opening, *lines, _DIGEST_CLOSING])
+
+
+_USER_LINE_PREFIX = "- user said: "
+
+
+def _build_digest(middle: Sequence[ModelMessage]) -> str:
+    lines = _digest_lines(middle)
+    whole = _assemble_digest(lines, omitted=False)
+    if len(whole) <= _DIGEST_CHAR_CAP:
+        return whole
+    # Newest dropped work is the most relevant, so the cap keeps the tail.
+    # A user's own words are constraints, so they survive the cap regardless
+    # of age.
+    budget = _DIGEST_CHAR_CAP - len(_assemble_digest((), omitted=True))
+    keep = [line.startswith(_USER_LINE_PREFIX) for line in lines]
+    used = sum(len(line) + 1 for line, held in zip(lines, keep, strict=True) if held)
+    for i in range(len(lines) - 1, -1, -1):
+        if keep[i]:
+            continue
+        used += len(lines[i]) + 1
+        if used > budget:
+            break
+        keep[i] = True
+    kept = [line for line, held in zip(lines, keep, strict=True) if held]
+    return _assemble_digest(kept, omitted=True)
+
+
+def _orphan_free(messages: Sequence[ModelMessage]) -> bool:
+    call_ids, satisfied_ids, _, _ = _collect_ids(messages)
+    return call_ids == satisfied_ids
+
+
+def _compaction_plan(
+    messages: Sequence[ModelMessage],
+) -> tuple[ModelRequest, int] | None:
+    """The head request and the tail start, or ``None`` to leave the history.
+
+    The head must carry the run's prompt and the result must still end with a
+    ``ModelRequest``, so a history of another shape is left alone.
+    """
+    if _estimated_tokens(messages) <= COMPACT_AT_ESTIMATED_TOKENS:
+        return None
+    head = messages[0]
+    if not isinstance(head, ModelRequest):
+        return None
+    if not isinstance(messages[-1], ModelRequest):
+        return None
+    start = _split_index(messages)
+    if start <= 1 or start >= len(messages):
+        return None
+    return head, start
+
+
+def compact_exhausted_history(
+    messages: list[ModelMessage],
+) -> list[ModelMessage]:
+    # A long dispatch grows its history until the token ceiling ends the run.
+    # Past a threshold the older exchanges collapse into one digest carried by
+    # the head request, keeping the wire context bounded.
+    plan = _compaction_plan(messages)
+    if plan is None:
+        return list(messages)
+    head, start = plan
+    middle = messages[1:start]
+
+    compacted: list[ModelMessage] = [
+        dataclasses.replace(
+            head,
+            parts=[*head.parts, UserPromptPart(content=_build_digest(middle))],
+        ),
+        *messages[start:],
+    ]
+    if _orphan_free(messages) and not _orphan_free(compacted):
+        return list(messages)
+
+    logger.info(
+        "in-run history compacted",
+        input_messages=len(messages),
+        output_messages=len(compacted),
+        dropped_messages=len(middle),
+        input_estimated_tokens=_estimated_tokens(messages),
+        output_estimated_tokens=_estimated_tokens(compacted),
+    )
+    return compacted
+
+
+PHASE_HISTORY_PROCESSORS = (
+    pair_tool_calls,
+    elide_consumed_tool_results,
+    compact_exhausted_history,
+)

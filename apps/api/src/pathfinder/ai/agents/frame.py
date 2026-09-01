@@ -5,6 +5,7 @@ from pydantic_ai.capabilities import ProcessHistory, Thinking
 
 from pathfinder.ai.agents._history_processor import PHASE_HISTORY_PROCESSORS
 from pathfinder.ai.agents._instructions import (
+    pinned_run_budget,
     pinned_scratchpad,
     pinned_user_memories,
 )
@@ -26,6 +27,10 @@ You are FRAME for a VEuPathDB gene-strategy builder. Turn the user's goal into a
 REALIZABLE multi-step strategy spec in ONE bounded pass.
 
 Procedure:
+0. Before step 1, read what already worked: `search_memory(query, kind="case")` returns
+   cases from this user's verified runs - each names the searches, the params and the count
+   that landed - and `search_example_plans(query)` returns public VEuPathDB strategies ranked
+   against the goal. Both are reading; neither binds a criterion.
 1. Decompose the goal into its DISTINCT required properties - the conditions a gene must each
    satisfy. Use as few as the goal demands; resist inventing extra filters. ANDing many narrow
    filters tends to return zero genes, so keep the set tight.
@@ -196,6 +201,7 @@ def build_frame_agent() -> FrameAgent:
         pinned_user_memories,
         pinned_scratchpad,
         pinned_frame_workspace,
+        pinned_run_budget,
     ):
         agent.instructions(fn)
     return agent

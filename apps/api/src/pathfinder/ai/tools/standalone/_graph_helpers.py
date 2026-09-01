@@ -188,13 +188,8 @@ def build_graph_snapshot(
 def build_context_strategy_ast(
     session: StrategySession, graph: StrategyGraph
 ) -> ContextStrategyAstPayload | None:
-    # Prefer the single subtree root from graph.roots; fall back to
-    # last_step_id when roots is ambiguous or not yet populated.
-    if len(graph.roots) == 1:
-        root_id = next(iter(graph.roots))
-    elif graph.last_step_id:
-        root_id = graph.last_step_id
-    else:
+    root_id = graph.primary_root_id()
+    if root_id is None:
         return None
     root_step = graph.get_step(root_id)
     if not root_step:

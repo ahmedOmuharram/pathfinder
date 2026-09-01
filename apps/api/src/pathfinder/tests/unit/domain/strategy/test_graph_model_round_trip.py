@@ -188,9 +188,9 @@ class TestKindIsExplicit:
 
         assert steps["c"].search_name is None
 
-    def test_rebuilding_restores_the_sentinel_for_the_wdk_boundary(self) -> None:
-        """WDK still wants a question name on the wire, so the projection
-        back to the nested shape puts it back."""
+    def test_rebuilding_restores_the_sentinel_for_the_persisted_shape(self) -> None:
+        """``searchName`` is required on the persisted node, so the projection
+        back to the nested shape puts the placeholder back."""
         node = StrategyStepNode(
             id="c",
             search_name="__combine__",

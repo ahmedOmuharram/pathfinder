@@ -27,6 +27,10 @@ from pathfinder.services.research.web_search import WebSearchService
 
 _PROSE = "I can build that whenever you want. Want me to?"
 
+# The building tools a fresh thread meets the preconditions of: nothing is
+# built, so verification has nothing to check and no EDA subset was counted.
+UNLOCKED_ON_A_FRESH_THREAD = BUILDING_TOOLS - {"verify_strategy", "create_eda_step"}
+
 
 def _never_factory() -> AsyncSession:
     msg = "db factory should not be called in unit tests"
@@ -162,7 +166,7 @@ def test_an_intent_that_builds_is_offered_every_building_tool(
 ) -> None:
     seen = _run("Find A. gambiae midgut proteases", classification)
 
-    assert seen.steps[1] >= BUILDING_TOOLS
+    assert seen.steps[1] >= UNLOCKED_ON_A_FRESH_THREAD
 
 
 @pytest.mark.parametrize(
@@ -262,5 +266,5 @@ def test_a_corrected_classification_unhides_the_building_tools() -> None:
     assert isinstance(result.output, LeadResponse)
     assert len(seen.steps) == 3
     assert not (seen.steps[1] & BUILDING_TOOLS)
-    assert seen.steps[2] >= BUILDING_TOOLS
+    assert seen.steps[2] >= UNLOCKED_ON_A_FRESH_THREAD
     assert {"build_strategy", "edit_strategy"} <= seen.steps[2]

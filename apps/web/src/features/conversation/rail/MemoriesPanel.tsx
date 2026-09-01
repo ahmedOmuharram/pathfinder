@@ -13,6 +13,7 @@ const SECTION_LABELS = {
   strategy: "Strategies",
   preference: "Preferences",
   knowledge: "Knowledge",
+  case: "Cases",
 } as const;
 
 export function MemoriesPanel() {
@@ -31,6 +32,7 @@ export function MemoriesPanel() {
     { kind: "strategy", items: data?.strategies ?? [] },
     { kind: "preference", items: data?.preferences ?? [] },
     { kind: "knowledge", items: data?.knowledge ?? [] },
+    { kind: "case", items: data?.cases ?? [] },
   ];
 
   const totalCount = sections.reduce((sum, s) => sum + s.items.length, 0);

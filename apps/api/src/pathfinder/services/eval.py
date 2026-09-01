@@ -117,9 +117,7 @@ async def build_gold_strategy(
     await _provision_datasets(api, step_tree, dataset_gene_ids)
 
     tree_node = StrategyStepNode.model_validate(step_tree)
-    root_tree = await _materialize_step_tree(
-        api, tree_node, record_type, site_id=site_id
-    )
+    root_tree = await _materialize_step_tree(api, tree_node, record_type)
     root_step_id = root_tree.step_id
 
     created = await api.create_strategy(

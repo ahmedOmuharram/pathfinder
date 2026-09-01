@@ -78,20 +78,22 @@ describe("the rail badge is scoped to the open conversation", () => {
   });
 });
 
-describe("the rail panel at a narrow viewport", () => {
-  it("overlays the chat at 866px instead of squeezing it", () => {
-    setViewportWidth(866);
+describe("the rail panel never covers the thread", () => {
+  it("stays in flow at 744px, where an overlay would cover the consult card", () => {
+    setViewportWidth(744);
     useRightRailStore.setState({ openPanel: "tasks" });
     renderRail("conv-1", []);
-    expect(screen.getByTestId("rail-panel").getAttribute("data-overlay")).toBe("true");
-    expect(screen.getByTestId("rail-panel").className).toContain("absolute");
+    const panel = screen.getByTestId("rail-panel");
+    expect(panel.className).not.toContain("absolute");
+    expect(panel.getAttribute("data-overlay")).toBe(null);
   });
 
-  it("keeps the panel in flow on a wide viewport", () => {
+  it("stays in flow on a wide viewport", () => {
     setViewportWidth(1440);
     useRightRailStore.setState({ openPanel: "tasks" });
     renderRail("conv-1", []);
-    expect(screen.getByTestId("rail-panel").getAttribute("data-overlay")).toBe("false");
-    expect(screen.getByTestId("rail-panel").className).not.toContain("absolute");
+    const panel = screen.getByTestId("rail-panel");
+    expect(panel.className).not.toContain("absolute");
+    expect(panel.getAttribute("data-overlay")).toBe(null);
   });
 });

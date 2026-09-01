@@ -116,6 +116,39 @@ describe("LedgerPanel summary", () => {
     expect(screen.queryAllByText("Sub-agent calls")).toHaveLength(0);
     expect(screen.queryAllByText("this turn")).toHaveLength(0);
   });
+
+  it("shows the context fill of a running dispatch", () => {
+    messagesRef.current = [
+      {
+        role: "assistant",
+        parts: [
+          { type: "data-ledger-update", data: makeLedger() },
+          {
+            type: "data-sub-agent-call",
+            data: {
+              toolCallId: "sa_1",
+              subAgent: "frame",
+              phase: "frame",
+              state: "started",
+              contextTokens: 210_000,
+              contextWindow: 1_050_000,
+            },
+          },
+        ],
+      },
+    ];
+    render(<LedgerPanel conversationId="c1" />);
+
+    expect(screen.getByText("Context")).toBeInTheDocument();
+    expect(screen.getByText("210K / 1.1M")).toBeInTheDocument();
+  });
+
+  it("shows no context section when nothing reported a request size", () => {
+    setLedger(makeLedger());
+    render(<LedgerPanel conversationId="c1" />);
+
+    expect(screen.queryByText("Context")).toBeNull();
+  });
 });
 
 describe("LedgerPanel keyboard access", () => {

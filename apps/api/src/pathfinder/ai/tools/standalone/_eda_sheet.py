@@ -15,8 +15,14 @@ from pathfinder.services.eda.description import (
     entity_facts,
     variable_facts,
     variable_out,
+    vocabulary_note,
     with_time_part,
 )
+
+# A vocabulary the study cut is a sample of a form, not a list of values: the
+# model reads the distribution to learn which values the subset holds, so a
+# shorter sample says the same thing.
+_SAMPLE_OF_A_CUT_VOCABULARY = 8
 
 _RE_SHEET_NOTE = (
     "vocabulary shown in the first sheet for this study; ask "
@@ -86,14 +92,41 @@ def _sheet_entries(study: EdaStudyDetail) -> list[EdaFilterSheetEntry]:
             )
             if out is not None:
                 described.append((entity_name, out))
-    return [
-        EdaFilterSheetEntry(
-            **out.model_dump(),
-            entity_display_name=entity_name,
-            example=_example(out, first_values=first_values),
-        )
-        for entity_name, out in described
-    ]
+    return [_entry(entity_name, out, first_values) for entity_name, out in described]
+
+
+def _entry(
+    entity_name: str,
+    out: EdaVariableOut,
+    first_values: dict[str, str],
+) -> EdaFilterSheetEntry:
+    """One sheet entry, with the sample of a cut vocabulary cut further."""
+    filter_type = out.filter_type
+    if filter_type is None:
+        msg = f"Variable {out.variable_id} reached the sheet with no filter type"
+        raise ValueError(msg)
+    vocabulary = out.vocabulary
+    note = out.vocabulary_note
+    if out.vocabulary_total > len(vocabulary):
+        vocabulary = vocabulary[:_SAMPLE_OF_A_CUT_VOCABULARY]
+        note = vocabulary_note(total=out.vocabulary_total, shown=len(vocabulary))
+    return EdaFilterSheetEntry(
+        entity_id=out.entity_id,
+        entity_display_name=entity_name,
+        variable_id=out.variable_id,
+        display_name=out.display_name,
+        filter_type=filter_type,
+        is_multi_valued=out.is_multi_valued,
+        vocabulary=vocabulary,
+        vocabulary_total=out.vocabulary_total,
+        vocabulary_note=note,
+        range_min=out.range_min,
+        range_max=out.range_max,
+        date_min=out.date_min,
+        date_max=out.date_max,
+        sub_filter_variable_ids=out.sub_filter_variable_ids,
+        example=_example(out, first_values=first_values),
+    )
 
 
 def sheet_for(

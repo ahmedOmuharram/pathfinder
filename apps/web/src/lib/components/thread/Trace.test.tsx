@@ -293,6 +293,7 @@ describe("Trace", () => {
     );
     const line = view.getByTestId("trace-usage");
     expect(line).toHaveTextContent("gpt-5.6-luna - 54.1K, $0.02");
+    expect(line).toHaveAttribute("title", "This turn");
     expect(view.getByTestId("turn-trace-toggle").contains(line)).toBe(true);
   });
 

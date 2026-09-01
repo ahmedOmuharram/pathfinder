@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import ParamValue
-from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
+from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
@@ -116,28 +116,19 @@ async def canonicalize_strategy_ast_parameters(
     # Cache by (record_type, search_name, context_hash) to avoid incorrect reuse.
     specs_cache: dict[tuple[str, str, str], dict[str, ParamSpecNormalized]] = {}
 
-    async def canonicalize_node(node: StrategyStepNode) -> None:
-        name = node.search_name
+    for node in walk_step_tree(strategy_ast.root):
         params: dict[str, ParamValue] = dict(node.parameters)
-
-        is_combine = (
-            node.primary_input is not None and node.secondary_input is not None
-        ) or node.search_name == COMBINE_SEARCH_NAME
-
-        if is_combine:
+        if node.infer_kind() == "combine":
             _strip_combine_bq_keys(params)
             node.parameters = params
-        else:
-            spec_map = await _load_and_cache_spec(
-                specs_cache, load_search_details, record_type, name, site_id, params
-            )
-            canonicalizer = ParameterCanonicalizer(spec_map)
-            node.parameters = canonicalizer.canonicalize(params)
-
-        if node.primary_input is not None:
-            await canonicalize_node(node.primary_input)
-        if node.secondary_input is not None:
-            await canonicalize_node(node.secondary_input)
-
-    await canonicalize_node(strategy_ast.root)
+            continue
+        spec_map = await _load_and_cache_spec(
+            specs_cache,
+            load_search_details,
+            record_type,
+            node.search_name,
+            site_id,
+            params,
+        )
+        node.parameters = ParameterCanonicalizer(spec_map).canonicalize(params)
     return strategy_ast

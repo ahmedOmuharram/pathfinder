@@ -11,7 +11,7 @@ from assistant_core.platform.pydantic_base import CamelModel
 # The kinds this deployment publishes on ``/api/v1/memories``. The store, the
 # retriever and the tombstone index all take a kind as a plain string; only the
 # wire payload narrows it.
-MemoryKind = Literal["gene_set", "strategy", "preference", "knowledge"]
+MemoryKind = Literal["gene_set", "strategy", "preference", "knowledge", "case"]
 
 TombstoneReason = Literal["user_deleted", "auto_pruned"]
 

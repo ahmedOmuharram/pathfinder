@@ -33,10 +33,10 @@ from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.ai.models.tiers import PhaseTierConfig, resolve_phase_tier_config
 from pathfinder.platform.config import get_settings
 
-# Binding one criterion costs about seven calls: find a search, read it, read a
-# parameter or two, set the criterion. Reading the ledger and setting the
-# structure are paid once for the pass.
-CALLS_PER_CRITERION = 7
+# Binding one criterion costs up to ten calls: find a search, read it, read its
+# vocabularies (several reads on a vocabulary-heavy site), set the criterion.
+# Reading the ledger and setting the structure are paid once for the pass.
+CALLS_PER_CRITERION = 10
 STRUCTURE_CALLS = 8
 # A pass below the floor cannot recover from a single wrong search. The cap is
 # what stops an overstated count from spending a whole turn.

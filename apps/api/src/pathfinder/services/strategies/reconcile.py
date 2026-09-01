@@ -10,20 +10,11 @@ worse, CREATE duplicates of steps it forgot were already pushed).
 from assistant_core.platform.logging import get_logger
 
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
-from pathfinder.integrations.veupathdb.wdk_models import WDKStepTree
+from pathfinder.integrations.veupathdb.step_tree import walk_wdk_step_tree
 from pathfinder.platform.errors import AppError
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
-
-
-def _walk_step_tree_ids(tree: WDKStepTree) -> set[int]:
-    out: set[int] = {tree.step_id}
-    if tree.primary_input is not None:
-        out |= _walk_step_tree_ids(tree.primary_input)
-    if tree.secondary_input is not None:
-        out |= _walk_step_tree_ids(tree.secondary_input)
-    return out
 
 
 async def fetch_wdk_strategy_step_ids(site_id: str, wdk_strategy_id: int) -> set[int]:
@@ -34,7 +25,7 @@ async def fetch_wdk_strategy_step_ids(site_id: str, wdk_strategy_id: int) -> set
     """
     api = get_strategy_api(site_id)
     detail = await api.get_strategy(wdk_strategy_id)
-    return _walk_step_tree_ids(detail.step_tree)
+    return {node.step_id for node in walk_wdk_step_tree(detail.step_tree)}
 
 
 async def reconcile_sync_state_with_wdk(

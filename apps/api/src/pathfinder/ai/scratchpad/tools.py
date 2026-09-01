@@ -19,10 +19,14 @@ from pathfinder.domain.scratchpad.models import (
     Note,
     NoteCreate,
     NoteDetail,
+    NoteListResult,
     NoteRef,
+    NoteSearchResult,
     NoteUpdate,
 )
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
+from pathfinder.platform.errors import ErrorCode
+from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 
 logger = get_logger(__name__)
 
@@ -30,11 +34,12 @@ _MSG_MISSING_CTX = "scratchpad unavailable: missing conversation context"
 _MSG_MEMORY_UNAVAILABLE = "memory store unavailable"
 
 
+def _note_ref(note: Note) -> NoteRef:
+    return NoteRef.model_validate(note, from_attributes=True)
+
+
 def _ref_payload(note: Note) -> dict[str, object]:
-    return NoteRef.model_validate(note, from_attributes=True).model_dump(
-        by_alias=True,
-        mode="json",
-    )
+    return _note_ref(note).model_dump(by_alias=True, mode="json")
 
 
 def _note_payload(note: Note) -> dict[str, object]:
@@ -60,7 +65,7 @@ def _require_context(
 
 
 def _not_found_msg(note_id: str) -> str:
-    return f"note id {note_id!r} not found — call list_notes() to see current notes"
+    return f"note id {note_id!r} not found - call list_notes() to see current notes"
 
 
 async def note(
@@ -70,7 +75,7 @@ async def note(
     body: str,
     tags: list[str] | None = None,
     pinned: bool = False,
-) -> ToolReturn[dict[str, object]]:
+) -> ToolReturn[dict[str, object] | ToolErrorPayload]:
     """Save a scratchpad note.
 
     Use liberally: before moving on from any promising search, save what you
@@ -116,10 +121,11 @@ async def note(
     )
 
 
-def _no_scratchpad(ctx: RunContext[AgentDeps]) -> ToolReturn[dict[str, object]]:
+def _no_scratchpad[T](ctx: RunContext[AgentDeps]) -> ToolReturn[T | ToolErrorPayload]:
     """This thread has no scratchpad to read or write."""
+    payload: T | ToolErrorPayload = tool_error(ErrorCode.NOT_FOUND, _MSG_MISSING_CTX)
     return with_summary(
-        {"error": _MSG_MISSING_CTX},
+        payload,
         "The scratchpad is unavailable on this thread",
         ctx=ctx,
         status="warn",
@@ -134,7 +140,7 @@ async def update_note(
     summary: str | None = None,
     body: str | None = None,
     tags: list[str] | None = None,
-) -> ToolReturn[dict[str, object]]:
+) -> ToolReturn[dict[str, object] | ToolErrorPayload]:
     """Update fields on an existing note. Omitted fields are unchanged.
 
     Keep ``summary`` to roughly 280 characters; put detail in ``body``.
@@ -200,7 +206,7 @@ async def delete_note(
 async def pin_note(
     ctx: RunContext[AgentDeps],
     note_id: str,
-) -> ToolReturn[dict[str, object]]:
+) -> ToolReturn[dict[str, object] | ToolErrorPayload]:
     """Pin a note so compaction never merges or drops it."""
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
@@ -228,7 +234,7 @@ async def pin_note(
 async def unpin_note(
     ctx: RunContext[AgentDeps],
     note_id: str,
-) -> ToolReturn[dict[str, object]]:
+) -> ToolReturn[dict[str, object] | ToolErrorPayload]:
     """Unpin a previously pinned note."""
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
@@ -272,12 +278,12 @@ async def list_notes(
     tag: str | None = None,
     pinned: bool | None = None,
     limit: int = 50,
-) -> ToolReturn[dict[str, object]]:
+) -> ToolReturn[NoteListResult | ToolErrorPayload]:
     """List notes (refs only, no body). Optional tag/pinned filter.
 
     Returns an envelope ``{totalNotes, matches, summary}``. ``totalNotes`` is
-    the size of the whole scratchpad — distinguish "no matches" from "empty
-    scratchpad" via that field.
+    the size of the whole scratchpad, so it separates "no matches" from "empty
+    scratchpad".
     """
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
@@ -293,7 +299,7 @@ async def list_notes(
         )
         total, _ = await repo.totals(conversation_id=conversation_id)
 
-    matches = [_ref_payload(n) for n in notes]
+    matches = [_note_ref(n) for n in notes]
     filter_desc = _filter_description(tag, pinned)
     if total == 0:
         summary = "No notes saved in this scratchpad yet."
@@ -302,7 +308,7 @@ async def list_notes(
     else:
         summary = f"{len(matches)} of {total} notes{filter_desc}."
     return with_summary(
-        {"totalNotes": total, "matches": matches, "summary": summary},
+        NoteListResult(total_notes=total, matches=matches, summary=summary),
         f"{len(matches)} notes",
         ctx=ctx,
         status="ok" if matches else "empty",
@@ -313,7 +319,7 @@ async def search_notes(
     ctx: RunContext[AgentDeps],
     query: str,
     limit: int = 10,
-) -> ToolReturn[dict[str, object]]:
+) -> ToolReturn[NoteSearchResult | ToolErrorPayload]:
     """Keyword/phrase search across title + summary + body via Postgres FTS.
 
     Returns an envelope ``{totalNotes, query, matches, summary}``. An empty
@@ -333,23 +339,23 @@ async def search_notes(
         )
         total, _ = await repo.totals(conversation_id=conversation_id)
 
-    matches = [_ref_payload(n) for n in hits]
+    matches = [_note_ref(n) for n in hits]
     if total == 0:
         summary = "No notes saved in this scratchpad yet."
     elif not matches:
         summary = (
             f"No notes match {query!r} "
-            f"(scratchpad has {total} notes total — try list_notes to browse)."
+            f"(scratchpad has {total} notes total - try list_notes to browse)."
         )
     else:
         summary = f"{len(matches)} of {total} notes matched {query!r}."
     return with_summary(
-        {
-            "totalNotes": total,
-            "query": query,
-            "matches": matches,
-            "summary": summary,
-        },
+        NoteSearchResult(
+            total_notes=total,
+            matches=matches,
+            summary=summary,
+            query=query,
+        ),
         f"{len(matches)} notes for {query}",
         ctx=ctx,
         status="ok" if matches else "empty",
@@ -359,7 +365,7 @@ async def search_notes(
 async def read_note(
     ctx: RunContext[AgentDeps],
     note_id: str,
-) -> ToolReturn[dict[str, object]]:
+) -> ToolReturn[dict[str, object] | ToolErrorPayload]:
     """Fetch the full note (including body) by id."""
     ctx_or_none = _require_context(ctx)
     if ctx_or_none is None:
@@ -384,7 +390,7 @@ async def promote_to_memory(
     """Promote a scratchpad note to the user's long-term ``knowledge`` memory.
 
     Use when a note captures reusable biological knowledge that is worth
-    remembering beyond this conversation — a mechanism, a named marker set, a
+    remembering beyond this conversation - a mechanism, a named marker set, a
     fact about an organism. The note's ``title`` / ``summary`` / ``body`` map
     one-to-one onto the knowledge memory's ``name`` / ``summary`` /
     ``content.body``.

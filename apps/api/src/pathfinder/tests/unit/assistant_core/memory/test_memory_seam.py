@@ -81,12 +81,13 @@ def test_the_namespace_accepts_a_kind_the_core_never_declared() -> None:
     assert namespace == ("app", "app1", "user", str(user_id), "contact")
 
 
-def test_the_product_declares_the_four_pathfinder_kinds() -> None:
+def test_the_product_declares_the_five_pathfinder_kinds() -> None:
     assert PRODUCT_MEMORY_KINDS == (
         "gene_set",
         "strategy",
         "preference",
         "knowledge",
+        "case",
     )
 
 

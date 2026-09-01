@@ -108,3 +108,30 @@ async def test_patch_memory_updates_fields(
     body = resp.json()
     assert body["value"]["name"] == "new_name"
     assert body["value"]["tags"] == ["two"]
+
+
+@pytest.mark.asyncio
+async def test_a_case_lists_and_deletes_like_any_kind(
+    authed_client: httpx.AsyncClient,
+    authed_user_id: UUID,
+    app_memory_store: MemoryStore,
+) -> None:
+    """The kind a verified turn writes is reachable from the settings surface."""
+    key = await app_memory_store.put(
+        user_id=authed_user_id,
+        value=MemoryValue(
+            kind="case",
+            name="find every kinase in P. falciparum",
+            summary="142 results via GenesByGoTerm",
+            tags=["plasmodb"],
+            content={"case": "outcome", "root_count": 142},
+            created_at=datetime.now(UTC),
+        ),
+    )
+    listed = await authed_client.get("/api/v1/memories")
+    assert listed.status_code == 200
+    assert [item["key"] for item in listed.json()["cases"]] == [key]
+
+    deleted = await authed_client.delete(f"/api/v1/memories/{key}?kind=case")
+    assert deleted.status_code == 204
+    assert await app_memory_store.list_all(user_id=authed_user_id, kind="case") == []

@@ -3,7 +3,11 @@
 Everything known to be outstanding, ranked by what actually moves the product. Each item stands alone: a fresh session should be able to pick one up without this conversation.
 
 Items are removed when done, not marked done. The [log](../log.md) records
-what left. Nothing is outstanding.
+what left.
+
+## Ranked
+
+Nothing outstanding.
 
 ## Known and accepted
 

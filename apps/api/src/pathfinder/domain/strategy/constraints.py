@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from enum import StrEnum
 from typing import Literal
 
@@ -69,6 +69,15 @@ def provisional_constraints(constraints: list[Constraint]) -> list[GroundedConst
         GroundedConstraint(constraint=c, status=ConstraintStatus.PROVISIONAL)
         for c in constraints
     ]
+
+
+def organism_hints_from(requirements: Sequence[Constraint]) -> list[str]:
+    """The organisms the requirements state, in the order stated, without repeats."""
+    return list(
+        dict.fromkeys(
+            c.requested_value for c in requirements if c.kind is ConstraintKind.ORGANISM
+        )
+    )
 
 
 def merge_constraints(

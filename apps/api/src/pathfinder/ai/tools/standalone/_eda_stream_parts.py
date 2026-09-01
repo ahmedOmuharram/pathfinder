@@ -14,6 +14,7 @@ from shared_py.stream_parts.eda import (
 )
 
 from pathfinder.ai.graph.state import StrategyDomainState
+from pathfinder.domain.eda_thread import EdaAnalysisFacts
 from pathfinder.services.eda.authoring import SubsetPreview, distribution_series
 from pathfinder.services.eda.compute import RetainedSummary
 
@@ -44,13 +45,12 @@ def analysis_state_chunks_if_changed(
     """The state card, or nothing when the thread already shows this state.
 
     The card restates the whole analysis, so a state that reads the same adds
-    no information. The digest leaves out ``revision`` (every mutation bumps
-    it) and ``filters`` (the summaries are what the card shows).
+    no information.
     """
-    digest = state.model_dump_json(by_alias=True, exclude={"revision", "filters"})
-    if domain.eda_state_digest == digest:
+    facts = EdaAnalysisFacts.model_validate(state, from_attributes=True)
+    if domain.eda_analysis == facts:
         return []
-    domain.eda_state_digest = digest
+    domain.eda_analysis = facts
     return [eda_analysis_state_chunk(state)]
 
 

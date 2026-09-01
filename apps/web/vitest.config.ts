@@ -45,6 +45,7 @@ export default defineConfig({
         // Conversation logic modules (unit-tested); its React renderers,
         // transport and hooks are covered by Playwright E2E.
         "src/features/conversation/content/parts/consultData.ts",
+        "src/features/conversation/content/statusClock.ts",
         "src/features/conversation/rail/{consultActions,normalizeLedger,railActivity}.ts",
         "src/features/conversation/runtime/{buildRequestBody,feedbackAdapter,geneIdAttachmentAdapter,replayChunks,traceId}.ts",
         "src/features/conversation/slash/{parser,registryUtils}.ts",

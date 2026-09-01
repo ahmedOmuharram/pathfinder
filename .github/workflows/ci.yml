@@ -230,6 +230,10 @@ jobs:
         working-directory: apps/api
         run: uv run vulture
 
+      - name: Check test assertion strength
+        working-directory: apps/api
+        run: uv run python scripts/check_weak_assertions.py
+
       - name: Check file sizes
         working-directory: apps/api
         run: uv run python scripts/check_max_lines.py

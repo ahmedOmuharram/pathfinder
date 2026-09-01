@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Literal
+from uuid import UUID
 
 from assistant_core.graph.turn_state import TurnState
 from assistant_core.memory.schemas import MemoryEntryDraft
@@ -14,6 +15,7 @@ from pathfinder.ai.lead.intent import (
     IntentClassification,
     UserIntent,
 )
+from pathfinder.domain.eda_thread import EdaAnalysisFacts, EdaExport
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
 )
@@ -97,6 +99,33 @@ class VerificationDigest(CamelModel):
     )
 
 
+class ZeroResultStep(CamelModel):
+    """A search that came back empty on some build of this thread."""
+
+    search_name: str
+    criterion_text: str = ""
+
+
+class TurnMarkers(CamelModel):
+    """What the Lead already did for one user message.
+
+    The record belongs to the message it names. A turn answering a different
+    message starts from an empty one, so nothing an earlier message unlocked
+    is still unlocked.
+    """
+
+    message_id: UUID | None = None
+    intent_classified: bool = False
+    framed: bool = False
+    built: bool = False
+    verified: bool = False
+    verification_dispatched: bool = False
+    verification_nudged: bool = False
+    eda_previewed: bool = False
+    # The EDA cut this turn exported, which the turn's case records.
+    eda_export: EdaExport | None = None
+
+
 class StrategyDomainState(BaseModel):
     """What the investigation knows: the framed spec, the searches it saw,
     the last build and its verification."""
@@ -104,6 +133,7 @@ class StrategyDomainState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     user_intent: UserIntent | None = None
+    turn_markers: TurnMarkers = Field(default_factory=TurnMarkers)
     lead_next_state: Literal["await_user", "complete"] | None = None
     operational_spec: OperationalSpec | None = None
     # The spec as the turn found it, written by the pre-turn hook. An edit's
@@ -119,14 +149,20 @@ class StrategyDomainState(BaseModel):
     created_gene_set_ids: list[str] = Field(default_factory=list)
     # Studies already sent a full EDA filter sheet, with their vocabularies.
     sheeted_eda_datasets: set[str] = Field(default_factory=set)
-    # The analysis-state card the thread last showed, as its JSON. A tool
-    # emits the card again only when the state differs from this.
-    eda_state_digest: str | None = None
+    # The analysis-state card the thread last showed. A tool emits the card
+    # again only when the state differs from this.
+    eda_analysis: EdaAnalysisFacts | None = None
     # Every requirement the thread has stated, oldest first. A clarification
     # adds to this list; nothing but a fresh request on an empty thread clears it.
     requirements: list[Constraint] = Field(default_factory=list)
     # The request the thread is answering, as the user wrote it.
     original_request: str = ""
+    # What moved on the thread since its last answer, as the pre-turn hook
+    # rendered it. Empty when nothing moved.
+    turn_briefing: str = ""
+    # Every search that emptied a step on some build of this thread. A later
+    # build that fills one of them is the recovery a case records.
+    zero_result_history: list[ZeroResultStep] = Field(default_factory=list)
 
     @property
     def has_strategy(self) -> bool:
@@ -152,6 +188,29 @@ class StrategyDomainState(BaseModel):
         if not self.original_request and intent.classification in REQUEST_INTENTS:
             self.original_request = request_text
 
+    def markers_for(self, message_id: UUID | None) -> TurnMarkers:
+        """This turn's markers. The record rotates on a new user message."""
+        if self.turn_markers.message_id != message_id:
+            self.turn_markers = TurnMarkers(message_id=message_id)
+        return self.turn_markers
+
+    def record_zero_results(self, outcome: BuildOutcome) -> None:
+        """Add each search this build emptied, once per search."""
+        spec = self.operational_spec
+        criteria = spec.criteria if spec is not None else []
+        text_of = {c.search_name: c.text for c in criteria if c.search_name}
+        known = {entry.search_name for entry in self.zero_result_history}
+        for node in outcome.node_results:
+            if node.status != "zero" or node.search_name in known:
+                continue
+            known.add(node.search_name)
+            self.zero_result_history.append(
+                ZeroResultStep(
+                    search_name=node.search_name,
+                    criterion_text=text_of.get(node.search_name, ""),
+                ),
+            )
+
     def mark_eda_sheet_shown(self, dataset_id: str) -> None:
         self.sheeted_eda_datasets.add(dataset_id)
 
@@ -165,3 +224,14 @@ class StrategyDomainState(BaseModel):
 
 class PipelineState(TurnState):
     domain: StrategyDomainState = Field(default_factory=StrategyDomainState)
+
+    @property
+    def turn_markers(self) -> TurnMarkers:
+        """What the Lead already did for the message this turn answers."""
+        return self.domain.markers_for(self.user_message_id)
+
+    def record_build(self, outcome: BuildOutcome) -> None:
+        """Take the build this turn produced, and the searches it emptied."""
+        self.domain.last_build_outcome = outcome
+        self.domain.record_zero_results(outcome)
+        self.turn_markers.built = True

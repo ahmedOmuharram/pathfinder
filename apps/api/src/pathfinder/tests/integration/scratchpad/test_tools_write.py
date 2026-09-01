@@ -17,6 +17,8 @@ from pathfinder.ai.scratchpad import tools as sc_tools
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
+from pathfinder.platform.errors import ErrorCode
+from pathfinder.platform.tool_errors import ToolErrorPayload
 
 
 @pytest.fixture
@@ -188,5 +190,6 @@ class TestErrorDiscipline:
             tool_call_id="tc-1",
         )
         result = await sc_tools.note(ctx, title="t", summary="s", body="b")
-        assert isinstance(result.return_value, dict)
-        assert "error" in result.return_value
+        assert isinstance(result.return_value, ToolErrorPayload)
+        assert result.return_value.ok is False
+        assert result.return_value.code == ErrorCode.NOT_FOUND.value

@@ -6,7 +6,7 @@ answers an in-process tool call and a remote one.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from difflib import get_close_matches
 
@@ -72,6 +72,18 @@ class UnknownSearchError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
+class VocabNarrowing:
+    """How one parameter read cuts a vocabulary down to what travels.
+
+    ``query`` keeps the entries that carry the text. ``organism_hints`` reorders
+    a tree so the branches naming those organisms render before the cap.
+    """
+
+    query: str | None = None
+    organism_hints: Sequence[str] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class SearchInspection:
     """One WDK read of a search: the formatted overview and the definition."""
 
@@ -115,6 +127,35 @@ def _matching_branches(
     return node.model_copy(update={"children": kept})
 
 
+def _prioritized_branches(
+    node: WDKTreeBoxVocabNode,
+    hints: Sequence[str],
+) -> WDKTreeBoxVocabNode:
+    """Reorder children so branches matching a hint come first, at every depth."""
+    folded = [hint.casefold() for hint in hints if hint]
+    if not folded:
+        return node
+
+    def reaches(candidate: WDKTreeBoxVocabNode) -> bool:
+        if any(
+            _entry_matches(candidate.data.term, candidate.data.display, hint)
+            for hint in folded
+        ):
+            return True
+        return any(reaches(child) for child in candidate.children)
+
+    def reorder(candidate: WDKTreeBoxVocabNode) -> WDKTreeBoxVocabNode:
+        if not candidate.children:
+            return candidate
+        matching: list[WDKTreeBoxVocabNode] = []
+        rest: list[WDKTreeBoxVocabNode] = []
+        for child in candidate.children:
+            (matching if reaches(child) else rest).append(reorder(child))
+        return candidate.model_copy(update={"children": matching + rest})
+
+    return reorder(node)
+
+
 def _filter_vocab(param: WDKParameter, query: str) -> WDKParameter:
     """Filter a parameter vocabulary by a case-insensitive substring.
 
@@ -134,6 +175,18 @@ def _filter_vocab(param: WDKParameter, query: str) -> WDKParameter:
 
     kept = [term for term in vocab if _entry_matches(term.term, term.display, q)]
     return param.model_copy(update={"vocabulary": kept})
+
+
+def _prioritize_organisms(
+    param: WDKParameter,
+    hints: Sequence[str],
+) -> WDKParameter:
+    vocab = param.vocabulary
+    if not hints or not isinstance(vocab, WDKTreeBoxVocabNode):
+        return param
+    return param.model_copy(
+        update={"vocabulary": _prioritized_branches(vocab, hints)},
+    )
 
 
 def _unbound_parents(
@@ -188,12 +241,13 @@ async def read_parameter_options(
     *,
     record_type: str | None = None,
     context_values: Mapping[str, object] | None = None,
-    query: str | None = None,
+    narrowing: VocabNarrowing | None = None,
 ) -> GetParameterOptionsResult:
     """Read one parameter's vocabulary under the parent values supplied.
 
-    ``query`` narrows a vocabulary too large to travel whole.
+    ``narrowing`` cuts a vocabulary too large to travel whole.
     """
+    narrow = narrowing or VocabNarrowing()
     context = coerce_context_values(dict(context_values)) if context_values else {}
     rt = await resolve_search_record_type(
         site_id, search_name, _auto_resolved_record_type(record_type)
@@ -231,9 +285,9 @@ async def read_parameter_options(
 
     for p in all_params:
         if p.name == parameter_id:
-            filtered = _filter_vocab(p, query) if query else p
+            filtered = _filter_vocab(p, narrow.query) if narrow.query else p
             return format_typed_param(
-                filtered,
+                _prioritize_organisms(filtered, narrow.organism_hints),
                 depends_on=depends_on,
                 controls=controls,
                 applied_context=context or None,
@@ -242,7 +296,9 @@ async def read_parameter_options(
                     for other in all_params
                     if other.initial_display_value
                 },
-                phyletic_options=phyletic_options_for(all_params, parameter_id, query),
+                phyletic_options=phyletic_options_for(
+                    all_params, parameter_id, narrow.query
+                ),
             )
 
     valid = [p.name for p in all_params]

@@ -1,5 +1,6 @@
 """AST node types for strategy representation (untyped tree)."""
 
+from collections.abc import Callable
 from uuid import uuid4
 
 from assistant_core.platform.pydantic_base import CamelModel
@@ -252,6 +253,21 @@ def deep_clone_with_fresh_ids(node: StrategyStepNode) -> StrategyStepNode:
             "secondary_input": secondary,
         },
     )
+
+
+type StepFold[T] = Callable[[StrategyStepNode, list[T]], T]
+
+
+def fold_step_tree[T](root: StrategyStepNode, fold: StepFold[T]) -> T:
+    """Fold a step tree bottom up.
+
+    Each node is given the folded results of its inputs in slot order: none
+    for a search, the primary alone for a transform, both for a combine.
+    """
+    inputs = [
+        node for node in (root.primary_input, root.secondary_input) if node is not None
+    ]
+    return fold(root, [fold_step_tree(node, fold) for node in inputs])
 
 
 def walk_step_tree(root: StrategyStepNode) -> list[StrategyStepNode]:

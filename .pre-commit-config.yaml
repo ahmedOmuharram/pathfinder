@@ -180,6 +180,13 @@ repos:
         pass_filenames: false
         types: [python]
         files: ^apps/api/.*
+      - id: weak-assertions-api
+        name: weak-assertion check (api)
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run python scripts/check_weak_assertions.py"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^apps/api/.*
       - id: pip-audit-api
         name: pip-audit (api)
         entry: bash -c "cd apps/api && $HOME/.local/bin/uv run pip-audit"

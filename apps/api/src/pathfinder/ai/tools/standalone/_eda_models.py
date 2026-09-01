@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from assistant_core.platform.pydantic_base import CamelModel
 from assistant_core.platform.types import JSONObject
-from pydantic import Field
+from pydantic import Field, JsonValue, model_serializer
+from pydantic_core.core_schema import SerializerFunctionWrapHandler
 
-from pathfinder.services.eda.description import EdaVariableOut, StudyDescription
+from pathfinder.services.eda.description import EdaFilterType, StudyDescription
 
 
 class EdaStudyCardOut(CamelModel):
@@ -32,15 +33,42 @@ class EdaStudyDescription(StudyDescription):
     guidance: str = ""
 
 
-class EdaFilterSheetEntry(EdaVariableOut):
+class EdaFilterSheetEntry(CamelModel):
     """One variable, with everything needed to write a filter for it.
 
-    Only a filterable variable reaches the sheet, so ``filter_type`` is
-    always set here.
+    The sheet is read by a model, so a field a variable does not declare is
+    not sent: the entity tree and the variable type it was derived from are
+    read from ``describe_eda_study``.
     """
 
+    entity_id: str
     entity_display_name: str = ""
+    variable_id: str
+    display_name: str
+    filter_type: EdaFilterType
+    is_multi_valued: bool = False
+    vocabulary: list[str] = Field(default_factory=list)
+    vocabulary_total: int = 0
+    vocabulary_note: str | None = None
+    range_min: float | None = None
+    range_max: float | None = None
+    date_min: str | None = None
+    date_max: str | None = None
+    sub_filter_variable_ids: list[str] = Field(default_factory=list)
     example: JSONObject = Field(default_factory=dict)
+
+    @model_serializer(mode="wrap")
+    def _what_the_variable_declares(
+        self,
+        handler: SerializerFunctionWrapHandler,
+    ) -> dict[str, JsonValue]:
+        """A field with no value says nothing, so it is not serialized."""
+        dumped: dict[str, JsonValue] = handler(self)
+        return {
+            name: value
+            for name, value in dumped.items()
+            if value is not None and value not in ([], "", {})
+        }
 
 
 class EdaFiltersResult(CamelModel):
@@ -51,11 +79,8 @@ class EdaFiltersResult(CamelModel):
     dataset_id: str = ""
     num_filters: int = 0
     # Every filterable variable, with its type, its vocabulary and one example
-    # filter object. Declared before ``filters_template`` so the sheet is read
-    # before the shape to copy.
+    # filter object to copy.
     decide: list[EdaFilterSheetEntry] = Field(default_factory=list)
-    # The exact array shape to send back. Empty on the first call.
-    filters_template: list[JSONObject] = Field(default_factory=list)
     filter_summaries: list[str] = Field(default_factory=list)
     guidance: str = ""
 

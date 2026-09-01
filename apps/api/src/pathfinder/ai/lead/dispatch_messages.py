@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from pathfinder.ai.lead.deltas import FrameResult
+from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 from pathfinder.domain.strategy.spec_diff import CriterionChange, SpecDiff
 
@@ -165,4 +166,20 @@ def build_not_ready_message(spec: OperationalSpec | None) -> str:
     return (
         f"These criteria still need user-supplied parameters: "
         f"{', '.join(open_params)}. Ask the user for them, then build."
+    )
+
+
+def unverified_build_message(outcome: BuildOutcome | None) -> str:
+    """Why a turn that built something is asked to verify before it answers.
+
+    The check is asked for once. A second answer that still declines is the
+    model's to give: only it knows whether a check is possible right now.
+    """
+    pushed = len(outcome.pushed_step_ids) if outcome is not None else 0
+    root = outcome.root_count if outcome is not None else None
+    count = "unknown" if root is None else str(root)
+    return (
+        f"This turn changed the strategy - {pushed} step(s) on VEuPathDB, root "
+        f"count {count} - and nothing verified the result. Call verify_strategy, "
+        f"or state in your reply why verification is not possible right now."
     )

@@ -15,7 +15,7 @@ from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.lead_agent import build_lead_agent
-from pathfinder.ai.lead.pre_turn import refresh_live_strategy_state
+from pathfinder.ai.lead.pre_turn import pathfinder_pre_turn
 
 __all__ = ["build_pathfinder_graph"]
 
@@ -25,6 +25,6 @@ def build_pathfinder_graph(
 ) -> CompiledStateGraph[PipelineState, Context, PipelineState, PipelineState]:
     return build_graph(
         checkpointer=checkpointer,
-        pre_turn=refresh_live_strategy_state,
+        pre_turn=pathfinder_pre_turn,
         build_agent=build_lead_agent,
     )

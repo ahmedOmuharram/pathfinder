@@ -149,9 +149,9 @@ async def test_an_edit_on_a_thread_with_no_strategy_keeps_the_framed_spec() -> N
 
 
 def test_the_lead_is_told_to_route_an_edit_to_the_edit_tool() -> None:
+    """The prose names the route; the gate hides ``frame_problem`` for it."""
     instructions = " ".join(LEAD_INSTRUCTIONS.split())
-    assert "edit_strategy" in instructions
     assert (
-        "call ``edit_strategy`` and NEVER ``frame_problem`` + ``build_strategy``"
+        "the pinned Operational Spec has criteria, call ``edit_strategy``"
         in instructions
     )

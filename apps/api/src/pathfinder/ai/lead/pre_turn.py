@@ -1,5 +1,6 @@
-"""PathFinder's pre-turn refresh: measure the recorded build against WDK, and
-give a strategy that has no spec one derived from what it already is.
+"""PathFinder's pre-turn work: measure the recorded build against WDK, give a
+strategy that has no spec one derived from what it already is, and brief the
+turn on what moved since the thread last answered.
 
 The user can edit the strategy between turns, in the graph editor or on the
 site. WDK owns it, so only WDK can say what it holds now.
@@ -9,12 +10,44 @@ from __future__ import annotations
 
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.lead.turn_briefing import compose_turn_briefing
 from pathfinder.domain.strategy.spec_hydration import spec_from_ast
 from pathfinder.domain.strategy.staleness import detect_build_staleness
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
+from pathfinder.services.conversations.thread_activity import read_thread_activity
 from pathfinder.services.strategies.live_counts import read_wdk_step_counts
 
-__all__ = ["refresh_live_strategy_state"]
+__all__ = [
+    "attach_turn_briefing",
+    "pathfinder_pre_turn",
+    "refresh_live_strategy_state",
+]
+
+
+async def pathfinder_pre_turn(
+    state: PipelineState,
+    context: Context,
+) -> PipelineState:
+    """The state the turn runs on: refreshed against WDK, then briefed."""
+    refreshed = await refresh_live_strategy_state(state, context)
+    return await attach_turn_briefing(refreshed, context)
+
+
+async def attach_turn_briefing(
+    state: PipelineState,
+    context: Context,
+) -> PipelineState:
+    """Render what moved since the thread last answered onto the state."""
+    async with context.db_session_factory() as session:
+        activity = await read_thread_activity(
+            session,
+            conversation_id=state.conversation_id,
+        )
+    state.domain.turn_briefing = compose_turn_briefing(
+        activity,
+        requirements=state.domain.requirements,
+    ).render()
+    return state
 
 
 async def refresh_live_strategy_state(

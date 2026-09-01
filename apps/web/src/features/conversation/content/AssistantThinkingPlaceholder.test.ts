@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { selectStatusLabel } from "./AssistantThinkingPlaceholder";
+import {
+  selectPartsFingerprint,
+  selectStatusLabel,
+} from "./AssistantThinkingPlaceholder";
+import { formatElapsed, statusLineWith } from "./statusClock";
 
 /**
  * A turn that waits for a worker sends no chunks of its own, so the running
@@ -96,5 +100,57 @@ describe("selectStatusLabel follows the phase the trace shows", () => {
         ],
       }),
     ).toBe("Thinking...");
+  });
+});
+
+describe("formatElapsed", () => {
+  it("writes seconds under a minute", () => {
+    expect(formatElapsed(0)).toBe("0s");
+    expect(formatElapsed(45)).toBe("45s");
+  });
+
+  it("writes minutes and seconds above a minute", () => {
+    expect(formatElapsed(60)).toBe("1m 0s");
+    expect(formatElapsed(160)).toBe("2m 40s");
+  });
+
+  it("writes ASCII only", () => {
+    expect(formatElapsed(160)).not.toMatch(/[^\x20-\x7e]/);
+  });
+});
+
+describe("statusLineWith", () => {
+  it("leaves the label alone while the turn is still sending parts", () => {
+    expect(statusLineWith("Planning...", 0)).toBe("Planning...");
+    expect(statusLineWith("Planning...", 9)).toBe("Planning...");
+  });
+
+  it("appends the elapsed time once the turn goes quiet", () => {
+    expect(statusLineWith("Planning...", 10)).toBe("Planning, 10s");
+    expect(statusLineWith("Planning...", 160)).toBe("Planning, 2m 40s");
+  });
+
+  it("appends to a label that carries no trailing dots", () => {
+    expect(statusLineWith("Queued", 160)).toBe("Queued, 2m 40s");
+  });
+});
+
+describe("selectPartsFingerprint", () => {
+  it("changes when a part is appended", () => {
+    const one = running("Queued");
+    const two = running("Queued", null);
+    expect(selectPartsFingerprint(one)).not.toBe(selectPartsFingerprint(two));
+  });
+
+  it("changes while the last text part streams, so the silence timer resets", () => {
+    const short = running(null);
+    const long = running(null);
+    long.content[0] = { type: "text", text: "hello world, more tokens" };
+    expect(selectPartsFingerprint(short)).not.toBe(selectPartsFingerprint(long));
+  });
+
+  it("is stable when nothing arrives", () => {
+    const m = running("Queued", null);
+    expect(selectPartsFingerprint(m)).toBe(selectPartsFingerprint(m));
   });
 });

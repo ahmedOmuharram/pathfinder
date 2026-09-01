@@ -23,6 +23,7 @@ class MemoryListResponse(CamelModel):
     strategies: list[MemoryItem]
     preferences: list[MemoryItem]
     knowledge: list[MemoryItem]
+    cases: list[MemoryItem]
     page_size: int
     offset: int
     has_more: bool

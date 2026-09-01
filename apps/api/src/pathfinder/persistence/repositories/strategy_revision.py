@@ -113,6 +113,21 @@ class StrategyRevisionRepository:
         )
         return None if row is None else StrategyRevisionView.model_validate(row)
 
+    async def newest(
+        self,
+        conversation_id: UUID,
+        *,
+        limit: int,
+    ) -> list[StrategyRevisionView]:
+        """The thread's most recent snapshots, newest first."""
+        rows = await self.session.scalars(
+            select(StrategyRevision)
+            .where(StrategyRevision.conversation_id == conversation_id)
+            .order_by(desc(StrategyRevision.id))
+            .limit(limit),
+        )
+        return [StrategyRevisionView.model_validate(row) for row in rows]
+
     async def at_or_before(
         self,
         conversation_id: UUID,
