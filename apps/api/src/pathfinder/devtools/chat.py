@@ -263,9 +263,12 @@ def parse_respond_args(argv: list[str]) -> RespondArgs:
     )
 
 
-def _route_framework_logs_to_stderr() -> None:
+def route_framework_logs_to_stderr() -> None:
     """Sends framework log output to stderr so stdout carries only the trace and the
-    summary."""
+    summary.
+
+    The configuration is process-wide, so only a command line calls it.
+    """
 
     structlog.configure(logger_factory=structlog.PrintLoggerFactory(file=sys.stderr))
 
@@ -287,7 +290,7 @@ def _current_gate(capture: RunCapture) -> Gate:
     return detect_gate(
         pending_approval=capture.pending_approval,
         tool_args=capture.tool_args_by_call,
-        durable_task=capture.durable_task,
+        durable_tasks=capture.durable_tasks,
     )
 
 
@@ -327,7 +330,10 @@ async def _gate_from_checkpoint(
         return detect_gate(
             pending_approval=None,
             tool_args={},
-            durable_task=(str(parked.task_id), parked.durable_tool_name),
+            durable_tasks=[
+                (str(call.task_id), call.durable_tool_name)
+                for call in parked.durable_calls
+            ],
         )
     raw_pending = values.get("pending_approval")
     if not raw_pending:
@@ -336,7 +342,7 @@ async def _gate_from_checkpoint(
     return detect_gate(
         pending_approval=(pending.tool_name, pending.tool_call_id),
         tool_args={pending.tool_call_id: dict(pending.tool_args)},
-        durable_task=None,
+        durable_tasks=[],
     )
 
 
@@ -544,7 +550,6 @@ async def drive_run(args: RunArgs) -> tuple[RunCapture, Gate]:
 
     The eval runner reads the capture; the command line prints it.
     """
-    _route_framework_logs_to_stderr()
     if args.mock:
         os.environ["PATHFINDER_CHAT_PROVIDER"] = "mock"
         os.environ["API_ENV"] = "test"
@@ -640,7 +645,6 @@ def _build_respond_body(args: RespondArgs, gate: Gate) -> ChatRequestBody:
 
 
 async def run_respond(args: RespondArgs) -> int:
-    _route_framework_logs_to_stderr()
     if args.mock:
         os.environ["PATHFINDER_CHAT_PROVIDER"] = "mock"
         os.environ["API_ENV"] = "test"
@@ -728,6 +732,7 @@ def _run_inspect(ns: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    route_framework_logs_to_stderr()
     argv = sys.argv[1:]
     command = argv[0] if argv else ""
     if command == "run":

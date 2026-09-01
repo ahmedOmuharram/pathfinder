@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/lib/components/charts/echartsRegistry", () => ({
@@ -42,18 +42,13 @@ describe("DataEdaViz volcano", () => {
       />,
     );
     expect(screen.getByTestId("figure-caption").textContent).toBe(
-      "1,543 of 5,511 genes retained",
+      "1,543 of 5,511 genes retained.",
     );
   });
 
-  it("separates itself with a hairline, never with a card", () => {
+  it("draws no divider, no card and no outer margin", () => {
     render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
-    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
+    expect(screen.getByTestId("figure").className).toBe("");
     expect(screen.getByTestId("data-eda-viz").className).not.toMatch(
       /\bborder\b|\brounded-md\b|\bbg-card\b/,
     );
@@ -73,12 +68,67 @@ describe("DataEdaViz volcano", () => {
     );
   });
 
-  it("caps the collapsed height and expands on request", async () => {
+  it("holds the gene ids in a closed disclosure that counts them", () => {
     render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
-    expect(screen.getByTestId("eda-viz-volcano")).toHaveStyle({ height: "220px" });
-    await userEvent.click(screen.getByRole("button", { name: "Expand plot" }));
+    const summary = screen.getByText("Gene ids (1)").closest("summary");
+    expect(summary).not.toBeNull();
+    const details = summary?.closest("details") ?? null;
+    expect(details?.open).toBe(false);
+    expect(details).toContainElement(screen.getByTestId("eda-viz-volcano-genes"));
+  });
+
+  it("keeps the selection readout outside the disclosure", () => {
+    render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
+    expect(screen.getByTestId("eda-viz-volcano-selection").closest("details")).toBe(
+      null,
+    );
+  });
+
+  it("draws the plot expanded and collapses on request", async () => {
+    render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
     expect(screen.getByTestId("eda-viz-volcano")).toHaveStyle({ height: "480px" });
-    expect(screen.getByRole("button", { name: "Collapse plot" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Collapse plot" }));
+    expect(screen.getByTestId("eda-viz-volcano")).toHaveStyle({ height: "220px" });
+    expect(screen.getByRole("button", { name: "Expand plot" })).toBeInTheDocument();
+  });
+
+  it("leads the caption with the sentence the model wrote", () => {
+    render(
+      <DataEdaViz
+        data={{
+          ...EDA_VOLCANO_VIZ_FIXTURE,
+          totalPoints: 5511,
+          retainedPoints: 1543,
+          caption: "Genes higher in febrile samples than in normal samples",
+        }}
+      />,
+    );
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "Genes higher in febrile samples than in normal samples (1,543 of 5,511 genes retained).",
+    );
+  });
+
+  it("puts the caption above the selection readout and the gene ids", () => {
+    const { container } = render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
+    const caption = screen.getByTestId("figure-caption");
+    const readout = screen.getByTestId("eda-viz-volcano-selection");
+    const genes = screen.getByTestId("eda-viz-volcano-genes");
+    expect(container.contains(caption)).toBe(true);
+    expect(
+      caption.compareDocumentPosition(readout) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeGreaterThan(0);
+    expect(
+      caption.compareDocumentPosition(genes) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeGreaterThan(0);
+  });
+
+  it("keeps the plot itself above the caption", () => {
+    render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
+    const caption = screen.getByTestId("figure-caption");
+    const plot = screen.getByTestId("eda-viz-volcano");
+    expect(
+      caption.compareDocumentPosition(plot) & Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeGreaterThan(0);
   });
 
   it("hydrates the store so the tab shows the same plot", async () => {
@@ -123,6 +173,15 @@ describe("DataEdaViz other charts", () => {
     expect(screen.getByTestId("eda-viz-scatter-count")).toHaveTextContent(
       "2 of 3 points plotted",
     );
+  });
+
+  it("puts the scatter count below the caption", () => {
+    render(<DataEdaViz data={EDA_SCATTER_VIZ_FIXTURE} />);
+    const caption = screen.getByTestId("figure-caption");
+    const count = screen.getByTestId("eda-viz-scatter-count");
+    expect(
+      caption.compareDocumentPosition(count) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeGreaterThan(0);
   });
 
   it("drops a scatter point at p = 0 as well as one with no p-value", () => {
@@ -201,5 +260,28 @@ describe("DataEdaViz other charts", () => {
       "This compute returned no points",
     );
     expect(screen.queryByTestId("eda-viz-volcano")).toBe(null);
+  });
+});
+
+describe("the gene-id copy control", () => {
+  it("copies every selected id, comma separated, without toggling the disclosure", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<DataEdaViz data={EDA_VOLCANO_VIZ_FIXTURE} />);
+
+    const details = screen
+      .getByTestId("eda-viz-copy-gene-ids")
+      .closest("details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    fireEvent.click(screen.getByTestId("eda-viz-copy-gene-ids"));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copied = writeText.mock.calls[0]?.[0] as string;
+    expect(copied.split(", ").length).toBeGreaterThan(0);
+    for (const id of copied.split(", ")) {
+      expect(id).toMatch(/^\S+$/);
+    }
+    expect(details.open).toBe(false);
+    expect(await screen.findByLabelText("Copy gene ids")).toBeVisible();
   });
 });

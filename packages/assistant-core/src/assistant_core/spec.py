@@ -56,6 +56,8 @@ class TurnStart(BaseModel):
     user_prompt: str = ""
     # Set on the turn a worker opens to answer a durable call the thread parked.
     durable_result: DurableTaskResult | None = None
+    # Every parked task's answer, when the step parked several calls.
+    durable_results: tuple[DurableTaskResult, ...] = ()
     approval_responses: dict[str, ToolApprovalResponded] = Field(default_factory=dict)
     user_question_answers: dict[str, list[UserQuestionAnswer]] = Field(
         default_factory=dict,
@@ -77,8 +79,9 @@ class TurnStart(BaseModel):
             "approval_responses": dict(self.approval_responses),
             "user_question_answers": dict(self.user_question_answers),
             "retrieved_memories": [],
-            # Always written, so a later turn never reads the answer again.
+            # Always written, so a later turn never reads the answers again.
             "durable_result": self.durable_result,
+            "durable_results": list(self.durable_results),
         }
         if self.is_resume:
             return base

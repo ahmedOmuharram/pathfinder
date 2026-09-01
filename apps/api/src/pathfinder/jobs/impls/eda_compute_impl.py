@@ -153,6 +153,7 @@ async def _announce_volcano(
     binding: ConversationAnalysisView,
     statistics: VolcanoStatsResponse,
     summary: RetainedSummary,
+    caption: str,
 ) -> None:
     """Put the plot of the default cut on the thread, beside the state."""
     view = volcano_view(
@@ -175,6 +176,7 @@ async def _announce_volcano(
             EdaVolcanoPoint.model_validate(point, from_attributes=True)
             for point in view.points
         ],
+        caption=caption,
     )
     await append_chunk(
         conversation_id=conversation_id,
@@ -267,6 +269,7 @@ async def run_eda_compute_impl(
     group_a_labels: list[str],
     group_b_labels: list[str],
     method: str = "DESeq",
+    caption: str = "",
     **_extra: Any,
 ) -> dict[str, Any]:
     """Drive one differential-expression job and summarise its statistics."""
@@ -341,6 +344,7 @@ async def run_eda_compute_impl(
         binding=binding,
         statistics=statistics,
         summary=summary,
+        caption=caption,
     )
     await progress.update(percent=1.0, message="Compute complete")
     return {

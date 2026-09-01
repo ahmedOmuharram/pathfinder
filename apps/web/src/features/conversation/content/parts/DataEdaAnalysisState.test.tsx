@@ -27,21 +27,33 @@ beforeEach(() => {
 });
 
 describe("DataEdaAnalysisState", () => {
-  it("titles the figure with the study and lists each filtered entity count", () => {
+  it("titles the figure with the study", () => {
     render(<DataEdaAnalysisState data={EDA_ANALYSIS_STATE_FIXTURE} />);
     expect(screen.getByTestId("figure")).toHaveTextContent(
       "Heat shock response in sensitive mutants (LRR5, DHC)",
     );
-    const card = screen.getByTestId("data-eda-analysis-state");
-    expect(card).toHaveTextContent("Sample");
-    expect(card).toHaveTextContent("34,320");
   });
 
   it("captions the figure with every entity count, joined and separated", () => {
     render(<DataEdaAnalysisState data={EDA_ANALYSIS_STATE_FIXTURE} />);
-    expect(screen.getByTestId("figure-caption")).toHaveTextContent(
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
       "6 of 12 Sample, 34,320 of 68,640 pfal3D7 htseq counts",
     );
+  });
+
+  it("states each entity count once, in the caption and not again in the body", () => {
+    render(<DataEdaAnalysisState data={EDA_ANALYSIS_STATE_FIXTURE} />);
+    const card = screen.getByTestId("data-eda-analysis-state");
+    expect(card.textContent.split("6 of 12 Sample")).toHaveLength(2);
+    expect(card.textContent.split("34,320 of 68,640")).toHaveLength(2);
+    expect(card.querySelectorAll("ul")).toHaveLength(0);
+  });
+
+  it("keeps the caption left-aligned and unnumbered, because it is a status card", () => {
+    render(<DataEdaAnalysisState data={EDA_ANALYSIS_STATE_FIXTURE} />);
+    const caption = screen.getByTestId("figure-caption");
+    expect(caption.className).toBe("mt-2 text-xs text-muted-foreground");
+    expect(caption.textContent).not.toContain("Figure");
   });
 
   it("falls back to the dataset id when the study has no display name", () => {
@@ -53,15 +65,10 @@ describe("DataEdaAnalysisState", () => {
     expect(screen.getByText("DS_e973eadd57")).toBeInTheDocument();
   });
 
-  it("separates itself with a hairline, never with a card", () => {
+  it("draws no divider, no card and no outer margin", () => {
     render(<DataEdaAnalysisState data={EDA_ANALYSIS_STATE_FIXTURE} />);
     const figure = screen.getByTestId("figure");
-    expect(figure.className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
+    expect(figure.className).toBe("");
     expect(screen.getByTestId("data-eda-analysis-state").className).not.toMatch(
       /\bborder\b|\brounded-md\b|\bbg-card\b/,
     );
@@ -142,11 +149,9 @@ describe("DataEdaAnalysisState chips and navigation", () => {
     consoleError.mockRestore();
   });
 
-  it("prints each entity count against its unfiltered total", () => {
+  it("counts the analysis's computations under the chips", () => {
     render(<DataEdaAnalysisState data={EDA_ANALYSIS_STATE_FIXTURE} />);
-    const card = screen.getByTestId("data-eda-analysis-state");
-    expect(card).toHaveTextContent("6 of 12 Sample");
-    expect(card).toHaveTextContent("34,320 of 68,640 pfal3D7 htseq counts");
+    expect(screen.getByText("1 computation")).toBeInTheDocument();
   });
 
   it("says the subset is unfiltered when there are no summaries", () => {

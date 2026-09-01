@@ -4,7 +4,33 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MessageAction } from "./message";
+import { Message, MessageAction, MessageContent } from "./message";
+
+describe("a message's blocks", () => {
+  it("are spaced by the one paragraph gap the content container owns", () => {
+    const { container } = render(
+      <MessageContent>
+        <p>a block</p>
+      </MessageContent>,
+    );
+    const body = container.firstElementChild;
+    if (!(body instanceof HTMLElement)) throw new Error("the content drew nothing");
+    const tokens = body.className.split(/\s+/);
+    expect(tokens).toContain("gap-3");
+    expect(tokens.filter((token) => token.startsWith("gap-"))).toEqual(["gap-3"]);
+  });
+
+  it("share that gap with the message's own action bar", () => {
+    const { container } = render(
+      <Message from="assistant">
+        <p>a block</p>
+      </Message>,
+    );
+    const root = container.firstElementChild;
+    if (!(root instanceof HTMLElement)) throw new Error("the message drew nothing");
+    expect(root.className.split(/\s+/)).toContain("gap-3");
+  });
+});
 
 describe("a message action button", () => {
   it("carries the tooltip as its accessible name", () => {

@@ -136,7 +136,6 @@ npx vitest run <exact test files for this task>
 - `apps/web/src/features/conversation/content/parts/ToolApprovalControls.tsx`
 - `apps/web/src/features/conversation/content/parts/ToolApprovalControls.test.tsx`
 - `apps/web/src/features/conversation/content/parts/ToolThink.tsx`
-- `apps/web/src/features/conversation/content/ModelBadge.tsx`
 - `apps/web/src/features/conversation/content/dataPartDispatch.test.tsx`
 - `apps/web/src/features/conversation/content/parts/SubAgentCallCard.test.tsx`
 - `apps/web/src/lib/utils/usageFormat.ts` and `usageFormat.test.ts`
@@ -237,7 +236,7 @@ below (the frozen suites and the repo gates decided each one):**
   `data-eda-analysis-state`) while the `<figure>` keeps `data-testid="figure"`
   (the frozen figures module counts figures and looks the part up within
   one). Child testids keep their elements.
-- `ModelBadge` separates with an ASCII `-`, not U+00B7.
+- The trace summary row's usage line separates with an ASCII ` - `, not U+00B7.
 - `TraceAnchor` narrows `data-sub-agent-call` and `data-tool-summary` payloads
   with the generated zod schemas in `packages/shared-ts/src/generated/zod/`,
   never by hand.
@@ -392,7 +391,8 @@ and `usageFormat.test.ts` change to the ASCII form: a comma and a space, so
 `formatUsage(12300, "0.004")` is `12.3K, $0.004`. `formatCost` keeps its
 two-decimal rule at or above one cent, so `formatUsage(41800, "0.0131")` is
 `41.8K, $0.01`. The function's doc comment moves to the comma form with it.
-Every consumer - `TraceGroup` and `ModelBadge` - is re-pinned in the same task.
+Every consumer - `TraceGroup` and the trace summary row - is re-pinned in the
+same task.
 
 ### Task A3: `TaskRow`, and `DataBackgroundTaskStarted` rewired
 
@@ -468,7 +468,6 @@ Green:
   `MessageRenderer.test.tsx` pins its five mappings and the anchor needs it to
   build a row in degraded mode.
 - `coreDataParts.ts`: `data-sub-agent-call` maps to `TraceAnchor`.
-- `ModelBadge.tsx` returns null when `showUsage` is false.
 - `SubAgentCallCard.tsx` is DELETED. `SubAgentCallCard.test.tsx` is rewritten
   as a `TraceGroup` test asserting the same behaviors: the phase label, the
   usage chip, the state dot, and the nested steps. `MessageRenderer.test.tsx`'s
@@ -527,6 +526,10 @@ Green:
 export function Figure(props: {
   title: string | null;
   caption: string | null;
+  numbered?: boolean;
+  figureNumber?: number | null;
+  action?: ReactNode;
+  footer?: ReactNode;
   children: ReactNode;
   testId?: string;
 }): ReactElement;
@@ -535,16 +538,26 @@ export function Figure(props: {
 `Figure` renders:
 
 ```
-<figure data-testid="figure" className="my-6 border-t border-border/60 pt-4">
+<figure data-testid="figure">
   {title  && <figcaption className="mb-2 text-sm font-medium">{title}</figcaption>}
   {children}
   {caption && <div data-testid="figure-caption"
                    className="mt-2 text-xs text-muted-foreground">{caption}</div>}
+  {footer}
 </figure>
 ```
 
-No border, no rounded corner, no card background, no shadow. That class list is
-the contract batch 0 task 0.4 item 5 asserts.
+`footer` holds the readouts and the disclosures, so the caption sits directly
+under the plot and the numbers a reader can skip sit under the caption.
+
+`action` rides the title row, right aligned. `numbered` with a `figureNumber`
+presents the caption the way a paper does: `text-center italic` on top of the
+caption classes, and the text prefixed `Figure N. `. `numbered` without a
+number keeps the plain left caption, which is what a plot gets when the thread
+cannot supply one.
+
+No border, no rounded corner, no card background, no shadow, no rule, no outer
+margin. The empty class list is the contract batch 0 task 0.4 item 5 asserts.
 
 ### The restyle table
 
@@ -555,9 +568,9 @@ numbers.
 
 | renderer | title | caption |
 |---|---|---|
-| `DataEdaAnalysisState` | `analysis.studyDisplayName` | one clause per `entityCounts` entry, `` `${count.toLocaleString()} of ${unfilteredCount.toLocaleString()} ${entityDisplayName}` ``, joined by `", "`, the display name as the wire gives it: `6 of 12 Sample, 34,320 of 68,640 pfal3D7 htseq counts` for the recorded turn |
-| `DataEdaSubsetPreview` | `distribution.variableDisplayName` | the same joined clause over its own `entityCounts`, then `` `, ${numVarValues.toLocaleString()} values` ``: `6 of 12 Sample, 6 values` for the recorded turn |
-| `DataEdaViz` | `effectSizeLabel` | `` `${retainedPoints.toLocaleString()} of ${totalPoints.toLocaleString()} genes retained` `` - `1,543 of 5,511 genes retained` |
+| `DataEdaAnalysisState` | `analysis.studyDisplayName` | one clause per `entityCounts` entry, `` `${count.toLocaleString()} of ${unfilteredCount.toLocaleString()} ${entityDisplayName}` ``, joined by `", "`, the display name as the wire gives it: `6 of 12 Sample, 34,320 of 68,640 pfal3D7 htseq counts` for the recorded turn. Left, unnumbered: a status card is not a figure, and the body states none of these counts a second time |
+| `DataEdaSubsetPreview` | `distribution.variableDisplayName` | `` `${study} - ${counts}, ${numVarValues.toLocaleString()} values.` ``: `Figure 1. Heat shock response in sensitive mutants (LRR5, DHC) - 6 of 12 Sample, 6 values.` for the recorded turn, which carries no model caption. With one, `plotCaptions.ts` leads with it and parenthesizes the facts. Numbered when it carries a distribution. The bin counts, the coverage line and both notes ride the `footer` |
+| `DataEdaViz` | `effectSizeLabel` | `` `${study} - ${retainedPoints.toLocaleString()} of ${totalPoints.toLocaleString()} genes retained.` `` - `Figure 2. Heat shock response in sensitive mutants (LRR5, DHC) - 1,543 of 5,511 genes retained.` With a model caption, that sentence leads and these facts follow in parentheses. Always numbered, and drawn expanded. The selection readout and the gene-id disclosure ride the `footer` |
 | `DataEnrichmentResults` | `Enrichment` | `` `${n} terms, ${genes} genes analyzed` `` |
 | `DataVariantComparison` | `Variants` | `` `${n} variants, ${best} genes in the largest` `` |
 | `DataScoredComparison` | `Scored variants` | `` `${n} variants, winner ${winner} at ${score}` `` |
@@ -577,7 +590,7 @@ they stop being pills.
 `FailureNotice`, `StoppedNotice`, `AssistantThinkingPlaceholder` and
 `SupersededBadge` are NOT figures: they are turn-level notices and keep their
 current placement in `AssistantMessage`. They lose their card chrome in the
-same way - hairline and text, no border - and `SupersededBadge`'s hardcoded
+same way - text alone, no border and no outer margin - and `SupersededBadge`'s hardcoded
 `border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400` at
 line 67 becomes the `--warning` token in THIS task, not in batch 3.
 `LedgerContrasts.tsx` lines 31 and 35 (`text-amber-600`, `text-amber-600/80`)
@@ -612,6 +625,14 @@ The EDA three are the sharp ones, because the frozen suites assert them:
 - `DataEdaAnalysisState` must still expose `data-eda-analysis-state`,
   `data-eda-filter-chip-0` and `data-eda-filter-overflow`, and its
   "Open in EDA tab" button.
+
+The long lists inside those two plots sit behind a native `<details>`, closed
+on first paint: the per-bin `<ul>` under `Bin counts`, and the volcano's gene
+ids under `Gene ids (N)`. The `records have a value` line joins the bin
+disclosure, unless the distribution reports missing cases, in which case it
+stays visible; the multivalued note and the selection readout are always
+visible. Every testid above still resolves, because a closed `<details>` keeps
+its children in the DOM.
 
 Run `npx vitest run --config vitest.acceptance.config.ts` after each of the
 three, not once at the end. The frozen EDA modules are the fastest signal that
@@ -692,7 +713,8 @@ Traps, by name:
     runs.
 11. **The trace open by default after a turn settles.** It must collapse.
 12. **The trace collapsed while running.** A reader must see the work happen.
-13. **A `Figure` with a border.** Assert the class contract on all fourteen.
+13. **A `Figure` with a border or a margin.** Assert the class contract on all
+    fourteen.
 14. **A caption without its numbers.** A caption reading `Subset preview` is a
     label, not a caption. Name any that fail.
 15. **A `.toLocaleString()` missing** on a count over 999. `34,320` and
@@ -773,7 +795,7 @@ For the session lead to close batch 2:
    three figures, one task row and one approval card, and no JSON in the DOM.
 3. `showRawToolCalls` on reveals raw input and output under every row and
    nowhere else; off leaves none in the DOM.
-4. `showTokenUsage` off removes `model-badge` and every `trace-group-usage`;
+4. `showTokenUsage` off removes `trace-usage` and every `trace-group-usage`;
    on restores both. The default stays `true`.
 5. The trace is open while the turn runs and collapsed to `N steps` when it
    settles, with a manual toggle that wins in both directions.

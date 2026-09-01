@@ -66,4 +66,32 @@ describe("the link from a task to what it produced", () => {
     const messages = [{ id: "m1", parts: [completed("t1")] }];
     expect(taskResultHref(messages, "t1", FIGURES)).toBe(null);
   });
+
+  it("ignores the prose the turn wrote before it started the task", () => {
+    const messages = [
+      {
+        id: "m1",
+        parts: [
+          { type: "text", text: "I will run the control tests." },
+          { type: "data-background-task-started", data: { taskId: "t1" } },
+          completed("t1"),
+        ],
+      },
+    ];
+    expect(taskResultHref(messages, "t1", FIGURES)).toBe(null);
+  });
+
+  it("names the completion's own turn for prose written after it", () => {
+    const messages = [
+      {
+        id: "m1",
+        parts: [
+          { type: "text", text: "I will run the control tests." },
+          completed("t1"),
+          { type: "text", text: "Both steps recovered their controls." },
+        ],
+      },
+    ];
+    expect(taskResultHref(messages, "t1", FIGURES)).toBe(`#${messageAnchorId("m1")}`);
+  });
 });

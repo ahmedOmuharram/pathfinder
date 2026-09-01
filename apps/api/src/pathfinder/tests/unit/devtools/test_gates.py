@@ -15,7 +15,7 @@ _CTX = BodyCtx(conversation_id=uuid4(), site_id="vectorbase", mode="strategy")
 
 
 def test_detect_none_when_no_pending() -> None:
-    gate = detect_gate(pending_approval=None, tool_args={}, durable_task=None)
+    gate = detect_gate(pending_approval=None, tool_args={}, durable_tasks=[])
     assert gate.kind == "none"
 
 
@@ -23,7 +23,7 @@ def test_detect_generic_approval() -> None:
     gate = detect_gate(
         pending_approval=("delete_step", "c1"),
         tool_args={},
-        durable_task=None,
+        durable_tasks=[],
     )
     assert gate.kind == "approval"
     assert gate.tool == "delete_step"
@@ -48,7 +48,7 @@ def test_detect_consult_parses_questions() -> None:
                 ]
             }
         },
-        durable_task=None,
+        durable_tasks=[],
     )
     assert gate.kind == "consult"
     assert gate.tool_call_id == "c2"
@@ -61,11 +61,27 @@ def test_detect_durable_task() -> None:
     gate = detect_gate(
         pending_approval=None,
         tool_args={},
-        durable_task=("task-123", "geneset_enrichment"),
+        durable_tasks=[("task-123", "geneset_enrichment")],
     )
     assert gate.kind == "durable"
-    assert gate.task_id == "task-123"
-    assert gate.task_tool == "geneset_enrichment"
+    assert [t.task_id for t in gate.tasks] == ["task-123"]
+    assert [t.task_tool for t in gate.tasks] == ["geneset_enrichment"]
+
+
+def test_detect_names_every_task_one_step_handed_to_the_worker() -> None:
+    gate = detect_gate(
+        pending_approval=None,
+        tool_args={},
+        durable_tasks=[
+            ("task-1", "run_control_tests_on_step"),
+            ("task-2", "run_control_tests_on_step"),
+        ],
+    )
+    assert [t.task_id for t in gate.tasks] == ["task-1", "task-2"]
+    assert gate.message == (
+        "durable tasks running: run_control_tests_on_step (task-1), "
+        "run_control_tests_on_step (task-2)"
+    )
 
 
 def test_approval_body_builds_responded_part() -> None:

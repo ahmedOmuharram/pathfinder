@@ -33,6 +33,14 @@ describe("Reasoning", () => {
     cleanup();
   });
 
+  it("sets no outer margin, so the message container owns the rhythm", () => {
+    const { container } = setup({ isStreaming: false });
+    const root = container.firstElementChild;
+    if (!(root instanceof HTMLElement)) throw new Error("the block drew nothing");
+    const tokens = root.className.split(/\s+/);
+    expect(tokens.filter((token) => /^m[ytb]-/.test(token))).toEqual([]);
+  });
+
   it("shows Shimmer 'Thinking...' while streaming", () => {
     setup({ isStreaming: true });
     expect(screen.getByText("Thinking...")).toBeInTheDocument();

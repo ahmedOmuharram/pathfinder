@@ -1,6 +1,6 @@
 # The assistant runtime wire protocol
 
-**Version 1.5.2.** This document specifies the bytes a client exchanges with an
+**Version 1.5.3.** This document specifies the bytes a client exchanges with an
 assistant built on `assistant_core`. It is written so a consumer in any
 language can implement a client from this page alone, with no reference to the
 JavaScript SDK that inspired the chunk vocabulary. Section 14 records what each
@@ -297,6 +297,15 @@ the one this deployment serves.
 
 `data-task-completed` reports whether the tool produced a result. A resumed
 turn that then fails reports that failure itself, through an `error` chunk.
+
+**One turn may suspend on several tasks.** A model step that calls two durable
+tools writes one `data-background-task-started` per task before its `finish`,
+and the gap then carries each task's progress and outcome as that task reports
+it, in whatever order the tasks finish. The continuation is still one turn, and
+it opens after the LAST of those tasks completed: it answers every call the
+step made, because the run it re-enters owes a result for each of them. A
+client MUST NOT read a `data-task-completed` as the end of the gap, and MUST
+NOT expect the next `start` to follow it.
 
 ### 6.2 A turn suspended on an approval
 
@@ -823,6 +832,7 @@ data: {"type":"done","reason":"completed"}
 
 | Version | What it added |
 | --- | --- |
+| `1.5.3` | Section 6.1 states what a turn suspended on several durable tasks emits: one `data-background-task-started` per task, each task's progress and outcome in the gap in completion order, and one continuation turn after the last outcome. Before this the section read as one task per suspension, so a client could take the first `data-task-completed` for the end of the gap. |
 | `1.5.2` | Section 9 states that `start` opens the message it names and that a reader carries no part across it. Before this the rule was only implied by section 6.1, and a reader that builds one message per connection copied a suspended turn's parts into the continuation turn that follows it in the same tail. |
 | `1.5.1` | Section 6 states how a reader closes a dispatch its turn left open: `cancelled` under `data-turn-stopped`, `failed` under `data-turn-failed`, `superseded` otherwise, and the calls inside a cancelled or failed dispatch are closed with it. Before this a stopped turn's `data-sub-agent-call` stayed `started` for the life of the thread, because nothing the graph writes after a stop reaches the log. |
 | `1.5.0` | A `data-task-progress` `id` may name a lane inside the task (section 6.1), so a fan-out leaves one part per lane instead of one part the lanes overwrite in turn. Section 6.2 states the resume sequence the runtime emits: the resumed turn repeats `tool-input-available` alone, with no second `tool-input-start`, so a client opens a call on the input chunk. |

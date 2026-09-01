@@ -8,12 +8,12 @@ callable returning ``AsyncSession``.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,35 @@ SessionFactory = Callable[[], AsyncSession]
 
 ACTIVE_TASK_STATES = ("pending", "running", "resuming", "result_ready")
 """The statuses of a task the worker has not finished with."""
+
+REPORTED_TASK_STATES = ("result_ready", "resuming", "complete", "failed")
+"""The statuses of a task whose outcome the row already records."""
+
+
+class TaskOutcome(BaseModel):
+    """The outcome one finished ``background_tasks`` row records."""
+
+    model_config = ConfigDict(from_attributes=True, frozen=True)
+
+    id: UUID
+    status: str
+    result: dict[str, Any] = Field(default_factory=dict)
+    error: str = ""
+
+    @field_validator("result", mode="before")
+    @classmethod
+    def _absent_result_is_empty(cls, value: object) -> object:
+        return {} if value is None else value
+
+    @field_validator("error", mode="before")
+    @classmethod
+    def _absent_error_is_empty(cls, value: object) -> object:
+        return "" if value is None else value
+
+    @property
+    def failed(self) -> bool:
+        """Whether the tool reported a failure rather than a result."""
+        return self.status == "failed"
 
 
 class NewBackgroundTask(BaseModel):
@@ -81,6 +110,24 @@ class BackgroundTaskRepository:
                 .where(BackgroundTask.status.in_(ACTIVE_TASK_STATES))
             )
             return list(result.scalars().all())
+
+    async def reported_outcomes(
+        self,
+        *,
+        task_ids: Sequence[UUID],
+    ) -> dict[UUID, TaskOutcome]:
+        """Each named task's outcome, for the tasks that already report one."""
+        if not task_ids:
+            return {}
+        async with self._session_factory() as session:
+            rows = await session.scalars(
+                select(BackgroundTask).where(
+                    BackgroundTask.id.in_(list(task_ids)),
+                    BackgroundTask.status.in_(REPORTED_TASK_STATES),
+                ),
+            )
+            outcomes = [TaskOutcome.model_validate(row) for row in rows]
+        return {outcome.id: outcome for outcome in outcomes}
 
     async def mark_running(self, *, task_id: UUID) -> None:
         await self._set_values(

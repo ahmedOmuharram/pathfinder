@@ -274,10 +274,10 @@ mode, and nothing else gates on them.
   present and unstyled. This is a DOM assertion in the acceptance suite, not a
   styling one.
 - `showTokenUsage` (default `true`, verified in `DEFAULTS` at
-  `useSettingsStore.ts`): `ModelBadge` and the per-group token and cost suffix
-  render only when it is on. The default is `true`, so turning the gate on
-  changes nothing for an existing user; turning the switch off is the new
-  behavior.
+  `useSettingsStore.ts`): the trace summary row's model-and-totals line and the
+  per-group token and cost suffix render only when it is on. The default is
+  `true`, so turning the gate on changes nothing for an existing user; turning
+  the switch off is the new behavior.
 
 Nothing else in the thread reads a settings flag. A third flag is not added.
 
@@ -338,15 +338,38 @@ One token layer, defined once, in `apps/web/src/styles/globals.css`.
 
 A typed science part is a FIGURE in the prose flow, not a card.
 
-- No border, no card background, no shadow, no rounded container. A figure is
-  separated by a hairline rule above it (`border-t border-border/60`) and
-  vertical space (`my-6`), nothing else.
+- No border, no card background, no shadow, no rounded container, and no rule.
+  A figure sets no outer margin either: one container owns the vertical rhythm
+  of the whole thread (`THREAD_BLOCK_GAP` in
+  `lib/components/thread/rhythm.ts`, applied by `MessageContent` between the
+  blocks of a message and by `ConversationContent` between messages), so a
+  figure carries no class at all on its `<figure>` element.
 - One accent per figure, at most. Color carries meaning (retained against
   dropped, pass against fail) or it is absent.
 - A caption line under the figure, `text-xs text-muted-foreground`, carrying
   the numbers: "6 of 12 Sample, 34,320 of 68,640 pfal3D7 htseq counts",
   "1,543 of 5,511 genes retained at |log2FC| >= 1 and p <= 0.05". The numbers
   are the caption; the caption is not a label.
+- **A data plot captions itself like a paper.** The subset histogram and the
+  volcano add `text-center italic` and the prefix `Figure N. `, where N counts
+  the thread's plots in emission order across both kinds, and the caption ends
+  in a period. A status card is not a figure and keeps the plain left caption.
+  A plot the thread cannot number keeps it too.
+- **The model writes what the plot shows; the code writes the numbers.**
+  `preview_eda_subset` and `run_eda_compute` take a `caption` argument that
+  rides the part payload. The rendered caption is
+  `Figure N. <model caption> (<study> - <numbers>).` when the model wrote one
+  and `Figure N. <study> - <numbers>.` when it did not; `plotCaptions.ts` is
+  the one place that shape lives.
+- **The caption sits directly under the plot.** The readouts and the
+  disclosures go BELOW it, through `Figure`'s `footer`, so the DOM order is
+  title, plot, caption, readouts, disclosures.
+- **A long list inside a figure sits behind a native `<details>`, closed.** The
+  per-bin counts and the volcano's gene ids are reference, not reading. The
+  science that changes an interpretation - the multivalued warning, a missing
+  case count, the selection readout - stays visible, under the caption.
+- **The volcano is drawn expanded.** A plot a reader must click to see is a
+  plot they do not read; the collapse control stays for a long thread.
 - **One entity-count format, everywhere.** A caption or a summary that reports
   entity counts writes one clause per entity,
   `` `${count.toLocaleString()} of ${unfilteredCount.toLocaleString()} ${entityDisplayName}` ``,
@@ -383,7 +406,8 @@ data-eda-viz-unsupported-chart, eda-viz-volcano, eda-viz-volcano-selection,
 eda-viz-volcano-genes, eda-viz-volcano-dropped, eda-viz-scatter,
 eda-viz-scatter-count, consult-carousel, consult-slide,
 consult-option-<label>, consult-note, consult-back, consult-next,
-consult-submit, consult-recap, model-badge, superseded-badge, failure-notice,
+consult-submit, consult-recap, consult-recap-pairs, consult-recap-question,
+consult-recap-answer, trace-usage, superseded-badge, failure-notice,
 stopped-notice, assistant-status, eda-viz-scatter-dropped,
 message-composer, message-input, send-button, stop-button, add-attachment,
 ledger-panel
@@ -438,6 +462,14 @@ disagree:
   and its test to the comma form, and this literal is what every document and
   every test pins. A cost at or above one cent renders with two decimals, so
   `formatUsage(41800, "0.0131")` renders `41.8K, $0.01`.
+- Trace summary row usage line, `data-testid="trace-usage"`: the bare model
+  name from the message's `data-lead-usage` part, an ASCII ` - `, then
+  `formatUsage` over the turn's totals. The totals are the Lead's own tokens
+  and cost plus every `data-sub-agent-call` the message carries, which is the
+  sum the wire reports as the turn total. A message whose prose splits its work
+  into several runs prints the line on the last run only. The `data-turn-usage`
+  chunk is transient, so it never reaches a message part and cannot be read
+  here.
 - Row with no summary yet: the humanized tool name alone, from
   `humanizeToolName` in `apps/web/src/lib/utils/toolNames.ts`
 - Row that failed: the humanized name, then the error text, truncated to 120
@@ -455,8 +487,11 @@ disagree:
 - Task row done: `Completed` or `Failed`
 - Figure caption, analysis state:
   `6 of 12 Sample, 34,320 of 68,640 pfal3D7 htseq counts`
-- Figure caption, subset preview: `6 of 12 Sample, 6 values`
-- Figure caption, volcano: `1,543 of 5,511 genes retained`
+- Figure caption, subset preview:
+  `Figure 1. Heat shock response in sensitive mutants (LRR5, DHC) - 6 of 12 Sample, 6 values.`
+- Figure caption, volcano:
+  `Figure 2. Heat shock response in sensitive mutants (LRR5, DHC) - 1,543 of 5,511 genes retained.`
+- Disclosure summaries: `Bin counts`, `Gene ids (1)` for the recorded turn
 
 ## The acceptance layer
 

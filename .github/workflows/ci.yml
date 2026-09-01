@@ -456,6 +456,7 @@ jobs:
       - assistant-client
       - check-knowledge
       - check-wdk-rules
+      - mcp-conformance
       - lint-api
       - build-docs
       - test-api

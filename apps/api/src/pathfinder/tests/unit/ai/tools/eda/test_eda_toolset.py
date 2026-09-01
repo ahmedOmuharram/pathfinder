@@ -52,6 +52,14 @@ def test_no_other_eda_tool_is_sequential() -> None:
     assert sequential == {"run_eda_compute"}
 
 
+def test_both_plot_tools_declare_a_caption_argument() -> None:
+    """The model writes the figure's caption, so the schema must offer it."""
+    tools = _function_toolset(build_toolset()).tools
+    for name in ("preview_eda_subset", "run_eda_compute"):
+        properties = tools[name].function_schema.json_schema["properties"]
+        assert "caption" in properties, name
+
+
 def test_the_lead_agent_carries_the_eda_toolset() -> None:
     agent = build_lead_agent()
     names: set[str] = set()

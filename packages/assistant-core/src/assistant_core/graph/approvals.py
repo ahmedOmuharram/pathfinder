@@ -21,10 +21,11 @@ from pydantic_ai.ui.vercel_ai.request_types import ToolApprovalResponded
 
 from assistant_core.conversation.vercel_adapter import DeferredToolHint
 from assistant_core.graph.turn_state import (
-    DurableDeferral,
+    DurableCall,
     ParkedCall,
     PendingApproval,
     PendingDurableCall,
+    SubAgentApprovalPending,
 )
 
 DENIED_WITHOUT_REASON = "User denied the tool call."
@@ -67,14 +68,18 @@ def parked_durable_call(
     call: ToolCallPart,
     phase: str,
     messages: list[ModelMessage],
-    deferral: DurableDeferral,
+    durable_calls: list[DurableCall],
+    sub_agent: SubAgentApprovalPending | None = None,
 ) -> PendingDurableCall:
-    """One call the worker must answer, with the task that answers it."""
+    """The calls the worker must answer, with the tasks that answer them.
+
+    ``call`` names the run the answer re-enters: one of the durable calls, or
+    the dispatch that holds the sub-agent run they were made in.
+    """
     return PendingDurableCall(
         **parked_fields(call=call, phase=phase, messages=messages),
-        task_id=deferral.task_id,
-        durable_tool_name=deferral.tool_name,
-        sub_agent=deferral.sub_agent,
+        durable_calls=durable_calls,
+        sub_agent=sub_agent,
     )
 
 
@@ -126,11 +131,30 @@ def deferred_hint(parked: ParkedCall) -> DeferredToolHint:
     )
 
 
+def durable_hints(parked: PendingDurableCall) -> list[DeferredToolHint]:
+    """What the resumed stream needs to re-announce every parked durable call.
+
+    A sub-agent's inner calls are rendered by the dispatch that ran them, so
+    the run the Lead re-enters is announced by the dispatch alone.
+    """
+    if parked.sub_agent is not None:
+        return [deferred_hint(parked)]
+    return [
+        DeferredToolHint(
+            tool_call_id=call.tool_call_id,
+            tool_name=call.tool_name,
+            tool_args=dict(call.args),
+        )
+        for call in parked.durable_calls
+    ]
+
+
 __all__ = [
     "DENIED_WITHOUT_REASON",
     "approval_answer",
     "approval_results",
     "deferred_hint",
+    "durable_hints",
     "parked_call",
     "parked_durable_call",
     "parked_fields",

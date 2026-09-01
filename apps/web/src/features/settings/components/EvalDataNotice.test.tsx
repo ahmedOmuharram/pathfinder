@@ -7,6 +7,19 @@ vi.mock("@/features/settings/api/privacy", () => ({
   updatePrivacySettings: vi.fn(),
 }));
 
+const authState = { refreshed: true, signedIn: true };
+
+vi.mock("@/lib/query/hooks/useAuthRefresh", () => ({
+  useAuthRefresh: () => ({ authRefreshed: authState.refreshed }),
+}));
+
+vi.mock("@/lib/api/veupathdb-auth", () => ({
+  authStatusOptions: (siteId: string) => ({
+    queryKey: ["auth", "status", siteId],
+    queryFn: () => ({ signedIn: authState.signedIn }),
+  }),
+}));
+
 import {
   getPrivacySettings,
   updatePrivacySettings,
@@ -19,6 +32,8 @@ const mockedUpdate = vi.mocked(updatePrivacySettings);
 beforeEach(() => {
   mockedGet.mockReset();
   mockedUpdate.mockReset();
+  authState.refreshed = true;
+  authState.signedIn = true;
 });
 
 afterEach(() => {
@@ -92,5 +107,31 @@ describe("EvalDataNotice", () => {
     render(<EvalDataNotice />);
 
     expect(screen.queryByText(/PathFinder improves by learning/i)).toBe(null);
+  });
+});
+
+describe("EvalDataNotice before the session is ready", () => {
+  it("asks nothing while the token refresh has not settled", async () => {
+    authState.refreshed = false;
+    mockedGet.mockResolvedValue({ evalDataConsent: true, noticeSeen: false });
+
+    render(<EvalDataNotice />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/PathFinder improves by learning/i)).toBe(null);
+    });
+    expect(mockedGet).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing for a visitor who is not signed in", async () => {
+    authState.signedIn = false;
+    mockedGet.mockResolvedValue({ evalDataConsent: true, noticeSeen: false });
+
+    render(<EvalDataNotice />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/PathFinder improves by learning/i)).toBe(null);
+    });
+    expect(mockedGet).not.toHaveBeenCalled();
   });
 });

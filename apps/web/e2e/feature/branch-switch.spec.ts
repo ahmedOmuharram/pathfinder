@@ -16,30 +16,13 @@ test.describe("Branch Switch", () => {
     chatPage,
     page,
   }) => {
-    await chatPage.send("show me kinase genes");
-    await chatPage.expectAssistantMessage(/\[mock\]/);
-    await chatPage.expectIdle();
+    await chatPage.sendTurn("show me kinase genes", /\[mock\]/);
 
     const originalId = chatPage.lastStrategyId;
     expect(originalId).toBeTruthy();
 
-    // Branch from the assistant reply into a new chat.
-    const forkResponse = page.waitForResponse(
-      (r) =>
-        /\/api\/v1\/conversations\/[^/]+\/fork$/.test(r.url()) &&
-        r.request().method() === "POST",
-    );
-    const assistantReply = page
-      .locator(".is-assistant")
-      .filter({ hasText: /\[mock\]/ });
-    await assistantReply.hover();
-    await assistantReply
-      .getByRole("button", { name: /branch to a new chat from here/i })
-      .click();
-    await forkResponse;
-    await expect(page).not.toHaveURL(
-      new RegExp(`/conversation/${originalId}(?:$|[?#])`),
-    );
+    const branchId = await chatPage.branchFromAssistantReply(/\[mock\]/);
+    expect(branchId).not.toBe(originalId);
 
     // Switch back to the original conversation — its messages are intact.
     await page.goto(`/veupathdb/conversation/${originalId}`);

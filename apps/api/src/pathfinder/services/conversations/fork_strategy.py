@@ -18,7 +18,6 @@ from pathfinder.persistence.repositories.strategy_revision import (
 from pathfinder.platform.errors import ForkRefusedError
 from pathfinder.services.strategies.materialize import (
     materialize_strategy_snapshot,
-    snapshot_as_plan,
 )
 from pathfinder.services.strategies.revision_ops import revision_at_message
 
@@ -62,19 +61,16 @@ async def write_forked_strategy(
 ) -> None:
     """Push the snapshot as the fork's own WDK strategy and store it."""
     source_strategy = strategy_view_of(strategy_row)
-    materialized = (
-        snapshot_as_plan(
-            snapshot.strategy_ast,
-            record_type=snapshot.record_type,
-            step_count=snapshot.step_count,
-        )
-        if snapshot.wdk_strategy_id is None
-        else await materialize_strategy_snapshot(
-            site_id=source.site_id,
-            conversation_id=new_conversation_id,
-            name=source.name,
-            strategy_ast=snapshot.strategy_ast,
-        )
+    # The snapshot's own WDK id says nothing about whether its tree was ever
+    # pushed: a fork's copied history carries none. Every snapshot with a tree
+    # is pushed, and a WDK refusal leaves the branch holding the plan.
+    materialized = await materialize_strategy_snapshot(
+        site_id=source.site_id,
+        conversation_id=new_conversation_id,
+        name=source.name,
+        strategy_ast=snapshot.strategy_ast,
+        record_type=snapshot.record_type,
+        step_count=snapshot.step_count,
     )
     session.add(
         ConversationStrategy(
@@ -82,8 +78,12 @@ async def write_forked_strategy(
             record_type=materialized.record_type,
             strategy_ast=materialized.strategy_ast,
             step_count=materialized.step_count,
-            gene_set_id=source_strategy.gene_set_id,
-            gene_set_auto_imported=source_strategy.gene_set_auto_imported,
+            # A gene set taken from a strategy is re-synced against whatever
+            # strategy its thread holds, so a branch that inherited the link
+            # would rewrite its source's set. The branch imports its own.
+            gene_set_id=None,
+            gene_set_auto_imported=False,
+            # The experiment is read, never written, so the branch keeps it.
             experiment_id=source_strategy.experiment_id,
             wdk_strategy_id=materialized.wdk_strategy_id,
             # The fork still embeds the imported subtrees, so it keeps

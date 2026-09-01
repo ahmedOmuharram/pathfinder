@@ -267,7 +267,7 @@ async def test_a_compute_export_without_thresholds_raises_a_model_retry(
         await eda_step.create_eda_step(lead_ctx, effect_size_threshold=1.0)
 
     message = str(excinfo.value)
-    assert "significanceThreshold" in message
+    assert "significance_threshold" in message
 
 
 async def test_a_significance_threshold_alone_raises_a_model_retry(
@@ -280,7 +280,7 @@ async def test_a_significance_threshold_alone_raises_a_model_retry(
     with pytest.raises(ModelRetry) as excinfo:
         await eda_step.create_eda_step(lead_ctx, significance_threshold=0.05)
 
-    assert "effectSizeThreshold" in str(excinfo.value)
+    assert "effect_size_threshold" in str(excinfo.value)
 
 
 async def test_a_compute_export_with_no_computation_names_the_compute_tool(

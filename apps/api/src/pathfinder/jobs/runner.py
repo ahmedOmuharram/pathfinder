@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 from contextlib import nullcontext
+from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
 
@@ -44,6 +45,7 @@ from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runtime import build_worker_runtime_context
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
+    TaskOutcome,
 )
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import PhaseOverrides
@@ -53,6 +55,21 @@ from pathfinder.services.conversations.authz import (
 )
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class _CompletionOutcome:
+    """What opening the completion turn did, so the rows can be settled.
+
+    ``answered`` names the tasks the turn delivered whose tools succeeded; a
+    task whose tool failed is already terminal. ``waiting`` marks a run that
+    owes results for calls whose tasks have not reported, so its rows keep
+    their results until the last one arrives.
+    """
+
+    answered: tuple[UUID, ...] = ()
+    waiting: bool = False
+    error: str = ""
 
 
 async def run_durable_task(
@@ -104,10 +121,12 @@ async def _run_durable_task_inner(
         logger.error("durable runner missing impl", tool_name=tool_name)
         await repo.mark_failed(task_id=task_uuid, error=error)
         await _announce_completion(chat_uuid, task_uuid, "failed", error)
-        await _safe_completion_turn(
-            thread_id,
-            DurableTaskResult(task_id=task_uuid, status="failed", error=error),
+        await _answer_and_settle(
+            repo,
+            thread_id=thread_id,
+            result=DurableTaskResult(task_id=task_uuid, status="failed", error=error),
             veupathdb_auth_token=veupathdb_auth_token,
+            fallback=(),
         )
         return
 
@@ -146,26 +165,52 @@ async def _run_durable_task_inner(
         error = str(exc) or exc.__class__.__name__
         await repo.mark_failed(task_id=task_uuid, error=error)
         await _announce_completion(chat_uuid, task_uuid, "failed", error)
-        await _safe_completion_turn(
-            thread_id,
-            DurableTaskResult(task_id=task_uuid, status="failed", error=error),
+        await _answer_and_settle(
+            repo,
+            thread_id=thread_id,
+            result=DurableTaskResult(task_id=task_uuid, status="failed", error=error),
             veupathdb_auth_token=veupathdb_auth_token,
+            fallback=(),
         )
         return
 
     result = _to_dict(payload)
     await repo.mark_result_ready(task_id=task_uuid, result=result)
-    await repo.mark_resuming(task_id=task_uuid)
     await _announce_completion(chat_uuid, task_uuid, "success", None)
-    turn_error = await _safe_completion_turn(
+    await _answer_and_settle(
+        repo,
+        thread_id=thread_id,
+        result=DurableTaskResult(task_id=task_uuid, status="success", result=result),
+        veupathdb_auth_token=veupathdb_auth_token,
+        fallback=(task_uuid,),
+    )
+
+
+async def _answer_and_settle(
+    repo: BackgroundTaskRepository,
+    *,
+    thread_id: str,
+    result: DurableTaskResult,
+    veupathdb_auth_token: str | None,
+    fallback: tuple[UUID, ...],
+) -> None:
+    """Open the completion turn, then close the rows it spoke for.
+
+    ``fallback`` is settled when no parked run answered the task: a task whose
+    own tool failed is already terminal, so the failure paths pass nothing.
+    """
+    outcome = await _safe_completion_turn(
         thread_id,
-        DurableTaskResult(task_id=task_uuid, status="success", result=result),
+        result,
         veupathdb_auth_token=veupathdb_auth_token,
     )
-    if turn_error is None:
-        await repo.mark_complete(task_id=task_uuid)
-    else:
-        await repo.mark_failed(task_id=task_uuid, error=turn_error)
+    if outcome.waiting:
+        return
+    for task_id in outcome.answered or fallback:
+        if outcome.error:
+            await repo.mark_failed(task_id=task_id, error=outcome.error)
+        else:
+            await repo.mark_complete(task_id=task_id)
 
 
 async def _announce_completion(
@@ -205,20 +250,24 @@ def _to_dict(value: Any) -> dict[str, Any]:
     return {"value": value}
 
 
+def _turn_failure(exc: Exception) -> str:
+    """What a failed completion turn writes on ``background_tasks.error``.
+
+    It names the exception class and its message, so the user reads something
+    actionable rather than "something went wrong".
+    """
+    return f"completion turn failed: {exc.__class__.__name__}: {exc}"
+
+
 async def _safe_completion_turn(
     thread_id: str,
     result: DurableTaskResult,
     *,
     veupathdb_auth_token: str | None = None,
-) -> str | None:
-    """Open the completion turn. Returns ``None`` on success or an error string.
-
-    The error string includes the exception class + message so the user sees
-    something actionable on ``background_tasks.error`` rather than
-    "something went wrong".
-    """
+) -> _CompletionOutcome:
+    """Open the completion turn and report what it did."""
     try:
-        await _run_completion_turn(
+        return await _run_completion_turn(
             thread_id=thread_id,
             result=result,
             veupathdb_auth_token=veupathdb_auth_token,
@@ -229,8 +278,7 @@ async def _safe_completion_turn(
             thread_id=thread_id,
             task_id=str(result.task_id),
         )
-        return f"completion turn failed: {exc.__class__.__name__}: {exc}"
-    return None
+        return _CompletionOutcome(error=_turn_failure(exc))
 
 
 def _parked_turn_message_id(snapshot: Any) -> UUID:
@@ -243,12 +291,46 @@ def _parked_turn_message_id(snapshot: Any) -> UUID:
     raise RuntimeError(msg)
 
 
-def _parked_task_id(snapshot: Any) -> UUID | None:
-    """The durable call the thread parked, when it still waits on one."""
+def _parked_durable_call(snapshot: Any) -> PendingDurableCall | None:
+    """The durable calls the thread parked, when it still waits on one."""
     parked = snapshot.values.get("pending_durable_call")
     if parked is None:
         return None
-    return PendingDurableCall.model_validate(parked).task_id
+    return PendingDurableCall.model_validate(parked)
+
+
+def _as_result(outcome: TaskOutcome) -> DurableTaskResult:
+    """One task row's outcome, as the answer a parked call resumes with."""
+    if outcome.failed:
+        return DurableTaskResult(
+            task_id=outcome.id,
+            status="failed",
+            error=outcome.error,
+        )
+    return DurableTaskResult(
+        task_id=outcome.id,
+        status="success",
+        result=outcome.result,
+    )
+
+
+async def _gathered_answers(
+    repo: BackgroundTaskRepository,
+    parked: PendingDurableCall,
+    result: DurableTaskResult,
+) -> list[DurableTaskResult] | None:
+    """Every parked task's answer, or ``None`` while one has not reported.
+
+    One model step can hand several calls to the worker, and pydantic-ai needs
+    a result for each call of the response the run re-enters, so the turn opens
+    only once the last task reports.
+    """
+    reported = await repo.reported_outcomes(task_ids=parked.task_ids)
+    answers = {task_id: _as_result(found) for task_id, found in reported.items()}
+    answers[result.task_id] = result
+    if any(task_id not in answers for task_id in parked.task_ids):
+        return None
+    return [answers[task_id] for task_id in parked.task_ids]
 
 
 async def _completion_body(
@@ -280,13 +362,13 @@ async def _run_completion_turn(
     thread_id: str,
     result: DurableTaskResult,
     veupathdb_auth_token: str | None = None,
-) -> None:
-    """Open a new turn that answers the durable call the thread parked.
+) -> _CompletionOutcome:
+    """Open a new turn that answers the durable calls the thread parked.
 
-    The turn carries the tool's result into the run that deferred it, so
-    nothing before the call runs a second time. It writes through
+    The turn carries every parked task's result into the run that deferred
+    them, so nothing before the calls runs a second time. It writes through
     :class:`ChatEventWriter` under the parked turn's message id, so the
-    answer patches the tool part the suspending turn left behind.
+    answers patch the tool parts the suspending turn left behind.
     """
     settings = get_settings()
     registry = get_assistant_registry()
@@ -294,7 +376,7 @@ async def _run_completion_turn(
     assistant_id = await conversation_assistant_id(conversation_id)
     if assistant_id is None:
         logger.info("no conversation to answer", thread_id=thread_id)
-        return
+        return _CompletionOutcome()
     spec = resolve_assistant(registry, assistant_id)
     async with (
         attach_wdk_auth(veupathdb_auth_token),
@@ -308,17 +390,28 @@ async def _run_completion_turn(
         graph = spec.build_graph(saver)
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         snapshot = await graph.aget_state(config)
-        if _parked_task_id(snapshot) != result.task_id:
+        parked = _parked_durable_call(snapshot)
+        if parked is None or not parked.owns(result.task_id):
             logger.info(
                 "no parked durable call to answer",
                 thread_id=thread_id,
                 task_id=str(result.task_id),
             )
-            return
+            return _CompletionOutcome()
+        repo = BackgroundTaskRepository(session_factory=async_session_factory)
+        answers = await _gathered_answers(repo, parked, result)
+        if answers is None:
+            logger.info(
+                "durable calls still running; the turn waits for the last one",
+                thread_id=thread_id,
+                task_id=str(result.task_id),
+                parked=len(parked.durable_calls),
+            )
+            return _CompletionOutcome(waiting=True)
         user_id = await conversation_owner_id(conversation_id)
         if user_id is None:
             logger.info("no owner to answer as", thread_id=thread_id)
-            return
+            return _CompletionOutcome()
         writer = ChatEventWriter(
             conversation_id=conversation_id,
             turn_id=_parked_turn_message_id(snapshot),
@@ -327,15 +420,30 @@ async def _run_completion_turn(
             conversation_id=conversation_id,
             task_id=result.task_id,
         )
-        async with attach_user_id(user_id):
-            await run_turn(
-                request=TurnRequest(
-                    body=body,
-                    user_id=user_id,
-                    durable_result=result,
-                ),
-                spec=spec,
-                compiled_graph=graph,
-                memory_store=store,
-                writer=writer,
+        delivered = tuple(
+            answer.task_id for answer in answers if answer.status == "success"
+        )
+        for task_id in delivered:
+            await repo.mark_resuming(task_id=task_id)
+        try:
+            async with attach_user_id(user_id):
+                await run_turn(
+                    request=TurnRequest(
+                        body=body,
+                        user_id=user_id,
+                        durable_result=result,
+                        durable_results=tuple(answers),
+                    ),
+                    spec=spec,
+                    compiled_graph=graph,
+                    memory_store=store,
+                    writer=writer,
+                )
+        except Exception as exc:  # every answered row still has to be closed
+            logger.exception(
+                "durable completion turn failed",
+                thread_id=thread_id,
+                task_id=str(result.task_id),
             )
+            return _CompletionOutcome(answered=delivered, error=_turn_failure(exc))
+    return _CompletionOutcome(answered=delivered)

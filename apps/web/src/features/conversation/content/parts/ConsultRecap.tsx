@@ -2,37 +2,41 @@
 
 import { HelpCircle } from "lucide-react";
 
-import type { ConsultRecap } from "./consultData";
+import type { ConsultAnswerView, ConsultRecap } from "./consultData";
+
+function answerText(answer: ConsultAnswerView | undefined): string {
+  if (answer === undefined) return "-";
+  if (answer.chosenLabels.length === 0) return answer.note === "" ? "-" : answer.note;
+  const chosen = answer.chosenLabels.join(", ");
+  return answer.note === "" ? chosen : `${chosen} (${answer.note})`;
+}
 
 export function ConsultRecapView({ recap }: { recap: ConsultRecap }) {
   const answerByQuestion = new Map(recap.answers.map((a) => [a.questionId, a]));
   return (
     <div
       data-testid="consult-recap"
-      className="my-2 space-y-2 rounded-lg border border-border bg-card/60 p-2"
+      className="space-y-2 rounded-lg border border-border bg-card/60 p-2"
     >
       <div className="flex items-center gap-2 px-1 text-sm font-medium">
         <HelpCircle className="size-4 text-muted-foreground" aria-hidden />
-        Questions you answered
+        Your answers
       </div>
-      <ul className="space-y-1.5 rounded-md border border-border bg-background/60 p-2.5 text-xs">
-        {recap.questions.map((q) => {
-          const a = answerByQuestion.get(q.id);
-          const chosen =
-            a && a.chosenLabels.length > 0 ? a.chosenLabels.join(", ") : a?.note;
-          return (
-            <li key={q.id} className="leading-snug">
-              <span className="font-medium text-foreground">{q.prompt}</span>
-              <span className="mx-1 text-muted-foreground">-&gt;</span>
-              <span className="text-foreground">
-                {chosen !== undefined && chosen !== "" ? chosen : "-"}
-              </span>
-              {a !== undefined && a.note !== "" && a.chosenLabels.length > 0 && (
-                <span className="text-muted-foreground"> ({a.note})</span>
-              )}
-            </li>
-          );
-        })}
+      <ul
+        data-testid="consult-recap-pairs"
+        className="space-y-3 rounded-md border border-border bg-background/60 p-2.5 text-xs"
+      >
+        {recap.questions.map((q) => (
+          <li key={q.id} className="space-y-1 leading-snug">
+            <p data-testid="consult-recap-question" className="text-foreground">
+              <span className="font-medium text-muted-foreground">Q:</span> {q.prompt}
+            </p>
+            <p data-testid="consult-recap-answer" className="text-foreground">
+              <span className="font-medium text-muted-foreground">A:</span>{" "}
+              {answerText(answerByQuestion.get(q.id))}
+            </p>
+          </li>
+        ))}
       </ul>
     </div>
   );

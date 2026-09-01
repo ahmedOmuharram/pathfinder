@@ -34,6 +34,13 @@ class GateConsultQuestion(CamelModel):
     options: list[GateOption] = Field(default_factory=list)
 
 
+class GateDurableTask(CamelModel):
+    """One worker task a suspended turn waits on."""
+
+    task_id: str
+    task_tool: str
+
+
 class Gate(CamelModel):
     """The single pending interaction a turn is blocked on — the CLI's mirror
     of whatever the UI would render (approval card, consult carousel, or a
@@ -43,8 +50,7 @@ class Gate(CamelModel):
     tool: str | None = None
     tool_call_id: str | None = None
     consult_questions: list[GateConsultQuestion] = Field(default_factory=list)
-    task_id: str | None = None
-    task_tool: str | None = None
+    tasks: list[GateDurableTask] = Field(default_factory=list)
     message: str = ""
 
 
@@ -52,17 +58,20 @@ def detect_gate(
     *,
     pending_approval: tuple[str, str] | None,
     tool_args: dict[str, dict[str, Any]],
-    durable_task: tuple[str, str] | None,
+    durable_tasks: list[tuple[str, str]],
 ) -> Gate:
     """Classify the pending interaction from captured turn state."""
 
-    if durable_task is not None:
-        task_id, task_tool = durable_task
+    if durable_tasks:
+        tasks = [
+            GateDurableTask(task_id=task_id, task_tool=task_tool)
+            for task_id, task_tool in durable_tasks
+        ]
+        running = ", ".join(f"{t.task_tool} ({t.task_id})" for t in tasks)
         return Gate(
             kind="durable",
-            task_id=task_id,
-            task_tool=task_tool,
-            message=f"durable task running: {task_tool} ({task_id})",
+            tasks=tasks,
+            message=f"durable tasks running: {running}",
         )
     if pending_approval is None:
         return Gate(kind="none", message="turn complete")

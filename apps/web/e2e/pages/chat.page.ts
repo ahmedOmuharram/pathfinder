@@ -2,6 +2,15 @@ import { type Locator, type Page, expect } from "@playwright/test";
 
 import { waitForConversationRoute } from "./navigation";
 
+/**
+ * Wall clock one mock turn needs end to end.
+ *
+ * A turn runs in the worker, so the budget covers the turn itself plus the
+ * time it waits for a free worker slot behind other turns. Measured turns run
+ * 4 s to 40 s; one queued behind a build waits minutes.
+ */
+const TURN_BUDGET_MS = 240_000;
+
 export class ChatPage {
   readonly composer: Locator;
   readonly messageInput: Locator;
@@ -96,6 +105,20 @@ export class ChatPage {
     await expect(this.assistantMessages).toHaveCount(0, { timeout: 10_000 });
   }
 
+  /** Send `message`, then wait until the reply matching `pattern` is on the
+   *  thread and the composer accepts input again. */
+  async sendTurn(message: string, pattern: RegExp) {
+    await this.send(message);
+    await this.awaitTurn(pattern);
+  }
+
+  /** Wait out a turn the app started on its own, such as the edit a revert
+   *  re-sends, on the same budget a sent turn gets. */
+  async awaitTurn(pattern: RegExp) {
+    await this.expectAssistantMessage(pattern, { timeout: TURN_BUDGET_MS });
+    await this.expectIdle(TURN_BUDGET_MS);
+  }
+
   async send(message: string) {
     await expect(async () => {
       await this.messageInput.fill(message);
@@ -114,6 +137,87 @@ export class ChatPage {
 
   get userMessages(): Locator {
     return this.page.locator(".is-user");
+  }
+
+  // ── Thread surgery: branching and reverting ─────────────────────
+
+  /** The one assistant reply that matches `pattern`. */
+  assistantReply(pattern: RegExp): Locator {
+    return this.assistantMessages.filter({ hasText: pattern });
+  }
+
+  /** The one user message that carries `text`. */
+  userMessage(text: string): Locator {
+    return this.userMessages.filter({ hasText: text });
+  }
+
+  /**
+   * Branch into a new chat from the assistant reply matching `pattern`, and
+   * return the id the router lands on. The fork response is read so a refused
+   * branch fails here rather than as a missing message later.
+   */
+  async branchFromAssistantReply(pattern: RegExp): Promise<string> {
+    const reply = this.assistantReply(pattern);
+    await expect(reply).toHaveCount(1, { timeout: 30_000 });
+    const forkResponse = this.page.waitForResponse(
+      (r) =>
+        /\/api\/v1\/conversations\/[^/]+\/fork$/.test(r.url()) &&
+        r.request().method() === "POST",
+    );
+    await reply.hover();
+    await reply
+      .getByRole("button", { name: /branch to a new chat from here/i })
+      .click();
+    const fork = await forkResponse;
+    if (!fork.ok()) {
+      throw new Error(`fork refused: ${fork.status()} ${await fork.text()}`);
+    }
+    const { id } = (await fork.json()) as { id: string };
+    await waitForConversationRoute(this.page, id);
+    return id;
+  }
+
+  /** The edit composer of the message being edited. One is open at a time. */
+  get editComposer(): Locator {
+    return this.page.getByTestId("user-edit-composer");
+  }
+
+  /** The branch-or-revert dialog's inline error line. */
+  get editDialogError(): Locator {
+    return this.page.getByTestId("edit-dialog-error");
+  }
+
+  /**
+   * Open the edit composer on the user message carrying `text`, replace the
+   * text with `replacement`, and open the branch-or-revert dialog.
+   *
+   * The dialog is offered only on a message that is not the thread's last, so
+   * an earlier turn is the only valid target.
+   */
+  async openEditDialog(text: string, replacement: string) {
+    const message = this.userMessage(text);
+    await expect(message).toHaveCount(1, { timeout: 30_000 });
+    await message.hover();
+    await message.getByRole("button", { name: "Edit" }).click();
+    const input = this.editComposer.getByRole("textbox");
+    await expect(input).toBeVisible({ timeout: 15_000 });
+    await input.fill(replacement);
+    await this.page.getByTestId("edit-composer-branch-or-revert").click();
+    await expect(this.page.getByTestId("edit-revert-button")).toBeEnabled({
+      timeout: 10_000,
+    });
+  }
+
+  /** Confirm Revert in the open branch-or-revert dialog. */
+  async confirmRevert() {
+    const revert = this.page.getByTestId("edit-revert-button");
+    const revertResponse = this.page.waitForResponse(
+      (r) =>
+        /\/api\/v1\/conversations\/[^/]+\/revert-to-message$/.test(r.url()) &&
+        r.request().method() === "POST",
+    );
+    await revert.click();
+    return revertResponse;
   }
 
   // ── Assertions ──────────────────────────────────────────────────

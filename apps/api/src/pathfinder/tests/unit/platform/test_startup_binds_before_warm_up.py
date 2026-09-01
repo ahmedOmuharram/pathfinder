@@ -9,6 +9,7 @@ readiness report, so its own death has to reach the same report.
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -52,6 +53,7 @@ def isolated_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
         await asyncio.Event().wait()
 
     monkeypatch.setattr(main, "init_db", _init_db)
+    monkeypatch.setattr(main, "setup_logging", lambda: None)
     monkeypatch.setattr(main, "setup_observability", lambda **_kwargs: None)
     monkeypatch.setattr(main, "shutdown_observability", lambda: None)
     monkeypatch.setattr(main, "get_engine", lambda: None)
@@ -92,6 +94,25 @@ async def test_startup_returns_while_warm_up_still_runs(
         await finished.wait()
 
     assert finished.is_set()
+
+
+async def test_the_lifespan_leaves_the_process_s_logging_alone(
+    isolated_lifespan: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The suite shares one process, so a run must add no root log handler."""
+    del isolated_lifespan
+
+    async def _no_warm_up() -> None:
+        return None
+
+    monkeypatch.setattr(main, "_warm_up_subsystems", _no_warm_up)
+    before = list(logging.getLogger().handlers)
+
+    app = FastAPI()
+    async with main.lifespan(app):
+        pass
+
+    assert logging.getLogger().handlers == before
 
 
 async def test_the_blocking_model_load_leaves_the_event_loop_free(

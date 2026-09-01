@@ -12,8 +12,10 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from assistant_core.graph import approvals
-from assistant_core.graph.durable import durable_call_id, durable_tool_return
+from assistant_core.graph.durable import durable_tool_results
 from assistant_core.graph.turn_state import (
+    DurableCall,
+    DurableDeferral,
     ParkedCall,
     PendingApproval,
     PendingDurableCall,
@@ -27,6 +29,7 @@ from assistant_core.memory.retrieval import retrieve_relevant_memories
 from assistant_core.memory.store import MemoryStore, StoredMemory
 from assistant_core.platform.logging import get_logger
 from langgraph.runtime import Runtime
+from pydantic import JsonValue
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import (
     ModelMessage,
@@ -34,6 +37,7 @@ from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
     RetryPromptPart,
+    ToolCallPart,
     ToolReturnPart,
 )
 from pydantic_ai.tools import (
@@ -49,7 +53,11 @@ from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.dispatch_resume import SubAgentOutcome, resume_sub_agent
 from pathfinder.ai.lead.memory_candidates import PRODUCT_MEMORY_KINDS
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait, SubAgentResume
-from pathfinder.ai.lead.sub_agent_tools import WIRE_PHASE_BY_ROLE, LeadDeps
+from pathfinder.ai.lead.sub_agent_tools import (
+    WIRE_PHASE_BY_ROLE,
+    LeadDeps,
+    SubAgentDurablePark,
+)
 
 logger = get_logger(__name__)
 
@@ -141,15 +149,63 @@ def pending_approval(
     return own.model_copy(update={"user_message_id": user_message_id})
 
 
-class ConcurrentDurableCallsError(RuntimeError):
-    """One Lead response handed two durable calls to the worker."""
+class ConcurrentDurableDispatchError(RuntimeError):
+    """Two sub-agent dispatches in one Lead response both parked durable calls."""
 
     def __init__(self, tool_call_ids: list[str]) -> None:
         super().__init__(
-            "Two durable calls deferred in one response "
-            f"({', '.join(tool_call_ids)}). One parked call is checkpointed "
-            "per turn, so the second would never be answered.",
+            "Two sub-agent dispatches deferred durable calls in one response "
+            f"({', '.join(tool_call_ids)}). One suspended run is checkpointed "
+            "per turn, so the second would be re-run rather than resumed.",
         )
+
+
+def _durable_call(
+    *,
+    tool_call_id: str,
+    tool_name: str,
+    args: dict[str, JsonValue],
+    deferral: DurableDeferral,
+) -> DurableCall:
+    return DurableCall(
+        tool_call_id=tool_call_id,
+        tool_name=tool_name,
+        args=args,
+        task_id=deferral.task_id,
+        durable_tool_name=deferral.tool_name,
+    )
+
+
+def _inner_durable_calls(
+    pending: SubAgentApprovalPending,
+    deferrals: dict[str, DurableDeferral],
+) -> list[DurableCall]:
+    """The calls a sub-agent parked, each bound to the task that answers it."""
+    return [
+        _durable_call(
+            tool_call_id=inner.tool_call_id,
+            tool_name=inner.tool_name,
+            args=inner.args,
+            deferral=deferrals[inner.tool_call_id],
+        )
+        for inner in pending.approvals
+    ]
+
+
+def _parked_dispatch(
+    *,
+    call: ToolCallPart,
+    park: SubAgentDurablePark,
+    messages: list[ModelMessage],
+) -> PendingDurableCall:
+    """The dispatch that holds a sub-agent run parked on durable calls."""
+    return approvals.parked_durable_call(
+        call=call,
+        phase=WIRE_PHASE_BY_ROLE[park.pending.role],
+        messages=messages,
+        durable_calls=_inner_durable_calls(park.pending, park.deferrals),
+        sub_agent=park.pending,
+    )
 
 
 def pending_durable_call(
@@ -158,30 +214,42 @@ def pending_durable_call(
     deps: LeadDeps,
     messages: list[ModelMessage],
 ) -> PendingDurableCall | None:
-    """The durable call a deferred Lead run waits on the worker for.
+    """The durable calls a deferred Lead run waits on the worker for.
 
-    It outranks an approval in the same response: the task is already running,
-    and an unapproved Lead tool is re-collected by pydantic-ai on the next run.
+    They outrank an approval in the same response: their tasks are already
+    running, and an unapproved Lead tool is re-collected by pydantic-ai on the
+    next run. A dispatch outranks the Lead's own calls, because only the
+    dispatch holds a suspended sub-agent run.
     """
-    deferred = [
-        call for call in output.calls if call.tool_call_id in deps.durable_deferrals
+    dispatches = [
+        call
+        for call in output.calls
+        if call.tool_call_id in deps.pending_sub_agent_durables
     ]
-    if not deferred:
+    if len(dispatches) > 1:
+        raise ConcurrentDurableDispatchError([c.tool_call_id for c in dispatches])
+    if dispatches:
+        return _parked_dispatch(
+            call=dispatches[0],
+            park=deps.pending_sub_agent_durables[dispatches[0].tool_call_id],
+            messages=messages,
+        )
+    own = [call for call in output.calls if call.tool_call_id in deps.durable_deferrals]
+    if not own:
         return None
-    if len(deferred) > 1:
-        raise ConcurrentDurableCallsError([c.tool_call_id for c in deferred])
-    call = deferred[0]
-    deferral = deps.durable_deferrals[call.tool_call_id]
-    phase = (
-        "lead"
-        if deferral.sub_agent is None
-        else WIRE_PHASE_BY_ROLE[deferral.sub_agent.role]
-    )
     return approvals.parked_durable_call(
-        call=call,
-        phase=phase,
+        call=own[0],
+        phase="lead",
         messages=messages,
-        deferral=deferral,
+        durable_calls=[
+            _durable_call(
+                tool_call_id=call.tool_call_id,
+                tool_name=call.tool_name,
+                args=call.args_as_dict(),
+                deferral=deps.durable_deferrals[call.tool_call_id],
+            )
+            for call in own
+        ],
     )
 
 
@@ -290,28 +358,23 @@ def _unanswered_inner(
 def _reparked(
     parked: PendingDurableCall,
     *,
-    sub_agent: SubAgentApprovalPending,
-    task_id: UUID | None,
-    durable_tool_name: str | None,
+    wait: SubAgentApprovalWait,
     user_message_id: UUID | None,
 ) -> TurnResumption:
-    """Park the same dispatch again on the call the resumed sub-agent reached."""
-    fields = parked.model_dump(
-        exclude={"task_id", "durable_tool_name", "sub_agent"},
-    )
-    if task_id is not None and durable_tool_name is not None:
+    """Park the same dispatch again on the calls the resumed sub-agent reached."""
+    fields = parked.model_dump(exclude={"durable_calls", "sub_agent"})
+    if wait.durable:
         return TurnResumption(
             still_durable=PendingDurableCall(
                 **fields,
-                task_id=task_id,
-                durable_tool_name=durable_tool_name,
-                sub_agent=sub_agent,
+                durable_calls=_inner_durable_calls(wait.pending, wait.durable),
+                sub_agent=wait.pending,
             ),
         )
     return TurnResumption(
         still_pending=PendingApproval(
             **fields,
-            sub_agent=sub_agent,
+            sub_agent=wait.pending,
             user_message_id=user_message_id,
         ),
     )
@@ -322,23 +385,22 @@ async def _resume_durable_call(
     state: PipelineState,
     deps: LeadDeps,
 ) -> TurnResumption | None:
-    """Turn the worker's result into the results the Lead resumes with.
+    """Turn the workers' results into the results the Lead resumes with.
 
-    A durable call inside a sub-agent is answered inside that sub-agent
-    first; its finished delta then becomes the Lead's deferred tool result.
+    A step that parked several durable calls resumes once, when the last task
+    reports; an earlier arrival leaves the run waiting. Durable calls inside a
+    sub-agent are answered inside that sub-agent first; its finished delta then
+    becomes the Lead's deferred tool result.
     """
-    parked = state.answered_durable_call
-    result = state.durable_result
-    if parked is None or result is None:
+    if not state.carries_durable_answer:
         return None
-    answered = durable_tool_return(parked, result)
+    parked = state.answered_durable_call
+    if parked is None:
+        return TurnResumption(still_durable=state.pending_durable_call)
+    answered = durable_tool_results(parked, state.durable_answers)
     sub_agent = parked.sub_agent
     if sub_agent is None:
-        return TurnResumption(
-            parked=parked,
-            results=DeferredToolResults(calls={parked.tool_call_id: answered}),
-        )
-    inner_call_id = durable_call_id(parked)
+        return TurnResumption(parked=parked, results=answered)
     outcome: SubAgentOutcome | ModelRetry
     try:
         outcome = await resume_sub_agent(
@@ -348,7 +410,7 @@ async def _resume_durable_call(
                 messages=ModelMessagesTypeAdapter.validate_json(
                     sub_agent.messages_json
                 ),
-                results=DeferredToolResults(calls={inner_call_id: answered}),
+                results=answered,
             ),
         )
     except ModelRetry as retry:
@@ -356,11 +418,7 @@ async def _resume_durable_call(
     if isinstance(outcome, SubAgentApprovalWait):
         return _reparked(
             parked,
-            sub_agent=outcome.pending,
-            task_id=None if outcome.durable is None else outcome.durable.task_id,
-            durable_tool_name=(
-                None if outcome.durable is None else outcome.durable.tool_name
-            ),
+            wait=outcome,
             user_message_id=state.user_message_id,
         )
     return TurnResumption(

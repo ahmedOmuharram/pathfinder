@@ -2,6 +2,293 @@
 
 ## 2026-08-31
 
+* **The lead closed the fork/revert program.** The journey's turn 4 now
+  asserts the build refusal it really gets (it had passed over a verification
+  that never ran), a `build-refusal` spec pins the refusal end to end with a
+  byte-equal AST, and the full affected e2e set - thread surgery, auto-build,
+  execution phase, strategy overhaul, fork, branch switch, complex edit, the
+  drug-targets journey - ran 39 of 39 green with no retries on the production
+  e2e stack carrying the revert-materializes and binding-history contracts.
+  The backlog is empty.
+
+* **A revert materializes what it restores, and the EDA binding follows the
+  thread's own log.** The last two invariants the case matrix filed rather
+  than fixed are closed.
+
+  A revert restored a snapshot by writing it back verbatim, so a revert inside
+  a branch left a plan: `copy_prefix` writes a branch's snapshots with no WDK
+  id, and the twig that had held a strategy id and four step ids of its own
+  came out of the revert with `wdk_strategy_id = None` and no step ids at all.
+  The revert path now adopts the snapshot through the same
+  `materialize_strategy_snapshot` a branch uses, so the tree is pushed again
+  and the thread owns the ids WDK answers with: the deleted turns may have
+  edited the steps the snapshot names, so a fresh push is the only honest
+  answer on an unbranched thread too. That makes a revert a WDK write, and
+  `POST /conversations/{id}/revert-to-message` now carries the same
+  `require_registered_wdk_identity` the branch route declares. A stopped turn
+  still restores its pre-turn snapshot as recorded, because it is undoing
+  writes made against those same steps.
+
+  Neither branch nor revert read `conversation_analyses`, so a branch of a
+  thread with a study open showed the study's turns and no study, and a revert
+  past the turn that opened a study kept the study. The binding has no history
+  of its own and cannot grow one from a row that is replaced in place, but the
+  thread's log already records every binding state: a
+  `data-eda.analysis-state` part carries the dataset, the analysis, the display
+  name and the whole filter array, and the log is cut by a revert and copied by
+  a branch. `services/eda/thread_surgery.py` reads the newest surviving part
+  and puts the binding where it says: a branch creates an analysis of its own
+  from the recorded descriptor, and a revert unbinds, refilters or rebinds in
+  the four cases the invariants doc tabulates. Measured while deciding the
+  rebind rule: nothing in the application calls the analyses client's
+  `DELETE`, so a rebind normally finds the recorded document still on the
+  service and only a `404` makes it create one. The EDA tab's own route emits
+  no part, so a revert reads before the cut whether the log ever recorded a
+  binding and unbinds only when it did, the same shape the strategy uses for a
+  thread that predates the revision store. A refusal from the study service is
+  logged and swallowed on both paths, because a document nobody can reach must
+  not cost the user a branch or a revert.
+
+* **The mock Lead now reads `build_strategy`'s refusal.** The deterministic
+  script's build arc was a fixed `classify -> frame -> build -> verify ->
+  final_result` list, so a second build on a thread that already had a strategy
+  marched past the refusal and answered "Verified end-to-end." over an
+  unchanged strategy: the one lane where a spec can watch a refusal reach the
+  user could not tell a refused build from a built one. The arc now branches on
+  the refusal it was given: `retry_prompt_parts` in the scripted-model
+  machinery hands the script the `RetryPromptPart` a tool raised, the way
+  `tool_return_parts` hands it the returns. A refused build ends the turn
+  after `build_strategy` with prose that names `edit_strategy` and says nothing
+  was built. A unit pin asserts the mock's marker is a substring of the real
+  `build_would_replace_the_strategy` message, so the two cannot drift.
+
+* **check:generated can fail now.** The generated tree is untracked (the
+  repository index holds only the three hand-written shared-ts sources), so
+  the script's exit-code diff of `src/generated` compared nothing against
+  nothing and the CI job passed unconditionally. The honest invariant for
+  untracked output is that the committed spec generates types that compile:
+  the script is now `kubb && tsc --noEmit`. Drift between the app and the
+  committed spec stays gated by the api lint job's openapi check, and every
+  CI web job already regenerates the types from source (`setup-web`).
+
+* **Branch and revert have a written case matrix, and holding it to the matrix
+  found four defects.** `conventions/thread-surgery-invariants.md` states nine
+  branch invariants and seven revert invariants as one testable sentence each,
+  every sentence naming the test that goes red when it stops holding. Writing
+  the tests first turned four sentences red.
+
+  A copied log row was stamped with the moment of the branch while its message
+  kept its source time, so the first revert inside a branch deleted every chunk
+  of the turns it kept: the branch held its messages and rendered them empty.
+  Copied notes had the same stamp and were also copied whole, so a branch held
+  notes about work it never did. Both copies now keep their source's time, and
+  the notes are cut at the anchor like the log.
+
+  A branch of a branch opened on a plan with no WDK strategy, because the push
+  was decided by the snapshot row's own WDK id and a branch's copied history
+  carries none. The decision now reads the tree: every snapshot that holds one
+  is pushed, and a WDK refusal still leaves the branch holding the plan. The
+  conditional went with it.
+
+  A branch inherited its source's `gene_set_id` while owning a new WDK
+  strategy, so the branch's first build called `resync_strategy` on the
+  parent's saved gene set and replaced its membership. The branch now starts
+  unlinked and imports a set of its own; `experiment_id`, which is read and
+  never written, still carries.
+
+  Two gaps are filed rather than patched, both because the fix moves a contract:
+  a revert inside a branch restores a plan (pushing would need the revert
+  route's identity contract, which the fork route has and it does not), and
+  thread surgery does not touch the EDA binding (the binding has no history to
+  read, and `bind` leaves `created_at` at the first bind).
+
+  The model-history cases are measured rather than argued: a scripted model
+  records the messages each run is handed, and a turn on the branched or
+  reverted thread must show the pre-anchor tool call and not the post-anchor
+  one. Both go red when the checkpoint cutoff is removed.
+
+* **Branching and reverting are driven in the browser, eight journeys wide.**
+  `e2e/feature/thread-surgery/` runs real turns through the deterministic mock
+  and asserts the surfaces a researcher reads: a branch taken at the first turn
+  holds exactly the pre-anchor turns; a branch of a branch carries message ids
+  no ancestor shares and reverts on its own; a turn on a branch answers from the
+  Ledger it inherited and adds no sub-agent run; a branch taken at an old
+  message carries that message's organism and a WDK strategy of its own; a
+  revert truncates in place and puts the organism back; the reverted thread
+  carries on and the deleted turns stay gone after a reload; a second revert to
+  an already-deleted message is answered 204 and the dialog shows no error; and a
+  branch of a thread with a study open opens an analysis of its own while the
+  parent keeps its subset.
+
+  Three harness additions carry them: `ChatPage.branchFromAssistantReply` reads
+  the fork response for the id it navigates to (the route already named a
+  conversation, so waiting for the pattern returned the id it was leaving),
+  `openEditDialog`/`confirmRevert` drive the branch-or-revert dialog on a
+  `user-edit-composer` testid, and `sendTurn`/`awaitTurn` give every turn one
+  budget that covers its wait for a free worker slot. The script gained one arc:
+  a recall request reads a Ledger section and answers with it, dispatching no
+  sub-agent, which is what makes "the model sees the branch's history" a
+  measurable claim - the Lead's run is handed no prior-turn messages at all, so
+  the Ledger is the only thing a branch can inherit.
+
+* **The lead closed the multi-durable follow-ups.** CLAUDE.md's durable
+  paragraph now states the durable_calls list and the last-arrival gate; the
+  frozen durable acceptance reads `task_ids` and the scalar compat property
+  is gone; the serialize-spec allowlist names the state card's change digest
+  (a comparison key, not an analysis document).
+
+* **A model step that calls two durable tools is answered once, for both
+  calls.** The park recorded one durable call of the step, so a run that owed
+  results for two tasks was resumed with one and pydantic-ai refused the
+  turn: `Tool call results need to be provided for all deferred tool calls`.
+  `PendingDurableCall` now carries a `durable_calls` list (call id, tool, args,
+  task, registered tool name), `_park_run` and `pending_durable_call` record
+  every deferred call of the step, and `durable_tool_results` answers each one
+  with its own task's result. The worker stores each result on its row and
+  opens the completion turn only when the last task of the parked step has
+  reported; earlier arrivals write their `data-task-completed` and stop, and
+  the turn settles every row it answered. `2026_08_31_0001` flushes the
+  checkpoints, PROTOCOL 1.5.3 states the several-task gap, and the thread's
+  "View result" link now names only content written after the outcome.
+
+* **The model captions its own plots, and the caption sits under the
+  figure.** `EdaSubsetPreviewPart` and `EdaVizPart` gained `caption`, written
+  by `preview_eda_subset` and `run_eda_compute` (the compute's rides the
+  durable job's args to `_announce_volcano`) and asked for by the Lead's EDA
+  loop. A part that carries one renders `Figure N. <caption> (<study> -
+  <numbers>).`; a part without one keeps `Figure N. <study> - <numbers>.`, so
+  the recorded acceptance turn's captions are unchanged. `Figure` gained
+  `footer`, and both plots moved their readouts and disclosures into it, so
+  the order is title, plot, caption, readouts, disclosures. The volcano draws
+  expanded, with the collapse control kept.
+
+* **The Lead searches for itself.** `web_search` and `literature_search`
+  were registered only in the FRAME and VERIFY toolsets, so the assistant
+  could ground a claim only by dispatching a sub-agent. Both are now Lead
+  tools (the same thin `agent_deps_for` wrapping `clear_strategy` uses),
+  never hidden by the intent gate, pinned in `test_lead_research_tools.py`
+  and the seam's tool list.
+
+* **The rail's active section is a no-op.** Clicking the Chat icon while a
+  conversation was open navigated to the bare draft route and dropped the
+  thread; a section link whose section is already active now prevents the
+  navigation, for all three rail items, pinned in `AppNavRail.test.tsx`.
+
+* **The gene-id disclosure copies its list.** A copy icon beside the
+  "Gene ids (N)" summary writes every selected id to the clipboard as a
+  comma-separated list - all of them, not the twelve the readout prints -
+  without toggling the disclosure, and flips to a check while it confirms.
+
+* **The lead closed the paper-figures pass.** The frozen figures acceptance
+  now pins the numbered captions verbatim, and the subset preview's body lost
+  its entity list - the same self-repetition the state card lost, satisfied
+  by the caption alone (both previously-cited pins read the caption's text).
+
+* **The data plots caption themselves like a paper, and their long lists sit
+  behind a disclosure.** The subset histogram and the volcano now carry a
+  centered, italic caption prefixed `Figure N.`, numbered across both plot
+  kinds in thread order by a client-side reader (`figureNumbers.ts`, beside
+  `analysisStateParts.ts`); `Figure` gained `numbered` and `figureNumber`, and
+  a plot the thread cannot number keeps the plain left caption. The recorded
+  acceptance turn reads `Figure 1. Heat shock response in sensitive mutants
+  (LRR5, DHC) - 6 of 12 Sample, 6 values.` and `Figure 2. ... - 1,543 of 5,511
+  genes retained.` The 28 per-bin lines and the volcano's gene ids moved into
+  native `<details>` (`Bin counts`, `Gene ids (N)`), closed on first paint; the
+  coverage line joins them unless the distribution reports missing cases, and
+  the multivalued warning and the selection readout stay visible. The study
+  card stopped restating its own caption: its body is the analysis name, the
+  filter chips and the computation count, and the entity counts appear once.
+
+* **One study card per analysis, and the plots name their study.** The
+  thread now keeps only the NEWEST analysis-state card for an analysis; an
+  older statement yields to it on replay and live (reader rule in
+  `analysisStateParts.ts`). The "Open study" button rides the title row
+  (`Figure` gained an `action` slot) instead of its own line. The subset
+  histogram and the volcano caption themselves with the study's display
+  name, read off the thread's own state parts, so a plot keeps its context
+  when the card above it has moved on.
+
+* **The subset histogram has a plot area again.** The chat card drew its
+  distribution at 72px while the chart's grid reserves 64px for axes, so the
+  bars lived in 8 pixels. The height is 220, matching the collapsed volcano,
+  and a pin holds it at 160 or more.
+
+* **The model pill is gone; the turn's numbers ride the trace.** The badge at
+  the top of an assistant message read `OpenAI - gpt-5.6-luna - 41.8K, $0.01`,
+  which was the Lead's own spend and never the turn's, so the one number a
+  reader saw was the wrong one. `ModelBadge` is deleted. The trace's summary
+  row now carries a right-aligned `trace-usage` line, still behind the
+  `showTokenUsage` flag: the bare model name from `data-lead-usage`, then
+  `formatUsage` over the Lead's tokens and cost plus every
+  `data-sub-agent-call` the message carries - the sum the wire reports as the
+  turn total. The recorded acceptance turn reads `gpt-5.6-luna - 54.1K, $0.02`
+  where the pill read `41.8K, $0.01`. `data-turn-usage` could not be the
+  source: the chunk is transient, so neither the AI SDK nor `reduceSnapshot`
+  ever puts it on a message part. The consult recap is headed "Your answers"
+  and lays each pair out as `Q:` then `A:`, one block gap apart.
+
+* **The thread has one vertical rhythm and no rules.** Spacing between a
+  message's blocks, between messages, and between fan-out lanes is the one
+  `THREAD_BLOCK_GAP` token on the flex containers; the cards' outer margins
+  and the figure hairline are gone, with a source-reading guard
+  (`threadRhythm.test.ts`) that fails on any `my-*` or `border-t`/`border-b`
+  returning to thread content. The frozen figures acceptance now pins a
+  classless figure. The vendored `MessageToolbar`/`MessageAttachment(s)`
+  exports nothing rendered are deleted.
+
+* **One paragraph rhythm in the thread, and no dividers.** Blocks inside a
+  message and the messages themselves were spaced by eight different values -
+  `gap-8` between messages, `gap-2` between a message's blocks, and `my-2`,
+  `my-3`, `my-4` and `my-6` on the trace, the task rows, the consult cards,
+  the notices and every figure - so a figure sat 24 px from its neighbour and
+  a task row 8 px from its. One owner now holds the vertical rhythm:
+  `THREAD_BLOCK_GAP` in `lib/components/thread/rhythm.ts`, applied by
+  `MessageContent` between a message's blocks and by `ConversationContent`
+  between messages. Every block in the thread sets no outer vertical margin,
+  and `Figure` lost the `border-t border-border/60` rule that separated one
+  typed result from the next. `threadRhythm.test.ts` reads the thread's own
+  sources and fails on any `my-*` or any `border-t`/`border-b` under
+  `features/conversation/content/` and `lib/components/thread/`, so neither
+  can come back. Structural chrome outside the message flow - the composer's
+  top border, the rail and the trace's indent rail - is unchanged.
+
+* **The study card repeats only when it changed, and the strategy update is
+  a titled card.** Every `open_eda_analysis` and `set_eda_filters` call put
+  the full analysis-state card on the thread, and the state's `revision`
+  bumps on every mutation, so a user saw the same "No filters yet, 12 of 12
+  Sample" block three times in one arc. The tools now emit the card only when
+  it would read differently (`analysis_state_chunks_if_changed`, a digest on
+  the pipeline state that leaves out `revision` and the raw `filters`), and
+  the chunk carries the analysis id so repeats inside one message reconcile.
+  A compute's completion still announces its own state (it changed). The
+  `data-graph-snapshot` figure rendered a bare "1 step, 1,543 genes" line
+  with no title; it now reads "Strategy updated" above the counts.
+
+* **Three findings from the user's first session on the finished build.**
+  Opening the site logged `getPrivacySettings: 401`: the eval-data notice
+  fired its privacy read in the same render that starts the token refresh,
+  so the read raced the cookie mint; the query now waits for the refresh to
+  settle and for a signed-in status, and an unauthenticated visitor is never
+  asked. The turn trace opened and closed by itself as work started and
+  settled: its expanded state now belongs to the reader - open when it mounts
+  mid-run, closed when it mounts settled, and after that only the toggle
+  moves it. The consult card ("Questions you answered") rendered at the end
+  of the message rather than in the flow: `tool-consult_user` now renders its
+  card where the part sits, through the same registry every other part uses,
+  and nothing else is appended after a message's parts except the turn-status
+  notices.
+
+* **A tool's prose names its parameters as the schema spells them.** The
+  final live arc carried one `tool-input-error`: `create_eda_step` refused
+  `effectSizeThreshold`, `significanceThreshold` and `effectDirection` as
+  extra fields - names the tool's own docstring and retry messages had
+  taught, in camelCase, while the schema declares snake_case. The prose now
+  uses the declared names, and a pin asserts the module contains no camel
+  form of them and that the docstring names all three declared parameters.
+  The lead ruled the single self-corrected retry within tolerance once this
+  guard landed: the error never reached the user, and the arc ended verified
+  at 1,543 with the prose quoting the digest.
+
 * **Insert-saved dropped an edit committed while it read WDK, and spliced the
   saved strategy onto itself when the target step was the root.**
   `POST /conversations/{id}/insert-saved` read the stored AST, read and cloned
@@ -195,6 +482,56 @@
   text where the renderer wants reST, which truncate in the tool reference,
   and the Kani-era prose in `overview.rst` and `ai_functions.rst`, which carry
   no target for the new gate to reach.
+
+* **The backend coverage gate was red on two tests that pass on their own,
+  because a devtools library call routed the whole process's logs to stderr.**
+  `uv run pytest --cov=src --cov-fail-under=40 -q` reported
+  `2 failed, 4542 passed` on `test_memory_deadline.py::test_retrieval_degrades_to_no_memories`
+  and `test_worker_heartbeat.py::test_a_wide_gap_is_reported`, both
+  `assert '...' in ''` on `capsys.readouterr().out` with the warning text under
+  "Captured stderr call"; the unit-only run was green, because the integration
+  tier collects first. `devtools/chat.py::drive_run` and `run_respond` called
+  `structlog.configure(logger_factory=PrintLoggerFactory(file=sys.stderr))`, so
+  every integration test that drives a run left the process logging to the
+  stderr object of that test. Routing the framework's logs is the command
+  line's job: the call is now `route_framework_logs_to_stderr`, made once in
+  `chat.main()` and once in `evals.main()`, and
+  `test_run_once_leaves_the_global_logger_config_alone` compares
+  `structlog.get_config()` across a driven run. The suite also restores the
+  configuration around every test (`tests/conftest.py::_restored_logger_config`),
+  and `tests/unit/test_global_logger_config_does_not_leak.py` reconfigures
+  structlog in one test and reads the logger on stdout in the next. The second
+  half of the same leak was the stdlib side: the app lifespan calls
+  `setup_logging`, which appended a root handler bound to the stdout of the test
+  that ran it - five root handlers after one run, and a later test's
+  `capsys.readouterr().out` came back empty for `logging` output too. The
+  lifespan test's `isolated_lifespan` fixture now patches `setup_logging` like
+  every other dependency it isolates, and
+  `test_the_lifespan_leaves_the_process_s_logging_alone` compares
+  `logging.getLogger().handlers` across a lifespan run.
+
+* **A misclassified imperative turned into a refusal with a false excuse, and
+  two paid turns produced nothing.** "Yes, rerun the differential expression ...
+  and then create the strategy step ..." and "Please run the differential
+  expression now ... add the resulting genes ... as a step in my strategy." were
+  both classified `follow_up_question`, so `intent_gate.hide_building_tools`
+  removed the nine building tools and the Lead answered that "the analysis
+  controls ... are not available in this turn. Please retry this request.";
+  only a third message, classified `extend_strategy`, built. Two layers changed.
+  `classify_user_intent` now states that an imperative to run, rerun, build, add
+  or create - a bare "yes, do it" that accepts the assistant's own offer, and a
+  retry after a failed task - is a building classification and never a
+  `follow_up_question`. The Lead's rules now answer a missing building tool with
+  `classify_user_intent` again as the FIRST action, and forbid both the
+  unavailable-tool sentence and asking the user to retry. The gate was measured,
+  not assumed: `test_a_corrected_classification_unhides_the_building_tools`
+  drives a run whose first classification is `follow_up_question` and whose
+  second is `extend_strategy`, and the step after the correction carries
+  `build_strategy` and `edit_strategy`, because `PrepareTools` runs on every
+  model step and reads `LeadDeps` live. The corpus case
+  `an-assent-to-build-builds` is the counterpart of `question-turns-do-not-build`:
+  an offer context, then the measured assent, and a persisted `GenesByTaxon`
+  strategy. 8/8 cases pass under the deterministic provider.
 
 ## 2026-08-30
 

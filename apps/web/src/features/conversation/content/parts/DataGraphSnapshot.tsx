@@ -8,7 +8,7 @@ export function DataGraphSnapshot({ data }: { data: GraphSnapshot }) {
   return (
     <Figure
       testId="data-graph-snapshot"
-      title={null}
+      title="Strategy updated"
       caption={`${stepCount.toLocaleString()} ${stepLabel}, ${data.geneCount.toLocaleString()} genes`}
     >
       {null}

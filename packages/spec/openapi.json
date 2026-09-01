@@ -12652,6 +12652,12 @@
               }
             ],
             "title": "Distributionnote"
+          },
+          "caption": {
+            "type": "string",
+            "title": "Caption",
+            "description": "One sentence the model wrote about the plot. Empty when it wrote none, and the figure is then captioned from the numbers alone.",
+            "default": ""
           }
         },
         "type": "object",
@@ -12924,6 +12930,12 @@
             },
             "type": "array",
             "title": "Points"
+          },
+          "caption": {
+            "type": "string",
+            "title": "Caption",
+            "description": "One sentence the model wrote about the plot. Empty when it wrote none, and the figure is then captioned from the numbers alone.",
+            "default": ""
           }
         },
         "type": "object",

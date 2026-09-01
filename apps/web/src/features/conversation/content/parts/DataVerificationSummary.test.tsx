@@ -27,18 +27,13 @@ describe("DataVerificationSummary figure", () => {
     expect(screen.getByText("Verification").tagName).toBe("FIGCAPTION");
   });
 
-  it("separates itself with a hairline, never with a card", () => {
+  it("draws no divider, no card and no outer margin", () => {
     render(
       <DataVerificationSummary
         data={{ passed: true, summary: "All checks passed", checks: [] }}
       />,
     );
-    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
+    expect(screen.getByTestId("figure").className).toBe("");
     expect(screen.getByTestId("data-verification-summary").className).not.toMatch(
       /\bborder\b|\brounded-md\b/,
     );

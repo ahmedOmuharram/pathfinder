@@ -18,11 +18,11 @@ from pathfinder.devtools.chat import (
     _body_ctx,
     _gate_from_checkpoint,
     _optional_wdk_token,
-    _route_framework_logs_to_stderr,
     _wdk_token,
     _worker_payload,
     parse_respond_args,
     parse_run_args,
+    route_framework_logs_to_stderr,
     run_once,
     run_respond,
 )
@@ -104,7 +104,7 @@ async def test_a_mocked_run_with_credentials_logs_in(
 def test_route_framework_logs_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
     structlog.reset_defaults()
     try:
-        _route_framework_logs_to_stderr()
+        route_framework_logs_to_stderr()
         structlog.get_logger("pathfinder.devtools.test").info("framework chatter X")
         out = capsys.readouterr()
         assert "framework chatter X" in out.err
@@ -279,6 +279,29 @@ async def test_run_once_mock_writes_artifacts_and_exits_clean(tmp_path: Path) ->
     summary = json.loads((run_dir / "summary.json").read_text())
     assert summary["status"] == "ok"
     assert (run_dir / "diagnosis.json").exists()
+
+
+@pytest.mark.usefixtures("patch_app_db_engine", "db_cleaner")
+async def test_run_once_leaves_the_global_logger_config_alone(tmp_path: Path) -> None:
+    """Only the command line routes framework logs; a driven run does not."""
+    before = structlog.get_config()
+    args = parse_run_args(
+        [
+            "delegation",
+            "--site",
+            "plasmodb",
+            "--mock",
+            "--approve",
+            "auto",
+            "--quiet",
+            "--run-dir",
+            str(tmp_path / "run"),
+        ]
+    )
+
+    await run_once(args)
+
+    assert structlog.get_config() == before
 
 
 @pytest.mark.usefixtures("patch_app_db_engine", "db_cleaner")

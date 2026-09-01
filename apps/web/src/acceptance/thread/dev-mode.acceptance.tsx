@@ -54,14 +54,16 @@ describe.skipIf(devModeModule === null)("the thread's dev mode", () => {
 
   it("hides the model badge and every group usage when showTokenUsage is off", () => {
     const view = renderTurn(RECORDED_CHUNKS, { showRaw: false, showUsage: false });
-    expect(view.queryByTestId("model-badge")).toBe(null);
+    expect(view.queryAllByTestId("trace-usage")).toHaveLength(0);
     expect(view.queryAllByTestId("trace-group-usage")).toHaveLength(0);
     expect(view.getAllByTestId("trace-row")).toHaveLength(7);
   });
 
   it("shows both again on the default, which is showTokenUsage on", () => {
     const view = renderTurn(RECORDED_CHUNKS, { showRaw: false, showUsage: true });
-    expect(view.getByTestId("model-badge")).toHaveTextContent("41.8K, $0.01");
+    expect(view.getByTestId("trace-usage")).toHaveTextContent(
+      "gpt-5.6-luna - 54.1K, $0.02",
+    );
     expect(view.getAllByTestId("trace-group-usage")).toHaveLength(1);
   });
 });

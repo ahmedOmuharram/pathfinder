@@ -165,6 +165,36 @@ async def test_the_deferred_job_carries_the_arguments_the_impl_needs(
     assert kwargs["comparator_variable"] == {"entity_id": "P", "variable_id": "C"}
 
 
+async def test_the_deferred_job_carries_the_caption_the_model_wrote(
+    lead_ctx: RunContext[LeadDeps],
+    dispatch: tuple[list[dict[str, Any]], list[dict[str, Any]]],
+) -> None:
+    """The worker draws the volcano, so the caption travels with the args."""
+    created, _deferred = dispatch
+
+    with pytest.raises(CallDeferred):
+        await eda_compute.run_eda_compute(
+            lead_ctx,
+            identifier_variable=EdaVariableSpecIn(
+                entity_id="E",
+                variable_id="VEUPATHDB_GENE_ID",
+            ),
+            value_variable=EdaVariableSpecIn(
+                entity_id="E",
+                variable_id="SEQUENCE_READ_COUNT",
+            ),
+            comparator_variable=EdaVariableSpecIn(entity_id="P", variable_id="C"),
+            group_a_labels=["normal"],
+            group_b_labels=["febrile"],
+            caption="Genes higher in febrile samples than in normal samples",
+        )
+
+    kwargs = created[0]["args"]["kwargs"]
+    assert kwargs["caption"] == (
+        "Genes higher in febrile samples than in normal samples"
+    )
+
+
 async def test_the_estimated_duration_is_declared(
     lead_ctx: RunContext[LeadDeps],
     dispatch: tuple[list[dict[str, Any]], list[dict[str, Any]]],

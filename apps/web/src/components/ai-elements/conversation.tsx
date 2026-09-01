@@ -5,6 +5,7 @@ import { ArrowDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
 import { Button } from "@/components/ui/button";
+import { THREAD_BLOCK_GAP } from "@/lib/components/thread/rhythm";
 import { cn } from "@/lib/utils/cn";
 
 export type ConversationProps = ComponentProps<typeof ThreadPrimitive.Viewport>;
@@ -28,7 +29,7 @@ export const ConversationContent = ({
   className,
   ...props
 }: ConversationContentProps) => (
-  <div className={cn("flex flex-col gap-8 p-4", className)} {...props} />
+  <div className={cn("flex flex-col p-4", THREAD_BLOCK_GAP, className)} {...props} />
 );
 
 export type ConversationScrollButtonProps = ComponentProps<typeof Button>;

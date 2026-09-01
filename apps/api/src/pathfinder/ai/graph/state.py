@@ -119,6 +119,9 @@ class StrategyDomainState(BaseModel):
     created_gene_set_ids: list[str] = Field(default_factory=list)
     # Studies already sent a full EDA filter sheet, with their vocabularies.
     sheeted_eda_datasets: set[str] = Field(default_factory=set)
+    # The analysis-state card the thread last showed, as its JSON. A tool
+    # emits the card again only when the state differs from this.
+    eda_state_digest: str | None = None
     # Every requirement the thread has stated, oldest first. A clarification
     # adds to this list; nothing but a fresh request on an empty thread clears it.
     requirements: list[Constraint] = Field(default_factory=list)

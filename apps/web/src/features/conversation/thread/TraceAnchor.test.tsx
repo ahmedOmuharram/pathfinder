@@ -82,6 +82,34 @@ function openDispatch(): MessagePart[] {
   ];
 }
 
+const LEAD_USAGE: MessagePart = {
+  type: "data-lead-usage",
+  id: "lu_1",
+  data: { modelId: "openai:gpt-5.6-luna", tokens: 41800, costUsd: "0.0131" },
+} as MessagePart;
+
+/** Two stretches of work with the Lead's prose between them. */
+function twoRuns(): MessagePart[] {
+  return [
+    {
+      type: "tool-search_eda_studies",
+      toolCallId: "call_a",
+      state: "output-available",
+      input: {},
+      output: {},
+    },
+    { type: "text", text: "Here is what I found." },
+    {
+      type: "tool-set_criterion",
+      toolCallId: "call_b",
+      state: "output-available",
+      input: {},
+      output: {},
+    },
+    LEAD_USAGE,
+  ] as MessagePart[];
+}
+
 function stoppedDispatch(): MessagePart[] {
   return [...openDispatch(), { type: "data-turn-stopped", data: {} }];
 }
@@ -154,6 +182,53 @@ describe("TraceAnchor", () => {
     expect(view.getByTestId("approval-card-title")).toHaveTextContent(
       "Optimize parameters needs your approval before it runs.",
     );
+  });
+
+  it("prints the turn's model with the whole turn's tokens and cost", () => {
+    const view = anchorFor("call_1", "search_eda_studies");
+    expect(view.getByTestId("trace-usage")).toHaveTextContent(
+      "gpt-5.6-luna - 54.1K, $0.02",
+    );
+  });
+
+  it("prints the turn's usage once, on the last run of the message", () => {
+    const first = anchorFor("call_a", "search_eda_studies", twoRuns());
+    expect(first.queryAllByTestId("trace-usage")).toHaveLength(0);
+    expect(first.getAllByTestId("trace-row")).toHaveLength(1);
+    first.unmount();
+
+    const last = anchorFor("call_b", "set_criterion", twoRuns());
+    expect(last.getByTestId("trace-usage")).toHaveTextContent(
+      "gpt-5.6-luna - 41.8K, $0.01",
+    );
+  });
+
+  it("prints no usage line when the dev flag is off", () => {
+    useSettingsStore.setState({ showRawToolCalls: false, showTokenUsage: false });
+    const view = render(
+      <ChatHelpersProvider value={chatWith(turnParts())}>
+        <TraceAnchor
+          toolName="search_eda_studies"
+          toolCallId="call_1"
+          args={{}}
+          result={undefined}
+          status={{ type: "complete" }}
+        />
+      </ChatHelpersProvider>,
+    );
+    expect(view.queryAllByTestId("trace-usage")).toHaveLength(0);
+    expect(view.getAllByTestId("trace-row")).toHaveLength(7);
+  });
+
+  it("prints no usage line for a message that carries no lead usage", () => {
+    useSettingsStore.setState({ showRawToolCalls: false, showTokenUsage: true });
+    const view = render(
+      <ChatHelpersProvider value={chatWith(openDispatch())}>
+        <SubAgentTraceAnchor data={DISPATCH} />
+      </ChatHelpersProvider>,
+    );
+    expect(view.queryAllByTestId("trace-usage")).toHaveLength(0);
+    expect(view.getAllByTestId("trace-row")).toHaveLength(1);
   });
 
   it("names no figure, no notice and no task among its rows", () => {

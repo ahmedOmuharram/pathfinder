@@ -74,6 +74,14 @@ class EdaSubsetPreviewPart(CamelModel):
     entity_counts: list[EdaEntityCount]
     distribution: EdaDistributionSeries | None
     distribution_note: str | None
+    caption: str = Field(
+        default="",
+        description=(
+            "One sentence the model wrote about the plot. Empty when it "
+            "wrote none, and the figure is then captioned from the numbers "
+            "alone."
+        ),
+    )
 
 
 EdaEffectDirection = Literal["upOnly", "downOnly", "upAndDown"]
@@ -102,3 +110,11 @@ class EdaVizPart(CamelModel):
     total_points: int = Field(ge=0)
     retained_points: int = Field(ge=0)
     points: list[EdaVolcanoPoint]
+    caption: str = Field(
+        default="",
+        description=(
+            "One sentence the model wrote about the plot. Empty when it "
+            "wrote none, and the figure is then captioned from the numbers "
+            "alone."
+        ),
+    )

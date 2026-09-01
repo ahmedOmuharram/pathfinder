@@ -195,3 +195,72 @@ def test_a_context_statement_turn_answers_in_prose() -> None:
 
     assert isinstance(result.output, LeadResponse)
     assert result.output.prose == _PROSE
+
+
+def _reclassifying_model(prompt: str, seen: _Seen) -> FunctionModel:
+    """A turn that classifies a build as a question, then corrects itself."""
+
+    def _fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        del messages
+        seen.steps.append(frozenset(t.name for t in info.function_tools))
+        step = len(seen.steps)
+        if step == 1:
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="classify_user_intent",
+                        args=_classify_args(
+                            prompt,
+                            IntentClassification.FOLLOW_UP_QUESTION,
+                        ),
+                        tool_call_id="call_first",
+                    ),
+                ],
+            )
+        if step == 2:
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="classify_user_intent",
+                        args=_classify_args(
+                            prompt,
+                            IntentClassification.EXTEND_STRATEGY,
+                        ),
+                        tool_call_id="call_second",
+                    ),
+                ],
+            )
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    tool_name="final_result",
+                    args={"prose": _PROSE, "nextState": "await_user"},
+                    tool_call_id="call_final",
+                ),
+            ],
+        )
+
+    return FunctionModel(_fn, model_name="scripted")
+
+
+def test_a_corrected_classification_unhides_the_building_tools() -> None:
+    """A misclassified build degrades to one wasted step, not to a refusal."""
+    prompt = (
+        "Yes, rerun the differential expression and then create the strategy "
+        "step from the genes that pass."
+    )
+    seen = _Seen()
+    agent = build_lead_agent()
+    result = asyncio.run(
+        agent.run(
+            prompt,
+            deps=_deps(prompt),
+            model=_reclassifying_model(prompt, seen),
+        ),
+    )
+
+    assert isinstance(result.output, LeadResponse)
+    assert len(seen.steps) == 3
+    assert not (seen.steps[1] & BUILDING_TOOLS)
+    assert seen.steps[2] >= BUILDING_TOOLS
+    assert {"build_strategy", "edit_strategy"} <= seen.steps[2]

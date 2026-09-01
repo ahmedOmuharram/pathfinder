@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
@@ -143,10 +143,9 @@ async function revertSecondTurn(): Promise<void> {
   await user.click(editButtons[editButtons.length - 1]!);
 
   const saveButton = await screen.findByTestId("edit-composer-branch-or-revert");
-  const input = screen
-    .getAllByRole("textbox")
-    .find((el) => !el.hasAttribute("placeholder"));
-  if (input === undefined) throw new Error("no edit composer input");
+  const input = within(await screen.findByTestId("user-edit-composer")).getByRole(
+    "textbox",
+  );
   await user.clear(input);
   await user.type(input, "revised question");
 
@@ -203,6 +202,33 @@ describe("revert truncates the client thread", () => {
     });
     expect(screen.getByTestId("edit-revert-button")).toBeEnabled();
     expect(screen.getByTestId("edit-branch-button")).toBeEnabled();
+    expect(screen.getByText("second answer")).toBeInTheDocument();
+    expect(stubs.calls).toEqual(["snapshot", "revert"]);
+  });
+
+  it("shows the login refusal when revert 401s without a VEuPathDB session", async () => {
+    const stubs: RevertStubs = {
+      calls: [],
+      revertStatus: 401,
+      revertBody: {
+        type: "/errors/WDK_LOGIN_REQUIRED",
+        title: "VEuPathDB login required",
+        status: 401,
+        detail: "Sign in to VEuPathDB to use searches, strategies and gene sets.",
+        code: "WDK_LOGIN_REQUIRED",
+      },
+    };
+    installHandlers(stubs);
+    renderChat();
+
+    await revertSecondTurn();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-dialog-error")).toHaveTextContent(
+        "Sign in to VEuPathDB to use searches, strategies and gene sets.",
+      );
+    });
+    expect(screen.getByTestId("edit-revert-button")).toBeEnabled();
     expect(screen.getByText("second answer")).toBeInTheDocument();
     expect(stubs.calls).toEqual(["snapshot", "revert"]);
   });

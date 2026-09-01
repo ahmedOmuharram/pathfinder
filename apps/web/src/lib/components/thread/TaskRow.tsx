@@ -50,7 +50,7 @@ export function TaskRow({
   const pct = Math.round((percent ?? 0) * 100);
   const running = outcome === "running";
   return (
-    <div data-testid="task-row" className="my-3">
+    <div data-testid="task-row">
       <div className="flex h-8 items-center gap-2">
         <Badge outcome={outcome} pct={pct} />
         <span className="truncate text-[13px] text-foreground">{label}</span>

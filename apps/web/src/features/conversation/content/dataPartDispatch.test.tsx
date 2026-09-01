@@ -195,7 +195,9 @@ describe("message dispatch", () => {
     );
     const card = screen.getByTestId("data-eda-analysis-state");
     // The study name titles the figure, outside the part's own body.
-    expect(screen.getByText("Rodent malaria phenotypes").tagName).toBe("FIGCAPTION");
+    expect(
+      screen.getByText("Rodent malaria phenotypes").closest("figcaption"),
+    ).not.toBeNull();
     expect(card).toHaveTextContent("berghei subset");
     expect(card).toHaveTextContent("2 computations");
     expect(screen.getByTestId("data-eda-filter-chip-0")).toHaveTextContent(
@@ -318,7 +320,7 @@ describe("message dispatch", () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
-  it("prints the lead's usage on the badge, and hides it when the flag is off", () => {
+  it("puts no model, token or cost pill above the message", () => {
     const usage = [
       {
         type: "data-lead-usage" as const,
@@ -326,14 +328,10 @@ describe("message dispatch", () => {
       },
     ];
     useSettingsStore.setState({ showTokenUsage: true });
-    const shown = render(<Thread content={usage} />);
-    expect(shown.getByTestId("model-badge")).toHaveTextContent("41.8K, $0.01");
-    shown.unmount();
-
-    useSettingsStore.setState({ showTokenUsage: false });
-    const hidden = render(<Thread content={usage} />);
-    expect(hidden.queryByTestId("model-badge")).toBeNull();
-    useSettingsStore.setState({ showTokenUsage: true });
+    const view = render(<Thread content={usage} />);
+    expect(view.queryAllByTestId("model-badge")).toHaveLength(0);
+    expect(view.container.textContent).not.toContain("gpt-5.6-luna");
+    expect(view.container.textContent).not.toContain("41.8K");
   });
 
   it("falls back and reports when the kind has no renderer", () => {

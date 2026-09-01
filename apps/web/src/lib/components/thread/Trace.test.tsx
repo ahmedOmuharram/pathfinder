@@ -49,10 +49,14 @@ function run(patch: Partial<TraceRunView>): TraceRunView {
   };
 }
 
-function draw(view: TraceRunView, showUsage = false) {
-  return render(
-    <Trace run={view} showRaw={false} showUsage={showUsage} nameFor={(name) => name} />,
+function element(view: TraceRunView, showUsage = false) {
+  return (
+    <Trace run={view} showRaw={false} showUsage={showUsage} nameFor={(name) => name} />
   );
+}
+
+function draw(view: TraceRunView, showUsage = false) {
+  return render(element(view, showUsage));
 }
 
 /** The collapsing grid, which carries no testid of its own. */
@@ -76,6 +80,11 @@ function rowsOf(count: number): TraceRowView[] {
 }
 
 describe("Trace", () => {
+  it("sets no outer margin, so the message container owns the rhythm", () => {
+    const view = draw(run({}));
+    expect(view.getByTestId("turn-trace").className).toBe("");
+  });
+
   it("counts one step in the singular", () => {
     draw(run({ groups: [group({ rows: rowsOf(1) })] }));
     expect(screen.getByTestId("turn-trace-summary")).toHaveTextContent("1 step");
@@ -135,13 +144,30 @@ describe("Trace", () => {
     expect(within(trace).getAllByTestId("trace-row")).toHaveLength(1);
   });
 
-  it("opens itself while the run is going and closes once it settles", () => {
+  it("starts open mid-run and closed when it mounts settled", () => {
     const open = draw(run({ running: true }));
     expect(rowsBox(open).style.gridTemplateRows).toBe("1fr");
     open.unmount();
 
     const settled = draw(run({ running: false }));
     expect(rowsBox(settled).style.gridTemplateRows).toBe("0fr");
+  });
+
+  it("stays open when the run settles under it", () => {
+    const view = draw(run({ running: true }));
+    expect(rowsBox(view).style.gridTemplateRows).toBe("1fr");
+
+    view.rerender(element(run({ running: false })));
+    expect(rowsBox(view).style.gridTemplateRows).toBe("1fr");
+  });
+
+  it("stays closed by the reader even when a new run starts", () => {
+    const view = draw(run({ running: true }));
+    fireEvent.click(view.getByTestId("turn-trace-toggle"));
+    expect(rowsBox(view).style.gridTemplateRows).toBe("0fr");
+
+    view.rerender(element(run({ running: true, rowCount: 3 })));
+    expect(rowsBox(view).style.gridTemplateRows).toBe("0fr");
   });
 
   it("lets the reader close a running trace and open a settled one", () => {
@@ -253,6 +279,39 @@ describe("Trace", () => {
       true,
     );
     expect(view.queryAllByTestId("trace-group-usage")).toHaveLength(0);
+  });
+
+  it("prints the turn's model and totals on the summary row when the flag is on", () => {
+    const view = render(
+      <Trace
+        run={run({})}
+        showRaw={false}
+        showUsage
+        nameFor={(name) => name}
+        usage={{ model: "gpt-5.6-luna", tokens: 54100, costUsd: "0.0171" }}
+      />,
+    );
+    const line = view.getByTestId("trace-usage");
+    expect(line).toHaveTextContent("gpt-5.6-luna - 54.1K, $0.02");
+    expect(view.getByTestId("turn-trace-toggle").contains(line)).toBe(true);
+  });
+
+  it("prints no turn usage when the dev flag is off", () => {
+    const view = render(
+      <Trace
+        run={run({})}
+        showRaw={false}
+        showUsage={false}
+        nameFor={(name) => name}
+        usage={{ model: "gpt-5.6-luna", tokens: 54100, costUsd: "0.0171" }}
+      />,
+    );
+    expect(view.queryAllByTestId("trace-usage")).toHaveLength(0);
+  });
+
+  it("prints no turn usage when the run carries none", () => {
+    const view = draw(run({}), true);
+    expect(view.queryAllByTestId("trace-usage")).toHaveLength(0);
   });
 
   it("marks a sub-agent group with the data part testid it came from", () => {

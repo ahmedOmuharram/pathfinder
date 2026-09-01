@@ -36,6 +36,16 @@ def test_the_instructions_say_the_compute_runs_before_the_step() -> None:
     assert "completes" in LEAD_INSTRUCTIONS
 
 
+def test_the_eda_section_asks_for_a_caption_on_every_plot() -> None:
+    """The figure prints the model's sentence, so the loop must ask for one."""
+    eda_section = LEAD_INSTRUCTIONS[
+        LEAD_INSTRUCTIONS.index("## EDA: sample-level data") : LEAD_INSTRUCTIONS.index(
+            "## User-facing voice"
+        )
+    ]
+    assert "caption" in eda_section
+
+
 def test_the_instructions_are_ascii_only() -> None:
     assert LEAD_INSTRUCTIONS.isascii()
 

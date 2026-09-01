@@ -35,8 +35,14 @@ const CALM = { showRaw: false, showUsage: true };
  * one draws, and the caption that carries its numbers. */
 const FIGURES: readonly (readonly [string, string])[] = [
   ["data-eda-analysis-state", "6 of 12 Sample, 34,320 of 68,640 pfal3D7 htseq counts"],
-  ["data-eda-subset-preview", "6 of 12 Sample, 6 values"],
-  ["data-eda-viz", "1,543 of 5,511 genes retained"],
+  [
+    "data-eda-subset-preview",
+    "Figure 1. Heat shock response in sensitive mutants (LRR5, DHC) - 6 of 12 Sample, 6 values.",
+  ],
+  [
+    "data-eda-viz",
+    "Figure 2. Heat shock response in sensitive mutants (LRR5, DHC) - 1,543 of 5,511 genes retained.",
+  ],
 ];
 
 /** A figure is a hairline and space, never a card. */
@@ -89,14 +95,14 @@ describe.skipIf(figureModule === null)("the thread's figures", () => {
     expect(view.getByTestId("eda-viz-volcano")).toHaveAttribute("role", "img");
   });
 
-  it("gives no figure a card border, and every figure a hairline", () => {
+  it("gives no figure a card border, a rule, or an outer margin", () => {
     const view = renderTurn(RECORDED_CHUNKS, CALM);
     const figures = view.getAllByTestId("figure");
     expect(figures).toHaveLength(3);
     for (const figure of figures) {
       const tokens = classes(figure);
       expect(tokens.filter((token) => CARD_CLASSES.includes(token))).toEqual([]);
-      expect(tokens).toContain("border-t");
+      expect(tokens).toEqual([]);
     }
   });
 

@@ -25,6 +25,7 @@ from uuid import UUID
 from assistant_core.platform.db import async_session_factory
 
 from pathfinder.devtools.chat import RUN_ROOT as CHAT_RUN_ROOT
+from pathfinder.devtools.chat import route_framework_logs_to_stderr
 from pathfinder.devtools.eval_runner import run_corpus
 from pathfinder.evals.case import ExpectedOutcome
 from pathfinder.evals.store import CORPUS_DIR, load_corpus
@@ -207,6 +208,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    route_framework_logs_to_stderr()
     args = _build_parser().parse_args(argv)
     if args.command == "staged":
         return asyncio.run(_list_staged())

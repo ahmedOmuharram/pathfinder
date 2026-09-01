@@ -25,6 +25,11 @@ describe("TaskRow", () => {
     expect(row).toHaveTextContent("Comparing controls");
   });
 
+  it("sets no outer margin, so the message container owns the rhythm", () => {
+    render(<TaskRow {...RUNNING} />);
+    expect(screen.getByTestId("task-row").className).toBe("");
+  });
+
   it("drives the bar's fill from the percent", () => {
     render(<TaskRow {...RUNNING} />);
     expect(screen.getByTestId("progress-bar-fill").style.width).toBe("66%");
@@ -84,6 +89,41 @@ describe("TaskRow", () => {
     );
     expect(screen.queryByTestId("task-row-elapsed")).toBeNull();
     expect(screen.getByTestId("task-row-status")).toHaveTextContent("0%");
+  });
+
+  it("links to the result only when the href resolves", () => {
+    render(
+      <TaskRow
+        label="Run control tests"
+        percent={1}
+        message={null}
+        estimatedSeconds={null}
+        outcome="success"
+        error={null}
+        resultHref="#message-m2"
+      />,
+    );
+    const link = screen.getByTestId("task-row-result-link");
+    expect(link).toHaveTextContent("View result");
+    expect(link).toHaveAttribute("href", "#message-m2");
+  });
+
+  it("leaves the status text alone when nothing carries the result", () => {
+    render(
+      <TaskRow
+        label="Run control tests"
+        percent={1}
+        message={null}
+        estimatedSeconds={null}
+        outcome="success"
+        error={null}
+        resultHref={null}
+      />,
+    );
+    const row = screen.getByTestId("task-row");
+    expect(within(row).queryByTestId("task-row-result-link")).toBeNull();
+    expect(row).not.toHaveTextContent("View result");
+    expect(within(row).getByTestId("task-row-status")).toHaveTextContent("Completed");
   });
 
   it("carries no JSON, whatever the job reported", () => {

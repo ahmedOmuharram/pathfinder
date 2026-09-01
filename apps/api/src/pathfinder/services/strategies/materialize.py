@@ -93,15 +93,23 @@ async def materialize_strategy_snapshot(
     conversation_id: UUID,
     name: str,
     strategy_ast: JSONObject,
+    record_type: str | None = None,
+    step_count: int = 0,
 ) -> MaterializedStrategy:
     """Push a snapshot's tree to WDK as a new strategy.
 
     A snapshot that holds no tree, and a WDK push that fails, both give back
     the tree with no WDK ids: the thread owns the plan and syncs it later.
+    ``record_type`` and ``step_count`` are the recorded readings that stand in
+    when the stored tree no longer parses.
     """
     fresh = parse_strategy_ast(without_wdk_ids(strategy_ast))
     if fresh is None:
-        return snapshot_as_plan(strategy_ast)
+        return snapshot_as_plan(
+            strategy_ast,
+            record_type=record_type,
+            step_count=step_count,
+        )
     session = build_strategy_session(
         site_id=site_id,
         strategy_graph=PersistedStrategyGraph(

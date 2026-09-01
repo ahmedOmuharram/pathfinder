@@ -10,11 +10,13 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    RetryPromptPart,
     ToolCallPart,
     ToolReturnPart,
     UserPromptPart,
 )
 
+from pathfinder.ai.lead.dispatch_messages import build_would_replace_the_strategy
 from pathfinder.ai.models import mock
 
 
@@ -227,3 +229,209 @@ def test_the_classification_is_made_once_per_turn() -> None:
     ]
 
     assert mock._lead_script(second_turn).tool_name == "classify_user_intent"
+
+
+# ── The recall arc ──────────────────────────────────────────────────
+
+_RECALL = "Recap what I have asked so far."
+
+
+def test_the_recall_arc_reads_the_frame_section_first() -> None:
+    seq = mock._lead_sequence([_user(_RECALL)])
+
+    assert _names(seq) == ["read_ledger_section", "final_result"]
+    assert seq[0].args_as_dict()["section"] == "frame"
+
+
+def test_the_recall_arc_answers_with_the_section_it_read() -> None:
+    msgs: list[ModelMessage] = [
+        _user(_RECALL),
+        ModelResponse(
+            parts=[
+                ToolCallPart(
+                    tool_name="read_ledger_section",
+                    args={"section": "frame"},
+                    tool_call_id="r1",
+                )
+            ]
+        ),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="read_ledger_section",
+                    content="## Frame (full)\n- goal: kinases",
+                    tool_call_id="r1",
+                )
+            ]
+        ),
+    ]
+
+    seq = mock._lead_sequence(msgs)
+
+    assert _prose(seq) == (
+        "This thread already carries: ## Frame (full)\n- goal: kinases"
+    )
+
+
+def test_the_recall_arc_dispatches_no_sub_agent() -> None:
+    seq = mock._lead_sequence([_user(_RECALL)])
+
+    assert "frame_problem" not in _names(seq)
+    assert "build_strategy" not in _names(seq)
+    assert "verify_strategy" not in _names(seq)
+
+
+# ── The refused-build arc ───────────────────────────────────────────
+
+_SECOND_BUILD = "Build a comprehensive kinase strategy"
+
+
+def _refused_build_turn(prompt: str = _SECOND_BUILD) -> list[ModelMessage]:
+    """A turn that classified, framed, called build_strategy and was refused."""
+    return [
+        _user(prompt),
+        ModelResponse(
+            parts=[
+                ToolCallPart(
+                    tool_name="classify_user_intent", args={}, tool_call_id="c1"
+                )
+            ]
+        ),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="classify_user_intent", content="ok", tool_call_id="c1"
+                )
+            ]
+        ),
+        ModelResponse(
+            parts=[ToolCallPart(tool_name="frame_problem", args={}, tool_call_id="f1")]
+        ),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="frame_problem",
+                    content="Structure set: 3 criteria",
+                    tool_call_id="f1",
+                )
+            ]
+        ),
+        ModelResponse(
+            parts=[ToolCallPart(tool_name="build_strategy", args={}, tool_call_id="b1")]
+        ),
+        ModelRequest(
+            parts=[
+                RetryPromptPart(
+                    content=build_would_replace_the_strategy(1),
+                    tool_name="build_strategy",
+                    tool_call_id="b1",
+                )
+            ]
+        ),
+    ]
+
+
+def test_the_mock_reads_the_real_refusal_message() -> None:
+    assert mock._BUILD_REFUSED_MARKER in build_would_replace_the_strategy(1)
+
+
+def test_a_refused_build_stops_before_verification() -> None:
+    seq = mock._lead_sequence(_refused_build_turn())
+
+    assert _names(seq) == [
+        "classify_user_intent",
+        "frame_problem",
+        "build_strategy",
+        "final_result",
+    ]
+    assert "verify_strategy" not in _names(seq)
+
+
+def test_the_refused_build_answers_with_the_edit_tool_and_no_success() -> None:
+    prose = _prose(mock._lead_sequence(_refused_build_turn()))
+
+    assert "edit_strategy" in prose
+    assert not re.search(
+        r"verified end-to-end|verification passed|root size|candidate drug targets",
+        prose,
+        re.IGNORECASE,
+    )
+    assert not re.search(r"returned 0|too narrow|loosen", prose, re.IGNORECASE)
+
+
+def test_the_refused_build_leaves_the_turn_with_the_user() -> None:
+    seq = mock._lead_sequence(_refused_build_turn())
+
+    assert seq[-1].args_as_dict()["nextState"] == "await_user"
+
+
+def test_the_script_answers_the_refusal_instead_of_verifying() -> None:
+    assert mock._lead_script(_refused_build_turn()).tool_name == "final_result"
+
+
+def test_a_refused_consult_resume_reports_the_refusal_too() -> None:
+    msgs: list[ModelMessage] = [
+        _user("Consult me before planning this strategy."),
+        ModelResponse(
+            parts=[ToolCallPart(tool_name="consult_user", args={}, tool_call_id="c0")]
+        ),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="consult_user", content="answered", tool_call_id="c0"
+                )
+            ]
+        ),
+        ModelResponse(
+            parts=[ToolCallPart(tool_name="build_strategy", args={}, tool_call_id="b1")]
+        ),
+        ModelRequest(
+            parts=[
+                RetryPromptPart(
+                    content=build_would_replace_the_strategy(2),
+                    tool_name="build_strategy",
+                    tool_call_id="b1",
+                )
+            ]
+        ),
+    ]
+
+    assert "edit_strategy" in _prose(mock._lead_sequence(msgs))
+
+
+def test_an_earlier_turns_refusal_does_not_bend_the_next_turn() -> None:
+    msgs: list[ModelMessage] = [
+        *_refused_build_turn(),
+        ModelResponse(
+            parts=[ToolCallPart(tool_name="final_result", args={}, tool_call_id="r1")]
+        ),
+        _user("create step for tryptophan synthase"),
+    ]
+
+    assert _names(mock._lead_sequence(msgs)) == [
+        "classify_user_intent",
+        "frame_problem",
+        "build_strategy",
+        "verify_strategy",
+        "final_result",
+    ]
+
+
+def test_a_retry_from_another_tool_does_not_stop_the_build_arc() -> None:
+    msgs: list[ModelMessage] = [
+        _user(_SECOND_BUILD),
+        ModelResponse(
+            parts=[ToolCallPart(tool_name="frame_problem", args={}, tool_call_id="f1")]
+        ),
+        ModelRequest(
+            parts=[
+                RetryPromptPart(
+                    content="FRAME bound nothing.",
+                    tool_name="frame_problem",
+                    tool_call_id="f1",
+                )
+            ]
+        ),
+    ]
+
+    assert "verify_strategy" in _names(mock._lead_sequence(msgs))

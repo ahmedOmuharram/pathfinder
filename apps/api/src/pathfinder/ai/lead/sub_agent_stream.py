@@ -7,7 +7,7 @@ the run on a call the user or the worker must answer.
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from assistant_core.capabilities.repetition_guard import RepetitionGuard
@@ -90,14 +90,14 @@ class SubAgentResume:
 
 @dataclass(frozen=True)
 class SubAgentApprovalWait:
-    """A sub-agent run parked on a deferred call.
+    """A sub-agent run parked on the deferred calls of one model step.
 
-    ``durable`` names the worker task that answers it; without one the call is
-    an approval the user answers.
+    ``durable`` names the worker task answering each call, keyed by call id;
+    empty when the calls are approvals the user answers.
     """
 
     pending: SubAgentApprovalPending
-    durable: DurableDeferral | None = None
+    durable: dict[str, DurableDeferral] = field(default_factory=dict)
 
 
 def _park_run(
@@ -108,14 +108,15 @@ def _park_run(
     messages: list[ModelMessage],
     deferrals: dict[str, DurableDeferral],
 ) -> SubAgentApprovalWait | None:
-    """Park the run on the call it stopped at.
+    """Park the run on the calls it stopped at.
 
     A durable call outranks an approval: its task is already running, so the
-    worker's result must reach this run rather than a later one.
+    worker's result must reach this run rather than a later one. One model
+    step can hand several calls to the worker, and the run owes a result for
+    each of them.
     """
     durable = [call for call in requests.calls if call.tool_call_id in deferrals]
     if durable:
-        call = durable[0]
         return SubAgentApprovalWait(
             pending=SubAgentApprovalPending(
                 role=role,
@@ -124,11 +125,14 @@ def _park_run(
                         tool_call_id=call.tool_call_id,
                         tool_name=call.tool_name,
                         args=call.args_as_dict(),
-                    ),
+                    )
+                    for call in durable
                 ],
                 messages_json=ModelMessagesTypeAdapter.dump_json(messages).decode(),
             ),
-            durable=deferrals[call.tool_call_id],
+            durable={
+                call.tool_call_id: deferrals[call.tool_call_id] for call in durable
+            },
         )
     if not requests.approvals:
         return None

@@ -48,7 +48,7 @@ export function ApprovalCard({
   return (
     <div
       data-testid="approval-card"
-      className="my-2 space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3"
+      className="mt-3 space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3"
     >
       <p
         data-testid="approval-card-title"

@@ -3,8 +3,7 @@
 Everything known to be outstanding, ranked by what actually moves the product. Each item stands alone: a fresh session should be able to pick one up without this conversation.
 
 Items are removed when done, not marked done. The [log](../log.md) records
-what left. The batches ordered on 2026-08-30 are closed, and nothing found
-while closing them remains open.
+what left. Nothing is outstanding.
 
 ## Known and accepted
 

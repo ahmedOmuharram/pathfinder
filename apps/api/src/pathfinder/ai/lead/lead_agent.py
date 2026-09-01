@@ -38,7 +38,7 @@ from pathfinder.ai.lead.sub_agent_dispatch import (
     verify_strategy,
 )
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps
-from pathfinder.ai.tools.standalone import conversation, memory_tools
+from pathfinder.ai.tools.standalone import conversation, memory_tools, research
 from pathfinder.ai.tools.standalone._conversation_models import ClearStrategyResult
 from pathfinder.ai.tools.standalone.control_sets import (
     build_control_set,
@@ -50,6 +50,8 @@ from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_sc
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
 from pathfinder.ai.tools.toolsets import eda
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
+from pathfinder.services.research.processing import LiteratureSearchResponse
+from pathfinder.services.research.web_search import WebSearchResponse
 
 LeadTurnState = Literal["await_user", "complete"]
 LedgerSectionName = Literal[
@@ -166,6 +168,17 @@ def classify_user_intent(
     PREFERENCE with an acceptable fallback ("RNA-Seq preferred, microarray
     fallback ok", "ideally X but Y is fine"). A soft constraint is surfaced
     but never blocks the turn if substituted.
+
+    An imperative asks for a build. "Run it", "rerun the compute", "build
+    the strategy", "add those genes as a step", "create the step" - and a
+    bare "yes, do it" that accepts an offer you made - are
+    ``extend_strategy`` when the thread already has a strategy or an open
+    analysis, ``new_strategy`` when it has neither, and
+    ``clarification_response`` when they answer a question you asked. A
+    retry after a failed task is the same request again, so it keeps the
+    classification that request had. None of them is a
+    ``follow_up_question``: that value is for a message that asks you to
+    EXPLAIN something and asks for no change to the data.
 
     Two classifications ask for no strategy at all:
 
@@ -289,6 +302,54 @@ async def clear_strategy(
     return await conversation.clear_strategy(inner, confirm=confirm)
 
 
+async def web_search(
+    ctx: RunContext[LeadDeps],
+    query: str,
+    limit: int = 5,
+) -> ToolReturn[WebSearchResponse]:
+    """Search the web and return results with citations.
+
+    Use it to ground a claim, check a name, or answer a question the catalog
+    cannot - it builds nothing and is safe in any turn.
+
+    Args:
+        ctx: Agent run context.
+        query: Web search query.
+        limit: Max number of results (1-10).
+    """
+    inner: RunContext[AgentDeps] = RunContext(
+        deps=agent_deps_for(ctx.deps),
+        model=ctx.model,
+        usage=ctx.usage,
+        tool_call_id=ctx.tool_call_id,
+    )
+    return await research.web_search(inner, query, limit=limit)
+
+
+async def literature_search(
+    ctx: RunContext[LeadDeps],
+    query: str,
+    limit: int = 8,
+) -> ToolReturn[LiteratureSearchResponse]:
+    """Search scientific literature and return results with citations.
+
+    Use it for the biology behind a request - a gene's role, a method's
+    precedent, a threshold's convention - before or after building.
+
+    Args:
+        ctx: Agent run context.
+        query: Literature search query.
+        limit: Max number of results (1-25).
+    """
+    inner: RunContext[AgentDeps] = RunContext(
+        deps=agent_deps_for(ctx.deps),
+        model=ctx.model,
+        usage=ctx.usage,
+        tool_call_id=ctx.tool_call_id,
+    )
+    return await research.literature_search(inner, query, limit=limit)
+
+
 def read_ledger_section(
     ctx: RunContext[LeadDeps],
     section: LedgerSectionName,
@@ -376,6 +437,8 @@ def build_lead_agent() -> LeadAgent:
         tools=[
             Tool(classify_user_intent),
             Tool(remember),
+            Tool(web_search),
+            Tool(literature_search),
             Tool(read_ledger_section),
             Tool(get_live_strategy_state),
             Tool(frame_problem),

@@ -95,15 +95,15 @@ def _checked_thresholds(
     """Both thresholds or neither. The bridge plugin requires both keys."""
     if effect_size_threshold is not None and significance_threshold is None:
         msg = (
-            "A volcano export needs significanceThreshold as well as "
-            "effectSizeThreshold. Send both, or send neither to export the "
+            "A volcano export needs significance_threshold as well as "
+            "effect_size_threshold. Send both, or send neither to export the "
             "whole subset."
         )
         raise ModelRetry(msg)
     if significance_threshold is not None and effect_size_threshold is None:
         msg = (
-            "A volcano export needs effectSizeThreshold as well as "
-            "significanceThreshold. Send both, or send neither to export the "
+            "A volcano export needs effect_size_threshold as well as "
+            "significance_threshold. Send both, or send neither to export the "
             "whole subset."
         )
         raise ModelRetry(msg)
@@ -163,15 +163,15 @@ async def create_eda_step(
 
     - The SUBSET's genes: call with no thresholds. Every gene in the filtered
       subset becomes a step.
-    - The genes passing a VOLCANO's thresholds: pass ``effectSizeThreshold``
-      AND ``significanceThreshold``. The compute must already be complete -
+    - The genes passing a VOLCANO's thresholds: pass ``effect_size_threshold``
+      AND ``significance_threshold``. The compute must already be complete -
       call run_eda_compute first and read its summary, so you know how many
-      genes you are about to export. ``effectDirection`` selects the up side,
+      genes you are about to export. ``effect_direction`` selects the up side,
       the down side, or both.
 
     A gene passes when the absolute effect size is at or above
-    ``effectSizeThreshold`` and the p-value is at or below
-    ``significanceThreshold``. Those are the same comparisons the plot uses, so
+    ``effect_size_threshold`` and the p-value is at or below
+    ``significance_threshold``. Those are the same comparisons the plot uses, so
     the step's count matches the number you told the researcher.
 
     Leave ``attachToStepId`` unset to add the step as a new root. Set it, with

@@ -14,6 +14,7 @@ from assistant_core.conversation.serde import (
     checkpoint_types,
 )
 from assistant_core.graph.turn_state import (
+    DurableCall,
     DurableTaskResult,
     PendingApproval,
     PendingDurableCall,
@@ -86,8 +87,15 @@ def _pending_durable_call() -> PendingDurableCall:
         tool_name="verify_strategy",
         tool_args={"reason": "enrich the built set"},
         prior_messages_json='[{"kind":"request","parts":[]}]',
-        task_id=UUID("0c6100d2-0000-4000-8000-000000000001"),
-        durable_tool_name="geneset_enrichment",
+        durable_calls=[
+            DurableCall(
+                tool_call_id="call_run_gene_set_enrichment",
+                tool_name="run_gene_set_enrichment",
+                args={"gene_set_id": "gs-1"},
+                task_id=UUID("0c6100d2-0000-4000-8000-000000000001"),
+                durable_tool_name="geneset_enrichment",
+            ),
+        ],
         sub_agent=SubAgentApprovalPending(
             role="verification",
             approvals=[

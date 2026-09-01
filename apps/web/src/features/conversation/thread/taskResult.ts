@@ -30,8 +30,10 @@ function carriesResult(part: PartLike, figures: ReadonlySet<string>): boolean {
 }
 
 /**
- * The in-page link to what a finished task produced: the first turn from the
- * one that reported the outcome onward that carries prose or a figure.
+ * The in-page link to what a finished task produced: the first prose or figure
+ * written after the outcome was reported. A turn writes the answer into the
+ * message that started the task, so parts before the outcome belong to the
+ * request and never to its result.
  */
 export function taskResultHref(
   messages: readonly MessageLike[],
@@ -42,8 +44,14 @@ export function taskResultHref(
     message.parts.some((part) => completesTask(part, taskId)),
   );
   if (from < 0) return null;
-  for (const message of messages.slice(from)) {
-    if (message.parts.some((part) => carriesResult(part, figures))) {
+  for (const [offset, message] of messages.slice(from).entries()) {
+    const parts =
+      offset === 0
+        ? message.parts.slice(
+            message.parts.findIndex((part) => completesTask(part, taskId)) + 1,
+          )
+        : message.parts;
+    if (parts.some((part) => carriesResult(part, figures))) {
       return `#${messageAnchorId(message.id)}`;
     }
   }

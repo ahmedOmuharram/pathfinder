@@ -40,12 +40,7 @@ describe("DataStrategyMeta", () => {
 
   it("stops being a bordered pill", () => {
     render(<DataStrategyMeta data={META} />);
-    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
+    expect(screen.getByTestId("figure").className).toBe("");
     expect(
       screen.getByTestId("figure").contains(screen.getByTestId("data-strategy-meta")),
     ).toBe(true);

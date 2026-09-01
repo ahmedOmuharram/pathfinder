@@ -24,6 +24,7 @@ from pathfinder.services.conversations.fork_strategy import (
     anchor_snapshot,
     write_forked_strategy,
 )
+from pathfinder.services.eda.thread_surgery import branch_thread_binding
 
 
 class ForkError(ValueError):
@@ -137,6 +138,7 @@ async def fork_conversation(
     note_id_map = await scratchpad_repo.copy_notes_for_fork(
         source_conversation_id=source_conversation_id,
         target_conversation_id=new_conv_id,
+        cutoff=next_message_ts,
     )
 
     messages = IdMint()
@@ -182,4 +184,6 @@ async def fork_conversation(
         new_thread_id=str(new_conv_id),
         cutoff_ts=next_message_ts,
     )
+    # The copied log carries the binding states of the turns it holds.
+    await branch_thread_binding(session, conversation_id=new_conv_id)
     return fork

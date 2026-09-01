@@ -17,34 +17,16 @@ test.describe("Fork Branch", () => {
     chatPage,
     page,
   }) => {
-    await chatPage.send("show me kinase genes");
-    await chatPage.expectAssistantMessage(/\[mock\]/);
-    await chatPage.expectIdle();
+    await chatPage.sendTurn("show me kinase genes", /\[mock\]/);
 
     const originalId = chatPage.lastStrategyId;
     expect(originalId).toBeTruthy();
 
-    // Branch from the assistant reply into a new chat.
-    const forkResponse = page.waitForResponse(
-      (r) =>
-        /\/api\/v1\/conversations\/[^/]+\/fork$/.test(r.url()) &&
-        r.request().method() === "POST",
-    );
-    const assistantReply = page
-      .locator(".is-assistant")
-      .filter({ hasText: /\[mock\]/ });
-    await assistantReply.hover();
-    await assistantReply
-      .getByRole("button", { name: /branch to a new chat from here/i })
-      .click();
-    const fork = await forkResponse;
-    expect(fork.ok()).toBeTruthy();
+    const branchId = await chatPage.branchFromAssistantReply(/\[mock\]/);
 
     // Navigated to a new conversation, distinct from the original.
+    expect(branchId).not.toBe(originalId);
     await expect(page).toHaveURL(/\/conversation\/[0-9a-f-]+/);
-    await expect(page).not.toHaveURL(
-      new RegExp(`/conversation/${originalId}(?:$|[?#])`),
-    );
 
     // The branched conversation keeps the prior user message.
     await expect(

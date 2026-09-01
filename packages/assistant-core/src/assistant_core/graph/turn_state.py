@@ -57,13 +57,35 @@ class PendingApproval(ParkedCall):
     user_message_id: UUID | None = None
 
 
-class PendingDurableCall(ParkedCall):
-    """A tool call handed to a worker. Its task's result answers it."""
+class DurableCall(CamelModel):
+    """One durable tool call a run parked, and the task that answers it."""
 
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, JsonValue] = Field(default_factory=dict)
     task_id: UUID
     # The name the durable tool registered under, which is not always the name
     # the model called it by.
     durable_tool_name: str
+
+
+class PendingDurableCall(ParkedCall):
+    """The tool calls one model step handed to a worker.
+
+    The run resumes when every task here has reported, because pydantic-ai
+    needs a result for each call of the response it re-enters.
+    """
+
+    durable_calls: list[DurableCall] = Field(min_length=1)
+
+    @property
+    def task_ids(self) -> list[UUID]:
+        """Every task the parked run waits on, in call order."""
+        return [call.task_id for call in self.durable_calls]
+
+    def owns(self, task_id: UUID) -> bool:
+        """Whether one of the parked calls waits on this task."""
+        return any(call.task_id == task_id for call in self.durable_calls)
 
 
 class DurableDeferral(CamelModel):
@@ -71,9 +93,6 @@ class DurableDeferral(CamelModel):
 
     task_id: UUID
     tool_name: str
-    # Set when the durable call ran inside a sub-agent, so the completion turn
-    # re-enters that run rather than the dispatch that started it.
-    sub_agent: SubAgentApprovalPending | None = None
 
 
 class DurableTaskResult(CamelModel):
@@ -157,6 +176,9 @@ class TurnState(BaseModel):
     pending_durable_call: PendingDurableCall | None = None
     # Set only on the turn the worker starts to answer a durable call.
     durable_result: DurableTaskResult | None = None
+    # Every parked task's answer, gathered by the worker that opened the turn.
+    # A step that parked several calls resumes only when this covers them all.
+    durable_results: list[DurableTaskResult] = Field(default_factory=list)
     approval_responses: dict[str, ToolApprovalResponded] = Field(
         default_factory=dict,
     )
@@ -166,17 +188,33 @@ class TurnState(BaseModel):
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
 
     @property
-    def answered_durable_call(self) -> PendingDurableCall | None:
-        """The parked durable call this turn carries the worker's answer for."""
+    def durable_answers(self) -> dict[UUID, DurableTaskResult]:
+        """The task results this turn carries, by task."""
+        answers = {result.task_id: result for result in self.durable_results}
+        if self.durable_result is not None:
+            answers.setdefault(self.durable_result.task_id, self.durable_result)
+        return answers
+
+    @property
+    def carries_durable_answer(self) -> bool:
+        """Whether this turn brings an answer for a call the thread parked."""
         parked = self.pending_durable_call
-        result = self.durable_result
-        if parked is None or result is None or result.task_id != parked.task_id:
+        if parked is None:
+            return False
+        return any(parked.owns(task_id) for task_id in self.durable_answers)
+
+    @property
+    def answered_durable_call(self) -> PendingDurableCall | None:
+        """The parked durable call every one of whose tasks has reported."""
+        parked = self.pending_durable_call
+        if parked is None or not self.carries_durable_answer:
+            return None
+        answers = self.durable_answers
+        if any(task_id not in answers for task_id in parked.task_ids):
             return None
         return parked
 
     @property
     def resumes_parked_call(self) -> bool:
         """Whether this turn re-enters a run the thread parked."""
-        return (
-            self.pending_approval is not None or self.answered_durable_call is not None
-        )
+        return self.pending_approval is not None or self.carries_durable_answer

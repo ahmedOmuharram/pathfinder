@@ -376,7 +376,7 @@ async def test_the_call_ends_the_turn_deferred_and_defers_exactly_one_job(
     assert capture.response is None
     parked = capture.pending_durable_call
     assert parked is not None
-    assert parked.task_id == _TASK_ID
+    assert parked.task_ids == [_TASK_ID]
     assert parked.tool_call_id == "call_compute"
     assert parked.tool_name == "run_eda_compute"
     assert parked.sub_agent is None

@@ -12,7 +12,7 @@ from assistant_core.platform.context import application_id_ctx
 
 from pathfinder.jobs import auth_context as auth_context_mod
 from pathfinder.jobs import runner as runner_mod
-from pathfinder.jobs.runner import run_durable_task
+from pathfinder.jobs.runner import _CompletionOutcome, run_durable_task
 from pathfinder.platform.context import veupathdb_auth_token_ctx
 
 HOLDING_APPLICATION = "companion"
@@ -80,10 +80,10 @@ async def _fake_completion_turn(
     result: DurableTaskResult,
     *,
     veupathdb_auth_token: str | None = None,
-) -> str | None:
+) -> _CompletionOutcome:
     del thread_id, veupathdb_auth_token
     _Observer.completions.append({"completionTurnFor": str(result.task_id)})
-    return None
+    return _CompletionOutcome(answered=(result.task_id,))
 
 
 class _FakeStore:

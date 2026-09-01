@@ -55,6 +55,61 @@ describe("Figure", () => {
     expect(classesOf(caption)).toEqual(["mt-2", "text-xs", "text-muted-foreground"]);
   });
 
+  it("centers, italicizes and numbers the caption of a numbered figure", () => {
+    render(
+      <Figure
+        title={null}
+        caption="Heat shock - 1,543 of 5,511 genes retained."
+        numbered
+        figureNumber={2}
+      >
+        <p>body</p>
+      </Figure>,
+    );
+    const caption = screen.getByTestId("figure-caption");
+    expect(caption.textContent).toBe(
+      "Figure 2. Heat shock - 1,543 of 5,511 genes retained.",
+    );
+    expect(classesOf(caption)).toEqual([
+      "mt-2",
+      "text-xs",
+      "text-muted-foreground",
+      "text-center",
+      "italic",
+    ]);
+  });
+
+  it("keeps the left caption when a numbered figure has no number yet", () => {
+    render(
+      <Figure title={null} caption="1,543 of 5,511 genes retained." numbered>
+        <p>body</p>
+      </Figure>,
+    );
+    const caption = screen.getByTestId("figure-caption");
+    expect(caption.textContent).toBe("1,543 of 5,511 genes retained.");
+    expect(classesOf(caption)).toEqual(["mt-2", "text-xs", "text-muted-foreground"]);
+  });
+
+  it("keeps the left caption when a number is given without the presentation", () => {
+    render(
+      <Figure title={null} caption="12 terms, 342 genes analyzed" figureNumber={3}>
+        <p>body</p>
+      </Figure>,
+    );
+    const caption = screen.getByTestId("figure-caption");
+    expect(caption.textContent).toBe("12 terms, 342 genes analyzed");
+    expect(classesOf(caption)).toEqual(["mt-2", "text-xs", "text-muted-foreground"]);
+  });
+
+  it("draws no numbered caption when the caption is null", () => {
+    render(
+      <Figure title="Enrichment" caption={null} numbered figureNumber={1}>
+        <p>body</p>
+      </Figure>,
+    );
+    expect(screen.queryByTestId("figure-caption")).toBe(null);
+  });
+
   it("draws no caption element when the caption is null", () => {
     render(
       <Figure title="Enrichment" caption={null}>
@@ -64,14 +119,14 @@ describe("Figure", () => {
     expect(screen.queryByTestId("figure-caption")).toBe(null);
   });
 
-  it("separates itself with a hairline and space, never with a card", () => {
+  it("draws no divider, no card and no outer margin of its own", () => {
     render(
       <Figure title="Enrichment" caption="12 terms, 342 genes analyzed">
         <p>body</p>
       </Figure>,
     );
     const tokens = classesOf(screen.getByTestId("figure"));
-    expect(tokens).toEqual(["my-6", "border-t", "border-border/60", "pt-4"]);
+    expect(tokens).toEqual([]);
     expect(tokens.filter((token) => CARD_CLASSES.includes(token))).toEqual([]);
   });
 
@@ -87,6 +142,32 @@ describe("Figure", () => {
     );
     expect(testIds).toEqual([null, "body", "figure-caption"]);
     expect(figure?.children[0]?.tagName).toBe("FIGCAPTION");
+  });
+
+  it("renders the footer after the caption, inside the figure", () => {
+    const { container } = render(
+      <Figure
+        title="Enrichment"
+        caption="12 terms, 342 genes analyzed"
+        footer={<p data-testid="readout">342 of 5,511 genes</p>}
+      >
+        <p data-testid="body">body</p>
+      </Figure>,
+    );
+    const figure = container.querySelector("figure");
+    const testIds = [...(figure?.children ?? [])].map((child) =>
+      child.getAttribute("data-testid"),
+    );
+    expect(testIds).toEqual([null, "body", "figure-caption", "readout"]);
+  });
+
+  it("draws no footer node when none is given", () => {
+    render(
+      <Figure title={null} caption="12 terms">
+        <p data-testid="body">body</p>
+      </Figure>,
+    );
+    expect(screen.queryByTestId("readout")).toBe(null);
   });
 
   it("names the part it draws inside the figure, title and caption with it", () => {

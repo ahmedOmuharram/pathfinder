@@ -28,8 +28,12 @@ from pathfinder.persistence.repositories.strategy_revision import (
     StrategyRevisionRepository,
 )
 from pathfinder.services.conversations.authz import owned_by_caller
+from pathfinder.services.eda.thread_surgery import (
+    logs_a_binding,
+    restore_thread_binding,
+)
 from pathfinder.services.strategies.revision_ops import (
-    restore_revision,
+    materialize_revision,
     revision_at_message,
 )
 
@@ -129,6 +133,7 @@ async def revert_conversation_to_message(
     revisions = StrategyRevisionRepository(session)
     snapshot = await revision_at_message(session, message=target)
     had_history = await revisions.has_any(conversation_id)
+    logged_a_binding = await logs_a_binding(session, conversation_id=conversation_id)
 
     # Cut on (created_at, id) so timestamp ties delete deterministically
     # instead of over-deleting siblings that share the target's created_at.
@@ -204,9 +209,16 @@ async def revert_conversation_to_message(
     )
     restored = _strategy_state(snapshot, cutoff_ts=cutoff_ts, had_history=had_history)
     if restored == "snapshot" and snapshot is not None:
-        await restore_revision(session, revision=snapshot)
+        await materialize_revision(session, conversation=conv, revision=snapshot)
     elif restored == "cleared":
         await ConversationRepository(session).clear_strategy(conversation_id)
+
+    # The surviving log names the binding the remaining transcript describes.
+    await restore_thread_binding(
+        session,
+        conversation_id=conversation_id,
+        logged=logged_a_binding,
+    )
 
     logger.info(
         "conversation reverted to message",

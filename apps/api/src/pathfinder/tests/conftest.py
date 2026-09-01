@@ -43,6 +43,7 @@ import procrastinate
 import psycopg
 import pydantic_ai.models
 import pytest
+import structlog
 from assistant_core.conversation.checkpointer import to_psycopg_url
 from assistant_core.embeddings.embedder import get_embedder, reset_embedder
 from assistant_core.embeddings.fake import FakeEmbedder
@@ -284,6 +285,20 @@ async def _truncate_embedding_index(db_engine: AsyncEngine) -> None:
         await conn.exec_driver_sql(
             "TRUNCATE TABLE embedding_index_entries, embedding_vectors",
         )
+
+
+@pytest.fixture(autouse=True)
+def _restored_logger_config() -> Generator[None]:
+    """Puts back the structlog configuration a test replaced.
+
+    The configuration is process-wide, so a test must not inherit one.
+    """
+    was_configured = structlog.is_configured()
+    saved = structlog.get_config()
+    yield
+    structlog.reset_defaults()
+    if was_configured:
+        structlog.configure(**saved)
 
 
 @pytest.fixture(autouse=True)

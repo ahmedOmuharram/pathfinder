@@ -22,6 +22,7 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    RetryPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
@@ -121,6 +122,17 @@ def tool_return_parts(messages: list[ModelMessage]) -> list[ToolReturnPart]:
         if isinstance(msg, ModelRequest)
         for part in msg.parts
         if isinstance(part, ToolReturnPart)
+    ]
+
+
+def retry_prompt_parts(messages: list[ModelMessage]) -> list[RetryPromptPart]:
+    """The refusals a tool sent back, so a script can branch on one."""
+    return [
+        part
+        for msg in messages
+        if isinstance(msg, ModelRequest)
+        for part in msg.parts
+        if isinstance(part, RetryPromptPart)
     ]
 
 

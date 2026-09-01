@@ -135,4 +135,11 @@ Same WDK bearer token PathFinder already holds
   bounds.
 - `GET /public/analyses/{project}` and
   `GET /import-analysis/{project}/{analysisId}` -> shared analyses.
+- Thread surgery does not use the `POST .../{analysisId}` copy: a branch and a
+  revert re-create the document from the descriptor the thread's own log
+  recorded (`POST /users/{uid}/analyses/{project}` then
+  `PATCH .../{analysisId}`), because the copy would carry the source's current
+  subset and not the anchor's. Nothing in the application calls
+  `DELETE .../{analysisId}`, so replacing a thread's binding leaves the
+  document it replaced on the service.
 - `GET|PUT /users/{uid}/preferences/{project}` -> workspace preferences.

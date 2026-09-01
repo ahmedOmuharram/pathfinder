@@ -35,12 +35,13 @@ describe("FailureNotice", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 
-  it("is a hairline and text, never a card", () => {
+  it("is text alone, never a card, and sets no outer margin", () => {
     render(<FailureNotice detail={DETAIL} />);
     const tokens = screen.getByTestId("failure-notice").className.split(/\s+/);
     expect(
       tokens.filter((t) => /^(border|rounded-lg|rounded-md|bg-destructive)/.test(t)),
     ).toEqual([]);
+    expect(tokens.filter((t) => /^m[ytb]-/.test(t))).toEqual([]);
     expect(tokens).toContain("text-destructive");
   });
 

@@ -27,7 +27,7 @@ async def copy_conversation_events(
     rows = await session.execute(
         text(
             """
-            SELECT id, turn_id, chunk
+            SELECT id, turn_id, chunk, emitted_at
             FROM conversation_events
             WHERE conversation_id = :src
               AND emitted_at
@@ -53,6 +53,8 @@ async def copy_conversation_events(
                 # A fork's log outlives every operation on its parent.
                 "task_id": None,
                 "chunk": chunk,
+                # Each copy keeps its source time, because revert cuts on it.
+                "emitted_at": row["emitted_at"],
             }
         )
     if not inserts:
@@ -61,13 +63,14 @@ async def copy_conversation_events(
         text(
             """
             INSERT INTO conversation_events (
-                conversation_id, turn_id, task_id, chunk
+                conversation_id, turn_id, task_id, chunk, emitted_at
             )
             VALUES (
                 CAST(:conversation_id AS uuid),
                 CAST(:turn_id AS uuid),
                 CAST(:task_id AS uuid),
-                CAST(:chunk AS jsonb)
+                CAST(:chunk AS jsonb),
+                CAST(:emitted_at AS timestamptz)
             )
             """,
         ),

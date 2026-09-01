@@ -48,14 +48,9 @@ describe("DataMemoryRetrieved", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("separates itself with a hairline, never with a card", () => {
+  it("draws no divider, no card and no outer margin", () => {
     render(<DataMemoryRetrieved data={MEMORIES} />);
-    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
+    expect(screen.getByTestId("figure").className).toBe("");
     expect(screen.getByTestId("data-memory-retrieved").className).not.toMatch(
       /\bborder\b|\brounded-md\b|\bbg-card\b/,
     );

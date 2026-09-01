@@ -586,8 +586,8 @@ class TestThePinnedStrings:
         )
         monkeypatch.setattr(
             eda_analysis,
-            "eda_analysis_state_chunk",
-            lambda _state: DataChunk(type="data-eda.analysis-state", data={}),
+            "analysis_state_chunks_if_changed",
+            lambda _state, domain: [DataChunk(type="data-eda.analysis-state", data={})],
         )
         ctx = _ctx()
         ctx.deps.runtime.site_id = "plasmodb"

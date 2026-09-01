@@ -302,16 +302,25 @@ class ScratchpadRepository:
         *,
         source_conversation_id: UUID,
         target_conversation_id: UUID,
+        cutoff: datetime | None,
     ) -> dict[str, str]:
-        """Copy every source note under the target conversation with fresh ids.
+        """Copy the notes the copied turns wrote, under fresh ids.
 
-        The returned old-to-new id map lets callers rewrite stored references.
-        A fork never shares note ids with its source.
+        ``cutoff`` is the time of the first message the fork leaves behind, so
+        a note a later turn wrote never reaches the branch. The returned
+        old-to-new id map lets callers rewrite stored references. A fork never
+        shares note ids with its source.
         """
         stmt = select(ScratchpadNote).where(
             ScratchpadNote.conversation_id == source_conversation_id,
         )
-        rows = (await self.session.execute(stmt)).scalars().all()
+        if cutoff is not None:
+            stmt = stmt.where(ScratchpadNote.created_at < cutoff)
+        rows = (
+            (await self.session.execute(stmt.order_by(ScratchpadNote.created_at)))
+            .scalars()
+            .all()
+        )
         id_map: dict[str, str] = {}
         for src in rows:
             new_id = mint_note_id()
@@ -326,6 +335,9 @@ class ScratchpadRepository:
                     tags=list(src.tags),
                     pinned=src.pinned,
                     body_tokens=src.body_tokens,
+                    # Each copy keeps its source time, because revert cuts
+                    # on that value.
+                    created_at=src.created_at,
                 ),
             )
         await self.session.flush()

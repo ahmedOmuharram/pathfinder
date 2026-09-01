@@ -25,6 +25,21 @@ import {
   ConversationScrollButton,
 } from "./conversation";
 
+describe("the thread's message list", () => {
+  it("spaces one message from the next with the one paragraph gap", () => {
+    const { container } = render(
+      <ConversationContent>
+        <p>a message</p>
+      </ConversationContent>,
+    );
+    const list = container.firstElementChild;
+    if (!(list instanceof HTMLElement)) throw new Error("the list drew nothing");
+    const tokens = list.className.split(/\s+/);
+    expect(tokens).toContain("gap-3");
+    expect(tokens.filter((token) => token.startsWith("gap-"))).toEqual(["gap-3"]);
+  });
+});
+
 describe("the thread scroll surface", () => {
   it("is the thread primitive's own viewport, scrolling to the bottom on send", () => {
     render(

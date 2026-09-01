@@ -156,6 +156,17 @@ class SubAgentRunUsage:
     parent_tool_call_id: str
 
 
+@dataclass(frozen=True)
+class SubAgentDurablePark:
+    """A sub-agent run parked on durable calls, under the dispatch that ran it.
+
+    ``deferrals`` is keyed by the tool call each worker task answers.
+    """
+
+    pending: SubAgentApprovalPending
+    deferrals: dict[str, DurableDeferral]
+
+
 @dataclass
 class LeadDeps:
     """The Lead Agent's runtime context.
@@ -179,10 +190,14 @@ class LeadDeps:
     pending_sub_agent_approvals: dict[str, SubAgentApprovalPending] = field(
         default_factory=dict,
     )
-    # Durable calls this turn handed to a worker, keyed by the tool call the
-    # worker's result answers: the Lead's own call, or the dispatch that holds
-    # a suspended sub-agent run.
+    # Durable calls the Lead's own tools handed to a worker, keyed by the tool
+    # call each worker task answers.
     durable_deferrals: dict[str, DurableDeferral] = field(default_factory=dict)
+    # Suspended sub-agent runs whose parked calls a worker answers, keyed by
+    # the dispatch tool call that holds the run.
+    pending_sub_agent_durables: dict[str, SubAgentDurablePark] = field(
+        default_factory=dict,
+    )
     # A FRAME pass that claimed a ready spec over an empty draft is refused
     # once. The next one is reported to the Lead rather than retried again.
     empty_frame_reported: bool = False

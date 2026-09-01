@@ -10,6 +10,7 @@ import type {
 import { taskCompletedSchema } from "@pathfinder/shared/generated/zod/taskCompletedSchema";
 import { taskProgressSchema } from "@pathfinder/shared/generated/zod/taskProgressSchema";
 
+import { THREAD_BLOCK_GAP } from "@/lib/components/thread/rhythm";
 import { TaskRow, type TaskOutcome } from "@/lib/components/thread/TaskRow";
 import { useConversationId } from "@/lib/hooks/useConversationId";
 import { humanizeToolName } from "@/lib/utils/toolNames";
@@ -114,8 +115,20 @@ export function DataBackgroundTaskStarted({ data }: { data: BackgroundTaskStarte
     />
   ));
   return (
-    <div data-testid="data-background-task-started">
-      {completed === null ? rows : <div data-testid="data-task-completed">{rows}</div>}
+    <div
+      data-testid="data-background-task-started"
+      className={`flex flex-col ${THREAD_BLOCK_GAP}`}
+    >
+      {completed === null ? (
+        rows
+      ) : (
+        <div
+          data-testid="data-task-completed"
+          className={`flex flex-col ${THREAD_BLOCK_GAP}`}
+        >
+          {rows}
+        </div>
+      )}
     </div>
   );
 }

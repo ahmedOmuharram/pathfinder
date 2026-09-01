@@ -19,7 +19,10 @@ from assistant_core.capabilities.repetition_guard import (
     RepetitionGuard,
     ToolRepetitionGuard,
 )
-from assistant_core.conversation.vercel_adapter import PhaseStreamEmitter
+from assistant_core.conversation.vercel_adapter import (
+    DeferredToolHint,
+    PhaseStreamEmitter,
+)
 from assistant_core.cost import cost_for_run
 from assistant_core.graph import approvals
 from assistant_core.graph.emit import emit_chunk, emit_turn_usage
@@ -29,6 +32,7 @@ from assistant_core.graph.stream_events import (
     turn_status_event,
 )
 from assistant_core.graph.turn_agent import TurnAgentFactory
+from assistant_core.graph.turn_state import ParkedCall, PendingDurableCall
 from assistant_core.memory.schemas import MemoryValue
 from assistant_core.platform.logging import get_logger
 from langgraph.config import get_stream_writer
@@ -180,6 +184,15 @@ def _absorb_loop_stop(
     )
 
 
+def _resume_hints(parked: ParkedCall | None) -> list[DeferredToolHint]:
+    """What the resumed stream needs to re-announce the calls it answers."""
+    if parked is None:
+        return []
+    if isinstance(parked, PendingDurableCall):
+        return approvals.durable_hints(parked)
+    return [approvals.deferred_hint(parked)]
+
+
 async def _drive_lead_stream(
     *,
     state: PipelineState,
@@ -199,7 +212,7 @@ async def _drive_lead_stream(
     parked = resumption.parked
     emitter = PhaseStreamEmitter(
         message_id=str(message_id),
-        deferred_hint=(approvals.deferred_hint(parked) if parked is not None else None),
+        deferred_hints=_resume_hints(parked),
     )
     deferred_results = resumption.results
     capture.parked_call_answered = deferred_results is not None

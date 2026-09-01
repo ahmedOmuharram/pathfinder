@@ -50,18 +50,13 @@ describe("DataStrategyLink", () => {
     expect(screen.getByTestId("figure-caption").textContent).toBe("Strategy s2");
   });
 
-  it("separates itself with a hairline, never with a card", () => {
+  it("draws no divider, no card and no outer margin", () => {
     render(
       <DataStrategyLink
         data={{ strategyId: "s1", url: "https://plasmodb.org/s1", title: "Test" }}
       />,
     );
-    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
+    expect(screen.getByTestId("figure").className).toBe("");
     expect(screen.getByTestId("data-strategy-link").className).not.toMatch(
       /\bborder\b|\brounded-md\b|\bbg-card\b/,
     );

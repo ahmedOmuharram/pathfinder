@@ -134,7 +134,7 @@ class RunCapture:
         self._tool_name_by_call: dict[str, str] = {}
         self._tool_args_by_call: dict[str, dict[str, Any]] = {}
         self._announced_calls: set[str] = set()
-        self._durable_task: tuple[str, str] | None = None
+        self._durable_tasks: list[tuple[str, str]] = []
         self._current_phase = ""
         self._ledger_by_phase: dict[str, dict[str, Any]] = {}
         self._tokens = 0
@@ -172,7 +172,7 @@ class RunCapture:
         }.get(env.type)
         if env.type == "start":
             self._pending = None
-            self._durable_task = None
+            self._durable_tasks = []
         if handler is not None:
             handler(env)
 
@@ -256,7 +256,9 @@ class RunCapture:
         data = env.data or {}
         task_id = data.get("taskId")
         if task_id:
-            self._durable_task = (str(task_id), str(data.get("toolName") or "?"))
+            self._durable_tasks.append(
+                (str(task_id), str(data.get("toolName") or "?")),
+            )
 
     def _on_approval(self, env: Chunk) -> None:
         if not env.tool_call_id:
@@ -312,8 +314,9 @@ class RunCapture:
         return self._pending
 
     @property
-    def durable_task(self) -> tuple[str, str] | None:
-        return self._durable_task
+    def durable_tasks(self) -> list[tuple[str, str]]:
+        """Every task this turn handed to the worker, in the order it did."""
+        return list(self._durable_tasks)
 
     @property
     def tool_args_by_call(self) -> dict[str, dict[str, Any]]:

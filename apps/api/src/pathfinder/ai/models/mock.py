@@ -1,8 +1,9 @@
 """PathFinder's script for the deterministic test model.
 
 The Lead routes on the latest user message (plus consult-resume state) and
-drives a scripted FRAME -> BUILD -> VERIFY flow; sub-agents emit their typed
-delta via ``final_result``. The canned FRAME specs live in ``mock_specs``; the
+drives a scripted FRAME -> BUILD -> VERIFY flow; a build the thread refuses
+ends the turn instead of verifying. Sub-agents emit their typed delta via
+``final_result``. The canned FRAME specs live in ``mock_specs``; the
 machinery that runs this script lives in ``scripted``.
 """
 
@@ -23,6 +24,7 @@ from assistant_core.models.scripted import (
     joined_user_text,
     last_user_text,
     next_unmade_call,
+    retry_prompt_parts,
     scripted_call,
     terminal_call,
     tool_return_parts,
@@ -83,6 +85,12 @@ _LOOP_PROSE = (
     "I kept re-reading the same catalog listing and made no progress, so I "
     "stopped there."
 )
+_BUILD_REFUSED_PROSE = (
+    "**Nothing was built.** This thread already has a strategy, and "
+    "build_strategy refuses to replace one: every step id would change. Tell "
+    "me what to change and I will call edit_strategy on the steps you name, "
+    "or say to start over and I will clear the strategy first."
+)
 _EDIT_PROSE = (
     "**Substituted the organism** on the seed criterion. Every other criterion "
     "is unchanged, and the steps behind them keep the ids they had."
@@ -95,6 +103,8 @@ _CONTEXT_PROSE = (
     "Good area to be in. I have not built anything yet. Want me to put a "
     "candidate strategy together for it?"
 )
+_RECALL_PROSE = "This thread already carries: "
+_RECALL_NOTHING = "no ledger yet"
 
 LEAD = "lead"
 FRAME = "frame"
@@ -143,13 +153,24 @@ _CONSULT_MARKERS = ("consult me before planning", "ask me design questions")
 _LOOP_MARKERS = ("read the catalog again and again",)
 # An edit turn names a substitution and asks for the rest to stand.
 _EDIT_MARKERS = ("keep the rest", "swap the organism", "substitute the organism")
+# An imperative to run or add, including assent to an offer the assistant made
+# and a retry after a failed task. Every one of them asks for a build.
+_ASSENT_MARKERS = ("yes, rerun", "run the differential expression now")
 # A request to store a preference, and a bare statement of what the user works
 # on. Neither asks for a strategy.
 _REMEMBER_MARKERS = ("please remember", "remember for future sessions")
 _CONTEXT_MARKERS = ("i'm investigating", "i am investigating")
+# A request to read the thread's own record back. The Lead answers from the
+# Ledger, so a branch's inherited state is visible in the reply.
+_RECALL_MARKERS = ("recap what i have asked",)
+_RECALL_SECTION = "frame"
 _LOOP_CALL_ARGS = {"record_type": "transcript"}
 
 CLASSIFY = "classify_user_intent"
+BUILD = "build_strategy"
+
+# The substring of ``build_would_replace_the_strategy`` that names the refusal.
+_BUILD_REFUSED_MARKER = "build_strategy replaces it"
 
 
 def _variant_text_params(expression: str) -> dict[str, Any]:
@@ -271,20 +292,52 @@ def _classified_this_turn(messages: list[ModelMessage]) -> bool:
     )
 
 
-def _build_sequence(prose: str, next_state: LeadTurnState) -> list[ToolCallPart]:
+def _build_head(classification: str) -> list[ToolCallPart]:
     return [
-        _classify("new_strategy"),
+        _classify(classification),
         scripted_call("frame_problem", {"reason": "mock frame"}),
-        scripted_call("build_strategy", {}),
+        scripted_call(BUILD, {}),
+    ]
+
+
+def _build_sequence(
+    prose: str,
+    next_state: LeadTurnState,
+    *,
+    classification: str = "new_strategy",
+) -> list[ToolCallPart]:
+    return [
+        *_build_head(classification),
         scripted_call("verify_strategy", {"reason": "mock verification"}),
         _lead_final(prose, next_state),
     ]
 
 
+def _refused_build_sequence(classification: str) -> list[ToolCallPart]:
+    """The arc a build takes on a thread that already has a strategy.
+
+    The refusal ends the turn: verifying an unchanged strategy reports a
+    success the build never made.
+    """
+    return [
+        *_build_head(classification),
+        _lead_final(_BUILD_REFUSED_PROSE, "await_user"),
+    ]
+
+
+def _build_refused(messages: list[ModelMessage]) -> bool:
+    return any(
+        part.tool_name == BUILD and _BUILD_REFUSED_MARKER in part.model_response()
+        for part in retry_prompt_parts(current_turn(messages))
+    )
+
+
 def _lead_sequence(messages: list[ModelMessage]) -> list[ToolCallPart]:
-    if deferred_tool_resolved(messages, "consult_user"):
-        return _build_sequence(_SUCCESS_PROSE, "complete")
     raw = last_user_text(messages)
+    if deferred_tool_resolved(messages, "consult_user"):
+        return _build_branch(messages, raw)
+    if has_any(raw.lower(), _RECALL_MARKERS):
+        return _recall_sequence(messages)
     ids = _attachment_gene_ids(joined_user_text(messages))
     if ids:
         return [
@@ -294,7 +347,22 @@ def _lead_sequence(messages: list[ModelMessage]) -> list[ToolCallPart]:
             ),
             _lead_final(_CONTROLS_PROSE, "await_user"),
         ]
-    return _routed_sequence(raw)
+    return _routed_sequence(messages, raw)
+
+
+def _ledger_section_read(messages: list[ModelMessage]) -> str:
+    for part in tool_return_parts(messages):
+        if part.tool_name == "read_ledger_section":
+            return str(part.content)
+    return _RECALL_NOTHING
+
+
+def _recall_sequence(messages: list[ModelMessage]) -> list[ToolCallPart]:
+    """Read one Ledger section and answer with it, dispatching no sub-agent."""
+    return [
+        scripted_call("read_ledger_section", {"section": _RECALL_SECTION}),
+        _lead_final(f"{_RECALL_PROSE}{_ledger_section_read(messages)}", "await_user"),
+    ]
 
 
 def _prose_only_sequence(lowered: str) -> list[ToolCallPart] | None:
@@ -349,7 +417,7 @@ def _one_tool_sequence(lowered: str) -> list[ToolCallPart] | None:
     return None
 
 
-def _routed_sequence(raw: str) -> list[ToolCallPart]:
+def _routed_sequence(messages: list[ModelMessage], raw: str) -> list[ToolCallPart]:
     lowered = raw.lower()
     dispatched = _one_tool_sequence(lowered)
     if dispatched is not None:
@@ -357,6 +425,8 @@ def _routed_sequence(raw: str) -> list[ToolCallPart]:
     prose = _prose_only_sequence(lowered)
     if prose is not None:
         return prose
+    if has_any(lowered, _ASSENT_MARKERS):
+        return _build_branch(messages, raw, classification="extend_strategy")
     build = (
         _FIX_MARKERS
         + _FEEDBACK_MARKERS
@@ -365,14 +435,29 @@ def _routed_sequence(raw: str) -> list[ToolCallPart]:
         + _COMBINED_MARKERS
     )
     if has_any(lowered, build):
-        return _build_branch(raw)
+        return _build_branch(messages, raw)
     return [_lead_final(f"[mock] {raw}", "await_user")]
 
 
-def _build_branch(raw: str) -> list[ToolCallPart]:
+def _build_branch(
+    messages: list[ModelMessage],
+    raw: str,
+    *,
+    classification: str = "new_strategy",
+) -> list[ToolCallPart]:
+    if _build_refused(messages):
+        return _refused_build_sequence(classification)
     if verification_succeeds(raw):
-        return _build_sequence(_SUCCESS_PROSE, "complete")
-    return _build_sequence(_FEEDBACK_PROSE, "await_user")
+        return _build_sequence(
+            _SUCCESS_PROSE,
+            "complete",
+            classification=classification,
+        )
+    return _build_sequence(
+        _FEEDBACK_PROSE,
+        "await_user",
+        classification=classification,
+    )
 
 
 def _lead_script(messages: list[ModelMessage]) -> ToolCallPart:

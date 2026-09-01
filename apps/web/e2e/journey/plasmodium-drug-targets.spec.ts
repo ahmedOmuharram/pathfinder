@@ -34,11 +34,15 @@ test.describe("P. falciparum candidate drug-targets journey (6 turns)", () => {
     );
     await chatPage.expectVerificationFeedback();
 
-    // ── Turn 4: fix the phylogenetic pattern → verification SUCCESS ──
+    // ── Turn 4: a fix request on a built thread is refused, not rebuilt ──
+    // The mock's fix arc runs the build sequence again; build_strategy
+    // refuses on a thread that has a strategy, and the script answers the
+    // refusal instead of claiming a verification it never ran.
     await chatPage.send(
       "Fix the phylogenetic pattern by loosening to %MAMM:N%pfal:Y%.",
     );
-    await chatPage.expectVerificationSuccess();
+    await chatPage.expectAssistantMessage(/Nothing was built/);
+    await chatPage.expectAssistantMessage(/edit_strategy/);
 
     // ── Turn 5: UI mutation — flip the combine operator ─────────
     const conversationId = chatPage.lastStrategyId;

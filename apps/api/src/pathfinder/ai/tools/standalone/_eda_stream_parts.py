@@ -13,6 +13,7 @@ from shared_py.stream_parts.eda import (
     EdaVolcanoPoint,
 )
 
+from pathfinder.ai.graph.state import StrategyDomainState
 from pathfinder.services.eda.authoring import SubsetPreview, distribution_series
 from pathfinder.services.eda.compute import RetainedSummary
 
@@ -23,11 +24,34 @@ _EFFECT_DIRECTION: TypeAdapter[EdaEffectDirection] = TypeAdapter(EdaEffectDirect
 
 
 def eda_analysis_state_chunk(state: EdaAnalysisState) -> DataChunk:
-    """Put the analysis state the tab also reads onto the thread."""
+    """Put the analysis state the tab also reads onto the thread.
+
+    The id is the analysis id, so repeats inside one message reconcile to
+    one part.
+    """
     return DataChunk(
         type="data-eda.analysis-state",
+        id=state.analysis_id,
         data=state.model_dump(by_alias=True, mode="json"),
     )
+
+
+def analysis_state_chunks_if_changed(
+    state: EdaAnalysisState,
+    *,
+    domain: StrategyDomainState,
+) -> list[DataChunk]:
+    """The state card, or nothing when the thread already shows this state.
+
+    The card restates the whole analysis, so a state that reads the same adds
+    no information. The digest leaves out ``revision`` (every mutation bumps
+    it) and ``filters`` (the summaries are what the card shows).
+    """
+    digest = state.model_dump_json(by_alias=True, exclude={"revision", "filters"})
+    if domain.eda_state_digest == digest:
+        return []
+    domain.eda_state_digest = digest
+    return [eda_analysis_state_chunk(state)]
 
 
 def eda_subset_preview_chunk(
@@ -38,6 +62,7 @@ def eda_subset_preview_chunk(
     variable_id: str | None,
     variable_display_name: str,
     is_multi_valued: bool,
+    caption: str = "",
 ) -> DataChunk:
     """The subset's size and one variable's shape under it."""
     payload = EdaSubsetPreviewPart(
@@ -58,6 +83,7 @@ def eda_subset_preview_chunk(
             is_multi_valued=is_multi_valued,
         ),
         distribution_note=preview.distribution_note,
+        caption=caption,
     )
     return DataChunk(
         type="data-eda.subset-preview",
@@ -75,6 +101,7 @@ def eda_viz_chunk(
     effect_direction: str,
     summary: RetainedSummary,
     points: list[EdaVolcanoPoint],
+    caption: str = "",
 ) -> DataChunk:
     """The volcano, capped so one message does not carry every gene."""
     ordered = sorted(points, key=lambda point: not point.retained)
@@ -89,6 +116,7 @@ def eda_viz_chunk(
         total_points=summary.total_rows,
         retained_points=summary.retained,
         points=ordered[:_MAX_VIZ_POINTS],
+        caption=caption,
     )
     return DataChunk(
         type="data-eda.viz",

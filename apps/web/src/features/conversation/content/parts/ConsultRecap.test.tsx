@@ -62,11 +62,49 @@ describe("ConsultRecapView", () => {
     expect(recap).toHaveTextContent(CHOSEN);
   });
 
-  it("writes the arrow and the unanswered placeholder in ASCII", () => {
+  it("heads the card Your answers and lays each pair out as Q: then A:", () => {
+    render(<ConsultRecapView recap={recapOf(answeredMessage())} />);
+    const recap = screen.getByTestId("consult-recap");
+    expect(recap.textContent).toBe(`Your answersQ: ${PROMPT}A: ${CHOSEN}`);
+    expect(screen.getByTestId("consult-recap-question").textContent).toBe(
+      `Q: ${PROMPT}`,
+    );
+    expect(screen.getByTestId("consult-recap-answer").textContent).toBe(`A: ${CHOSEN}`);
+  });
+
+  it("keeps a block gap between one pair and the next", () => {
+    render(<ConsultRecapView recap={recapOf(answeredMessage())} />);
+    expect(screen.getByTestId("consult-recap-pairs")).toHaveClass("space-y-3");
+    expect(screen.getAllByTestId("consult-recap-question")).toHaveLength(1);
+  });
+
+  it("writes the note beside the labels the user picked", () => {
+    const questions = recapOf(answeredMessage()).questions;
+    render(
+      <ConsultRecapView
+        recap={{
+          questions,
+          answers: [
+            {
+              questionId: "comparison_scope",
+              prompt: PROMPT,
+              chosenLabels: [CHOSEN],
+              note: "only the 2016 cohort",
+            },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByTestId("consult-recap-answer").textContent).toBe(
+      `A: ${CHOSEN} (only the 2016 cohort)`,
+    );
+  });
+
+  it("writes the unanswered placeholder in ASCII", () => {
     const questions = recapOf(answeredMessage()).questions;
     render(<ConsultRecapView recap={{ questions, answers: [] }} />);
     const text = screen.getByTestId("consult-recap").textContent;
-    expect(text).toBe(`Questions you answered${PROMPT}->-`);
+    expect(text).toBe(`Your answersQ: ${PROMPT}A: -`);
     expect(text).not.toMatch(/[^\x20-\x7e]/);
   });
 });

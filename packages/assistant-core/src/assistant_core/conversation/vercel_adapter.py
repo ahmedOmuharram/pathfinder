@@ -141,7 +141,7 @@ class PhaseStreamEmitter:
 
     message_id: str
     sdk_version: Literal[5, 6] = 6
-    deferred_hint: DeferredToolHint | None = None
+    deferred_hints: list[DeferredToolHint] = field(default_factory=list)
     _stream: PinnedVercelAIEventStream = field(init=False)
     _started_tool_call_ids: set[str] = field(default_factory=set, init=False)
 
@@ -185,8 +185,11 @@ class PhaseStreamEmitter:
             if tool_call_id in self._started_tool_call_ids:
                 return []
             self._started_tool_call_ids.add(tool_call_id)
-            hint = self.deferred_hint
-            if hint is None or hint.tool_call_id != tool_call_id:
+            hint = next(
+                (h for h in self.deferred_hints if h.tool_call_id == tool_call_id),
+                None,
+            )
+            if hint is None:
                 return []
             return [
                 ToolInputStartChunk(

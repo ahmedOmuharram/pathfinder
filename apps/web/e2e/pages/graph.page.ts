@@ -91,6 +91,28 @@ export class GraphPage {
     return this.page.getByTestId("rail-strategy-footer");
   }
 
+  /**
+   * Bring the rail's Strategy panel on screen.
+   *
+   * The rail auto-opens Progress on the thread's first user message, so the
+   * Strategy toggle reads "Open Strategy" until a spec clicks it.
+   */
+  async openRailStrategyPanel() {
+    const toggle = this.page.getByRole("button", { name: "Open Strategy" });
+    if ((await toggle.count()) > 0) {
+      await toggle.click();
+    }
+    await this.expectRailPanel();
+  }
+
+  /** How many step rows the rail lists, once it lists any. */
+  async railStepCount(): Promise<number> {
+    await expect
+      .poll(() => this.railStepRows.count(), { timeout: 60_000 })
+      .toBeGreaterThan(0);
+    return this.railStepRows.count();
+  }
+
   // ── Strategy page chrome (/conversation/[id]/strategy) ──────────
 
   /** The CanvasTopbar mounted on the /strategy route. */

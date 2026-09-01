@@ -88,11 +88,13 @@ def build_turn_start(
     turn_message_id: UUID,
     turn_start_event_id: int,
     durable_result: DurableTaskResult | None = None,
+    durable_results: tuple[DurableTaskResult, ...] = (),
 ) -> TurnStart:
     """The turn's inputs, for the assistant's state factory to shape."""
     resume = incoming.is_approval_resume or durable_result is not None
     return TurnStart(
         durable_result=durable_result,
+        durable_results=durable_results,
         conversation_id=incoming.conversation_id,
         user_id=user_id,
         site_id=incoming.site_id,

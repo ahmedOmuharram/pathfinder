@@ -45,20 +45,38 @@ async def seed_user(db_session: AsyncSession) -> User:
     return user
 
 
+def _client(app: FastAPI, user_id: UUID) -> httpx.AsyncClient:
+    client = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    client.cookies.set("pathfinder-auth", create_user_token(user_id))
+    return client
+
+
 @pytest.fixture
 async def api_client(
     app: FastAPI,
     patch_app_db_engine: None,
     seed_user: User,
+    signed_in_to_veupathdb: None,
 ) -> AsyncGenerator[httpx.AsyncClient]:
+    """A revert restores a strategy on WDK, so the route requires the login."""
+    del patch_app_db_engine, signed_in_to_veupathdb
+    async with _client(app, seed_user.id) as client:
+        yield client
+
+
+@pytest.fixture
+async def signed_out_client(
+    app: FastAPI,
+    patch_app_db_engine: None,
+    seed_user: User,
+) -> AsyncGenerator[httpx.AsyncClient]:
+    """The owner of the thread, holding no VEuPathDB session."""
     del patch_app_db_engine
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(
-        transport=transport,
-        base_url="http://test",
-        headers={"X-Requested-With": "XMLHttpRequest"},
-    ) as client:
-        client.cookies.set("pathfinder-auth", create_user_token(seed_user.id))
+    async with _client(app, seed_user.id) as client:
         yield client
 
 
@@ -67,19 +85,14 @@ async def api_client_other_user(
     app: FastAPI,
     patch_app_db_engine: None,
     db_session: AsyncSession,
+    signed_in_to_veupathdb: None,
 ) -> AsyncGenerator[httpx.AsyncClient]:
-    del patch_app_db_engine
+    del patch_app_db_engine, signed_in_to_veupathdb
     other = User(id=uuid4())
     db_session.add(other)
     await db_session.flush()
     await db_session.commit()
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(
-        transport=transport,
-        base_url="http://test",
-        headers={"X-Requested-With": "XMLHttpRequest"},
-    ) as client:
-        client.cookies.set("pathfinder-auth", create_user_token(other.id))
+    async with _client(app, other.id) as client:
         yield client
 
 
@@ -178,3 +191,24 @@ async def test_revert_ghost_message_is_noop(
         json={"messageId": str(uuid4())},
     )
     assert res.status_code == 204
+
+
+async def test_revert_without_a_veupathdb_login_is_refused(
+    signed_out_client: httpx.AsyncClient,
+    conv_with_messages: tuple[UUID, list[Message]],
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
+    """A revert pushes the restored snapshot, so it needs the same identity
+    the branch route requires. Nothing is deleted by the refusal."""
+    conv_id, msgs = conv_with_messages
+    res = await signed_out_client.post(
+        f"/api/v1/conversations/{conv_id}/revert-to-message",
+        json={"messageId": str(msgs[2].id)},
+    )
+    assert res.status_code == 401, res.text
+    assert res.json()["code"] == "WDK_LOGIN_REQUIRED"
+    async with session_maker() as s:
+        remaining = (
+            await s.scalars(select(Message).where(Message.conversation_id == conv_id))
+        ).all()
+    assert {m.id for m in remaining} == {m.id for m in msgs}

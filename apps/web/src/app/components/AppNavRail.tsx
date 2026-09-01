@@ -105,6 +105,11 @@ export function AppNavRail({
                   href={href}
                   aria-label={item.label}
                   aria-current={active ? "page" : undefined}
+                  onClick={(event) => {
+                    // The reader is already in this section; a re-navigation
+                    // would drop the open conversation for the draft route.
+                    if (active) event.preventDefault();
+                  }}
                   className={cn(
                     buttonVariants({ variant: "ghost", size: "icon" }),
                     active && ACTIVE_PILL,

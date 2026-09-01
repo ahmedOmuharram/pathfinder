@@ -138,7 +138,6 @@ async def test_durable_tool_submits_job_and_defers_the_call(
     deferral = ctx.deps.durable_deferrals["call_stub"]
     assert deferral.task_id == UUID("00000000-0000-0000-0000-000000000001")
     assert deferral.tool_name == "stub_tool"
-    assert deferral.sub_agent is None
 
     assert len(_FakeRepo.created) == 1
     created = _FakeRepo.created[0]

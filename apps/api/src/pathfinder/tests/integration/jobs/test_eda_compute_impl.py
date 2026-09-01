@@ -349,6 +349,50 @@ async def test_the_mutated_analysis_reaches_the_thread_under_a_new_revision(
     ]
 
 
+async def test_the_volcano_carries_the_caption_the_model_wrote(
+    worker_context: Context,
+    wire: Any,
+) -> None:
+    """The figure prints the model's sentence, so the impl must forward it."""
+    installed = wire("complete")
+
+    await run_eda_compute_impl(
+        context=worker_context,
+        task_id=uuid4(),
+        conversation_id=uuid4(),
+        progress=_Progress(),
+        memory_store=None,
+        caption="Genes higher in febrile samples than in normal samples",
+        **_ARGS,
+    )
+    await installed.client.close()
+
+    viz = [chunk for chunk in installed.chunks if chunk["type"] == "data-eda.viz"]
+    assert [chunk["data"]["caption"] for chunk in viz] == [
+        "Genes higher in febrile samples than in normal samples"
+    ]
+
+
+async def test_a_compute_with_no_caption_leaves_the_volcano_s_caption_empty(
+    worker_context: Context,
+    wire: Any,
+) -> None:
+    installed = wire("complete")
+
+    await run_eda_compute_impl(
+        context=worker_context,
+        task_id=uuid4(),
+        conversation_id=uuid4(),
+        progress=_Progress(),
+        memory_store=None,
+        **_ARGS,
+    )
+    await installed.client.close()
+
+    viz = [chunk for chunk in installed.chunks if chunk["type"] == "data-eda.viz"]
+    assert [chunk["data"]["caption"] for chunk in viz] == [""]
+
+
 async def test_a_completed_compute_puts_the_volcano_after_the_analysis_state(
     worker_context: Context,
     wire: Any,

@@ -42,18 +42,15 @@ describe("DataGraphSnapshot", () => {
     );
   });
 
-  it("carries its own testid and stops being a bordered pill", () => {
+  it("carries its own testid inside a figure that draws no chrome", () => {
     const { container } = render(<DataGraphSnapshot data={SNAPSHOT} />);
     const line = screen.getByTestId("data-graph-snapshot");
     const figure = screen.getByTestId("figure");
     expect(line).toHaveTextContent("2 steps, 1,342 genes");
     expect(figure.contains(line)).toBe(true);
-    expect(figure.className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
-    expect(container.querySelectorAll("figcaption")).toHaveLength(0);
+    expect(figure.className).toBe("");
+    const titles = container.querySelectorAll("figcaption");
+    expect(titles).toHaveLength(1);
+    expect(titles[0]).toHaveTextContent("Strategy updated");
   });
 });

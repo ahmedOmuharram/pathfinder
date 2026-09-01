@@ -8,7 +8,10 @@ import {
   getPrivacySettings,
   updatePrivacySettings,
 } from "@/features/settings/api/privacy";
+import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 import { Modal } from "@/lib/components/Modal";
+import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
+import { useSessionStore } from "@/state/useSessionStore";
 
 import { PRIVACY_QUERY_KEY } from "./settings/privacyQuery";
 
@@ -18,11 +21,17 @@ import { PRIVACY_QUERY_KEY } from "./settings/privacyQuery";
  */
 export function EvalDataNotice() {
   const qc = useQueryClient();
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { authRefreshed } = useAuthRefresh();
+  const { data: authStatus } = useQuery(authStatusOptions(selectedSite));
+  // The privacy read needs the internal session cookie, which the refresh
+  // mints on page load. An unauthenticated visitor is never asked.
   const { data } = useQuery({
     queryKey: PRIVACY_QUERY_KEY,
     queryFn: getPrivacySettings,
     staleTime: Infinity,
     retry: false,
+    enabled: authRefreshed && authStatus?.signedIn === true,
   });
 
   const acknowledge = useMutation({

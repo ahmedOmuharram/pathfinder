@@ -22,7 +22,7 @@ from pathfinder.ai.tools.standalone._eda_models import (
 )
 from pathfinder.ai.tools.standalone._eda_sheet import sheet_for
 from pathfinder.ai.tools.standalone._eda_stream_parts import (
-    eda_analysis_state_chunk,
+    analysis_state_chunks_if_changed,
     eda_subset_preview_chunk,
 )
 from pathfinder.domain.eda import find_gene_entity
@@ -113,7 +113,7 @@ async def open_eda_analysis(
         opened,
         f"Opened {state.display_name}",
         ctx=ctx,
-        extra=[eda_analysis_state_chunk(state)],
+        extra=analysis_state_chunks_if_changed(state, domain=ctx.deps.state.domain),
     )
 
 
@@ -219,7 +219,7 @@ async def set_eda_filters(
         ),
         f"{state.num_filters} filters: {'; '.join(state.filter_summaries)}",
         ctx=ctx,
-        extra=[eda_analysis_state_chunk(state)],
+        extra=analysis_state_chunks_if_changed(state, domain=ctx.deps.state.domain),
     )
 
 
@@ -250,6 +250,7 @@ async def preview_eda_subset(
     *,
     entity_id: str,
     distribution_variable_id: str | None = None,
+    caption: str = "",
 ) -> ToolReturn[EdaSubsetPreviewResult]:
     """Count what the open analysis's filters select, on one entity.
 
@@ -268,10 +269,17 @@ async def preview_eda_subset(
     A count of zero is a real answer, not an error. Say which filter emptied
     the subset and offer one concrete way to widen it.
 
+    Write ``caption`` whenever you ask for a histogram. It is the one sentence
+    printed under the plot, so it says what the plot SHOWS in the
+    researcher's terms - "Distribution of per-gene sense counts across the 12
+    febrile and normal samples" - never an internal name and never a repeat of
+    the numbers, which the figure already carries.
+
     Args:
         ctx: Agent run context.
         entity_id: The entity whose records are counted.
         distribution_variable_id: A variable on that entity to histogram.
+        caption: One sentence describing what the distribution shows.
     """
     site_id = ctx.deps.runtime.site_id
     bound = await bound_analysis(ctx)
@@ -328,6 +336,7 @@ async def preview_eda_subset(
         variable_id=distribution_variable_id,
         variable_display_name=result.variable_display_name,
         is_multi_valued=result.is_multi_valued,
+        caption=caption,
     )
     return with_summary(
         result,

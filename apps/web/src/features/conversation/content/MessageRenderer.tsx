@@ -38,13 +38,12 @@ import { Button } from "@/components/ui/button";
 
 import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
 import { FailureNotice } from "./FailureNotice";
-import { ModelBadge } from "./ModelBadge";
 import { SupersededBadge } from "./SupersededBadge";
 import { ConsultCarousel } from "./parts/ConsultCarousel";
 import { StoppedNotice } from "./StoppedNotice";
 import { dataPartRenderers } from "./dataPartRegistry";
 import { messageAnchorId } from "../thread/taskResult";
-import { TraceAnchor } from "../thread/TraceAnchor";
+import { TraceAnchor, type TraceAnchorProps } from "../thread/TraceAnchor";
 
 const markdownRemarkPlugins = [remarkGfm];
 
@@ -80,11 +79,22 @@ const UnknownDataPartError: DataMessagePartComponent<unknown> = ({ name }) => {
   return null;
 };
 
+// The consult card renders where its tool part sits in the flow; TraceAnchor
+// still draws the run's trace when this part is the run's first anchor.
+function ConsultUserToolPart(props: TraceAnchorProps) {
+  return (
+    <>
+      <TraceAnchor {...props} />
+      <ConsultCarousel toolCallId={props.toolCallId} />
+    </>
+  );
+}
+
 const contentComponents = {
   Text,
   Reasoning: ReasoningPart,
   tools: {
-    by_name: { think: TraceAnchor },
+    by_name: { think: TraceAnchor, consult_user: ConsultUserToolPart },
     Fallback: TraceAnchor,
   },
   data: { by_name: dataPartRenderers, Fallback: UnknownDataPartError },
@@ -127,7 +137,10 @@ export function UserEditComposer() {
   return (
     <motion.div {...MESSAGE_FADE_IN}>
       <Message from="user">
-        <ComposerPrimitive.Root className="ml-auto flex w-full max-w-2xl flex-col gap-2 rounded-lg border bg-card px-3 py-2">
+        <ComposerPrimitive.Root
+          data-testid="user-edit-composer"
+          className="ml-auto flex w-full max-w-2xl flex-col gap-2 rounded-lg border bg-card px-3 py-2"
+        >
           <ComposerPrimitive.Input
             autoFocus
             className="w-full resize-none bg-transparent text-sm outline-none"
@@ -206,10 +219,8 @@ export function AssistantMessage() {
     <motion.div {...MESSAGE_FADE_IN}>
       <Message from="assistant" id={messageAnchorId(messageId)}>
         <MessageContent>
-          <ModelBadge />
           <SupersededBadge />
           <MessagePrimitive.Content components={contentComponents} />
-          <ConsultCarousel />
           <AssistantThinkingPlaceholder />
           <AssistantErrorCard />
           <AssistantStoppedNotice />

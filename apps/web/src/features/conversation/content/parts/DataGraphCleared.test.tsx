@@ -19,18 +19,13 @@ describe("DataGraphCleared", () => {
     expect(screen.getByTestId("figure-caption").textContent).toBe("Strategy cleared");
   });
 
-  it("carries its own testid and stops being a bordered pill", () => {
+  it("carries its own testid and draws no chrome at all", () => {
     const { container } = render(<DataGraphCleared data={{ reason: "replaced" }} />);
     const line = screen.getByTestId("data-graph-cleared");
     const figure = screen.getByTestId("figure");
     expect(line).toHaveTextContent("Strategy cleared - replaced");
     expect(figure.contains(line)).toBe(true);
-    expect(figure.className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
+    expect(figure.className).toBe("");
     expect(container.querySelectorAll("figcaption")).toHaveLength(0);
   });
 });

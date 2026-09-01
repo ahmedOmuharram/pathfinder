@@ -280,7 +280,10 @@ asserts:
 9. `getByTestId("model-badge")` is present and reads `41.8K, $0.01`:
    `formatCost` renders a cost at or above one cent with two decimals, so
    `0.0131` is `$0.01`, not `$0.0131`, and the separator is the ASCII comma and
-   space.
+   space. **This pin is stale.** The badge is deleted: the turn's model and
+   totals moved onto the trace summary row as `trace-usage`, which reads
+   `gpt-5.6-luna - 54.1K, $0.02` for the same recorded turn. The frozen file is
+   not edited by an implementer, so the replacement is the lead's to make.
 10. `queryByTestId("data-task-progress")` renders no standalone card OUTSIDE
     the task row, exactly as `dataPartDispatch.test.tsx` asserts today.
 
@@ -295,11 +298,13 @@ asserts:
 2. With `showRawToolCalls: false` again after a re-render: zero
    `trace-row-raw` elements and the negative text assertion of task 0.2 holds.
    Flipping the flag back must not leave the DOM dirty.
-3. With `showTokenUsage: false`: `queryByTestId("model-badge")` is null and
+3. With `showTokenUsage: false`: `queryAllByTestId("trace-usage")` is empty and
    `queryAllByTestId("trace-group-usage")` is empty.
 4. With `showTokenUsage: true`: both are present. This is the default, so
    turning the gate on changes nothing for an existing user, and this case
-   proves it.
+   proves it. **The file still names `model-badge` here.** That pin is stale
+   for the same reason as task 0.2 item 9, and the frozen file waits on the
+   lead.
 
 ## Task 0.4: the figures (Author A)
 
@@ -315,9 +320,15 @@ against the same recorded turn:
    those testids survives.
 3. `getAllByTestId("figure-caption")` reads, in order:
    - `6 of 12 Sample, 34,320 of 68,640 pfal3D7 htseq counts`
-   - `6 of 12 Sample, 6 values` (the preview carries one entity, then the
-     distribution the fixture supports)
-   - `1,543 of 5,511 genes retained`
+   - `Figure 1. Heat shock response in sensitive mutants (LRR5, DHC) - 6 of 12
+     Sample, 6 values.` (the preview carries one entity, then the distribution
+     the fixture supports)
+   - `Figure 2. Heat shock response in sensitive mutants (LRR5, DHC) - 1,543 of
+     5,511 genes retained.`
+
+   The two plots are paper figures: their caption names the study, is numbered
+   in thread order over both plot kinds, and ends in a period. The status card
+   above them is not a figure and keeps its plain left caption.
 
    Both entity-count captions use the one format of overview section 5: one
    clause per entity, `count of unfilteredCount entityDisplayName`, thousands
@@ -328,8 +339,9 @@ against the same recorded turn:
 5. **No figure has a border.** Assert on computed style is brittle in jsdom, so
    assert on the class contract instead: no element carrying `data-testid=
    "figure"` has a class matching `/\bborder\b|\brounded-lg\b|\bshadow-card\b/`,
-   and every one has a class matching `/\bborder-t\b/`. This is the one
-   styling assertion in the suite and it is named as such.
+   and none carries a class at all, because one container owns the thread's
+   vertical rhythm and a figure draws no rule. This is the one styling
+   assertion in the suite and it is named as such.
 6. `data-eda-filter-chip-0` and `data-eda-subset-coverage` are still present,
    because the frozen EDA suite asserts them and this suite must not disagree
    with it.

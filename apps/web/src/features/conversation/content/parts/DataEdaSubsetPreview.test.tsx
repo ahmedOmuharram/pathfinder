@@ -2,6 +2,8 @@
  * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("@/lib/components/charts/echartsRegistry", () => ({
@@ -38,9 +40,56 @@ describe("DataEdaSubsetPreview", () => {
 
   it("captions the figure with the entity counts and the value count", () => {
     render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
-    expect(screen.getByTestId("figure-caption")).toHaveTextContent(
-      "6 of 12 Sample, 6 values",
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "6 of 12 Sample, 6 values.",
     );
+  });
+
+  it("leads the caption with the sentence the model wrote", () => {
+    render(
+      <DataEdaSubsetPreview
+        data={{
+          ...EDA_SUBSET_PREVIEW_FIXTURE,
+          caption: "Distribution of temperature across the febrile samples",
+        }}
+      />,
+    );
+    expect(screen.getByTestId("figure-caption").textContent).toBe(
+      "Distribution of temperature across the febrile samples (6 of 12 Sample, 6 values).",
+    );
+  });
+
+  it("puts the caption above the bin counts, the coverage and the notes", () => {
+    render(
+      <DataEdaSubsetPreview
+        data={{
+          ...EDA_SUBSET_PREVIEW_FIXTURE,
+          distributionNote: "Temperature has 40 bins, the first 10 are shown",
+          distribution: { ...DISTRIBUTION, isMultiValued: true, numVarValues: 9 },
+        }}
+      />,
+    );
+    const caption = screen.getByTestId("figure-caption");
+    const below = [
+      screen.getByTestId("data-eda-subset-bin-0"),
+      screen.getByTestId("data-eda-subset-coverage"),
+      screen.getByTestId("data-eda-subset-multivalued"),
+      screen.getByTestId("data-eda-subset-note"),
+    ];
+    for (const node of below) {
+      expect(
+        caption.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps the histogram itself above the caption", () => {
+    render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
+    const caption = screen.getByTestId("figure-caption");
+    const plot = screen.getByTestId("data-eda-subset-histogram");
+    expect(
+      caption.compareDocumentPosition(plot) & Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeGreaterThan(0);
   });
 
   it("titles the figure with the distribution variable", () => {
@@ -55,18 +104,12 @@ describe("DataEdaSubsetPreview", () => {
         data={{ ...EDA_SUBSET_PREVIEW_FIXTURE, distribution: null }}
       />,
     );
-    expect(screen.getByTestId("figure-caption")).toHaveTextContent("6 of 12 Sample");
-    expect(screen.getByTestId("figure-caption").textContent).toBe("6 of 12 Sample");
+    expect(screen.getByTestId("figure-caption").textContent).toBe("6 of 12 Sample.");
   });
 
-  it("separates itself with a hairline, never with a card", () => {
+  it("draws no divider, no card and no outer margin", () => {
     render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
-    expect(screen.getByTestId("figure").className.split(/\s+/)).toEqual([
-      "my-6",
-      "border-t",
-      "border-border/60",
-      "pt-4",
-    ]);
+    expect(screen.getByTestId("figure").className).toBe("");
     expect(screen.getByTestId("data-eda-subset-preview").className).not.toMatch(
       /\bborder\b|\brounded-md\b|\bbg-card\b/,
     );
@@ -88,10 +131,37 @@ describe("DataEdaSubsetPreview", () => {
     expect(bins[1]).toHaveTextContent("[41, 42] 6");
   });
 
+  it("holds the bin counts and the coverage line in a closed disclosure", () => {
+    render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
+    const summary = screen.getByText("Bin counts");
+    expect(summary.tagName).toBe("SUMMARY");
+    const details = summary.closest("details");
+    expect(details?.open).toBe(false);
+    expect(details).toContainElement(screen.getByTestId("data-eda-subset-bin-0"));
+    expect(details).toContainElement(screen.getByTestId("data-eda-subset-coverage"));
+  });
+
   it("reports how many records carry a value", () => {
     render(<DataEdaSubsetPreview data={EDA_SUBSET_PREVIEW_FIXTURE} />);
     expect(screen.getByTestId("data-eda-subset-coverage")).toHaveTextContent(
       "6 of 6 records have a value",
+    );
+  });
+
+  it("keeps the coverage line out of the disclosure when values are missing", () => {
+    render(
+      <DataEdaSubsetPreview
+        data={{
+          ...EDA_SUBSET_PREVIEW_FIXTURE,
+          distribution: { ...DISTRIBUTION, numVarValues: 4, numMissingCases: 2 },
+        }}
+      />,
+    );
+    const coverage = screen.getByTestId("data-eda-subset-coverage");
+    expect(coverage.textContent).toBe("4 of 6 records have a value, 2 missing");
+    expect(coverage.closest("details")).toBe(null);
+    expect(screen.getByText("Bin counts").closest("details")).toContainElement(
+      screen.getByTestId("data-eda-subset-bin-0"),
     );
   });
 
@@ -104,9 +174,9 @@ describe("DataEdaSubsetPreview", () => {
         }}
       />,
     );
-    expect(screen.getByTestId("data-eda-subset-multivalued")).toHaveTextContent(
-      "one record can carry several values",
-    );
+    const note = screen.getByTestId("data-eda-subset-multivalued");
+    expect(note).toHaveTextContent("one record can carry several values");
+    expect(note.closest("details")).toBe(null);
     expect(screen.getByTestId("data-eda-subset-coverage")).toHaveTextContent(
       "9 of 6 records have a value",
     );
@@ -148,5 +218,14 @@ describe("DataEdaSubsetPreview", () => {
     await waitFor(() => {
       expect(useEdaStore.getState().subsetPreview?.entityCounts[0]?.count).toBe(6);
     });
+  });
+});
+
+describe("the histogram's plot area", () => {
+  it("leaves real room for the bars above the 64px of axis furniture", () => {
+    const source = readFileSync(join(__dirname, "DataEdaSubsetPreview.tsx"), "utf8");
+    const match = /const HISTOGRAM_HEIGHT = (\d+);/.exec(source);
+    expect(match).not.toBeNull();
+    expect(Number(match?.[1])).toBeGreaterThanOrEqual(160);
   });
 });

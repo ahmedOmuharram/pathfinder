@@ -17,9 +17,17 @@ from assistant_core.models.scripted import (
     ScriptedModel,
     detect_role,
     next_unmade_call,
+    retry_prompt_parts,
     scripted_call,
 )
-from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    RetryPromptPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
 from pydantic_ai.models import ModelRequestParameters
 from pydantic_ai.models.function import AgentInfo
 from pydantic_ai.tools import ToolDefinition
@@ -113,6 +121,23 @@ def test_a_sequence_stops_at_its_terminal_call() -> None:
         ModelResponse(parts=[scripted_call("first", {})]),
     ]
     assert next_unmade_call(sequence, messages).tool_name == "final_result"
+
+
+def test_the_retry_parts_are_the_ones_a_tool_refused_on() -> None:
+    messages: list[ModelMessage] = [
+        ModelRequest(
+            parts=[
+                ToolReturnPart(tool_name="kept", content="ok", tool_call_id="k1"),
+                RetryPromptPart(
+                    content="refused", tool_name="refused_tool", tool_call_id="r1"
+                ),
+            ]
+        ),
+    ]
+    parts = retry_prompt_parts(messages)
+
+    assert [p.tool_name for p in parts] == ["refused_tool"]
+    assert "refused" in parts[0].model_response()
 
 
 def test_the_product_script_declares_its_four_roles() -> None:

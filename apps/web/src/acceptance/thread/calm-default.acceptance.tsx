@@ -154,8 +154,10 @@ describe.skipIf(traceModule === null)("the thread's calm default", () => {
     expect(view.getByTestId("tool-approval-deny")).toBeInTheDocument();
   });
 
-  it("prints the lead's own tokens and cost on the model badge", () => {
+  it("prints the turn's model and totals on the trace summary row", () => {
     const view = renderTurn(RECORDED_CHUNKS, CALM);
-    expect(view.getByTestId("model-badge")).toHaveTextContent("41.8K, $0.01");
+    expect(view.getByTestId("trace-usage")).toHaveTextContent(
+      "gpt-5.6-luna - 54.1K, $0.02",
+    );
   });
 });

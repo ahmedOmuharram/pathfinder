@@ -6,8 +6,8 @@ import asyncio
 from uuid import UUID, uuid4
 
 import pytest
-from assistant_core.graph.durable import durable_call_id
 from assistant_core.graph.turn_state import (
+    DurableCall,
     DurableDeferral,
     DurableTaskResult,
     PendingDurableCall,
@@ -26,13 +26,13 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph._lead_turn import (
-    ConcurrentDurableCallsError,
+    ConcurrentDurableDispatchError,
     pending_durable_call,
     resolve_turn_resumption,
 )
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
-from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentDurablePark
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
@@ -81,14 +81,22 @@ def _call(tool_call_id: str, tool_name: str = "run_eda_compute") -> ToolCallPart
 
 
 def _parked(*, sub_agent: SubAgentApprovalPending | None = None) -> PendingDurableCall:
+    inner = "call_compute" if sub_agent is None else sub_agent.approvals[0].tool_call_id
     return PendingDurableCall(
         phase="lead" if sub_agent is None else "verification",
         tool_call_id="call_compute",
         tool_name="run_eda_compute",
         tool_args={"method": "DESeq"},
         prior_messages_json=_HISTORY,
-        task_id=_TASK_ID,
-        durable_tool_name="run_eda_compute",
+        durable_calls=[
+            DurableCall(
+                tool_call_id=inner,
+                tool_name="run_eda_compute",
+                args={"method": "DESeq"},
+                task_id=_TASK_ID,
+                durable_tool_name="run_eda_compute",
+            ),
+        ],
         sub_agent=sub_agent,
     )
 
@@ -107,24 +115,57 @@ def test_the_parked_call_carries_the_task_and_the_registered_tool_name() -> None
     parked = pending_durable_call(output=output, deps=deps, messages=[])
 
     assert parked is not None
-    assert parked.task_id == _TASK_ID
+    assert parked.task_ids == [_TASK_ID]
     assert parked.tool_call_id == "call_enrich"
     assert parked.tool_name == "run_gene_set_enrichment"
-    assert parked.durable_tool_name == "geneset_enrichment"
+    assert [c.durable_tool_name for c in parked.durable_calls] == ["geneset_enrichment"]
     assert parked.phase == "lead"
 
 
-def test_two_durable_calls_in_one_response_are_refused() -> None:
+def test_two_durable_lead_calls_in_one_response_are_both_parked() -> None:
     state = _state()
     deps = _deps(state)
-    for call_id in ("call_a", "call_b"):
+    tasks = {"call_a": uuid4(), "call_b": uuid4()}
+    for call_id, task_id in tasks.items():
         deps.durable_deferrals[call_id] = DurableDeferral(
-            task_id=_TASK_ID,
+            task_id=task_id,
             tool_name="run_eda_compute",
         )
     output = DeferredToolRequests(calls=[_call("call_a"), _call("call_b")])
 
-    with pytest.raises(ConcurrentDurableCallsError, match="call_a, call_b"):
+    parked = pending_durable_call(output=output, deps=deps, messages=[])
+
+    assert parked is not None
+    assert [c.tool_call_id for c in parked.durable_calls] == ["call_a", "call_b"]
+    assert parked.task_ids == [tasks["call_a"], tasks["call_b"]]
+    assert parked.owns(tasks["call_b"]) is True
+
+
+def test_two_sub_agent_dispatches_with_durable_calls_are_refused() -> None:
+    state = _state()
+    deps = _deps(state)
+    for call_id in ("call_a", "call_b"):
+        deps.pending_sub_agent_durables[call_id] = SubAgentDurablePark(
+            pending=SubAgentApprovalPending(
+                role="verification",
+                approvals=[
+                    SubAgentApprovalCall(
+                        tool_call_id=f"inner_{call_id}",
+                        tool_name="run_eda_compute",
+                    ),
+                ],
+                messages_json=_HISTORY,
+            ),
+            deferrals={
+                f"inner_{call_id}": DurableDeferral(
+                    task_id=_TASK_ID,
+                    tool_name="run_eda_compute",
+                ),
+            },
+        )
+    output = DeferredToolRequests(calls=[_call("call_a"), _call("call_b")])
+
+    with pytest.raises(ConcurrentDurableDispatchError, match="call_a, call_b"):
         pending_durable_call(output=output, deps=deps, messages=[])
 
 
@@ -210,8 +251,8 @@ def test_the_sub_agent_park_names_the_inner_call_the_worker_answers() -> None:
         ),
     )
 
-    assert durable_call_id(parked) == "call_enrich"
+    assert [c.tool_call_id for c in parked.durable_calls] == ["call_enrich"]
 
 
 def test_a_lead_park_names_its_own_call() -> None:
-    assert durable_call_id(_parked()) == "call_compute"
+    assert [c.tool_call_id for c in _parked().durable_calls] == ["call_compute"]

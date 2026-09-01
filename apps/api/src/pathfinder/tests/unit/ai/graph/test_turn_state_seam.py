@@ -40,6 +40,7 @@ TURN_FIELDS = {
     "pending_approval",
     "pending_durable_call",
     "durable_result",
+    "durable_results",
     "approval_responses",
     "user_question_answers",
     "retrieved_memories",
@@ -57,6 +58,7 @@ DOMAIN_FIELDS = {
     "stale_build",
     "created_gene_set_ids",
     "sheeted_eda_datasets",
+    "eda_state_digest",
     "requirements",
     "original_request",
 }

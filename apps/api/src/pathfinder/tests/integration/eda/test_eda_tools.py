@@ -396,6 +396,49 @@ def test_the_subset_preview_chunk_converts_a_histogram_to_a_series() -> None:
     assert series["subsetSize"] == 4279
 
 
+def test_the_subset_preview_chunk_carries_the_caption_the_model_wrote() -> None:
+    preview = SubsetPreview(
+        entity_id=_ENTITY,
+        entity_display_name="Gene phenotype",
+        count=4011,
+        unfiltered_count=4279,
+        distribution=None,
+        distribution_note=None,
+    )
+    chunk = eda_subset_preview_chunk(
+        dataset_id=_DATASET,
+        analysis_id="t4fszEJ",
+        preview=preview,
+        variable_id=None,
+        variable_display_name="",
+        is_multi_valued=False,
+        caption="Species of the 4,011 phenotyped genes the filters keep",
+    )
+    assert chunk.data["caption"] == (
+        "Species of the 4,011 phenotyped genes the filters keep"
+    )
+
+
+def test_the_subset_preview_chunk_leaves_the_caption_empty_when_unset() -> None:
+    preview = SubsetPreview(
+        entity_id=_ENTITY,
+        entity_display_name="Gene phenotype",
+        count=4011,
+        unfiltered_count=4279,
+        distribution=None,
+        distribution_note=None,
+    )
+    chunk = eda_subset_preview_chunk(
+        dataset_id=_DATASET,
+        analysis_id="t4fszEJ",
+        preview=preview,
+        variable_id=None,
+        variable_display_name="",
+        is_multi_valued=False,
+    )
+    assert chunk.data["caption"] == ""
+
+
 def test_the_subset_preview_chunk_omits_the_series_when_there_is_none() -> None:
     preview = SubsetPreview(
         entity_id=_ENTITY,
@@ -451,6 +494,49 @@ def test_the_viz_chunk_reports_the_measured_totals() -> None:
     assert chunk.data["totalPoints"] == 5511
     assert chunk.data["retainedPoints"] == 1543
     assert chunk.data["effectDirection"] == "upAndDown"
+
+
+def test_the_viz_chunk_carries_the_caption_the_model_wrote() -> None:
+    chunk = eda_viz_chunk(
+        dataset_id="DS_e973eadd57",
+        analysis_id="t4fszEJ",
+        effect_size_label="log2(Fold Change)",
+        effect_size_threshold=1.0,
+        significance_threshold=0.05,
+        effect_direction="upAndDown",
+        summary=RetainedSummary(
+            total_rows=5511,
+            unparseable_rows=0,
+            retained=1543,
+            retained_up=800,
+            retained_down=743,
+        ),
+        points=[_point(1, retained=True)],
+        caption="Genes higher in febrile samples than in normal samples",
+    )
+    assert chunk.data["caption"] == (
+        "Genes higher in febrile samples than in normal samples"
+    )
+
+
+def test_the_viz_chunk_leaves_the_caption_empty_when_unset() -> None:
+    chunk = eda_viz_chunk(
+        dataset_id="DS_e973eadd57",
+        analysis_id="t4fszEJ",
+        effect_size_label="log2(Fold Change)",
+        effect_size_threshold=1.0,
+        significance_threshold=0.05,
+        effect_direction="upAndDown",
+        summary=RetainedSummary(
+            total_rows=1,
+            unparseable_rows=0,
+            retained=0,
+            retained_up=0,
+            retained_down=0,
+        ),
+        points=[],
+    )
+    assert chunk.data["caption"] == ""
 
 
 def test_the_viz_chunk_refuses_a_direction_no_chart_draws() -> None:
@@ -850,6 +936,46 @@ async def test_preview_eda_subset_reports_both_counts_and_emits_the_part(
     assert [c.type for c in returned.metadata] == ["data-eda.subset-preview"]
 
 
+async def test_a_preview_puts_the_model_s_caption_on_the_part(
+    monkeypatch: pytest.MonkeyPatch, lead_ctx: RunContext[LeadDeps]
+) -> None:
+    """The figure reads the model's sentence, so the tool must carry it."""
+    monkeypatch.setattr(eda_analysis, "bound_analysis", _bound)
+    monkeypatch.setattr(eda_analysis, "read_analysis", _read_detail)
+    monkeypatch.setattr(eda_analysis, "preview_subset", _preview_ok)
+    monkeypatch.setattr(eda_analysis, "get_study_detail_for_dataset", _phenotype_study)
+    returned = await eda_analysis.preview_eda_subset(
+        lead_ctx,
+        entity_id=_ENTITY,
+        distribution_variable_id="VAR_035294d0",
+        caption="Species of the phenotyped genes the filters keep",
+    )
+    parts = [
+        chunk
+        for chunk in returned.metadata
+        if isinstance(chunk, DataChunk) and chunk.type == "data-eda.subset-preview"
+    ]
+    assert [part.data["caption"] for part in parts] == [
+        "Species of the phenotyped genes the filters keep"
+    ]
+
+
+async def test_a_preview_with_no_caption_leaves_the_part_s_caption_empty(
+    monkeypatch: pytest.MonkeyPatch, lead_ctx: RunContext[LeadDeps]
+) -> None:
+    monkeypatch.setattr(eda_analysis, "bound_analysis", _bound)
+    monkeypatch.setattr(eda_analysis, "read_analysis", _read_detail)
+    monkeypatch.setattr(eda_analysis, "preview_subset", _preview_ok)
+    monkeypatch.setattr(eda_analysis, "get_study_detail_for_dataset", _phenotype_study)
+    returned = await eda_analysis.preview_eda_subset(lead_ctx, entity_id=_ENTITY)
+    parts = [
+        chunk
+        for chunk in returned.metadata
+        if isinstance(chunk, DataChunk) and chunk.type == "data-eda.subset-preview"
+    ]
+    assert [part.data["caption"] for part in parts] == [""]
+
+
 async def test_a_preview_of_zero_says_which_filter_emptied_the_subset(
     monkeypatch: pytest.MonkeyPatch, lead_ctx: RunContext[LeadDeps]
 ) -> None:
@@ -982,12 +1108,16 @@ async def _real_bump(*, conversation_id: UUID) -> int:
     ).increment(conversation_id=conversation_id)
 
 
-async def test_the_analysis_state_revision_grows_with_every_mutation(
+async def test_an_identical_reading_mutation_adds_no_second_card(
     monkeypatch: pytest.MonkeyPatch,
     revisions: _Revisions,
     bound_thread: UUID,
 ) -> None:
-    """Two surfaces edit one analysis, so each part must say which write it is."""
+    """A mutation that leaves the card reading the same adds no second part.
+
+    The binding still bumps its revision (test_binding covers the counter);
+    the thread only shows a state the reader has not already seen.
+    """
     del revisions
     monkeypatch.setattr(binding, "bump_analysis_revision", _real_bump)
     monkeypatch.setattr(binding, "open_analysis", lambda *_a, **_k: _resolved("A"))
@@ -1011,10 +1141,10 @@ async def test_the_analysis_state_revision_grows_with_every_mutation(
             )
         ],
     )
-    first = opened.metadata[0].data["revision"]
-    second = filtered.metadata[0].data["revision"]
-    assert first == 1
-    assert second == 2
+    assert opened.metadata[0].data["revision"] == 1
+    # The mutation bumped the revision, but the card reads the same, so the
+    # thread is not shown it again.
+    assert filtered.metadata == []
 
 
 async def test_search_eda_studies_carries_the_name_match_guidance(

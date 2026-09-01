@@ -81,6 +81,13 @@ def test_every_analysis_state_field_is_required_on_the_wire() -> None:
     ]
 
 
+# A plot's caption is written by the model, so a producer can have none.
+_OPTIONAL_ON_THE_WIRE = {
+    EdaSubsetPreviewPart: {"caption"},
+    EdaVizPart: {"caption"},
+}
+
+
 @pytest.mark.parametrize(
     "part",
     [EdaDistributionSeries, EdaSubsetPreviewPart, EdaVizPart, EdaVolcanoPoint],
@@ -89,9 +96,51 @@ def test_every_analysis_state_field_is_required_on_the_wire() -> None:
 def test_every_eda_part_field_is_required_on_the_wire(
     part: type[BaseModel],
 ) -> None:
-    """The producer fills every field, so a renderer never defaults one."""
+    """The producer fills every field a renderer must not default."""
     schema = part.model_json_schema(by_alias=True)
-    assert schema["required"] == list(schema["properties"])
+    optional = _OPTIONAL_ON_THE_WIRE.get(part, set())
+    assert schema["required"] == [
+        name for name in schema["properties"] if name not in optional
+    ]
+
+
+def test_a_plot_part_defaults_its_caption_to_the_empty_string() -> None:
+    """A producer that writes no caption leaves the key present and empty."""
+    viz = EdaVizPart(
+        dataset_id="DS_e973eadd57",
+        analysis_id="t4fszEJ",
+        chart="volcano",
+        effect_size_label="log2(Fold Change)",
+        effect_size_threshold=1.0,
+        significance_threshold=0.05,
+        effect_direction="upAndDown",
+        total_points=0,
+        retained_points=0,
+        points=[],
+    )
+    preview = EdaSubsetPreviewPart(
+        dataset_id="DS_53f554ec6a",
+        analysis_id="t4fszEJ",
+        entity_counts=[],
+        distribution=None,
+        distribution_note=None,
+    )
+    assert viz.model_dump(by_alias=True)["caption"] == ""
+    assert preview.model_dump(by_alias=True)["caption"] == ""
+
+
+def test_a_plot_part_carries_the_caption_the_model_wrote() -> None:
+    preview = EdaSubsetPreviewPart(
+        dataset_id="DS_53f554ec6a",
+        analysis_id="t4fszEJ",
+        entity_counts=[],
+        distribution=None,
+        distribution_note=None,
+        caption="Distribution of per-gene sense counts across 12 samples",
+    )
+    assert preview.model_dump(by_alias=True)["caption"] == (
+        "Distribution of per-gene sense counts across 12 samples"
+    )
 
 
 def test_a_volcano_point_names_its_p_value_key_even_with_no_p_value() -> None:

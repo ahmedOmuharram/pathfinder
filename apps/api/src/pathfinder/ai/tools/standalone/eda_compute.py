@@ -67,6 +67,7 @@ async def run_eda_compute(
     group_a_labels: list[str],
     group_b_labels: list[str],
     method: Literal["DESeq", "limma"] = "DESeq",
+    caption: str = "",
 ) -> dict[str, Any]:
     """Run differential expression on the open EDA analysis, on the worker.
 
@@ -99,6 +100,12 @@ async def run_eda_compute(
     into up and down. Tell the researcher those numbers, then use
     create_eda_step to export the ones that pass.
 
+    Always write ``caption``. It is the one sentence printed under the plot,
+    so it says what the comparison SHOWS in the researcher's terms - "Genes
+    higher in febrile samples than in normal samples, per gene" - never an
+    internal name and never a repeat of the numbers, which the figure already
+    carries.
+
     Args:
         ctx: Agent run context.
         identifier_variable: The gene column.
@@ -107,6 +114,7 @@ async def run_eda_compute(
         group_a_labels: The reference group's vocabulary values.
         group_b_labels: The comparison group's vocabulary values.
         method: DESeq for counts, limma for normalized arrays.
+        caption: One sentence describing what the comparison shows.
     """
     del (
         ctx,
@@ -116,6 +124,7 @@ async def run_eda_compute(
         group_a_labels,
         group_b_labels,
         method,
+        caption,
     )
     msg = "run_eda_compute runs on the worker via @durable_tool"
     raise NotImplementedError(msg)

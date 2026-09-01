@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from assistant_core.persistence.models import Message
+from assistant_core.persistence.models import Conversation, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.domain.strategy.revision import (
@@ -17,9 +17,14 @@ from pathfinder.persistence.repositories.conversation_update import Conversation
 from pathfinder.persistence.repositories.strategy_revision import (
     StrategyRevisionRepository,
 )
+from pathfinder.services.strategies.materialize import (
+    MaterializedStrategy,
+    materialize_strategy_snapshot,
+)
 
 __all__ = [
     "discard_turn_strategy_writes",
+    "materialize_revision",
     "restore_revision",
     "revision_at_message",
 ]
@@ -42,27 +47,76 @@ async def revision_at_message(
     return await repo.at_or_before(message.conversation_id, message.created_at)
 
 
+async def _write_strategy_state(
+    session: AsyncSession,
+    *,
+    conversation_id: UUID,
+    state: MaterializedStrategy,
+) -> None:
+    """Write one adopted strategy state, or clear the thread's when it holds none."""
+    ast = parse_strategy_ast(state.strategy_ast)
+    repo = ConversationRepository(session)
+    if ast is None:
+        await repo.clear_strategy(conversation_id)
+        return
+    await repo.update_conversation(
+        conversation_id,
+        ConversationUpdate(
+            strategy_ast=ast,
+            record_type=state.record_type,
+            step_count=state.step_count,
+            wdk_strategy_id=state.wdk_strategy_id,
+            wdk_strategy_id_set=True,
+            estimated_size=None,
+            estimated_size_set=True,
+        ),
+    )
+
+
 async def restore_revision(
     session: AsyncSession,
     *,
     revision: StrategyRevisionView,
 ) -> None:
-    """Write a thread's strategy back to one of its snapshots."""
-    ast = parse_strategy_ast(without_wdk_readings(revision.strategy_ast))
-    repo = ConversationRepository(session)
-    if ast is None:
-        await repo.clear_strategy(revision.conversation_id)
-        return
-    await repo.update_conversation(
-        revision.conversation_id,
-        ConversationUpdate(
-            strategy_ast=ast,
+    """Write a thread's strategy back to one of its snapshots, as recorded.
+
+    The snapshot's WDK identity stands: the caller is undoing writes made
+    against the same steps, so nothing has moved under it.
+    """
+    await _write_strategy_state(
+        session,
+        conversation_id=revision.conversation_id,
+        state=MaterializedStrategy(
+            strategy_ast=without_wdk_readings(revision.strategy_ast),
             record_type=revision.record_type,
             step_count=revision.step_count,
             wdk_strategy_id=revision.wdk_strategy_id,
-            wdk_strategy_id_set=True,
-            estimated_size=None,
-            estimated_size_set=True,
+        ),
+    )
+
+
+async def materialize_revision(
+    session: AsyncSession,
+    *,
+    conversation: Conversation,
+    revision: StrategyRevisionView,
+) -> None:
+    """Adopt a snapshot as a strategy of the thread's own on WDK.
+
+    The steps the snapshot names may have moved since it was written, and a
+    copied snapshot names none at all, so the tree is pushed again. A refusal
+    leaves the thread holding the plan.
+    """
+    await _write_strategy_state(
+        session,
+        conversation_id=revision.conversation_id,
+        state=await materialize_strategy_snapshot(
+            site_id=conversation.site_id,
+            conversation_id=conversation.id,
+            name=conversation.name,
+            strategy_ast=revision.strategy_ast,
+            record_type=revision.record_type,
+            step_count=revision.step_count,
         ),
     )
 

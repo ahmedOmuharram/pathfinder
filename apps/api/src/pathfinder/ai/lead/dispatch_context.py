@@ -16,7 +16,7 @@ from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait
-from pathfinder.ai.lead.sub_agent_tools import LeadDeps
+from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentDurablePark
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 
 
@@ -81,9 +81,10 @@ def defer_dispatch(
     The dispatch call carries the suspended run, so the answer re-enters it
     whether the user or the worker produced it.
     """
-    if wait.durable is not None:
-        deps.durable_deferrals[tool_call_id] = wait.durable.model_copy(
-            update={"sub_agent": wait.pending},
+    if wait.durable:
+        deps.pending_sub_agent_durables[tool_call_id] = SubAgentDurablePark(
+            pending=wait.pending,
+            deferrals=dict(wait.durable),
         )
     else:
         deps.pending_sub_agent_approvals[tool_call_id] = wait.pending

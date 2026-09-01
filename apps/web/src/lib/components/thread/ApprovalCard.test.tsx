@@ -34,6 +34,13 @@ describe("ApprovalCard", () => {
     );
   });
 
+  it("separates itself from the trace above with the one paragraph gap", () => {
+    draw({});
+    const tokens = screen.getByTestId("approval-card").className.split(/\s+/);
+    expect(tokens).toContain("mt-3");
+    expect(tokens.filter((token) => token.startsWith("my-"))).toEqual([]);
+  });
+
   it("offers both answers and keeps the controls testid the thread carried", () => {
     draw({});
     const controls = screen.getByTestId("tool-approval-controls");

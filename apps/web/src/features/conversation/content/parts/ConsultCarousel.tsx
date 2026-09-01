@@ -29,12 +29,18 @@ interface AnswerState {
 
 const SLIDE_TRANSITION = { duration: 0.22, ease: [0.4, 0, 0.2, 1] } as const;
 
-export function ConsultCarousel() {
+export function ConsultCarousel({ toolCallId }: { toolCallId?: string }) {
   const currentId = useAuiState((s) => s.message.id);
   const chat = useChatHelpersOptional();
   if (chat == null) return null;
   const message = chat.messages.find((m) => m.id === currentId);
   if (message?.role !== "assistant") return null;
+  if (toolCallId !== undefined) {
+    const first = message.parts.find((part) => part.type === "tool-consult_user");
+    if (first == null || !("toolCallId" in first) || first.toolCallId !== toolCallId) {
+      return null;
+    }
+  }
   const pending = findPendingConsult(message);
   if (pending !== null && pending.questions.length > 0) {
     return <ConsultCarouselView pending={pending} chat={chat} />;
@@ -111,7 +117,7 @@ function ConsultCarouselView({
   return (
     <div
       data-testid="consult-carousel"
-      className="my-2 space-y-2 rounded-lg border border-border bg-card/60 p-2"
+      className="space-y-2 rounded-lg border border-border bg-card/60 p-2"
     >
       <div className="flex items-center gap-2 px-1 text-sm font-medium">
         <HelpCircle className="size-4 text-muted-foreground" aria-hidden />A few

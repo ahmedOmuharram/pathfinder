@@ -40,11 +40,12 @@ from assistant_core.cost import cost_for_run
 from assistant_core.graph.approvals import (
     approval_results,
     deferred_hint,
+    durable_hints,
     parked_durable_call,
     pending_approval,
     resume_history,
 )
-from assistant_core.graph.durable import durable_call_id, durable_tool_return
+from assistant_core.graph.durable import durable_tool_results
 from assistant_core.graph.emit import emit_chunk, emit_turn_usage
 from assistant_core.graph.runtime import GuardedDeps, TurnContext
 from assistant_core.graph.stream_events import turn_status_event
@@ -52,6 +53,7 @@ from assistant_core.graph.thread_history import dump_thread_history, thread_hist
 from assistant_core.graph.turn_agent import TurnAgentFactory
 from assistant_core.graph.turn_message import write_turn_message
 from assistant_core.graph.turn_state import (
+    DurableCall,
     DurableDeferral,
     PendingApproval,
     PendingDurableCall,
@@ -95,7 +97,7 @@ class _AgentTurn:
     prompt: str | None = None
     history: list[ModelMessage] | None = None
     results: DeferredToolResults | None = None
-    hint: DeferredToolHint | None = None
+    hints: tuple[DeferredToolHint, ...] = ()
 
 
 def _turn_for(state: TurnState) -> _AgentTurn:
@@ -105,16 +107,11 @@ def _turn_for(state: TurnState) -> _AgentTurn:
     never made, so the turn is a fresh one over the thread's own messages.
     """
     durable = state.answered_durable_call
-    result = state.durable_result
-    if durable is not None and result is not None:
+    if durable is not None:
         return _AgentTurn(
             history=resume_history(durable),
-            results=DeferredToolResults(
-                calls={
-                    durable_call_id(durable): durable_tool_return(durable, result),
-                },
-            ),
-            hint=deferred_hint(durable),
+            results=durable_tool_results(durable, state.durable_answers),
+            hints=tuple(durable_hints(durable)),
         )
     approval = state.pending_approval
     if approval is not None:
@@ -123,7 +120,7 @@ def _turn_for(state: TurnState) -> _AgentTurn:
             return _AgentTurn(
                 history=resume_history(approval),
                 results=results,
-                hint=deferred_hint(approval),
+                hints=(deferred_hint(approval),),
             )
     return _AgentTurn(
         prompt=state.user_prompt,
@@ -153,7 +150,16 @@ def _absorb(
             call=deferred[0],
             phase=_AGENT_NODE,
             messages=capture.messages,
-            deferral=deferrals[deferred[0].tool_call_id],
+            durable_calls=[
+                DurableCall(
+                    tool_call_id=call.tool_call_id,
+                    tool_name=call.tool_name,
+                    args=call.args_as_dict(),
+                    task_id=deferrals[call.tool_call_id].task_id,
+                    durable_tool_name=deferrals[call.tool_call_id].tool_name,
+                )
+                for call in deferred
+            ],
         )
         return
     capture.pending_approval = pending_approval(
@@ -190,7 +196,10 @@ async def _stream_answer[DepsT: GuardedDeps](
     its outcome. A run the repetition guard stopped ends the same way, once
     the refusal has reached the client.
     """
-    emitter = PhaseStreamEmitter(message_id=str(uuid4()), deferred_hint=turn.hint)
+    emitter = PhaseStreamEmitter(
+        message_id=str(uuid4()),
+        deferred_hints=list(turn.hints),
+    )
     guard = deps.tool_repetition_guard
 
     async def _events() -> AsyncGenerator[_RunEvent]:

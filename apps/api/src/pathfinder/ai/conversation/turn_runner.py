@@ -99,12 +99,14 @@ class TurnRequest:
     """One turn's inputs: who asked, and what answer it carries.
 
     ``durable_result`` marks the turn a worker opens to answer a durable call
-    the thread parked.
+    the thread parked; ``durable_results`` answers every call the same model
+    step parked.
     """
 
     body: ChatRequestBody
     user_id: UUID
     durable_result: DurableTaskResult | None = None
+    durable_results: tuple[DurableTaskResult, ...] = ()
 
 
 async def run_turn(
@@ -210,6 +212,7 @@ async def _run_turn_with_context(
                 turn_message_id=writer.turn_id,
                 turn_start_event_id=start_event_id - 1,
                 durable_result=request.durable_result,
+                durable_results=request.durable_results,
             ),
         ),
     )

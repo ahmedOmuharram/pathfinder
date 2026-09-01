@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
 import type { EdaViz } from "@pathfinder/shared";
 
 import { Button } from "@/components/ui/button";
@@ -15,23 +15,36 @@ import type {
 import { selectVolcanoGenes } from "@/lib/eda/volcanoSelection";
 import { useEdaStore, useHydrateEdaPart } from "@/state/eda";
 
+import { useChatHelpersOptional } from "../../runtime/chatHelpersContext";
+import { studyNameFor } from "./analysisStateParts";
+import { figureNumberFor } from "./figureNumbers";
+import { plotCaption } from "./plotCaptions";
+
 const COLLAPSED_HEIGHT = 220;
 const EXPANDED_HEIGHT = 480;
 const GENE_LIST_LIMIT = 12;
 const SIGNIFICANCE_FIELD = "adjustedPValue";
-const READOUT = "mt-1 text-[11px] text-muted-foreground";
+const MUTED = "text-[11px] text-muted-foreground";
+const READOUT = `mt-1 ${MUTED}`;
+const SUMMARY = `cursor-pointer ${MUTED}`;
 
 export function DataEdaViz({ data }: { data: EdaViz }) {
   useHydrateEdaPart({ kind: "viz", data });
   const thresholds = useEdaStore((s) => s.volcanoThresholds);
-  const [expanded, setExpanded] = useState(false);
+  const chat = useChatHelpersOptional();
+  const [expanded, setExpanded] = useState(true);
   const height = expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
+  const study = chat !== null ? studyNameFor(chat.messages, data.analysisId) : "";
+  const retained = `${data.retainedPoints.toLocaleString()} of ${data.totalPoints.toLocaleString()} genes retained`;
 
   return (
     <Figure
       testId="data-eda-viz"
       title={data.effectSizeLabel}
-      caption={`${data.retainedPoints.toLocaleString()} of ${data.totalPoints.toLocaleString()} genes retained`}
+      caption={plotCaption(data.caption ?? "", study, retained)}
+      numbered
+      figureNumber={chat !== null ? figureNumberFor(chat.messages, data) : null}
+      footer={<VizReadouts data={data} thresholds={thresholds} />}
     >
       <div>
         <div className="flex justify-end">
@@ -49,7 +62,7 @@ export function DataEdaViz({ data }: { data: EdaViz }) {
             )}
           </Button>
         </div>
-        <VizBody data={data} height={height} thresholds={thresholds} />
+        <VizPlot data={data} height={height} thresholds={thresholds} />
       </div>
     </Figure>
   );
@@ -61,7 +74,7 @@ interface VizBodyProps {
   thresholds: VolcanoThresholds;
 }
 
-function VizBody({ data, height, thresholds }: VizBodyProps) {
+function VizPlot({ data, height, thresholds }: VizBodyProps) {
   if (data.points.length === 0) {
     return (
       <p data-testid="data-eda-viz-empty" className={READOUT}>
@@ -71,9 +84,26 @@ function VizBody({ data, height, thresholds }: VizBodyProps) {
   }
   switch (data.chart) {
     case "volcano":
-      return <VolcanoBody data={data} height={height} thresholds={thresholds} />;
+      return (
+        <VolcanoChart
+          points={data.points}
+          thresholds={thresholds}
+          significanceField={SIGNIFICANCE_FIELD}
+          effectSizeLabel={data.effectSizeLabel}
+          height={height}
+          testId="eda-viz-volcano"
+        />
+      );
     case "scatter":
-      return <ScatterBody data={data} height={height} />;
+      return (
+        <ScatterChart
+          series={[scatterSeries(data)]}
+          xAxis={{ variableId: "effectSize", displayName: data.effectSizeLabel }}
+          yAxis={{ variableId: "pValue", displayName: "-log10(p-value)" }}
+          height={height}
+          testId="eda-viz-scatter"
+        />
+      );
     case "histogram":
     case "bar":
     case "boxplot":
@@ -85,30 +115,62 @@ function VizBody({ data, height, thresholds }: VizBodyProps) {
   }
 }
 
-function VolcanoBody({ data, height, thresholds }: VizBodyProps) {
+/** The readouts and disclosures that belong under the caption. A chart the
+ * thread cannot draw has none. */
+function VizReadouts({
+  data,
+  thresholds,
+}: {
+  data: EdaViz;
+  thresholds: VolcanoThresholds;
+}) {
+  if (data.points.length === 0) return null;
+  switch (data.chart) {
+    case "volcano":
+      return <VolcanoReadouts data={data} thresholds={thresholds} />;
+    case "scatter":
+      return (
+        <p data-testid="eda-viz-scatter-count" className={READOUT}>
+          {`${scatterSeries(data).x.length.toLocaleString()} of ${data.totalPoints.toLocaleString()} points plotted`}
+        </p>
+      );
+    case "histogram":
+    case "bar":
+    case "boxplot":
+      return null;
+  }
+}
+
+function VolcanoReadouts({
+  data,
+  thresholds,
+}: {
+  data: EdaViz;
+  thresholds: VolcanoThresholds;
+}) {
   const { selected } = selectVolcanoGenes(data.points, thresholds, SIGNIFICANCE_FIELD);
   const listed = selected.slice(0, GENE_LIST_LIMIT);
   const hidden = selected.length - listed.length;
 
   return (
     <>
-      <VolcanoChart
-        points={data.points}
-        thresholds={thresholds}
-        significanceField={SIGNIFICANCE_FIELD}
-        effectSizeLabel={data.effectSizeLabel}
-        height={height}
-        testId="eda-viz-volcano"
-      />
       <p data-testid="eda-viz-volcano-selection" className={READOUT}>
         {`${selected.length.toLocaleString()} ${selected.length === 1 ? "gene" : "genes"} selected at these thresholds - ${data.retainedPoints.toLocaleString()} of ${data.totalPoints.toLocaleString()} retained by the compute`}
       </p>
       {listed.length > 0 ? (
-        <p data-testid="eda-viz-volcano-genes" className={READOUT}>
-          {hidden > 0
-            ? `${listed.join(", ")} and ${hidden.toLocaleString()} more`
-            : listed.join(", ")}
-        </p>
+        <details className="mt-1">
+          <summary className={`${SUMMARY} [&::marker]:content-none`}>
+            <span className="inline-flex items-center gap-1">
+              {`Gene ids (${selected.length.toLocaleString()})`}
+              <CopyGeneIds ids={selected} />
+            </span>
+          </summary>
+          <p data-testid="eda-viz-volcano-genes" className={READOUT}>
+            {hidden > 0
+              ? `${listed.join(", ")} and ${hidden.toLocaleString()} more`
+              : listed.join(", ")}
+          </p>
+        </details>
       ) : null}
     </>
   );
@@ -130,20 +192,34 @@ function scatterSeries(data: EdaViz): EdaScatterSeries {
   return { name: "Genes", x, y, pointIds };
 }
 
-function ScatterBody({ data, height }: { data: EdaViz; height: number }) {
-  const series = scatterSeries(data);
+/** Copies every selected gene id, comma separated. The label flips to a
+ * check for a moment so the click answers itself. */
+function CopyGeneIds({ ids }: { ids: readonly string[] }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (event: React.MouseEvent) => {
+    // A summary click toggles the disclosure; copying must not.
+    event.preventDefault();
+    event.stopPropagation();
+    void navigator.clipboard.writeText(ids.join(", "));
+    setCopied(true);
+    window.setTimeout(() => {
+      setCopied(false);
+    }, 1500);
+  };
   return (
-    <>
-      <ScatterChart
-        series={[series]}
-        xAxis={{ variableId: "effectSize", displayName: data.effectSizeLabel }}
-        yAxis={{ variableId: "pValue", displayName: "-log10(p-value)" }}
-        height={height}
-        testId="eda-viz-scatter"
-      />
-      <p data-testid="eda-viz-scatter-count" className={READOUT}>
-        {`${series.x.length.toLocaleString()} of ${data.totalPoints.toLocaleString()} points plotted`}
-      </p>
-    </>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      aria-label="Copy gene ids"
+      data-testid="eda-viz-copy-gene-ids"
+      onClick={copy}
+    >
+      {copied ? (
+        <Check className="size-3" aria-hidden />
+      ) : (
+        <Copy className="size-3" aria-hidden />
+      )}
+    </Button>
   );
 }

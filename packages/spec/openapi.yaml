@@ -7987,6 +7987,12 @@ components:
           - type: string
           - type: 'null'
           title: Distributionnote
+        caption:
+          type: string
+          title: Caption
+          description: One sentence the model wrote about the plot. Empty when it wrote none, and the figure is then captioned
+            from the numbers alone.
+          default: ''
       type: object
       required:
       - datasetId
@@ -8167,6 +8173,12 @@ components:
             $ref: '#/components/schemas/EdaVolcanoPoint'
           type: array
           title: Points
+        caption:
+          type: string
+          title: Caption
+          description: One sentence the model wrote about the plot. Empty when it wrote none, and the figure is then captioned
+            from the numbers alone.
+          default: ''
       type: object
       required:
       - datasetId

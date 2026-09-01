@@ -7,10 +7,16 @@ import {
   type MessagePart,
   type TraceRowStatus,
 } from "@pathfinder/assistant-client";
-import type { DataSubAgentCallPayload } from "@pathfinder/shared";
+import type { DataLeadUsagePayload, DataSubAgentCallPayload } from "@pathfinder/shared";
+import { leadUsagePayloadSchema } from "@pathfinder/shared/generated/zod/leadUsagePayloadSchema";
 import { subAgentCallPayloadSchema } from "@pathfinder/shared/generated/zod/subAgentCallPayloadSchema";
 
-import { Trace, type TraceRunView } from "@/lib/components/thread/Trace";
+import { parseModelString } from "@/lib/models/providerMeta";
+import {
+  Trace,
+  type TraceRunView,
+  type TraceUsageView,
+} from "@/lib/components/thread/Trace";
 import { TraceGroup } from "@/lib/components/thread/TraceGroup";
 import type { TraceGroupView, TraceRowView } from "@/lib/components/thread/traceTypes";
 import { humanizeToolName } from "@/lib/utils/toolNames";
@@ -29,6 +35,7 @@ type Run = ReturnType<typeof buildTrace>[number];
 
 const LEAD = "lead";
 const SUB_AGENT_KIND = "data-sub-agent-call";
+const LEAD_USAGE_KIND = "data-lead-usage";
 const LIVE: readonly ChatHelpers["status"][] = ["submitted", "streaming"];
 
 const ROW_STATUS: Record<ToolUIPart["state"], TraceRowStatus> = {
@@ -53,6 +60,40 @@ export interface TraceAnchorProps {
 function readSubAgentCall(data: unknown): DataSubAgentCallPayload | null {
   const parsed = subAgentCallPayloadSchema.safeParse(data);
   return parsed.success ? parsed.data : null;
+}
+
+/** A lead-usage payload the wire's own schema accepts, or null. */
+function readLeadUsage(data: unknown): DataLeadUsagePayload | null {
+  const parsed = leadUsagePayloadSchema.safeParse(data);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * The turn's model, tokens and cost: the Lead's own usage plus every
+ * sub-agent it dispatched, which is what the wire reports as the turn total.
+ */
+function turnUsageOf(parts: readonly MessagePart[]): TraceUsageView | null {
+  let lead: DataLeadUsagePayload | null = null;
+  let tokens = 0;
+  let cost = 0;
+  for (const part of parts) {
+    if (part.type === LEAD_USAGE_KIND) {
+      lead = readLeadUsage(part.data) ?? lead;
+    } else if (part.type === SUB_AGENT_KIND) {
+      const call = readSubAgentCall(part.data);
+      if (call === null) continue;
+      tokens += call.tokens ?? 0;
+      cost += Number(call.costUsd ?? "0");
+    }
+  }
+  if (lead === null) return null;
+  const { model } = parseModelString(lead.modelId ?? "");
+  if (model === "") return null;
+  return {
+    model,
+    tokens: tokens + (lead.tokens ?? 0),
+    costUsd: String(cost + Number(lead.costUsd ?? "0")),
+  };
 }
 
 /** The id a part anchors, or null when the part bears no row of its own. */
@@ -92,7 +133,11 @@ function approvalsOf(run: TraceRunView): ReactNode {
     ));
 }
 
-function drawRun(run: TraceRunView, dev: ThreadDevMode): ReactElement {
+function drawRun(
+  run: TraceRunView,
+  dev: ThreadDevMode,
+  usage: TraceUsageView | null,
+): ReactElement {
   return (
     <Trace
       run={run}
@@ -100,6 +145,7 @@ function drawRun(run: TraceRunView, dev: ThreadDevMode): ReactElement {
       showUsage={dev.showUsage}
       nameFor={humanizeToolName}
       approval={approvalsOf(run)}
+      {...(usage === null ? {} : { usage })}
     />
   );
 }
@@ -122,13 +168,17 @@ function anchored(
   for (const message of chat.messages) {
     const parts = toTraceParts(message.parts);
     if (!parts.some((part) => anchorIdOf(part) === anchorId)) continue;
-    const run = buildTrace(parts, {
+    const runs = buildTrace(parts, {
       renderingKinds: traceRenderingKinds(),
       turnEnded: turnEnded(chat, message),
-    }).find((each) => idsOf(each).has(anchorId));
+    });
+    const index = runs.findIndex((each) => idsOf(each).has(anchorId));
+    const run = runs[index];
     if (run === undefined) return null;
     if (firstAnchorOf(parts, idsOf(run)) !== anchorId) return null;
-    return drawRun(run, dev);
+    // The turn's totals close the turn, so they ride its last run alone.
+    const usage = index === runs.length - 1 ? turnUsageOf(parts) : null;
+    return drawRun(run, dev, usage);
   }
   return null;
 }
@@ -176,7 +226,7 @@ function loneGroup(data: DataSubAgentCallPayload): TraceGroupView {
 export function TraceAnchor(props: TraceAnchorProps): ReactElement | null {
   const chat = useChatHelpersOptional();
   const dev = useThreadDevMode();
-  if (chat === null) return drawRun(loneRun(props), dev);
+  if (chat === null) return drawRun(loneRun(props), dev, null);
   return anchored(chat, props.toolCallId, dev);
 }
 

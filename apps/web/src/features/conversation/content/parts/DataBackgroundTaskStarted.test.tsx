@@ -183,6 +183,27 @@ describe("DataBackgroundTaskStarted", () => {
     expect(rows[1]).toHaveTextContent("90%");
   });
 
+  it("spaces its lanes with the one paragraph gap the rows no longer carry", () => {
+    renderCard([
+      progressPart({
+        taskId: "t1",
+        percent: 0.5,
+        message: "Trying v2",
+        toolSpecific: { variantId: "v2" },
+      }),
+      progressPart({
+        taskId: "t1",
+        percent: 0.2,
+        message: "Trying v1",
+        toolSpecific: { variantId: "v1" },
+      }),
+    ]);
+
+    const card = screen.getByTestId("data-background-task-started");
+    expect(card.className.split(/\s+/)).toContain("gap-3");
+    expect(screen.getAllByTestId("task-row")[0]?.className).toBe("");
+  });
+
   it("keeps a single row for a task that runs one sequence", () => {
     renderCard([
       progressPart({ taskId: "t1", percent: 0.4, message: "Comparing controls" }),

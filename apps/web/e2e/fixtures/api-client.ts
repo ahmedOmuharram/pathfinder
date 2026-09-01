@@ -37,7 +37,28 @@ export interface PersistedMessage {
 interface SnapshotChunk {
   type: string;
   delta?: string;
-  message?: { role: string; parts?: { type: string; text?: string }[] };
+  message?: { id?: string; role: string; parts?: { type: string; text?: string }[] };
+}
+
+/**
+ * The ids of a conversation's persisted user messages, in order.
+ *
+ * Revert names a user message, and a fork remints every id it copies, so a
+ * spec that reverts inside a branch must read the branch's own ids.
+ */
+export async function fetchUserMessageIds(
+  api: APIRequestContext,
+  conversationId: string,
+): Promise<string[]> {
+  const resp = await api.get(`/api/v1/conversations/${conversationId}/events/snapshot`);
+  if (!resp.ok()) {
+    throw new Error(`events snapshot failed: ${resp.status()}`);
+  }
+  const { chunks } = (await resp.json()) as { chunks: SnapshotChunk[] };
+  return chunks
+    .filter((chunk) => chunk.type === "user-message")
+    .map((chunk) => chunk.message?.id ?? "")
+    .filter((id) => id !== "");
 }
 
 /**
