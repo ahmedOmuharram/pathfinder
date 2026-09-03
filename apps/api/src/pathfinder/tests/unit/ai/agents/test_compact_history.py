@@ -18,12 +18,15 @@ from pathfinder.ai.agents._history_processor import (
     _DIGEST_CHAR_CAP,
     _DIGEST_OPENING,
     COMPACT_AT_ESTIMATED_TOKENS,
-    KEEP_RECENT_EXCHANGES,
+    KEEP_RECENT_EXCHANGE_TOKENS,
+    MIN_KEEP_RECENT_EXCHANGES,
     _estimated_tokens,
     compact_exhausted_history,
 )
 
 _FAT = "F" * 10_000
+_HUGE = "H" * 60_000
+_ENORMOUS = "E" * 400_000
 
 
 def _user(text: str) -> ModelRequest:
@@ -92,6 +95,11 @@ def _return_ids(messages: list[ModelMessage]) -> list[str]:
     return out
 
 
+def _kept_exchanges(out: list[ModelMessage]) -> int:
+    """Exchanges the output keeps verbatim, for a head plus whole pairs."""
+    return (len(out) - 1) // 2
+
+
 def _digest_prompts(messages: list[ModelMessage]) -> list[str]:
     out: list[str] = []
     for msg in messages:
@@ -154,20 +162,22 @@ class TestAboveThreshold:
         assert isinstance(digest.content, str)
         assert digest.content.startswith(_DIGEST_OPENING)
 
-        expected_tail = [f"call_{i}" for i in range(50 - KEEP_RECENT_EXCHANGES, 50)]
+        kept = _kept_exchanges(out)
+        expected_tail = [f"call_{i}" for i in range(50 - kept, 50)]
         assert _call_ids(out) == expected_tail
         assert _return_ids(out) == expected_tail
-        assert out[1:] == msgs[-2 * KEEP_RECENT_EXCHANGES :]
+        assert out[1:] == msgs[-2 * kept :]
 
-    def test_token_estimate_drops_far_below_the_input(self) -> None:
+    def test_the_kept_tail_fits_the_tail_budget(self) -> None:
         msgs = _history(50)
         out = compact_exhausted_history(list(msgs))
-        assert _estimated_tokens(out) < _estimated_tokens(msgs) // 4
+        assert _estimated_tokens(out[1:]) <= KEEP_RECENT_EXCHANGE_TOKENS
+        assert _estimated_tokens(out) <= COMPACT_AT_ESTIMATED_TOKENS
 
     def test_digest_names_the_dropped_tools(self) -> None:
         msgs = _history(50)
-        newest_middle = 50 - KEEP_RECENT_EXCHANGES - 1
         out = compact_exhausted_history(list(msgs))
+        newest_middle = 50 - _kept_exchanges(out) - 1
         digest = _digest_prompts(out)[0]
         assert "tool_x" in digest
         assert f'"query_call_{newest_middle}"' in digest
@@ -177,8 +187,8 @@ class TestAboveThreshold:
         msgs: list[ModelMessage] = [_user("bind the criteria")]
         for i in range(50):
             msgs.extend(_exchange(f"call_{i}", text=f"thinking about step {i}"))
-        newest_middle = 50 - KEEP_RECENT_EXCHANGES - 1
         out = compact_exhausted_history(list(msgs))
+        newest_middle = 50 - _kept_exchanges(out) - 1
         digest = _digest_prompts(out)[0]
         assert f"said: thinking about step {newest_middle}" in digest
 
@@ -213,7 +223,7 @@ class TestAboveThreshold:
             )
         out = compact_exhausted_history(list(msgs))
         assert set(_call_ids(out)) == set(_return_ids(out))
-        assert len(_call_ids(out)) == 2 * KEEP_RECENT_EXCHANGES
+        assert len(_call_ids(out)) == 2 * _kept_exchanges(out)
 
     def test_trailing_request_after_the_last_pair_is_kept(self) -> None:
         msgs = _history(50)
@@ -277,7 +287,7 @@ class TestDigestCap:
         msgs = _history(400, content="R" * 2_000)
         out = compact_exhausted_history(list(msgs))
         digest = _digest_prompts(out)[0]
-        newest_middle = 400 - KEEP_RECENT_EXCHANGES - 1
+        newest_middle = 400 - _kept_exchanges(out) - 1
         assert f'"query_call_{newest_middle}"' in digest
         assert '"query_call_0"' not in digest
         assert "oldest lines omitted" in digest
@@ -308,13 +318,69 @@ class TestMiddleUserText:
     """A user message dropped from the middle survives in the digest."""
 
     def test_a_middle_user_message_reaches_the_digest(self) -> None:
-        messages = _history(25)
-        messages[25:25] = [_user("only blood-stage genes")]
-        for i in range(25, 50):
-            messages.extend(_exchange(f"call_{i}"))
+        messages: list[ModelMessage] = [_user("bind the criteria")]
+        for i in range(6):
+            messages.extend(_exchange(f"call_{i}", content=_HUGE))
+        messages.append(_user("only blood-stage genes"))
+        for i in range(6, 12):
+            messages.extend(_exchange(f"call_{i}", content=_HUGE))
 
         compacted = compact_exhausted_history(messages)
 
         digests = _digest_prompts(compacted)
         assert digests, "the fixture must cross the threshold"
         assert "user said: only blood-stage genes" in digests[0]
+
+
+class TestTheTailFitsItsBudget:
+    """A fixed count of fat exchanges outweighs the whole middle."""
+
+    def test_fat_recent_exchanges_still_compact_below_the_threshold(self) -> None:
+        msgs = _history(12, content=_HUGE)
+        assert _estimated_tokens(msgs) > COMPACT_AT_ESTIMATED_TOKENS
+        out = compact_exhausted_history(list(msgs))
+        assert _estimated_tokens(out) <= COMPACT_AT_ESTIMATED_TOKENS
+        assert _estimated_tokens(out[1:]) <= KEEP_RECENT_EXCHANGE_TOKENS
+
+    def test_an_oversized_newest_exchange_does_not_starve_the_tail(self) -> None:
+        msgs = _history(3, content=_ENORMOUS)
+        out = compact_exhausted_history(list(msgs))
+        assert _kept_exchanges(out) == MIN_KEEP_RECENT_EXCHANGES
+        assert out[1:] == msgs[-2 * MIN_KEEP_RECENT_EXCHANGES :]
+
+    def test_a_fat_history_compacts_to_a_fixpoint(self) -> None:
+        msgs = _history(12, content=_HUGE)
+        once = compact_exhausted_history(list(msgs))
+        assert compact_exhausted_history(list(once)) == once
+
+
+class TestRepeatedCompaction:
+    """The head carries one digest however many times the processor runs."""
+
+    def _grown_history(self) -> tuple[list[ModelMessage], list[ModelMessage]]:
+        msgs = _history(12, content=_HUGE)
+        once = compact_exhausted_history(list(msgs))
+        grown = list(once)
+        for i in range(12, 16):
+            grown.extend(_exchange(f"call_{i}", content=_HUGE))
+        return once, grown
+
+    def test_a_second_pass_leaves_one_digest_on_the_head(self) -> None:
+        once, grown = self._grown_history()
+        assert len(_digest_prompts(once)) == 1
+        assert _estimated_tokens(grown) > COMPACT_AT_ESTIMATED_TOKENS
+
+        twice = compact_exhausted_history(grown)
+
+        assert len(_digest_prompts(twice)) == 1
+
+    def test_the_second_digest_keeps_the_first_middle(self) -> None:
+        _, grown = self._grown_history()
+        digest = _digest_prompts(compact_exhausted_history(grown))[0]
+        assert '"query_call_0"' in digest
+        assert '"query_call_9"' in digest
+
+    def test_a_second_pass_stays_within_the_threshold(self) -> None:
+        _, grown = self._grown_history()
+        twice = compact_exhausted_history(grown)
+        assert _estimated_tokens(twice) <= COMPACT_AT_ESTIMATED_TOKENS

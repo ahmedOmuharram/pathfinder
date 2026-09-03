@@ -23,7 +23,11 @@ __all__ = [
 
 def pinned_ledger_summary(ctx: RunContext[LeadDeps]) -> str:
     """Builds the compact ledger summary. It is derived on each render."""
-    ledger = derive_ledger(ctx.deps.state, ctx.deps.intent)
+    ledger = derive_ledger(
+        ctx.deps.state,
+        ctx.deps.intent,
+        phase_stop=ctx.deps.last_phase_stop,
+    )
     return ledger.render_summary()
 
 

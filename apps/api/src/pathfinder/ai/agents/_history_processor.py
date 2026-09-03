@@ -273,7 +273,11 @@ def _elide_returns_in_message(
 
 
 COMPACT_AT_ESTIMATED_TOKENS = 100_000
-KEEP_RECENT_EXCHANGES = 8
+# The kept tail is sized by what it costs, because a few vocabulary reads can
+# outweigh the whole middle. The floor lets a pass act on its latest result
+# whatever that result costs.
+KEEP_RECENT_EXCHANGE_TOKENS = COMPACT_AT_ESTIMATED_TOKENS // 2
+MIN_KEEP_RECENT_EXCHANGES = 2
 
 _DIGEST_CHAR_CAP = 4_000
 _DIGEST_OPENING = (
@@ -326,31 +330,48 @@ def _estimated_tokens(messages: Sequence[ModelMessage]) -> int:
     return chars // _CHARS_PER_TOKEN
 
 
-def _split_index(messages: Sequence[ModelMessage]) -> int:
-    """Index of the oldest kept message, on a response/request pair boundary.
+@dataclasses.dataclass(frozen=True)
+class _TailSplit:
+    """Where the kept tail starts, and how many exchanges it holds."""
 
-    Returns ``len(messages)`` when no complete pair exists.
+    start: int
+    exchanges: int
+
+
+def _tail_split(messages: Sequence[ModelMessage]) -> _TailSplit:
+    """The newest exchanges that fit the tail budget, on a pair boundary.
+
+    ``start`` is ``len(messages)`` when no complete pair exists. An exchange
+    below ``MIN_KEEP_RECENT_EXCHANGES`` is kept whatever it costs.
     """
-    pairs = 0
+    exchanges = 0
+    kept_tokens = 0
     start = len(messages)
     i = len(messages) - 1
-    while i >= 1 and pairs < KEEP_RECENT_EXCHANGES:
-        if isinstance(messages[i], ModelRequest) and isinstance(
-            messages[i - 1],
-            ModelResponse,
+    while i >= 1:
+        if not (
+            isinstance(messages[i], ModelRequest)
+            and isinstance(messages[i - 1], ModelResponse)
         ):
-            pairs += 1
-            start = i - 1
-            i -= 2
-        else:
             i -= 1
-    if pairs == 0:
-        return len(messages)
+            continue
+        # The slice holds the pair plus anything newer not counted yet, so
+        # every kept message is counted exactly once.
+        pair_tokens = _estimated_tokens(messages[i - 1 : start])
+        over_budget = kept_tokens + pair_tokens > KEEP_RECENT_EXCHANGE_TOKENS
+        if exchanges >= MIN_KEEP_RECENT_EXCHANGES and over_budget:
+            break
+        exchanges += 1
+        kept_tokens += pair_tokens
+        start = i - 1
+        i -= 2
+    if exchanges == 0:
+        return _TailSplit(len(messages), 0)
     # A dropped middle must end on a request, so every call it holds keeps the
     # return that answers it.
     while start > 1 and isinstance(messages[start - 1], ModelResponse):
         start -= 1
-    return start
+    return _TailSplit(start, exchanges)
 
 
 def _middle_results(middle: Sequence[ModelMessage]) -> dict[str, str]:
@@ -384,9 +405,7 @@ def _digest_lines(middle: Sequence[ModelMessage]) -> list[str]:
                 if isinstance(req_part, UserPromptPart):
                     text = _user_text(req_part.content)
                     if text.strip():
-                        lines.append(
-                            f"- user said: {_flat(text, _RESULT_HEAD_CHARS)}"
-                        )
+                        lines.append(f"- user said: {_flat(text, _RESULT_HEAD_CHARS)}")
             continue
         for part in msg.parts:
             if isinstance(part, TextPart):
@@ -405,10 +424,38 @@ def _assemble_digest(lines: Sequence[str], *, omitted: bool) -> str:
 
 
 _USER_LINE_PREFIX = "- user said: "
+_DIGEST_FRAMING = frozenset({_DIGEST_OPENING, _OMITTED_MARKER, _DIGEST_CLOSING})
 
 
-def _build_digest(middle: Sequence[ModelMessage]) -> str:
-    lines = _digest_lines(middle)
+def _digest_body(digest: str) -> list[str]:
+    """The lines of a digest, without the framing that wraps them."""
+    return [line for line in digest.split("\n") if line not in _DIGEST_FRAMING]
+
+
+def _head_without_digests(
+    head: ModelRequest,
+) -> tuple[list[ModelRequestPart], list[str]]:
+    """The head's own parts, and the lines of the digests it already carries.
+
+    The head holds exactly one digest, so an earlier one is carried into the
+    new digest instead of kept beside it.
+    """
+    kept: list[ModelRequestPart] = []
+    prior: list[str] = []
+    for part in head.parts:
+        content = part.content if isinstance(part, UserPromptPart) else None
+        if isinstance(content, str) and content.startswith(_DIGEST_OPENING):
+            prior.extend(_digest_body(content))
+            continue
+        kept.append(part)
+    return kept, prior
+
+
+def _build_digest(
+    middle: Sequence[ModelMessage],
+    prior_lines: Sequence[str] = (),
+) -> str:
+    lines = [*prior_lines, *_digest_lines(middle)]
     whole = _assemble_digest(lines, omitted=False)
     if len(whole) <= _DIGEST_CHAR_CAP:
         return whole
@@ -436,8 +483,8 @@ def _orphan_free(messages: Sequence[ModelMessage]) -> bool:
 
 def _compaction_plan(
     messages: Sequence[ModelMessage],
-) -> tuple[ModelRequest, int] | None:
-    """The head request and the tail start, or ``None`` to leave the history.
+) -> tuple[ModelRequest, _TailSplit] | None:
+    """The head request and the tail split, or ``None`` to leave the history.
 
     The head must carry the run's prompt and the result must still end with a
     ``ModelRequest``, so a history of another shape is left alone.
@@ -449,10 +496,10 @@ def _compaction_plan(
         return None
     if not isinstance(messages[-1], ModelRequest):
         return None
-    start = _split_index(messages)
-    if start <= 1 or start >= len(messages):
+    split = _tail_split(messages)
+    if split.start <= 1 or split.start >= len(messages):
         return None
-    return head, start
+    return head, split
 
 
 def compact_exhausted_history(
@@ -464,15 +511,19 @@ def compact_exhausted_history(
     plan = _compaction_plan(messages)
     if plan is None:
         return list(messages)
-    head, start = plan
-    middle = messages[1:start]
+    head, split = plan
+    middle = messages[1 : split.start]
+    head_parts, prior_lines = _head_without_digests(head)
 
     compacted: list[ModelMessage] = [
         dataclasses.replace(
             head,
-            parts=[*head.parts, UserPromptPart(content=_build_digest(middle))],
+            parts=[
+                *head_parts,
+                UserPromptPart(content=_build_digest(middle, prior_lines)),
+            ],
         ),
-        *messages[start:],
+        *messages[split.start :],
     ]
     if _orphan_free(messages) and not _orphan_free(compacted):
         return list(messages)
@@ -482,6 +533,7 @@ def compact_exhausted_history(
         input_messages=len(messages),
         output_messages=len(compacted),
         dropped_messages=len(middle),
+        kept_exchanges=split.exchanges,
         input_estimated_tokens=_estimated_tokens(messages),
         output_estimated_tokens=_estimated_tokens(compacted),
     )

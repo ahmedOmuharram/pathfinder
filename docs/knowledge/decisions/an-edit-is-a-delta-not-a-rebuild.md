@@ -4,7 +4,7 @@ title: An edit turn is a batch of graph operations over the live strategy, never
 description: The Lead's `edit_strategy` dispatch computes a spec diff, turns it into `GraphOperation`s and hands them to the existing commit pipeline, so an untouched step keeps its WDK id and its hand-edited values. `build_strategy` refuses a thread that already has a strategy.
 tags: [agents, strategy, wdk, graph-ownership]
 generated: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
-verified: { by: claude-code/opus-5, at: 2026-08-28T00:00:00Z }
+verified: { by: claude-code/opus-5, at: 2026-09-01T00:00:00Z }
 status: stable
 ---
 
@@ -22,6 +22,12 @@ that turns the strategy the turn started from into the one the request asks for.
   `operations/resolutions.py` computes. An `added` one emits `AddLeafOp` plus
   `AddCombineOp`, or `AddTransformOp`, anchored on the step the after-structure
   puts it above.
+- A structure the live wiring does not hold - a re-nesting of the steps that
+  stay, or a transform moved onto another input - is planned again as one
+  `ReplaceSubtreeOp` at the strategy's root. The restated tree reuses the step
+  id of every leaf, and of every combine whose ordered input pair the new shape
+  leaves alone; the push planner diffs trees, so the unchanged leaves are
+  skipped and only the combines are recreated.
 - `ai/lead/edit_dispatch.py::run_edit` reads the strategy revision before FRAME
   runs, refuses the commit if it moved, and hands the batch to
   `services/strategies/commit.py::apply_operations_and_commit`, which patches
@@ -62,9 +68,12 @@ what changed, and the algebra is derived from it rather than typed.
 
 # What it costs
 
-The mapping is not total. An edit that re-nests the steps that stay - moving a
-criterion from one branch of a combine to another - has no in-place expression
-and is refused. The refusal is loud and names what it could not place.
+The mapping is not total. Four shapes are refused, and the refusal names which
+one: a shape that leaves out a criterion the spec keeps, one that names a step
+the strategy does not hold, one that adopts a step from outside the strategy
+under edit, and one that leaves a step disconnected. A restructure also gives up
+the record class stored on each step, because `ReplaceSubtreeOp` carries nodes;
+the next push assigns it again from the catalog.
 
 `build_strategy` is now unreachable on a thread with a strategy, so a genuine
 "start over" goes through `clear_strategy`, the Lead's one destructive tool,

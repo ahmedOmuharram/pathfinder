@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from assistant_core.graph.tool_summary import count_noun
 from assistant_core.platform.pydantic_base import CamelModel
 from pydantic import Field
 
-from pathfinder.ai.graph.state import VerificationDigest
+from pathfinder.ai.graph.state import FailureCause, VerificationDigest
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.lead.ledger_render import (
     render_build_full,
@@ -18,6 +20,10 @@ from pathfinder.ai.lead.ledger_sections import (
     FrameSection,
     VerificationSection,
 )
+from pathfinder.ai.lead.phase_stop import PhaseStop
+from pathfinder.domain.strategy.combination_check import first_combination_violation
+from pathfinder.domain.strategy.constraints import Constraint
+from pathfinder.domain.strategy.operational_spec import OperationalSpec
 
 
 def build_contradiction(build: BuildSection, *, built_step_count: int) -> str | None:
@@ -39,13 +45,60 @@ def build_contradiction(build: BuildSection, *, built_step_count: int) -> str | 
     )
 
 
+def structure_contradiction(
+    requirements: Sequence[Constraint], spec: OperationalSpec | None
+) -> str | None:
+    """Why a success verdict cannot stand over this spec's structure, or None.
+
+    A build check reads what was pushed. A tree that joins the criteria the
+    user asked to union is wrong before anything is pushed.
+    """
+    if spec is None or spec.structure is None:
+        return None
+    breach = first_combination_violation(requirements, spec.criteria, spec.structure)
+    return None if breach is None else breach.message
+
+
+_SITE_TERMS = ("the site", "veupathdb")
+_TRANSIENT_BLAME = (
+    "refresh",
+    "busy",
+    "again later",
+    "catch up",
+    "catching up",
+    "temporarily",
+)
+
+
+def blamed_the_site(text: str, *, build: BuildSection) -> str | None:
+    """Why this text may not stand over this build, or None.
+
+    Text that names VEuPathDB together with a transient state asks the user to
+    wait for the site. It stands only where a WDK call of this turn failed.
+    """
+    if build.failed_count or build.zero_result_steps:
+        return None
+    lowered = text.casefold()
+    site = next((term for term in _SITE_TERMS if term in lowered), None)
+    if site is None:
+        return None
+    blame = next((term for term in _TRANSIENT_BLAME if term in lowered), None)
+    if blame is None:
+        return None
+    return f"it names {site!r} together with {blame!r}"
+
+
 def digest_held_to_the_build(
-    digest: VerificationDigest, contradiction: str
+    digest: VerificationDigest,
+    contradiction: str,
+    *,
+    failure_cause: FailureCause | None = None,
 ) -> VerificationDigest:
-    """The digest with its verdict corrected to what the build supports."""
+    """The digest with its verdict corrected to what the run supports."""
     return digest.model_copy(
         update={
             "success": False,
+            "failure_cause": failure_cause or digest.failure_cause,
             "reason": f"Verification reported success, but {contradiction}.",
             "prose": (
                 f"Verification cannot be reported: {contradiction}. "
@@ -71,6 +124,9 @@ class InvestigationLedger(CamelModel):
     build: BuildSection
     verification: VerificationSection
     constraints: ConstraintSection = Field(default_factory=ConstraintSection)
+    # Why the last dispatch of this turn ended without a delta. It stays off the
+    # wire: the Lead's prose is what a reader needs, not a second copy of it.
+    phase_stop: PhaseStop | None = Field(default=None, exclude=True)
 
     def render_summary(self) -> str:
         """Render the compact markdown view the Lead reads in pinned context.
@@ -93,6 +149,8 @@ class InvestigationLedger(CamelModel):
         lines = ["# Investigation Ledger", intent_line]
         if diff_line:
             lines.append(diff_line)
+        if self.phase_stop is not None:
+            lines.append(f"- stopped: {self.phase_stop.render()}")
         spec_diff = self.frame.spec_diff()
         lines.extend(
             [

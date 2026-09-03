@@ -17,7 +17,10 @@ from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.sub_agent_stream import SubAgentApprovalWait
 from pathfinder.ai.lead.sub_agent_tools import LeadDeps, SubAgentDurablePark
-from pathfinder.domain.strategy.constraints import organism_hints_from
+from pathfinder.domain.strategy.constraints import (
+    combination_requirements_from,
+    organism_hints_from,
+)
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 
 
@@ -55,8 +58,13 @@ def agent_deps_for(deps: LeadDeps) -> AgentDeps:
                 else OperationalSpec(goal=framing_goal(state))
             ),
             organism_hints=organism_hints_from(state.domain.requirements),
+            combination_requirements=combination_requirements_from(
+                state.domain.requirements
+            ),
         ),
-        ledger_summary=derive_ledger(state, deps.intent).render_summary(),
+        ledger_summary=derive_ledger(
+            state, deps.intent, phase_stop=deps.last_phase_stop
+        ).render_summary(),
         experiment_id=runtime.experiment_id,
         cancel_event=runtime.cancel_event,
         memory_store=runtime.memory_store,

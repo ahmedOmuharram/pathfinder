@@ -22,6 +22,7 @@ from pydantic_ai import Tool
 
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.lead_agent import consult_user
+from pathfinder.domain.strategy.constraints import ConstraintKind, ConstraintSource
 
 
 def _ctx(state: PipelineState) -> Any:
@@ -88,6 +89,123 @@ async def test_no_answers_yet_reports_awaiting() -> None:
     assert result.return_value == []
     assert "2" in result.content  # presented 2 questions
     assert "awaiting" in result.content.lower()
+
+
+def _answered(state: PipelineState, *answers: UserQuestionAnswer) -> None:
+    state.pending_approval = PendingApproval(
+        phase="lead", tool_call_id="call_1", tool_name="consult_user"
+    )
+    state.user_question_answers = {"call_1": list(answers)}
+
+
+class TestAnswersBecomeRequirements:
+    """An answer is a requirement of the investigation, not prose in a log."""
+
+    @pytest.mark.asyncio
+    async def test_a_stated_combination_lands_as_a_combination_requirement(
+        self,
+    ) -> None:
+        state = _state()
+        _answered(
+            state,
+            UserQuestionAnswer(
+                question_id="q1",
+                prompt="How should the two evidence lines combine?",
+                chosen_labels=["mass spectrometry evidence OR DeRisi expression"],
+            ),
+        )
+
+        await consult_user(_ctx(state), questions=_QUESTIONS)
+
+        [requirement] = state.domain.requirements
+        assert requirement.kind is ConstraintKind.COMBINATION
+        assert (
+            requirement.requested_value
+            == "mass spectrometry evidence OR DeRisi expression"
+        )
+        assert requirement.label == "How should the two evidence lines combine?"
+        assert requirement.source is ConstraintSource.USER_EXPLICIT
+        assert requirement.hard is True
+
+    @pytest.mark.asyncio
+    async def test_a_combination_stated_in_the_note_is_read(self) -> None:
+        state = _state()
+        _answered(
+            state,
+            UserQuestionAnswer(
+                question_id="q1",
+                prompt="Anything else?",
+                note="mass spec OR DeRisi expression",
+            ),
+        )
+
+        await consult_user(_ctx(state), questions=_QUESTIONS)
+
+        [requirement] = state.domain.requirements
+        assert requirement.kind is ConstraintKind.COMBINATION
+        assert requirement.requested_value == "mass spec OR DeRisi expression"
+
+    @pytest.mark.asyncio
+    async def test_any_other_answer_lands_as_an_other_requirement(self) -> None:
+        state = _state()
+        _answered(
+            state,
+            UserQuestionAnswer(
+                question_id="q1",
+                prompt="Fold-change threshold?",
+                chosen_labels=["2-fold", "log2 scale"],
+            ),
+        )
+
+        await consult_user(_ctx(state), questions=_QUESTIONS)
+
+        [requirement] = state.domain.requirements
+        assert requirement.kind is ConstraintKind.OTHER
+        assert requirement.requested_value == "2-fold; log2 scale"
+
+    @pytest.mark.asyncio
+    async def test_an_empty_answer_states_no_requirement(self) -> None:
+        state = _state()
+        _answered(
+            state,
+            UserQuestionAnswer(question_id="q1", prompt="Fold-change threshold?"),
+        )
+
+        await consult_user(_ctx(state), questions=_QUESTIONS)
+
+        assert state.domain.requirements == []
+
+    @pytest.mark.asyncio
+    async def test_an_unlabelled_question_names_its_requirement_by_the_answer(
+        self,
+    ) -> None:
+        state = _state()
+        _answered(
+            state,
+            UserQuestionAnswer(question_id="q1", prompt="", chosen_labels=["2-fold"]),
+        )
+
+        await consult_user(_ctx(state), questions=_QUESTIONS)
+
+        [requirement] = state.domain.requirements
+        assert requirement.label == "2-fold"
+
+    @pytest.mark.asyncio
+    async def test_the_same_answer_read_twice_is_one_requirement(self) -> None:
+        state = _state()
+        _answered(
+            state,
+            UserQuestionAnswer(
+                question_id="q1",
+                prompt="How should the two evidence lines combine?",
+                chosen_labels=["mass spectrometry evidence OR DeRisi expression"],
+            ),
+        )
+
+        await consult_user(_ctx(state), questions=_QUESTIONS)
+        await consult_user(_ctx(state), questions=_QUESTIONS)
+
+        assert len(state.domain.requirements) == 1
 
 
 def test_the_call_takes_only_questions_and_says_where_context_goes() -> None:

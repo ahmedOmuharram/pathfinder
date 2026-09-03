@@ -152,6 +152,31 @@ class TestTheStructure:
 
 
 class TestTheCounts:
+    def test_a_structure_change_is_one_touch(self) -> None:
+        """A rewire changes the result set, so the turn touched the strategy."""
+        after = _three()
+        assert after.structure is not None
+        after.structure.root.operator = CombineOp.UNION
+
+        assert diff_specs(_three(), after).touched_count() == 1
+
+    def test_an_untouched_spec_counts_no_touch(self) -> None:
+        assert diff_specs(_three(), _three()).touched_count() == 0
+
+    def test_a_rewired_structure_is_named_in_the_render(self) -> None:
+        after = _three()
+        assert after.structure is not None
+        after.structure.root.operator = CombineOp.UNION
+
+        assert diff_specs(_three(), after).render() == (
+            "kept 3, changed 0, added 0, dropped 0, structure rewired"
+        )
+
+    def test_an_unrewired_render_says_nothing_about_the_structure(self) -> None:
+        assert diff_specs(_three(), _three()).render() == (
+            "kept 3, changed 0, added 0, dropped 0"
+        )
+
     def test_the_counts_summarize_the_dispositions(self) -> None:
         after = _spec(
             _criterion("text"),

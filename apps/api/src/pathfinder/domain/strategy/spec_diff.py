@@ -56,17 +56,23 @@ class SpecDiff(CamelModel):
         return sum(1 for c in self.changes if c.disposition == disposition)
 
     def touched_count(self) -> int:
-        """Criteria this turn added, changed or dropped."""
-        return sum(1 for c in self.changes if c.disposition != "kept")
+        """Criteria this turn added, changed or dropped, and the shape it rewired.
+
+        A rewire moves the result set without touching a criterion, so it counts
+        as one touch.
+        """
+        touched = sum(1 for c in self.changes if c.disposition != "kept")
+        return touched + (1 if self.structure_changed else 0)
 
     def dropped_ids(self) -> list[str]:
         return [c.criterion_id for c in self.changes if c.disposition == "dropped"]
 
     def render(self) -> str:
-        return (
+        counts = (
             f"kept {self.kept_count}, changed {self.changed_count}, "
             f"added {self.added_count}, dropped {self.dropped_count}"
         )
+        return f"{counts}, structure rewired" if self.structure_changed else counts
 
 
 def diff_specs(before: OperationalSpec, after: OperationalSpec) -> SpecDiff:

@@ -17,11 +17,12 @@ from pathfinder.domain.strategy.ast_diff import (
     StrategyAstDiff,
     diff_strategy_asts,
 )
+from pathfinder.domain.strategy.constraint_grounding import ground_constraints
 from pathfinder.domain.strategy.constraints import (
     Constraint,
     ConstraintStatus,
-    ground_constraints,
 )
+from pathfinder.domain.strategy.spec_hydration import spec_from_ast
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.services.conversations.thread_activity import (
     AnalysisDrift,
@@ -198,6 +199,7 @@ def _statuses(
     for detached in ast.detached_roots:
         nodes.extend(walk_step_tree(detached))
     values = _param_values(nodes)
+    spec = spec_from_ast(ast, goal="")
     return [
         grounded.status
         for grounded in ground_constraints(
@@ -205,6 +207,8 @@ def _statuses(
             search_names=[node.search_name for node in nodes],
             param_names=values.keys(),
             param_values=values,
+            structure=spec.structure,
+            criteria=spec.criteria,
         )
     ]
 

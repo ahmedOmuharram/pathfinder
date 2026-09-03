@@ -59,6 +59,8 @@ class _Plan:
     ops: list[GraphOperation] = field(default_factory=list)
     added: frozenset[str] = frozenset()
     criteria: dict[str, Criterion] = field(default_factory=dict)
+    rewires: bool = False
+    """The structure states a wiring the live graph does not hold."""
 
     def emit(self, op: GraphOperation) -> None:
         self.ops.append(op)
@@ -76,14 +78,32 @@ def operations_for(
     if after.structure is None:
         msg = "the edited spec states no structure"
         raise UnsupportedEditError(msg)
-    working = _working_copy(graph)
-    entry_root = working.primary_root_id()
+    entry_root = graph.primary_root_id()
     if entry_root is None:
         msg = "the strategy has no root step to edit"
         raise UnsupportedEditError(msg)
-    stranded_before = set(working.steps) - set(subtree_ids(entry_root, working.steps))
+    outside = set(graph.steps) - set(subtree_ids(entry_root, graph.steps))
+    plan = _plan_the_named_changes(diff, before=before, after=after, graph=graph)
+    root_id = _resolve(after.structure.root, plan)
+    if plan.rewires or root_id != plan.graph.primary_root_id():
+        # The structure re-nests steps that stay, which no sequence of wiring
+        # operations expresses: the combines above the leaves are restated.
+        plan = _plan_the_named_changes(diff, before=before, after=after, graph=graph)
+        root_id = _restructure(after.structure.root, plan)
+    _refuse_a_shape_the_edit_did_not_state(plan, root_id, outside)
+    return plan.ops
+
+
+def _plan_the_named_changes(
+    diff: SpecDiff,
+    *,
+    before: OperationalSpec,
+    after: OperationalSpec,
+    graph: StrategyGraph,
+) -> _Plan:
+    """A fresh plan holding the drops and the changes the diff names."""
     plan = _Plan(
-        graph=working,
+        graph=_working_copy(graph),
         added=frozenset(
             c.criterion_id for c in diff.changes if c.disposition == "added"
         ),
@@ -102,9 +122,7 @@ def operations_for(
                     plan.criteria[change.criterion_id],
                 )
             )
-    root_id = _resolve(after.structure.root, plan)
-    _refuse_a_shape_the_edit_did_not_state(plan, root_id, stranded_before)
-    return plan.ops
+    return plan
 
 
 def _working_copy(graph: StrategyGraph) -> StrategyGraph:
@@ -119,16 +137,27 @@ def _working_copy(graph: StrategyGraph) -> StrategyGraph:
 
 
 def _refuse_a_shape_the_edit_did_not_state(
-    plan: _Plan, root_id: str, stranded_before: set[str]
+    plan: _Plan, root_id: str, outside: set[str]
 ) -> None:
-    """The planned graph holds exactly the criteria the edited spec names."""
+    """The planned graph holds exactly the criteria the edited spec names.
+
+    ``outside`` are the steps the edited strategy did not reach when the turn
+    began. They stay where they are: the edit neither adopts nor strands them.
+    """
     if root_id != plan.graph.primary_root_id():
         msg = (
-            "the edited structure re-nests steps that stay; an in-place edit "
-            "cannot rewire the strategy around them"
+            f"the planned strategy roots at "
+            f"{plan.graph.primary_root_id()!r} where the edited structure "
+            f"states {root_id!r}"
         )
         raise UnsupportedEditError(msg)
     reachable = set(subtree_ids(root_id, plan.graph.steps))
+    adopted = reachable & outside
+    if adopted:
+        msg = (
+            f"the edit would adopt {sorted(adopted)} from outside the strategy it edits"
+        )
+        raise UnsupportedEditError(msg)
     searches = {
         sid for sid in reachable if plan.graph.steps[sid].kind is not StepKind.COMBINE
     }
@@ -138,7 +167,7 @@ def _refuse_a_shape_the_edit_did_not_state(
             f"spec states {sorted(plan.criteria)}"
         )
         raise UnsupportedEditError(msg)
-    stranded = set(plan.graph.steps) - reachable - stranded_before
+    stranded = set(plan.graph.steps) - reachable - outside
     if stranded:
         msg = f"the edit would strand {sorted(stranded)} outside the strategy"
         raise UnsupportedEditError(msg)
@@ -223,11 +252,7 @@ def _resolve_transform(node: StructureNode, plan: _Plan) -> str:
     existing = plan.graph.steps.get(criterion.id)
     if existing is not None:
         if existing.primary_input_id != input_id:
-            msg = (
-                f"transform {criterion.id!r} is wired to "
-                f"{existing.primary_input_id!r} and the edit states {input_id!r}"
-            )
-            raise UnsupportedEditError(msg)
+            plan.rewires = True
         return criterion.id
     if criterion.id not in plan.added:
         msg = f"criterion {criterion.id!r} names no step in the strategy"
@@ -286,6 +311,94 @@ def _join(plan: _Plan, left_id: str, right_id: str, operator: CombineOp) -> str:
             )
         )
     return new_id
+
+
+def _restructure(node: StructureNode, plan: _Plan) -> str:
+    """Restate the combines above the leaves as one replacement at the root.
+
+    Every leaf the structure names keeps the step id it already has, and a
+    combine over an ordered pair the structure leaves alone keeps its own.
+    """
+    root_id = plan.graph.primary_root_id()
+    if root_id is None:
+        msg = "the strategy has no root step to edit"
+        raise UnsupportedEditError(msg)
+    target = _target(node, plan)
+    plan.emit(ReplaceSubtreeOp(step_id=root_id, subtree=target))
+    return target.id
+
+
+def _target(node: StructureNode, plan: _Plan) -> StrategyStepNode:
+    """The node the restated tree holds for this structure node."""
+    if node.kind == "leaf":
+        return _live_or_added_node(_criterion(plan, node), plan)
+    if node.kind == "transform":
+        return _target_transform(node, plan)
+    return _target_combine(node, plan)
+
+
+def _live_or_added_node(criterion: Criterion, plan: _Plan) -> StrategyStepNode:
+    """The step the strategy already holds, or the one the edit introduces."""
+    if criterion.id in plan.graph.steps:
+        return rebuild_tree(criterion.id, plan.graph.steps)
+    if criterion.id not in plan.added:
+        msg = f"criterion {criterion.id!r} names no step in the strategy"
+        raise UnsupportedEditError(msg)
+    return _node_for(criterion)
+
+
+def _target_transform(node: StructureNode, plan: _Plan) -> StrategyStepNode:
+    criterion = _criterion(plan, node)
+    if not node.inputs:
+        msg = f"transform {criterion.id!r} states no input step"
+        raise UnsupportedEditError(msg)
+    return _live_or_added_node(criterion, plan).model_copy(
+        update={
+            "primary_input": _target(node.inputs[0], plan),
+            "secondary_input": None,
+        }
+    )
+
+
+def _target_combine(node: StructureNode, plan: _Plan) -> StrategyStepNode:
+    if len(node.inputs) == 1:
+        return _target(node.inputs[0], plan)
+    if node.operator is None or len(node.inputs) < _MIN_COMBINE_INPUTS:
+        msg = "a combine states an operator and at least two inputs"
+        raise UnsupportedEditError(msg)
+    left = _target(node.inputs[0], plan)
+    for extra in node.inputs[1:]:
+        left = _target_join(plan, left, _target(extra, plan), node.operator)
+    return left
+
+
+def _target_join(
+    plan: _Plan,
+    left: StrategyStepNode,
+    right: StrategyStepNode,
+    operator: CombineOp,
+) -> StrategyStepNode:
+    """The combine over the two branches: the live one, or a new one."""
+    existing = _combine_step_id(plan.graph, left.id, right.id)
+    if existing is None:
+        return StrategyStepNode(
+            id=generate_step_id(),
+            search_name=COMBINE_SEARCH_NAME,
+            operator=operator,
+            primary_input=left,
+            secondary_input=right,
+        )
+    live = plan.graph.steps[existing]
+    return rebuild_tree(existing, plan.graph.steps).model_copy(
+        update={
+            "operator": operator,
+            "colocation_params": (
+                live.colocation_params if live.operator is operator else None
+            ),
+            "primary_input": left,
+            "secondary_input": right,
+        }
+    )
 
 
 def _combine_step_id(graph: StrategyGraph, left_id: str, right_id: str) -> str | None:

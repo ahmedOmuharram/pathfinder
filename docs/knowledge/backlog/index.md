@@ -7,7 +7,8 @@ what left.
 
 ## Ranked
 
-Nothing outstanding.
+1. [replace_subtree can destroy the strategy](replace-subtree-can-destroy-the-strategy.md) - a recovery pass halved a correct 16-step tree and left `__input_step__` placeholders; the edit path's leaf-set invariant is missing here.
+2. [The combination check under-enforces three or more terms](combination-lca-under-enforces-many-terms.md) - two-term constraints are exact; "A OR B OR C" accepts a tree that ANDs two branches.
 
 ## Known and accepted
 

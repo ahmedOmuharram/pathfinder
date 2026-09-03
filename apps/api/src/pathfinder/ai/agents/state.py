@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.parameters.wdk_vocab import VocabOption
+from pathfinder.domain.strategy.constraints import Constraint
 from pathfinder.domain.strategy.operational_spec import (
     Criterion,
     DroppedCriterion,
@@ -50,6 +51,9 @@ class AgentToolState:
     # The organisms this investigation states. A capped vocabulary renders the
     # branches that match them first.
     organism_hints: list[str] = field(default_factory=list)
+    # How the user said their evidence lines combine. A proposed structure that
+    # contradicts one of them is refused.
+    combination_requirements: list[Constraint] = field(default_factory=list)
     # Params already handed back for a fresh decision, by criterion and search.
     # Searches share parameter names, so the search is part of the key.
     redecided_params: set[tuple[str, str, str]] = field(default_factory=set)

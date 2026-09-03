@@ -7,7 +7,7 @@ the tool wrappers in ``sub_agent_dispatch``.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import UUID
@@ -28,9 +28,15 @@ from pathfinder.ai.agents.verification import (
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.lead.intent import UserIntent
+from pathfinder.ai.lead.phase_stop import PhaseStop
 from pathfinder.ai.models.mock import get_mock_model
 from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.ai.models.tiers import PhaseTierConfig, resolve_phase_tier_config
+from pathfinder.domain.strategy.constraints import (
+    CombinationRequest,
+    Constraint,
+    ConstraintKind,
+)
 from pathfinder.platform.config import get_settings
 
 # Binding one criterion costs up to ten calls: find a search, read it, read its
@@ -54,6 +60,56 @@ def phase_usage_limits(declared_criteria: int) -> UsageLimits:
         tool_calls_limit=calls,
         total_tokens_limit=_PHASE_TOKEN_LIMIT,
     )
+
+
+# A requirement of one of these kinds states a filter of its own, so it names a
+# criterion. A comparator or a record type qualifies a criterion it shares with
+# another requirement, so it names none.
+CRITERION_SHAPED_KINDS = frozenset(
+    {
+        ConstraintKind.DATA_TYPE,
+        ConstraintKind.ORGANISM,
+        ConstraintKind.PERCENTILE,
+        ConstraintKind.FOLD_CHANGE,
+        ConstraintKind.STATISTICAL_THRESHOLD,
+    },
+)
+# Evidence above the clamp buys nothing, so the floor stops where the ceiling is.
+MAX_CRITERIA_FLOOR = MAX_PHASE_TOOL_CALLS // CALLS_PER_CRITERION
+
+
+def _requirement_floor(requirements: Sequence[Constraint]) -> int:
+    """How many criteria a set of requirements names, at least.
+
+    Requirements of criterion-shaped kinds name one criterion per label, and a
+    combination names one per term. The larger count stands, because a
+    combination names criteria the other requirements also state.
+    """
+    floor = len({c.label for c in requirements if c.kind in CRITERION_SHAPED_KINDS})
+    for requirement in requirements:
+        if requirement.kind is not ConstraintKind.COMBINATION:
+            continue
+        combination = CombinationRequest.parse(requirement.requested_value)
+        if combination is not None:
+            floor = max(floor, len(combination.terms))
+    return floor
+
+
+def criteria_floor(state: PipelineState) -> int:
+    """The smallest criterion count the thread's own statements support.
+
+    The spec the turn started from, the spec the thread holds and the stated
+    requirements are all evidence of size. A pass runs at the largest of them
+    however few criteria its caller declares.
+    """
+    domain = state.domain
+    counts = [_requirement_floor(domain.requirements)]
+    counts.extend(
+        len(spec.criteria)
+        for spec in (domain.spec_before_turn, domain.operational_spec)
+        if spec is not None
+    )
+    return min(max(counts), MAX_CRITERIA_FLOOR)
 
 
 # A dispatch builds its own agent, so the map holds factories. The model each
@@ -201,6 +257,13 @@ class LeadDeps:
     # A FRAME pass that claimed a ready spec over an empty draft is refused
     # once. The next one is reported to the Lead rather than retried again.
     empty_frame_reported: bool = False
+    # Why the last dispatch ended without a delta, cleared when the next one
+    # starts. The Lead reads it through the ledger.
+    last_phase_stop: PhaseStop | None = None
+    # A budget stop that bound something is dispatched again once per turn.
+    frame_retried_after_stop: bool = False
+    # A reply that blamed VEuPathDB for an internal stop is refused once.
+    site_blame_refused: bool = False
 
     @property
     def conversation_id(self) -> UUID | None:

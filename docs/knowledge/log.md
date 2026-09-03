@@ -2,6 +2,93 @@
 
 ## 2026-09-01
 
+* **A pass that stops early now says so, continues itself, and can no longer
+  blame the site.** A dispatch that exhausted its call budget, or that the
+  repetition guard ended, was logged and dropped: the Lead read a partial spec
+  with no record of the cause and reached for an external one. The stop is now
+  a typed `PhaseStop` - which pass, why, the calls it spent, the criteria it
+  bound against the count it was sized for - recorded on `LeadDeps` on both
+  stop paths and cleared when the next dispatch starts, so a clean pass never
+  inherits a stale stop. The ledger carries it off the wire and
+  `render_summary` names it, which is the text the Lead reads before it
+  answers. A budget stop that bound a criterion the pass did not start with is
+  dispatched once more by `run_frame` itself, with a continuation work order
+  that prints what is bound and asks only for the rest, sized by the same
+  `criteria_floor`; a turn that started from a strategy continues as an edit,
+  because an edit owes a disposition per criterion. A pass that bound nothing
+  and a repetition stop are reported instead of retried. Finally
+  `blamed_the_site` refuses a reply that names the site beside a transient
+  state while no step failed and none came back empty, and the refusal hands
+  the model the real stop to write; it fires once per turn, as the
+  unverified-build refusal does. Proven by
+  `tests/unit/ai/lead/test_a_stop_reaches_the_lead.py` (a scripted loop stopped
+  by its budget records the reason and the numbers, a repetition stop records
+  its own, a clean pass records none and clears an earlier one, the rendered
+  summary names the stop, and the retry runs once, is sized by the thread,
+  continues an edit as an edit, and never runs after a pass that bound
+  nothing) and `tests/unit/ai/lead/test_a_stop_is_not_the_site.py` (the matcher
+  and the output validator, including a reply that names a real WDK failure
+  standing unchanged). Decision:
+  [a budget stop is retried by the system](decisions/a-budget-stop-is-retried-by-the-system.md).
+
+* **In-run compaction now bounds the wire context, and a planning pass is
+  sized by what the thread states.** `compact_exhausted_history` keeps the
+  newest exchanges until a token budget is spent - half the compaction
+  threshold - instead of a fixed count of them, with a floor of two exchanges
+  so a pass can always act on its latest result. A fixed count was the wrong
+  unit: a few vocabulary reads carry more text than the whole middle, so the
+  kept tail was the weight and the output stayed above the threshold that
+  triggered the pass. The head now carries exactly one digest however many
+  times the processor runs: a digest already on the head is recognized by its
+  opening line, dropped, and its lines carried into the new one, so nothing an
+  earlier pass summarized is forgotten and compacting a compacted history is a
+  fixpoint. Sizing a phase pass reads the thread and not only its caller:
+  `criteria_floor` takes the largest of the criteria on the spec the turn
+  started from, the criteria on the spec the thread holds, and what the stated
+  requirements name - one per criterion-shaped requirement label, one per term
+  of a stated combination, whichever is larger - clamped to the count
+  `MAX_PHASE_TOOL_CALLS` can honor. `run_frame` runs at
+  `max(expected_criteria, criteria_floor(state))`, so a declared count may
+  raise the budget and may not lower it below the evidence. Proven by
+  `tests/unit/ai/agents/test_compact_history.py` (fat recent exchanges compact
+  below the threshold, an oversized newest exchange still keeps the floor
+  verbatim, a second pass leaves one digest that still holds the first
+  middle's lines), `tests/unit/ai/lead/test_budget_scales_with_criteria.py`
+  (an empty thread floors at zero, a twelve-requirement thread naming eight
+  criteria floors above eight, a chatty thread cannot spend the whole turn)
+  and `tests/unit/ai/lead/test_reframe_is_sized_by_the_thread.py`.
+
+* **A stated combination is a typed requirement, and three layers check it.**
+  `ConstraintKind.COMBINATION` carries one operator over two or more terms in
+  the canonical form `<term> OR <term>` (or AND), parsed by
+  `CombinationRequest.parse`. The terms are the user's own phrases, not
+  criterion ids, because a build renumbers the criteria on the step ids it
+  mints and the words survive that. `merge_constraints` keys a combination on
+  its value, so a second one is a second dimension rather than an overwrite.
+  `domain/strategy/combination_check.py` matches each term to the criterion
+  whose text and search name share the most words with it, and reads the
+  operator of the combine where those criteria meet, treating a transform as
+  transparent and a single-input combine as a pass-through. A tie or a term
+  that names nothing abstains: the check never guesses which criterion the
+  user meant. `set_structure` runs the check on the PROPOSED tree and raises
+  `ModelRetry` naming the expression, the operator found and the one required;
+  `_digest_the_build_supports` runs it on the committed spec and rewrites a
+  success verdict to `FailureCause.STRUCTURE_VIOLATION`, so a zero root caused
+  by the wrong operator is reported as that and not as a threshold to relax.
+  The grounding of a constraint now lives in
+  `domain/strategy/constraint_grounding.py`, because grounding a combination
+  needs the criteria and the tree and `operational_spec` already imports
+  `constraints`. Consult answers land in `requirements` as typed constraints
+  too, `COMBINATION` when an answer reads as an expression and `OTHER`
+  otherwise. Proven by
+  `tests/unit/domain/strategy/test_combination_check.py`,
+  `tests/unit/domain/strategy/test_constraints.py`,
+  `tests/unit/ai/agents/test_frame_toolset.py` (the four-kinase drug-target
+  shape: intersecting the two evidence lines is refused, unioning them is
+  written), `tests/unit/ai/lead/test_consult_user.py`,
+  `tests/unit/ai/lead/test_dispatch_deps_combination_requirements.py` and
+  `tests/unit/ai/lead/test_digest_cannot_outrank_the_structure.py`.
+
 * **The wire carries each agent's context fill, and the rail draws it.**
   `data-sub-agent-call` and `data-lead-usage` carry `contextTokens` and
   `contextWindow`: the input size of the agent's latest request, and the
@@ -3236,3 +3323,43 @@
   itself is produced and pinned by the backend unit suite; the mock stack
   cannot cheaply hit a ceiling, so the e2e run uses a plain build turn and
   the stopped-dispatch arithmetic is carried by the vitest gate.
+
+* **A change to how the steps combine is now an in-place edit.**
+  `operations_for` plans the shape the edited spec states: when the resolved
+  root is not the strategy's own root, or when the structure moves a transform
+  onto another input, the pass re-plans from the live graph as one
+  `ReplaceSubtreeOp` at the root, over a tree that reuses the step id of every
+  leaf and of every combine whose ordered input pair the new shape leaves
+  alone. The push planner diffs trees rather than reading operations, so the
+  unchanged leaves are skipped and only the combines are recreated - the
+  request that used to answer "requires replacing the current strategy" now
+  rewires it and keeps every leaf's WDK id. Four shapes are still refused and
+  the refusal names which: a criterion the spec keeps left out of the tree, a
+  step the strategy does not hold, a step adopted from outside the strategy
+  under edit, a step left disconnected. The edit work order prints the shape
+  the strategy has now as an indented tree, and tells FRAME that a request
+  about how the steps COMBINE is a `set_structure` call over the same criterion
+  ids. `SpecDiff.touched_count` counts a rewire as one touch and `render` names
+  it, so a rewire beside a criterion change no longer suppresses enrichment and
+  no reply can report a rewire as "nothing changed". Proven by
+  `tests/unit/domain/strategy/test_spec_to_operations.py` (the rearrangement
+  plans as one replacement, every leaf id survives, the combine whose inputs do
+  not move keeps its own, a moved transform is rewired, and three of the
+  refusals) and `tests/unit/ai/lead/test_edit_work_order.py`.
+
+* **Stated combination logic is now typed, gated and verified; a combine
+  rewire is an in-place edit.** A user's "A OR B" lands as a
+  ConstraintKind.COMBINATION requirement (from the intent gate and from
+  consult answers), FRAME's set_structure refuses a tree whose matched
+  criteria meet at the wrong operator, and a success verdict over a
+  violating structure is corrected to STRUCTURE_VIOLATION - three layers,
+  one pure checker (domain/strategy/combination_check.py). The edit path
+  plans a re-nest as one ReplaceSubtreeOp over the live leaves (ids and
+  values kept, push planner skips unchanged leaves), the edit work order
+  prints the current shape, and "cannot re-nest" is no longer claimed.
+  Adversarial verification then hardened both: the meeting-node walk counts
+  distinct criteria so a duplicated leaf cannot spoof the gate, a new
+  combination over the same criteria supersedes the old one so a changed
+  mind cannot brick set_structure, and the turn briefing grounds
+  combinations against the built tree via spec_from_ast. Known limit: three
+  or more terms are checked at the meeting node only (see the backlog).

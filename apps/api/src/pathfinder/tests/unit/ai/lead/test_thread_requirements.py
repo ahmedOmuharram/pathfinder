@@ -224,3 +224,54 @@ def test_the_summary_caps_the_requirement_list() -> None:
 
     assert summary.count("requirement ") == 20
     assert "10 more stated earlier" in summary
+
+
+def test_a_new_combination_over_the_same_terms_supersedes_the_old_one() -> None:
+    state = _state("kinase evidence")
+    state.domain.record_requirements(
+        [
+            _constraint(
+                ConstraintKind.COMBINATION,
+                "mass spectrometry OR DeRisi expression",
+                "evidence combination",
+            ),
+        ],
+    )
+    state.domain.record_requirements(
+        [
+            _constraint(
+                ConstraintKind.COMBINATION,
+                "mass spectrometry AND DeRisi expression",
+                "evidence combination",
+            ),
+        ],
+    )
+
+    combos = [
+        c for c in state.domain.requirements if c.kind is ConstraintKind.COMBINATION
+    ]
+    assert len(combos) == 1
+    assert combos[0].requested_value == "mass spectrometry AND DeRisi expression"
+
+
+def test_a_combination_over_different_terms_accrues() -> None:
+    state = _state("two combinations")
+    state.domain.record_requirements(
+        [
+            _constraint(
+                ConstraintKind.COMBINATION,
+                "mass spectrometry OR DeRisi expression",
+                "evidence combination",
+            ),
+            _constraint(
+                ConstraintKind.COMBINATION,
+                "kinase annotation AND phyletic profile",
+                "annotation combination",
+            ),
+        ],
+    )
+
+    combos = [
+        c for c in state.domain.requirements if c.kind is ConstraintKind.COMBINATION
+    ]
+    assert len(combos) == 2

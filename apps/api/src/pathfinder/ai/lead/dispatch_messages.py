@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from pathfinder.ai.lead.deltas import FrameResult
+from pathfinder.ai.lead.phase_stop import PhaseStop
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 from pathfinder.domain.strategy.spec_diff import CriterionChange, SpecDiff
@@ -38,6 +39,45 @@ def frame_result_from_draft(spec: OperationalSpec | None) -> FrameResult:
             f"rest rather than starting again."
         ),
     )
+
+
+def frame_continuation_work_order(spec: OperationalSpec | None, prompt: str) -> str:
+    """The work order for the pass that continues one stopped by its budget.
+
+    The bound criteria are printed so the second pass spends its calls on the
+    rest instead of paying again for what the first pass bound.
+    """
+    criteria = spec.criteria if spec is not None else []
+    bound = [c for c in criteria if c.bound]
+    unbound = [c for c in criteria if not c.bound]
+    lines = [
+        "FRAME work order: the previous pass ran out of its tool budget. "
+        "Continue it; this is not a fresh frame.",
+        f"User's goal: {prompt}",
+        "",
+        f"{len(bound)} criteria are bound already and stay exactly as they are. "
+        "Do NOT call set_criterion for any of them:",
+        *(
+            f"- [{c.id}] {c.text[:80]} -> {c.search_name or '(saved strategy)'}"
+            for c in bound
+        ),
+    ]
+    if unbound:
+        lines.extend(
+            [
+                "",
+                "These criteria are recorded and still need a search:",
+                *(f"- [{c.id}] {c.text[:80]}" for c in unbound),
+            ],
+        )
+    lines.extend(
+        [
+            "",
+            "Bind what the goal states and the lists above do not cover, set "
+            "the structure over every criterion, and return a FrameResult.",
+        ],
+    )
+    return "\n".join(lines)
 
 
 _RECORDING_TOOLS = "set_criterion, set_structure, drop_criterion"
@@ -166,6 +206,25 @@ def build_not_ready_message(spec: OperationalSpec | None) -> str:
     return (
         f"These criteria still need user-supplied parameters: "
         f"{', '.join(open_params)}. Ask the user for them, then build."
+    )
+
+
+def blamed_the_site_message(blame: str, stop: PhaseStop | None) -> str:
+    """Why a reply that asks the user to wait for VEuPathDB is refused.
+
+    The turn's own stop is the cause, so the refusal hands the model that
+    sentence to write instead of an external one.
+    """
+    cause = (
+        f"what stopped this turn is that {stop.render()}"
+        if stop is not None
+        else "no pass of this turn reported a stop"
+    )
+    return (
+        f"Your reply attributes this turn's outcome to VEuPathDB ({blame}), and "
+        f"no VEuPathDB call of this turn failed. Rewrite it: {cause}. State "
+        f"that, state what happens next, and never ask the user to retry "
+        f"because the site is busy."
     )
 
 

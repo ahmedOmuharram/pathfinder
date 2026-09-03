@@ -11,15 +11,16 @@ from pathfinder.ai.lead.ledger_sections import (
     VerificationSection,
     assumption_constraints,
 )
+from pathfinder.ai.lead.phase_stop import PhaseStop
 from pathfinder.domain.parameters.value_codec import to_wire
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
     StepPushFailure,
 )
+from pathfinder.domain.strategy.constraint_grounding import ground_constraints
 from pathfinder.domain.strategy.constraints import (
     Constraint,
     ConstraintSource,
-    ground_constraints,
     merge_constraints,
     provisional_constraints,
 )
@@ -58,11 +59,16 @@ _SEARCH_INVALID_MARKERS: frozenset[str] = frozenset(
 def derive_ledger(
     state: PipelineState,
     intent: UserIntent | None,
+    *,
+    phase_stop: PhaseStop | None = None,
 ) -> InvestigationLedger:
     """Pure derivation of the Ledger from PipelineState + the latest intent.
 
     No I/O. The Lead calls this on every turn. Sub-agents do NOT call it —
     they receive scoped slices via typed work orders from the Lead.
+
+    ``phase_stop`` is why the turn's last dispatch ended without a delta. It
+    lives for one turn, so the caller holding it passes it in.
     """
     return InvestigationLedger(
         user_intent=intent,
@@ -73,6 +79,7 @@ def derive_ledger(
         build=_derive_build_section(state),
         verification=_derive_verification_section(state),
         constraints=_derive_constraint_section(state, intent),
+        phase_stop=phase_stop,
     )
 
 
@@ -128,6 +135,8 @@ def _derive_constraint_section(
                 search_names=search_names,
                 param_names=param_names,
                 param_values=param_values,
+                structure=spec.structure,
+                criteria=spec.criteria,
             ),
             *assumed,
         ]

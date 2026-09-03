@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from enum import StrEnum
 from typing import Literal
 from uuid import UUID
@@ -19,7 +20,8 @@ from pathfinder.domain.eda_thread import EdaAnalysisFacts, EdaExport
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
 )
-from pathfinder.domain.strategy.constraints import Constraint
+from pathfinder.domain.strategy.combination_check import combination_terms_overlap
+from pathfinder.domain.strategy.constraints import Constraint, ConstraintKind
 from pathfinder.domain.strategy.operational_spec import OperationalSpec
 from pathfinder.domain.strategy.staleness import StaleBuild
 
@@ -51,6 +53,7 @@ class FailureCause(StrEnum):
     PARTIAL_BUILD = "partial_build"
     UNRESOLVED_SLOTS = "unresolved_slots"
     TRANSIENT_ERROR = "transient_error"
+    STRUCTURE_VIOLATION = "structure_violation"
 
 
 class ConstraintCheck(CamelModel):
@@ -178,15 +181,34 @@ class StrategyDomainState(BaseModel):
         ):
             self.requirements = []
             self.original_request = ""
+        self.record_requirements(intent.explicit_constraints)
+        if not self.original_request and intent.classification in REQUEST_INTENTS:
+            self.original_request = request_text
+
+    def record_requirements(self, constraints: Iterable[Constraint]) -> None:
+        """Add each requirement the thread has not stated already.
+
+        Two requirements are the same when they hold the same value on the same
+        dimension, so a restated one is not a second requirement. A new
+        combination over the same criteria replaces the old one, so a changed
+        mind never leaves two statements no tree can satisfy together.
+        """
         seen = {(c.kind, c.requested_value) for c in self.requirements}
-        for constraint in intent.explicit_constraints:
+        for constraint in constraints:
             key = (constraint.kind, constraint.requested_value)
             if key in seen:
                 continue
+            if constraint.kind is ConstraintKind.COMBINATION:
+                self.requirements = [
+                    held
+                    for held in self.requirements
+                    if held.kind is not ConstraintKind.COMBINATION
+                    or not combination_terms_overlap(
+                        held.requested_value, constraint.requested_value
+                    )
+                ]
             seen.add(key)
             self.requirements.append(constraint)
-        if not self.original_request and intent.classification in REQUEST_INTENTS:
-            self.original_request = request_text
 
     def markers_for(self, message_id: UUID | None) -> TurnMarkers:
         """This turn's markers. The record rotates on a new user message."""

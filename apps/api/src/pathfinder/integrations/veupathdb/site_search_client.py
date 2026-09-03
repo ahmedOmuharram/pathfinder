@@ -171,9 +171,7 @@ class SiteSearchClient:
         )
         start = time.monotonic()
         retrying = AsyncRetrying(
-            retry=retry_if_exception_type(
-                (httpx.TimeoutException, httpx.ConnectError)
-            ),
+            retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
             stop=stop_after_attempt(3),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             before_sleep=site_search_retry_logger(telemetry),

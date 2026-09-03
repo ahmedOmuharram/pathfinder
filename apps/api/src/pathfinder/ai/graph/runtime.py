@@ -12,7 +12,10 @@ from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.agents.tool_vocabulary import build_tool_repetition_guard
 from pathfinder.ai.capabilities.service_outage import ServiceOutageMemory
 from pathfinder.ai.graph.state import PipelineState
-from pathfinder.domain.strategy.constraints import organism_hints_from
+from pathfinder.domain.strategy.constraints import (
+    combination_requirements_from,
+    organism_hints_from,
+)
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
@@ -77,6 +80,9 @@ def build_node_deps(
     agent_state = AgentToolState(
         discovered_searches=dict(state.domain.discovered_searches),
         organism_hints=organism_hints_from(state.domain.requirements),
+        combination_requirements=combination_requirements_from(
+            state.domain.requirements
+        ),
     )
     return AgentDeps(
         site_id=context.site_id,

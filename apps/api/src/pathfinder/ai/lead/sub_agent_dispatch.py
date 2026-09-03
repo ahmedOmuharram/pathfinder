@@ -11,7 +11,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.graph.runtime import AgentDeps, VerificationScope
-from pathfinder.ai.graph.state import VerificationDigest
+from pathfinder.ai.graph.state import FailureCause, VerificationDigest
 from pathfinder.ai.lead.deltas import (
     ExecuteDelta,
     FrameResult,
@@ -30,13 +30,17 @@ from pathfinder.ai.lead.dispatch_messages import (
     build_would_replace_the_strategy,
     frame_bound_nothing_result,
     frame_claimed_more_than_it_bound,
+    frame_continuation_work_order,
     frame_result_from_draft,
     undeclared_spec_changes,
 )
+from pathfinder.ai.lead.edit_messages import edit_continuation_work_order
 from pathfinder.ai.lead.ledger import (
     build_contradiction,
     digest_held_to_the_build,
+    structure_contradiction,
 )
+from pathfinder.ai.lead.phase_stop import PhaseStopReason
 from pathfinder.ai.lead.sub_agent_stream import (
     PhaseRun,
     SubAgentApprovalWait,
@@ -46,11 +50,13 @@ from pathfinder.ai.lead.sub_agent_stream import (
 from pathfinder.ai.lead.sub_agent_tools import (
     LeadDeps,
     apply_agent_state,
+    criteria_floor,
 )
 from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
 from pathfinder.ai.tools.toolsets._dynamic import live_wdk_step_ids
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operational_spec import (
+    OperationalSpec,
     build_step_tree,
     renumber_criteria,
 )
@@ -76,6 +82,42 @@ def frame_work_order(reason: str, prompt: str) -> str:
     )
 
 
+def _bound_count(spec: OperationalSpec | None) -> int:
+    return sum(1 for c in spec.criteria if c.bound) if spec is not None else 0
+
+
+def _continue_the_stopped_pass(
+    deps: LeadDeps, *, bound_before: int, draft: OperationalSpec
+) -> bool:
+    """Whether a stopped pass is dispatched again rather than reported.
+
+    A budget stop that bound a criterion the pass did not start with has work
+    left to continue, and the continuation is the system's to run. A pass that
+    bound nothing repeats itself, so the Lead hears about it instead.
+    """
+    stop = deps.last_phase_stop
+    if stop is None or stop.reason is not PhaseStopReason.BUDGET:
+        return False
+    if deps.frame_retried_after_stop:
+        return False
+    return _bound_count(draft) > bound_before
+
+
+def _continuation_work_order(deps: LeadDeps) -> str:
+    """What the continuing pass is asked to do, in the shape the turn owes.
+
+    A turn that started from a strategy owes a disposition per criterion, so
+    its continuation is an edit work order.
+    """
+    before = deps.state.domain.spec_before_turn
+    if before is not None and before.criteria:
+        return edit_continuation_work_order(before, deps.state.user_prompt)
+    return frame_continuation_work_order(
+        deps.state.domain.operational_spec,
+        deps.state.user_prompt,
+    )
+
+
 async def run_frame(
     *,
     deps: LeadDeps,
@@ -88,8 +130,13 @@ async def run_frame(
     agent_deps = agent_deps_for(deps)
     if not agent_deps.agent_state.operational_spec_draft.goal:
         agent_deps.agent_state.operational_spec_draft.goal = deps.state.user_prompt
+    bound_before = _bound_count(agent_deps.agent_state.operational_spec_draft)
     delta = await stream_sub_agent(
-        run=PhaseRun("frame", work_order, expected_criteria),
+        run=PhaseRun(
+            "frame",
+            work_order,
+            max(expected_criteria, criteria_floor(deps.state)),
+        ),
         agent_deps=agent_deps,
         parent_tool_call_id=parent_tool_call_id,
         expected_output_type=FrameResult,
@@ -100,6 +147,18 @@ async def run_frame(
         return delta
     apply_agent_state(deps, agent_deps)
     if delta is None:
+        if _continue_the_stopped_pass(
+            deps,
+            bound_before=bound_before,
+            draft=agent_deps.agent_state.operational_spec_draft,
+        ):
+            deps.frame_retried_after_stop = True
+            return await run_frame(
+                deps=deps,
+                parent_tool_call_id=parent_tool_call_id,
+                work_order=_continuation_work_order(deps),
+                expected_criteria=expected_criteria,
+            )
         return frame_result_from_draft(deps.state.domain.operational_spec)
     draft = agent_deps.agent_state.operational_spec_draft
     if delta.disposition == "spec_ready" and not any(c.bound for c in draft.criteria):
@@ -128,7 +187,9 @@ async def frame_problem(
 
     ``expected_criteria`` is how many distinct filters the goal states - count
     the "and"s in the request. It sizes FRAME's tool budget, so undercounting a
-    large request makes it run out before it binds them all.
+    large request makes it run out before it binds them all. The pass is never
+    sized below what the thread already states, so a count below the evidence
+    is raised to it.
 
     Available once per turn, while the thread has no strategy to change with
     ``edit_strategy`` and no empty build waiting on the user."""
@@ -363,9 +424,17 @@ def _digest_the_build_supports(
         ledger.build,
         built_step_count=len(live_wdk_step_ids(deps.runtime.strategy_session)),
     )
-    if contradiction is None:
+    if contradiction is not None:
+        return digest_held_to_the_build(digest, contradiction)
+    structural = structure_contradiction(
+        deps.state.domain.requirements,
+        deps.state.domain.operational_spec,
+    )
+    if structural is None:
         return digest
-    return digest_held_to_the_build(digest, contradiction)
+    return digest_held_to_the_build(
+        digest, structural, failure_cause=FailureCause.STRUCTURE_VIOLATION
+    )
 
 
 async def verify_strategy(

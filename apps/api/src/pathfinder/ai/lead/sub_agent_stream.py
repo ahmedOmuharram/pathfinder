@@ -45,6 +45,7 @@ from pathfinder.ai.graph._llm_capture import maybe_wrap_model
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.stream_events import ledger_update_event
 from pathfinder.ai.lead.derive import derive_ledger
+from pathfinder.ai.lead.phase_stop import PhaseStop, PhaseStopReason
 from pathfinder.ai.lead.sub_agent_events import (
     _announce_approval,
     _close_answered_approval,
@@ -159,9 +160,12 @@ async def stream_sub_agent[OutputT: BaseModel](
 
     Answers a ``resume`` into the run that produced it. Returns a
     ``SubAgentApprovalWait`` when the run stops on a call the user or the
-    worker must answer, and ``None`` when the run exhausts its budget.
+    worker must answer, and ``None`` when the run stops early. An early stop is
+    recorded on ``deps.last_phase_stop``, because a caller that reads only the
+    partial draft cannot tell a stop from a pass that had nothing to bind.
     """
     role = run.role
+    deps.last_phase_stop = None
     agent = BUILD_SUB_AGENT_BY_ROLE[role]()
     writer = get_stream_writer()
     inner_calls: dict[str, str] = {}
@@ -249,6 +253,12 @@ async def stream_sub_agent[OutputT: BaseModel](
                                 role=role,
                                 blocked=guard.total_blocked,
                             )
+                            deps.last_phase_stop = _phase_stop(
+                                PhaseStopReason.REPEATED_CALL,
+                                run=run,
+                                agent_deps=agent_deps,
+                                usage=usage,
+                            )
                             break
         except UsageLimitExceeded as exc:
             # A usage ceiling is a budget, not a correctness failure. The
@@ -259,11 +269,35 @@ async def stream_sub_agent[OutputT: BaseModel](
                 role=role,
                 error=str(exc),
             )
+            deps.last_phase_stop = _phase_stop(
+                PhaseStopReason.BUDGET,
+                run=run,
+                agent_deps=agent_deps,
+                usage=usage,
+            )
             _record_stopped_usage(deps, role, parent_tool_call_id, usage)
             return None
     if not usage_recorded:
         _record_stopped_usage(deps, role, parent_tool_call_id, usage)
     return wait if wait is not None else output
+
+
+def _phase_stop(
+    reason: PhaseStopReason,
+    *,
+    run: PhaseRun,
+    agent_deps: AgentDeps,
+    usage: RunUsage,
+) -> PhaseStop:
+    """The stop this run reports, sized by what it spent and what it bound."""
+    draft = agent_deps.agent_state.operational_spec_draft
+    return PhaseStop(
+        role=run.role,
+        reason=reason,
+        tool_calls=usage.tool_calls,
+        criteria_bound=sum(1 for c in draft.criteria if c.bound),
+        criteria_declared=run.declared_criteria,
+    )
 
 
 def _record_stopped_usage(

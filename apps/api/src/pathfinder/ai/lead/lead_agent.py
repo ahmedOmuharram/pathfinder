@@ -31,7 +31,10 @@ from pathfinder.ai.agents._instructions import (
 from pathfinder.ai.lead._lead_instructions import LEAD_INSTRUCTIONS
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.dispatch_context import inner_context
-from pathfinder.ai.lead.dispatch_messages import unverified_build_message
+from pathfinder.ai.lead.dispatch_messages import (
+    blamed_the_site_message,
+    unverified_build_message,
+)
 from pathfinder.ai.lead.edit_dispatch import edit_strategy
 from pathfinder.ai.lead.guarantees import machine_guarantees_pin
 from pathfinder.ai.lead.intent import UserIntent
@@ -43,6 +46,7 @@ from pathfinder.ai.lead.lead_pins import (
     pinned_user_intent,
     pinned_user_prompt,
 )
+from pathfinder.ai.lead.ledger import blamed_the_site
 from pathfinder.ai.lead.live_state import LiveStrategyState, read_live_state
 from pathfinder.ai.lead.sub_agent_dispatch import (
     build_strategy,
@@ -66,6 +70,12 @@ from pathfinder.ai.tools.standalone.control_sets import (
 from pathfinder.ai.tools.standalone.scored_comparison import compare_variants_scored
 from pathfinder.ai.tools.standalone.variant_comparison import compare_search_variants
 from pathfinder.ai.tools.toolsets import eda
+from pathfinder.domain.strategy.constraints import (
+    CombinationRequest,
+    Constraint,
+    ConstraintKind,
+    ConstraintSource,
+)
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 
 LeadTurnState = Literal["await_user", "complete"]
@@ -117,6 +127,18 @@ def classify_user_intent(
     for the same dimension, so a clarification answer like "RNA-Seq only,
     hard requirement" lands here even when scoping earlier assumed
     otherwise. Leave empty if the user states no concrete requirement.
+
+    When the user says HOW their evidence lines combine - "A OR B",
+    "either mass spec or DeRisi expression", "combine the two domain
+    searches with a union", "both filters must hold" - add one constraint
+    of kind "combination". Its requested value is that combination in the
+    canonical form "<term> OR <term>" (or AND), with one term per line of
+    evidence, written in the user's own words for it. Two terms minimum,
+    one operator only: a request that mixes OR and AND is two
+    constraints, one per group. This is the only machine-checkable record
+    of the boolean shape they asked for, so a stated combination that
+    never lands here is a strategy that can silently answer the other
+    question.
 
     Set ``hard=True`` for non-negotiable requirements ("only", "must",
     "required", "do not use X"); set ``hard=False`` when the user states a
@@ -306,6 +328,48 @@ def read_ledger_section(
     )
 
 
+_LABEL_LIMIT = 120
+
+
+def _answer_requirements(answers: list[UserQuestionAnswer]) -> list[Constraint]:
+    """The answers as requirements, one per answer that states a value.
+
+    An answer that reads as a combination expression is typed as one, so the
+    structure gate and the verification hold can check it.
+    """
+    requirements: list[Constraint] = []
+    for answer in answers:
+        stated = (
+            "; ".join(answer.chosen_labels) if answer.chosen_labels else answer.note
+        )
+        if not stated:
+            continue
+        expression = next(
+            (
+                text
+                for text in (*answer.chosen_labels, answer.note)
+                if CombinationRequest.parse(text) is not None
+            ),
+            None,
+        )
+        requirements.append(
+            Constraint(
+                kind=(
+                    ConstraintKind.OTHER
+                    if expression is None
+                    else ConstraintKind.COMBINATION
+                ),
+                requested_value=expression or stated,
+                # A question carries the label. An unlabelled one falls back to
+                # the answer, because a requirement is always named.
+                label=answer.prompt[:_LABEL_LIMIT] or stated[:_LABEL_LIMIT],
+                source=ConstraintSource.USER_EXPLICIT,
+                hard=True,
+            )
+        )
+    return requirements
+
+
 def _format_answers(answers: list[UserQuestionAnswer]) -> str:
     parts: list[str] = []
     for a in answers:
@@ -350,6 +414,7 @@ async def consult_user(
     if answers:
         # Their answers are new requirements, so one more frame is licensed.
         state.turn_markers.framed = False
+        state.domain.record_requirements(_answer_requirements(answers))
     asked.content = (
         f"Presented {len(questions)} question(s); awaiting the user's answers."
         if not answers
@@ -383,6 +448,26 @@ def verify_what_this_turn_built(
     raise ModelRetry(
         unverified_build_message(ctx.deps.state.domain.last_build_outcome),
     )
+
+
+def refuse_blaming_the_site(
+    ctx: RunContext[LeadDeps],
+    output: LeadResponse | DeferredToolRequests,
+) -> LeadResponse | DeferredToolRequests:
+    """Refuse a reply that attributes an internal stop to VEuPathDB.
+
+    A pass that ran out of calls is this turn's own limit. The refusal names
+    that limit, so the rewrite states it instead of asking the user to wait for
+    a site that reported no failure. It is asked once per turn.
+    """
+    if not isinstance(output, LeadResponse) or ctx.deps.site_blame_refused:
+        return output
+    ledger = derive_ledger(ctx.deps.state, ctx.deps.intent)
+    blame = blamed_the_site(output.prose, build=ledger.build)
+    if blame is None:
+        return output
+    ctx.deps.site_blame_refused = True
+    raise ModelRetry(blamed_the_site_message(blame, ctx.deps.last_phase_stop))
 
 
 LEAD_MODEL = "openai:gpt-5.6-luna"
@@ -443,4 +528,5 @@ def build_lead_agent() -> LeadAgent:
     agent.instructions(machine_guarantees_pin(agent.toolsets))
     agent.instructions(pinned_turn_briefing)
     agent.output_validator(verify_what_this_turn_built)
+    agent.output_validator(refuse_blaming_the_site)
     return agent
